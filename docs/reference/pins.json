@@ -1,0 +1,53 @@
+{
+    "repos": {
+        "sillytavern": {
+            "url": "https://github.com/SillyTavern/SillyTavern",
+            "branch": "release",
+            "commit": "06bde939fb1e9c4c8d8641d810f0a916b5bce127",
+            "date": "2026-09-14",
+            "map": "sillytavern.md",
+            "symbols": [
+                "public/script.js",
+                "public/scripts",
+                "src"
+            ]
+        },
+        "homunculus": {
+            "url": "https://github.com/VasahTS/Homunculus",
+            "branch": "main",
+            "commit": "0884338ac4c2c8411757bb0108649aef458b5ade",
+            "date": "2026-10-23",
+            "map": "homunculus-v1.md",
+            "symbols": [
+                "public/scripts",
+                "src"
+            ]
+        },
+        "marinara": {
+            "url": "https://github.com/Pasta-Devs/Marinara-Engine",
+            "branch": "main",
+            "commit": "e5ead06ac2fe1cb3e039f8cab7e4d266b01dac44",
+            "date": "2026-10-23",
+            "map": "marinara.md",
+            "symbols": [
+                "packages/server/src",
+                "packages/shared/src",
+                "packages/client/src/hooks",
+                "packages/client/src/stores",
+                "packages/client/src/features",
+                "packages/client/src/components"
+            ]
+        },
+        "aventuras": {
+            "url": "https://github.com/AventurasTeam/Aventuras",
+            "branch": "master",
+            "commit": "d98ad752afff39bdd15e4244d52cfff6f9948d9c",
+            "date": "2026-10-26",
+            "map": "aventuras.md",
+            "symbols": [
+                "src/lib",
+                "src-tauri/src"
+            ]
+        }
+    }
+}

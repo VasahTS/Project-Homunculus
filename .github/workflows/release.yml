@@ -1,0 +1,124 @@
+# Homunculus 2 — "Publicar versão": builds the Windows installer and publishes it as a GitHub Release (D-037).
+# Author: CLAUDE, 2026-10-29. Started by hand: Actions → Publicar versão → Run workflow → type the version.
+# Order: check → tests → build and sign (draft release) → save the new version number in the repo → publish.
+# If anything fails before the last step, nothing is public and the testers' apps see nothing new.
+name: Publicar versão
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Número da nova versão (ex.: 0.2.0)"
+        required: true
+      notes:
+        description: "O que mudou, numa linha (opcional; se o CHANGELOG.md tiver a seção desta versão, ela vale)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    env:
+      # the form's text reaches the scripts only through variables (never pasted into a command)
+      INPUT_VERSION: ${{ inputs.version }}
+      INPUT_NOTES: ${{ inputs.notes }}
+    steps:
+      - name: Só publica a partir da main
+        if: github.ref != 'refs/heads/main'
+        shell: bash
+        run: |
+          echo "✖ Escolha a branch main em \"Use workflow from\" (a dev é para o dia a dia)."
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Conferir versão e chave de assinatura
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          VERSION="$(echo "$INPUT_VERSION" | tr -d '[:space:]')"
+          VERSION="${VERSION#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          node scripts/release/set-version.mjs "$VERSION"
+          node scripts/release/release-config.mjs
+          {
+            echo "NOTES_BODY<<H2_NOTES_END"
+            node scripts/release/notes.mjs "$VERSION" "$INPUT_NOTES"
+            echo "H2_NOTES_END"
+          } >> "$GITHUB_ENV"
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Testes (não publica uma versão quebrada)
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Criar o instalador e assinar
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          args: --config src-tauri/tauri.release.conf.json
+          tagName: v${{ env.VERSION }}
+          releaseName: Homunculus ${{ env.VERSION }}
+          releaseBody: ${{ env.NOTES_BODY }}
+          releaseDraft: true
+          prerelease: false
+
+      - name: Guardar o número da versão no projeto
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json apps/desktop/package.json apps/desktop/src-tauri/tauri.conf.json apps/desktop/src-tauri/Cargo.toml
+          if ! git diff --cached --quiet; then
+            git commit -m "Versão $VERSION"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Publicar
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "v$VERSION" --draft=false --latest --target "$RELEASE_SHA"
+          echo "### Homunculus $VERSION publicado" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Levar o número da versão para a dev
+        continue-on-error: true
+        shell: bash
+        run: |
+          git fetch origin dev
+          git checkout -B dev origin/dev
+          git merge --no-edit "$RELEASE_SHA" -m "Versão $VERSION (da main)"
+          git push origin dev

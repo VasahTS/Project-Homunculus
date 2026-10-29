@@ -1,0 +1,21 @@
+node_modules/
+dist/
+target/
+*.log
+e2e/.results/
+test-results/
+playwright-report/
+.refs/
+# portable copy of the app WITH Daniel's data and API keys (D-030) - never commit
+Homunculus Portatil/
+# Tauri: generated schemas, and the release overlay written in GitHub Actions (D-037)
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/tauri.release.conf.json
+# never publish data or keys (D-037): databases, portable data folders, signing keys
+*.db
+*.db-wal
+*.db-shm
+dados/
+chaves.json
+*.key
+.env

@@ -1,0 +1,118 @@
+/* Homunculus 2 — design tokens. Author: CLAUDE, 2026-10-27 (UI direction "I", D-018).
+ *
+ * The ONLY place with colors, radii, fonts and materials. Components use these names, never raw values.
+ * A theme is one block of the same names under :root[data-theme="<name>"] (e.g. "blood-ink", "light"
+ * later); nothing else changes. Names say what a value is FOR (label-2 = secondary text), not what it looks like.
+ *
+ * Two layers, as in Apple's guidelines (docs/BLUEPRINT.md §UI): the CONTENT layer (story, lists, forms) is
+ * opaque; the FUNCTIONAL layer (sidebar, inspector, popovers) floats above it in glass.
+ */
+
+/* prose font, bundled so the app works offline (OFL) */
+@import "@fontsource/literata/400.css";
+@import "@fontsource/literata/400-italic.css";
+@import "@fontsource/literata/600.css";
+@import "@fontsource/literata/600-italic.css";
+
+:root,
+:root[data-theme="graphite"] {
+  color-scheme: dark;
+
+  /* window and content layer */
+  --window: #1b1c1f;
+  --backdrop: radial-gradient(1200px 520px at 30% -10%, #23403b 0%, transparent 60%),
+    radial-gradient(900px 600px at 110% 110%, #2a2536 0%, transparent 55%), #1b1c1f;
+  --field: #24262a;            /* input wells, composer */
+  --surface: #202226;          /* opaque cards in the content layer */
+
+  /* text (vibrant labels) */
+  --label: rgba(255, 255, 255, 0.88);
+  --label-2: rgba(235, 235, 245, 0.62);
+  --label-3: rgba(235, 235, 245, 0.42); /* decoration only, never body text */
+
+  /* lines and fills */
+  --separator: rgba(255, 255, 255, 0.09);
+  --fill: rgba(255, 255, 255, 0.07);
+  --fill-hover: rgba(255, 255, 255, 0.12);
+  --fill-selected: rgba(255, 255, 255, 0.16);
+  --group: rgba(255, 255, 255, 0.055);   /* grouped-list background */
+
+  /* one accent: primary action, selection, status */
+  --accent: #62b6a4;
+  --accent-ink: #0d2420;                 /* text on accent */
+  --accent-soft: rgba(98, 182, 164, 0.2);
+  --focus-ring: rgba(98, 182, 164, 0.45);
+
+  /* status */
+  --ok: #7fd19b;
+  --warn: #e3b45c;
+  --danger: #ff8a80;
+  --danger-soft: rgba(255, 138, 128, 0.14);
+  --meter-hp: #e58a80;
+  --meter-mp: #8ab0e6;
+
+  /* kinds of place a lorebook entry goes (drawing colors; always shown with words, never alone) */
+  --place-character: #8db4ee;
+  --place-chat: #9bd08a;
+  --place-examples: #e3b26b;
+  --place-note: #c3a6ee;
+  --place-outlet: #e59bb8;
+
+  /* functional layer (glass) */
+  --glass: rgba(38, 40, 44, 0.72);
+  --glass-edge: rgba(255, 255, 255, 0.1);
+  --pop: #26282c;                        /* menus that open over the story text: solid, so the prose doesn't show through */
+  --glass-blur: blur(30px) saturate(1.4);
+  --shadow-float: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  /* shape */
+  --radius-panel: 14px;
+  --radius-group: 10px;
+  --radius-control: 7px;
+  --radius-pill: 999px;
+  --gap-float: 8px;            /* space around floating panels */
+
+  /* type: system font for controls, a reading face for the story */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-prose: "Literata", Georgia, serif;
+  --size-ui: 13px;
+  --size-small: 12px;
+  --size-section: 11.5px;
+  --size-title: 15px;
+  --size-prose: 16.5px;
+  --leading-prose: 1.72;
+
+  /* layout */
+  --sidebar-w: 240px;
+  --inspector-w: 380px;
+  --story-w: 720px;
+
+  /* motion (2026-10-28, D-023; vocabulary taken from the Coffra reference Daniel picked):
+   * one "settle" curve for almost everything, a spring for things that pop in, a quick "leave" curve. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --dur-fast: 160ms;
+  --dur: 280ms;
+  --dur-slow: 520ms;
+  /* where a piece of the prompt came from (Preview, Reply) */
+  --cat-preset: #62b6a4;
+  --cat-character: #8ab0e6;
+  --cat-persona: #c0acff;
+  --cat-scene: #e3c27f;
+  --cat-lore: #9fd38a;
+  --cat-history: #9aa3ad;
+  --cat-agent: #e58a80;
+  --cat-other: #6e7781;
+  --flash: rgba(98, 182, 164, 0.32);    /* a value that just changed glows with this, then fades */
+  --scrim: rgba(8, 9, 11, 0.55);         /* behind sheets */
+}
+
+/* People who ask the system for less transparency get opaque panels. */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass: #26282c; --glass-blur: none; }
+}
+@media (prefers-contrast: more) {
+  :root { --separator: rgba(255, 255, 255, 0.22); --label-2: rgba(235, 235, 245, 0.8); --fill: rgba(255, 255, 255, 0.12); }
+}

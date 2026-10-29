@@ -1,0 +1,22 @@
+# Homunculus 2 — tests on every push and pull request (D-037). Author: CLAUDE, 2026-10-29.
+# The click tests (npm run test:e2e) stay on the PC; here: typecheck + unit tests, a few minutes.
+name: Testes
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test

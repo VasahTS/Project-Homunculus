@@ -1,0 +1,11 @@
+{
+  "name": "@homunculus/st-cards",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@homunculus/core": "0.0.1",
+    "@homunculus/schemas": "0.0.1"
+  }
+}

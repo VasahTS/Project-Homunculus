@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- Homunculus 2 · Apple-inspired interaction studies. Author: CODEX, 2026-10-29. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark"><title>Homunculus · Motion studies</title>
+  <link rel="stylesheet" href="styles.css"><script src="app.js" defer></script>
+</head>
+<body>
+  <a href="#content" class="skip">Skip to content</a>
+  <header class="review" lang="pt-BR">
+    <div class="review-name"><strong>Homunculus</strong><span>Estudos de navegação · rodada 2</span></div>
+    <nav class="draft-picker" aria-label="Drafts"><button data-draft="d" aria-pressed="true">D <span>Atelier</span></button><button data-draft="e" aria-pressed="false">E <span>Lantern</span></button><button data-draft="f" aria-pressed="false">F <span>Workspace</span></button></nav>
+    <div class="review-settings"><label><input id="reduce" type="checkbox"> Movimento reduzido</label><label class="state-label">Estado <select id="state"><option value="normal">Em uso</option><option value="full">Biblioteca cheia</option><option value="empty">Primeiro uso</option><option value="loading">Carregando</option><option value="error">Erro</option></select></label></div>
+    <p id="direction-note">Clique em uma capa, volte e experimente os menus. Todos os dados são fictícios.</p>
+  </header>
+  <div class="shell" data-draft="d" data-ui>
+    <aside class="sidebar" aria-label="Main navigation"></aside>
+    <div class="workspace">
+      <header class="toolbar">
+        <button class="icon-button" id="sidebar-toggle" data-action="sidebar" aria-label="Toggle sidebar" aria-expanded="true"></button>
+        <div class="breadcrumbs" id="breadcrumbs">Home</div>
+        <div class="toolbar-actions"><button class="search-trigger" data-action="search"><span id="search-icon"></span><span>Search</span><kbd>Ctrl K</kbd></button><button class="icon-button new-trigger" id="new-trigger" popovertarget="new-menu" aria-label="New" aria-haspopup="menu"></button></div>
+      </header>
+      <main id="content" tabindex="-1"></main>
+    </div>
+    <nav class="compact-nav" aria-label="Main navigation"></nav>
+  </div>
+  <div id="new-menu" class="action-menu" popover role="menu" aria-label="New"><div class="menu-content"><button role="menuitem" data-action="create"></button><button role="menuitem" data-action="choose-chat"></button><button role="menuitem" data-action="import"></button></div></div>
+  <div id="story-menu" class="action-menu" popover role="menu" aria-label="Story actions"><div class="menu-content"><button role="menuitem" data-action="pin"></button><button role="menuitem" data-action="duplicate"></button><button role="menuitem" data-action="open-story"></button></div></div>
+  <dialog id="sheet" class="sheet" aria-labelledby="sheet-title"><div class="sheet-header"><button class="text-button" data-action="sheet-close">Cancel</button><span id="sheet-label">New Story</span><span class="sheet-top-spacer"></span></div><div id="sheet-content"></div></dialog>
+  <dialog id="command" class="command" aria-labelledby="command-title"><h2 id="command-title" class="sr-only">Search Stories and Characters</h2><div class="command-input"><span id="command-icon"></span><input id="command-search" type="search" placeholder="Find a story or character" aria-label="Find a story or character" autocomplete="off"><button class="icon-button" data-action="command-close" aria-label="Close search">✕</button></div><div id="command-results"></div><div class="command-footer"><span>↑ ↓ to choose</span><span>Enter to open</span><span>Esc to close</span></div></dialog>
+  <div id="toast" class="toast" role="status"><span></span><button data-action="undo">Undo</button></div>
+  <div class="sr-only" id="announcement" role="status" aria-live="polite"></div>
+</body>
+</html>

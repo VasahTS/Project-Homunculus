@@ -1,0 +1,23 @@
+// Screenshots of the Scene panel with a copy of Daniel's database (browser mode). CLAUDE, 2026-10-28.
+import { chromium } from "@playwright/test";
+import { readFileSync } from "node:fs";
+const db = readFileSync(process.env.H2_REAL_DB).toString("base64");
+const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1400, height: 1000 } });
+p.on("pageerror", (e) => console.log("PAGEERR", e.message));
+await p.addInitScript((d) => { globalThis.__h2SeedDb = d; }, db);
+await p.goto("http://localhost:1420/"); await p.waitForTimeout(2500);
+const sessions = p.getByTestId("session-list").getByRole("button");
+console.log("sessions:", await sessions.allInnerTexts());
+await sessions.nth(Number(process.env.S ?? 0)).click(); await p.waitForTimeout(2500);
+const insp = p.locator("[data-region=inspector]");
+await insp.screenshot({ path: "/home/claude/shots/real-list.png" });
+await p.locator(".inspector-body").evaluate((e) => e.scrollTop = 900); await p.waitForTimeout(300);
+await insp.screenshot({ path: "/home/claude/shots/real-list2.png" });
+await p.locator(".inspector-body").evaluate((e) => e.scrollTop = 0);
+const who = p.getByTestId("who-block");
+console.log("people:", (await who.allInnerTexts()).map((x) => x.split("\n")[0]));
+await who.nth(Number(process.env.P ?? 2)).click(); await p.waitForTimeout(700);
+await insp.screenshot({ path: "/home/claude/shots/real-page.png" });
+await p.locator(".inspector-body").evaluate((e) => e.scrollTop = 900); await p.waitForTimeout(300);
+await insp.screenshot({ path: "/home/claude/shots/real-page2.png" });
+await b.close();

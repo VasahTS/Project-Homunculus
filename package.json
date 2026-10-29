@@ -1,0 +1,30 @@
+{
+  "name": "homunculus2",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Homunculus 2 — roleplay app with native agents. Foundation by CLAUDE.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "app": "npm run tauri -w @homunculus/desktop -- dev",
+    "app:build": "npm run tauri -w @homunculus/desktop -- build",
+    "app:portable": "npm run tauri -w @homunculus/desktop -- build --no-bundle",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:all": "npm run typecheck && npm test && npm run test:e2e",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "refs": "node scripts/refs.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.5",
+    "@types/sql.js": "^1.4.11",
+    "typescript": "5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

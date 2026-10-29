@@ -1,0 +1,27 @@
+# Homunculus 2 — native shell (Rust). Author: CLAUDE, 2026-10-23.
+# Kept tiny on purpose (decision D-003): the brain is TypeScript.
+[package]
+name = "homunculus"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+name = "homunculus_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+# OS keychain for API keys (Windows Credential Manager on Daniel's PC). D-011.
+keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native"] }
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Updates from GitHub Releases (D-037, CLAUDE 2026-10-29): the updater checks/installs, process restarts the app.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

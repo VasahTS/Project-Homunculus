@@ -1,0 +1,36 @@
+{
+  "name": "@homunculus/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@fontsource/literata": "^5.3.0",
+    "@homunculus/core": "0.0.1",
+    "@homunculus/provider-openai": "^0.0.1",
+    "@homunculus/schemas": "0.0.1",
+    "@homunculus/st-cards": "^0.0.1",
+    "@homunculus/st-personas": "0.0.1",
+    "@homunculus/st-presets": "0.0.1",
+    "@homunculus/st-lorebooks": "0.0.1",
+    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-sql": "^2.6.0",
+    "@tauri-apps/plugin-updater": "^2.14.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "sql.js": "^1.15.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "^8.3.5"
+  }
+}

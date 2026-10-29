@@ -1,0 +1,259 @@
+{
+  "author": "CODEX",
+  "file": "home-motion-drafts.html",
+  "layouts": [
+    {
+      "draft": "d",
+      "width": 1440,
+      "appearance": "light"
+    },
+    {
+      "draft": "e",
+      "width": 1440,
+      "appearance": "light"
+    },
+    {
+      "draft": "f",
+      "width": 1440,
+      "appearance": "light"
+    },
+    {
+      "draft": "d",
+      "width": 900,
+      "appearance": "light"
+    },
+    {
+      "draft": "e",
+      "width": 900,
+      "appearance": "light"
+    },
+    {
+      "draft": "f",
+      "width": 900,
+      "appearance": "light"
+    },
+    {
+      "draft": "d",
+      "width": 390,
+      "appearance": "light"
+    },
+    {
+      "draft": "e",
+      "width": 390,
+      "appearance": "light"
+    },
+    {
+      "draft": "f",
+      "width": 390,
+      "appearance": "light"
+    },
+    {
+      "draft": "d",
+      "width": 1440,
+      "appearance": "dark"
+    },
+    {
+      "draft": "e",
+      "width": 1440,
+      "appearance": "dark"
+    },
+    {
+      "draft": "f",
+      "width": 1440,
+      "appearance": "dark"
+    },
+    {
+      "draft": "d",
+      "width": 900,
+      "appearance": "dark"
+    },
+    {
+      "draft": "e",
+      "width": 900,
+      "appearance": "dark"
+    },
+    {
+      "draft": "f",
+      "width": 900,
+      "appearance": "dark"
+    },
+    {
+      "draft": "d",
+      "width": 390,
+      "appearance": "dark"
+    },
+    {
+      "draft": "e",
+      "width": 390,
+      "appearance": "dark"
+    },
+    {
+      "draft": "f",
+      "width": 390,
+      "appearance": "dark"
+    }
+  ],
+  "contrast": [
+    {
+      "appearance": "light",
+      "foreground": "foreground",
+      "surface": "background",
+      "ratio": 11.84
+    },
+    {
+      "appearance": "light",
+      "foreground": "secondary",
+      "surface": "background",
+      "ratio": 5.5
+    },
+    {
+      "appearance": "light",
+      "foreground": "foreground",
+      "surface": "surface",
+      "ratio": 12.96
+    },
+    {
+      "appearance": "light",
+      "foreground": "secondary",
+      "surface": "surface",
+      "ratio": 6.02
+    },
+    {
+      "appearance": "light",
+      "foreground": "foreground",
+      "surface": "surface-2",
+      "ratio": 10.94
+    },
+    {
+      "appearance": "light",
+      "foreground": "secondary",
+      "surface": "surface-2",
+      "ratio": 5.09
+    },
+    {
+      "appearance": "light",
+      "foreground": "foreground",
+      "surface": "selection",
+      "ratio": 10.24
+    },
+    {
+      "appearance": "light",
+      "foreground": "secondary",
+      "surface": "selection",
+      "ratio": 4.76
+    },
+    {
+      "appearance": "dark",
+      "foreground": "foreground",
+      "surface": "background",
+      "ratio": 14.88
+    },
+    {
+      "appearance": "dark",
+      "foreground": "secondary",
+      "surface": "background",
+      "ratio": 8.95
+    },
+    {
+      "appearance": "dark",
+      "foreground": "foreground",
+      "surface": "surface",
+      "ratio": 12.77
+    },
+    {
+      "appearance": "dark",
+      "foreground": "secondary",
+      "surface": "surface",
+      "ratio": 7.68
+    },
+    {
+      "appearance": "dark",
+      "foreground": "foreground",
+      "surface": "surface-2",
+      "ratio": 11.18
+    },
+    {
+      "appearance": "dark",
+      "foreground": "secondary",
+      "surface": "surface-2",
+      "ratio": 6.72
+    },
+    {
+      "appearance": "dark",
+      "foreground": "foreground",
+      "surface": "selection",
+      "ratio": 8.42
+    },
+    {
+      "appearance": "dark",
+      "foreground": "secondary",
+      "surface": "selection",
+      "ratio": 5.06
+    }
+  ],
+  "motion": [
+    {
+      "sharedCover": {
+        "duration": 240,
+        "frames": [
+          {
+            "transform": "translate(0px, 0px)",
+            "clipPath": "inset(0px 0px 20px round 8px)"
+          },
+          {
+            "transform": "translate(0px, -98.2969px)",
+            "clipPath": "inset(0px 20px 0px 0px round 8px)"
+          },
+          {
+            "transform": "translate(-36.2px, 0px) scale(1.73333)"
+          },
+          {
+            "transform": "translate(-58.6px, 0px) scale(1.86667)"
+          }
+        ],
+        "rect": {
+          "x": 258,
+          "y": 228.71481323242188,
+          "width": 250,
+          "height": 280,
+          "top": 228.71481323242188,
+          "right": 508,
+          "bottom": 508.7148132324219,
+          "left": 258
+        }
+      }
+    },
+    {
+      "sheet": {
+        "duration": 280,
+        "frames": [
+          {
+            "transform": "translateY(12px) scale(0.97)",
+            "opacity": "0"
+          },
+          {
+            "transform": "translateY(0px) scale(1)",
+            "opacity": "1"
+          }
+        ]
+      }
+    }
+  ],
+  "checks": [
+    "18 layout/appearance combinations; first-use, full, loading, error, retry; no horizontal overflow or broken images",
+    "Native menu: arrow navigation, Escape, return focus; keyboard opening of menu and sheet is immediate",
+    "Shared cover opens and returns symmetrically in 240 ms; midpoint inspected; navigation cancels without orphan overlays",
+    "Ctrl K and typed search: instant; keyboard selection opens Story without motion; no-results state",
+    "Sheet movement limited to transform/opacity; temporary Story creation and undo; Story menu pin and undo",
+    "Split view: pointer and arrow-key selection, tab keyboard semantics, filter/no-results, compact back navigation",
+    "Reduced motion via review and system: opacity only, no cover displacement; reduced-transparency CSS has opaque fallback"
+  ],
+  "accessibility": {
+    "transparency": true,
+    "filter": "none",
+    "fill": "rgb(255, 255, 255)",
+    "outline": "2px"
+  },
+  "consoleErrors": [],
+  "result": "PASS"
+}

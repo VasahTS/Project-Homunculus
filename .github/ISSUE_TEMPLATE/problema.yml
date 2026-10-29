@@ -1,0 +1,44 @@
+name: Problema
+description: Algo não funcionou como devia.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado! Uma frase e um print já ajudam muito. **Nunca cole a sua chave de API aqui** — as issues são públicas.
+  - type: input
+    id: versao
+    attributes:
+      label: Versão
+      description: Settings → About
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: oque
+    attributes:
+      label: O que aconteceu?
+      description: O que você fez, passo a passo, e o que apareceu.
+      placeholder: |
+        1. Abri um chat com a Lyra
+        2. Cliquei em…
+        3. Apareceu…
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que você esperava?
+  - type: textarea
+    id: prints
+    attributes:
+      label: Prints
+      description: Win + Shift + S para tirar, depois Ctrl + V aqui.
+  - type: dropdown
+    id: frequencia
+    attributes:
+      label: Acontece sempre?
+      options:
+        - Sempre
+        - Às vezes
+        - Só aconteceu uma vez

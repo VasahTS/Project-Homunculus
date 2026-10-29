@@ -1,0 +1,7 @@
+# Homunculus 2 — line endings (D-037). Windows batch files must keep CRLF or cmd.exe misreads them.
+* text=auto
+*.bat text eol=crlf
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary
