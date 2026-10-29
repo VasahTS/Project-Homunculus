@@ -1,5 +1,0 @@
-Este arquivo liga o modo portatil do Homunculus: tudo fica na pasta "dados", ao lado do programa.
-Para levar o Homunculus para outro lugar ou fazer backup, copie esta pasta inteira com o app fechado.
-Para atualizar: rode "Criar versao portatil.bat" na pasta do projeto e depois "Atualizar Homunculus.bat" aqui.
-Cuidado: as chaves de API ficam em dados\chaves.json. Quem tiver a pasta consegue le-las.
-Se apagar este arquivo, o Homunculus volta a guardar os dados na pasta do Windows.

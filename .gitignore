@@ -6,7 +6,9 @@ e2e/.results/
 test-results/
 playwright-report/
 .refs/
-# portable copy of the app WITH Daniel's data and API keys (D-030) - never commit
+# portable copy of the app, which may hold data and API keys (D-030) - never commit
+Homunculus Portable/
+# the same folder under its old (Portuguese) name, from before D-038
 Homunculus Portatil/
 # Tauri: generated schemas, and the release overlay written in GitHub Actions (D-037)
 apps/desktop/src-tauri/gen/
@@ -15,6 +17,9 @@ apps/desktop/src-tauri/tauri.release.conf.json
 *.db
 *.db-wal
 *.db-shm
+data/
+keys.json
+# the same data under their old (Portuguese) names, from before D-038
 dados/
 chaves.json
 *.key

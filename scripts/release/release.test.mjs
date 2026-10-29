@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compare } from "./set-version.mjs";
 import { sectionFor } from "./notes.mjs";
 import { repoFromGitConfig } from "./updater-key.mjs";
+import { buildManifest } from "./updater-json.mjs";
 
 describe("release scripts", () => {
   it("compares versions by number, not by text", () => {
@@ -23,5 +24,17 @@ describe("release scripts", () => {
     expect(repoFromGitConfig('[core]\n\tbare = false\n[remote "origin"]\n\turl = https://github.com/dan/Homunculus2.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n')).toBe("dan/Homunculus2");
     expect(repoFromGitConfig('[remote "origin"]\n\turl = git@github.com:dan/h2.git\n')).toBe("dan/h2");
     expect(repoFromGitConfig("[core]\n\tbare = false\n")).toBeNull();
+  });
+
+  it("lists the Windows installer and the Linux AppImage in latest.json, never the .deb", () => {
+    const m = buildManifest({
+      version: "0.2.0", notes: "n", repo: "VasahTS/Project-Homunculus", date: "D",
+      assets: ["Homunculus_0.2.0_x64-setup.exe", "Homunculus_0.2.0_x64-setup.exe.sig", "Homunculus_0.2.0_amd64.AppImage",
+        "Homunculus_0.2.0_amd64.AppImage.sig", "Homunculus_0.2.0_amd64.deb"],
+      signature: (name) => `sig of ${name}`,
+    });
+    expect(Object.keys(m.platforms).sort()).toEqual(["linux-x86_64", "linux-x86_64-appimage", "windows-x86_64", "windows-x86_64-nsis"]);
+    expect(m.platforms["linux-x86_64"].url).toBe("https://github.com/VasahTS/Project-Homunculus/releases/download/v0.2.0/Homunculus_0.2.0_amd64.AppImage");
+    expect(m.platforms["windows-x86_64"].signature).toBe("sig of Homunculus_0.2.0_x64-setup.exe.sig");
   });
 });

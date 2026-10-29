@@ -16,7 +16,10 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 # OS keychain for API keys (Windows Credential Manager on Daniel's PC). D-011.
-keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native"] }
+# Linux: kernel keyring backed by the Secret Service (GNOME Keyring / KWallet), so keys survive a restart (D-038).
+keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native-sync-persistent", "crypto-rust"] }
+# opens the release page for copies that update by hand (Linux .deb, D-038)
+tauri-plugin-opener = "2"
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

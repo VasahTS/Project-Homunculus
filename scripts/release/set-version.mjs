@@ -48,10 +48,10 @@ function tagExists(tag) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const version = (process.argv[2] ?? "").trim().replace(/^v/, "");
   const fail = (msg) => { console.error(`\n✖ ${msg}\n`); process.exit(1); };
-  if (!SEMVER.test(version)) fail(`"${version}" não é um número de versão. Use três números, ex.: 0.2.0`);
+  if (!SEMVER.test(version)) fail(`"${version}" is not a version number. Use three numbers, e.g. 0.2.0`);
   const current = JSON.parse(readFileSync(at("apps/desktop/package.json"), "utf8")).version;
-  if (compare(version, current) < 0) fail(`A versão ${version} é menor que a atual (${current}). Use um número maior.`);
-  if (tagExists(`v${version}`)) fail(`A versão ${version} já foi publicada. Use um número maior que ${version}.`);
+  if (compare(version, current) < 0) fail(`Version ${version} is lower than the current one (${current}). Use a higher number.`);
+  if (tagExists(`v${version}`)) fail(`Version ${version} was already published. Use a number higher than ${version}.`);
   setVersion(version);
-  console.log(`Versão ${current} → ${version}`);
+  console.log(`Version ${current} → ${version}`);
 }

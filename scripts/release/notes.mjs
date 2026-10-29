@@ -1,7 +1,7 @@
 // Homunculus 2 — the release notes of one version, from CHANGELOG.md (D-037). Author: CLAUDE, 2026-10-29.
 // Usage: node scripts/release/notes.mjs 0.2.0 ["one-line notes from the form"]
 // Prints the "## 0.2.0" section of CHANGELOG.md (without the heading). If there is none, the line typed
-// in the "Publicar versão" form; if that is empty too, a short default. Shown on GitHub and in the app.
+// in the "Publish release" form; if that is empty too, a short default. Shown on GitHub and in the app.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -18,5 +18,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const [version = "", typed = ""] = process.argv.slice(2);
   const path = fileURLToPath(new URL("../../CHANGELOG.md", import.meta.url));
   const fromLog = existsSync(path) ? sectionFor(readFileSync(path, "utf8"), version.replace(/^v/, "")) : "";
-  process.stdout.write((fromLog || typed.trim() || "Melhorias e correções.") + "\n");
+  process.stdout.write((fromLog || typed.trim() || "Improvements and fixes.") + "\n");
 }

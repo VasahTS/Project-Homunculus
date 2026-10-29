@@ -1,6 +1,6 @@
-# Homunculus 2 — tests on every push and pull request (D-037). Author: CLAUDE, 2026-10-29.
-# The click tests (npm run test:e2e) stay on the PC; here: typecheck + unit tests, a few minutes.
-name: Testes
+# Homunculus 2 — tests on every push and pull request (D-037, D-038). Author: CLAUDE, 2026-10-29.
+# The click tests (npm run test:e2e) stay on the PC; here: typecheck + unit tests, and the Rust shell compiles.
+name: Tests
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
 
 jobs:
   test:
+    name: Typecheck and unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -20,3 +21,25 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
+
+  rust:
+    name: Rust shell compiles
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libdbus-1-dev libssl-dev libxdo-dev
+      - run: npm install --no-audit --no-fund
+      # the shell embeds the built screens, so build them first
+      - run: npm run build -w @homunculus/desktop
+      - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked || cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml

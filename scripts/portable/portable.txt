@@ -1,0 +1,5 @@
+This file turns on Homunculus's portable mode: everything is kept in the "data" folder, next to the program.
+To move Homunculus somewhere else or back it up, copy this whole folder while the app is closed.
+To update: run "Build portable version.bat" in the project folder, then "Update Homunculus.bat" here.
+Careful: the API keys are in data\keys.json. Anyone who has the folder can read them.
+If you delete this file, Homunculus goes back to keeping its data in the Windows user folder.

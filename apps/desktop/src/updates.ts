@@ -2,7 +2,9 @@
 // The installed app asks GitHub, a few seconds after it opens, whether a newer version exists (the
 // `latest.json` that the "Publicar versão" workflow uploads). It never updates on its own: a quiet bar
 // offers "Update & Restart", and Settings → About has "Check for Updates".
-// Off in: the browser preview, `npm run app` (dev), and portable copies (those keep "Atualizar Homunculus.bat").
+// Off in: the browser preview, `npm run app` (dev), and portable copies (those keep "Update Homunculus.bat").
+// A Linux .deb is updated by the system's package manager, so there the bar only says a version is out and
+// "Download" opens the release page (D-038); the Windows installer and the Linux AppImage update themselves.
 // Each update is signed; the app only installs files signed with the project's key (pubkey in tauri.conf.json).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isDesktop } from "./db.ts";
@@ -12,7 +14,7 @@ export type UpdateState =
   | { kind: "idle" }
   | { kind: "checking" }
   | { kind: "current"; checkedAt: number }
-  | { kind: "available"; version: string; notes: string }
+  | { kind: "available"; version: string; notes: string; manual: boolean }
   | { kind: "downloading"; version: string; percent: number | null }
   | { kind: "restarting"; version: string }
   | { kind: "error"; during: "check" | "install"; message: string; version?: string };
@@ -24,6 +26,7 @@ export interface Updates {
   /** "Later" closes the bar until the next start or the next "Check for Updates". */
   dismissed: boolean;
   check(): Promise<void>;
+  /** Installs and restarts; for a copy that updates by hand (Linux .deb), opens the download page instead. */
   install(): Promise<void>;
   dismiss(): void;
 }
@@ -43,11 +46,13 @@ type DownloadEvent =
  * Click tests and the browser preview: `globalThis.__h2FakeUpdate = { version, notes, fail }` before the page
  * loads makes the app behave as if GitHub had a newer version. Never used by the desktop app.
  */
-interface FakeUpdate { version: string; notes?: string; fail?: string }
+interface FakeUpdate { version: string; notes?: string; fail?: string; manual?: boolean }
 const fake = (): FakeUpdate | undefined => (globalThis as { __h2FakeUpdate?: FakeUpdate }).__h2FakeUpdate;
 
 const FIRST_CHECK_MS = 4_000;            // let the app finish opening first
 const RECHECK_MS = 6 * 60 * 60 * 1_000;  // an app left open all day still hears about a new version
+
+interface Channel { channel: "auto" | "manual"; releasePage: string }
 
 async function whyOff(): Promise<"preview" | "dev" | "portable" | null> {
   if (!isDesktop) return fake() ? null : "preview";
@@ -57,6 +62,15 @@ async function whyOff(): Promise<"preview" | "dev" | "portable" | null> {
     const where = await invoke<{ portable: boolean }>("data_location");
     return where.portable ? "portable" : null;
   } catch { return null; }
+}
+
+async function channelOf(): Promise<Channel> {
+  const f = fake();
+  if (!isDesktop) return { channel: f?.manual ? "manual" : "auto", releasePage: "https://example.invalid/releases/latest" };
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return await invoke<Channel>("update_channel");
+  } catch { return { channel: "auto", releasePage: "" }; }
 }
 
 async function findUpdate(): Promise<Pending | null> {
@@ -87,6 +101,7 @@ export function useUpdates(): Updates {
   const pending = useRef<Pending | null>(null);
   const busy = useRef(false);
   const off = useRef<boolean>(true);
+  const channel = useRef<Channel>({ channel: "auto", releasePage: "" });
 
   const check = useCallback(async () => {
     if (off.current || busy.current) return;
@@ -96,7 +111,8 @@ export function useUpdates(): Updates {
     try {
       const u = await findUpdate();
       pending.current = u;
-      setState(u ? { kind: "available", version: u.version, notes: (u.body ?? "").trim() } : { kind: "current", checkedAt: Date.now() });
+      setState(u ? { kind: "available", version: u.version, notes: (u.body ?? "").trim(), manual: channel.current.channel === "manual" }
+        : { kind: "current", checkedAt: Date.now() });
     } catch (e) {
       // no internet, GitHub down…: quiet on the automatic check; Settings → About shows it
       setState({ kind: "error", during: "check", message: message(e) });
@@ -106,6 +122,14 @@ export function useUpdates(): Updates {
   const install = useCallback(async () => {
     const u = pending.current;
     if (!u || busy.current) return;
+    if (channel.current.channel === "manual") {
+      // Linux .deb: the system installs it; open the page with the new .deb
+      if (isDesktop && channel.current.releasePage) {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(channel.current.releasePage);
+      }
+      return;
+    }
     busy.current = true;
     setState({ kind: "downloading", version: u.version, percent: null });
     let total = 0, got = 0, shown = -1;
@@ -131,9 +155,10 @@ export function useUpdates(): Updates {
     let alive = true;
     let first: ReturnType<typeof setTimeout> | undefined;
     let again: ReturnType<typeof setInterval> | undefined;
-    void whyOff().then((why) => {
+    void Promise.all([whyOff(), channelOf()]).then(([why, ch]) => {
       if (!alive) return;
       if (why) { setState({ kind: "off", why }); return; }
+      channel.current = ch;
       off.current = false;
       first = setTimeout(() => void check(), fake() ? 0 : FIRST_CHECK_MS);
       again = setInterval(() => { if (!pending.current) void check(); }, RECHECK_MS);
@@ -149,13 +174,13 @@ export function updateStatusText(u: Updates): string {
   const s = u.state;
   switch (s.kind) {
     case "off":
-      return s.why === "portable" ? "This portable copy updates with “Atualizar Homunculus.bat” in its folder."
-        : s.why === "dev" ? "Updates are off while the app runs from the code (Abrir Homunculus.bat)."
+      return s.why === "portable" ? "This portable copy updates with “Update Homunculus.bat” in its folder."
+        : s.why === "dev" ? "Updates are off while the app runs from the code (Open Homunculus.bat)."
         : "Updates work in the installed app.";
     case "idle": return "Not checked yet.";
     case "checking": return "Checking…";
     case "current": return `You have the newest version (checked at ${new Date(s.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}).`;
-    case "available": return `Homunculus ${s.version} is ready to install.`;
+    case "available": return s.manual ? `Homunculus ${s.version} is out. Download the new .deb to update.` : `Homunculus ${s.version} is ready to install.`;
     case "downloading": return `Downloading ${s.version}…${s.percent === null ? "" : ` ${s.percent}%`}`;
     case "restarting": return "Installing… Homunculus will reopen by itself.";
     case "error": return s.during === "check" ? `Could not reach GitHub: ${s.message}` : `Could not install ${s.version ?? "the update"}: ${s.message}`;

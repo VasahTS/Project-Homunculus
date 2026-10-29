@@ -15,8 +15,10 @@ export function UpdateBar({ u }: { u: Updates }) {
         <div className="update-line">
           <span className="update-mark" aria-hidden><Icon name="sparkle" size={14} /></span>
           <span className="update-text">
-            <strong>Homunculus {s.version} is ready</strong>
-            <span className="update-sub">You have {u.current}. Your chats, characters and keys stay as they are.</span>
+            <strong>{s.manual ? `Homunculus ${s.version} is out` : `Homunculus ${s.version} is ready`}</strong>
+            <span className="update-sub">{s.manual
+              ? `You have ${u.current}. Install the new .deb over this one; your chats, characters and keys stay.`
+              : `You have ${u.current}. Your chats, characters and keys stay as they are.`}</span>
           </span>
           <span className="update-actions">
             {s.notes && (
@@ -25,7 +27,7 @@ export function UpdateBar({ u }: { u: Updates }) {
               </Button>
             )}
             <Button small variant="plain" onClick={u.dismiss}>Later</Button>
-            <Button small variant="bordered" className="update-go" onClick={() => void u.install()}>Update &amp; Restart</Button>
+            <Button small variant="bordered" className="update-go" onClick={() => void u.install()}>{s.manual ? "Download" : "Update & Restart"}</Button>
           </span>
         </div>
         {notesOpen && s.notes && <div className="update-notes" data-testid="update-notes">{s.notes}</div>}

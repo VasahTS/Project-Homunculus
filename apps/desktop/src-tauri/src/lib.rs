@@ -6,21 +6,59 @@ use tauri::Manager;
 
 // ---- Where the app keeps its data (D-030, CLAUDE 2026-10-29: portable mode, like SillyTavern).
 // Portable: a file `portable.txt` next to Homunculus.exe → everything (database, backups, API keys,
-// screen preferences) lives in the `dados` folder beside it; copy the folder = move/back up everything.
-// The env var HOMUNCULUS_DADOS points at such a folder too (used by `Abrir Homunculus.bat`).
+// screen preferences) lives in the `data` folder beside it; copy the folder = move/back up everything.
+// The env var HOMUNCULUS_DATA points at such a folder too.
 // Otherwise: the usual per-user app folder (AppData\Roaming\com.vasahts.homunculus) and the keychain.
 struct DataPlace {
     dir: PathBuf,
     portable: bool,
 }
 
+const DATA_DIR: &str = "data";
+const WINDOW_DIR: &str = "window";
+/// Names used by portable folders made before D-038 (they were Portuguese). Renamed once, in place.
+const OLD_DATA_DIR: &str = "dados";
+const OLD_SECRETS_FILE: &str = "chaves.json";
+const OLD_WINDOW_DIR: &str = "janela";
+const OLD_DATA_ENV: &str = "HOMUNCULUS_DADOS";
+
+/// Renames `from` to `to` when `from` exists and `to` does not. Returns false only when a rename failed.
+fn rename_once(from: &Path, to: &Path) -> bool {
+    if !from.exists() || to.exists() {
+        return true;
+    }
+    match std::fs::rename(from, to) {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("Homunculus: could not rename {} to {}: {e}", from.display(), to.display());
+            false
+        }
+    }
+}
+
+/// D-038: a portable folder from an older version keeps working — `dados` becomes `data`, and inside it
+/// `chaves.json` becomes `keys.json` and `janela` becomes `window`. If the folder cannot be renamed
+/// (another program has it open), the old folder is used as it is.
+fn portable_data_dir(exe_dir: &Path) -> PathBuf {
+    let new = exe_dir.join(DATA_DIR);
+    let old = exe_dir.join(OLD_DATA_DIR);
+    let dir = if rename_once(&old, &new) { new } else { old };
+    rename_once(&dir.join(OLD_SECRETS_FILE), &dir.join(SECRETS_FILE));
+    rename_once(&dir.join(OLD_WINDOW_DIR), &dir.join(WINDOW_DIR));
+    dir
+}
+
 fn resolve_data_place(app: &tauri::AppHandle) -> Result<DataPlace, String> {
-    if let Some(dir) = std::env::var_os("HOMUNCULUS_DADOS").filter(|v| !v.is_empty()) {
-        return Ok(DataPlace { dir: PathBuf::from(dir), portable: true });
+    let from_env = std::env::var_os("HOMUNCULUS_DATA").or_else(|| std::env::var_os(OLD_DATA_ENV)).filter(|v| !v.is_empty());
+    if let Some(dir) = from_env {
+        let dir = PathBuf::from(dir);
+        rename_once(&dir.join(OLD_SECRETS_FILE), &dir.join(SECRETS_FILE));
+        rename_once(&dir.join(OLD_WINDOW_DIR), &dir.join(WINDOW_DIR));
+        return Ok(DataPlace { dir, portable: true });
     }
     if let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf)) {
         if exe_dir.join("portable.txt").is_file() {
-            return Ok(DataPlace { dir: exe_dir.join("dados"), portable: true });
+            return Ok(DataPlace { dir: portable_data_dir(&exe_dir), portable: true });
         }
     }
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
@@ -91,11 +129,12 @@ fn backup_database(place: tauri::State<DataPlace>) -> Result<Option<String>, Str
 }
 
 // ---- Secrets (API keys) (D-011, D-030).
-// Normal install: the operating system's keychain (Windows Credential Manager); keys never touch files.
-// Portable: `dados/chaves.json` (like SillyTavern's secrets.json), so the keys travel with the folder.
+// Normal install: the operating system's keychain (Windows Credential Manager; on Linux the Secret Service,
+// e.g. GNOME Keyring or KWallet); keys never touch files.
+// Portable: `data/keys.json` (like SillyTavern's secrets.json), so the keys travel with the folder.
 // Anyone with the folder can read them — Daniel's choice for portability.
 const KEYCHAIN_SERVICE: &str = "Homunculus";
-const SECRETS_FILE: &str = "chaves.json";
+const SECRETS_FILE: &str = "keys.json";
 
 fn check_secret_name(name: &str) -> Result<(), String> {
     if name.is_empty() || name.len() > 200 {
@@ -181,6 +220,27 @@ fn secret_delete(place: tauri::State<DataPlace>, name: String) -> Result<(), Str
     }
 }
 
+// ---- How this copy gets updates (D-037, D-038).
+// "auto": the updater can replace this copy (Windows installer, Linux AppImage).
+// "manual": a Linux .deb (installed by the system's package manager) — the app only says a new version is
+// out and opens the download page. "off" is decided on the screen (portable copies, dev).
+#[tauri::command]
+fn update_channel(app: tauri::AppHandle) -> serde_json::Value {
+    let manual = cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none();
+    // the releases page, from the updater's latest.json address: …/releases/latest/download/latest.json
+    let page = app
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|u| u.get("endpoints"))
+        .and_then(|e| e.get(0))
+        .and_then(|e| e.as_str())
+        .map(|url| url.trim_end_matches("/download/latest.json").to_string())
+        .unwrap_or_default();
+    serde_json::json!({ "channel": if manual { "manual" } else { "auto" }, "releasePage": page })
+}
+
 // ---- Exports go to the user's Downloads folder, never overwriting an existing file.
 #[tauri::command]
 fn save_download(app: tauri::AppHandle, file_name: String, base64_data: String) -> Result<String, String> {
@@ -222,6 +282,8 @@ pub fn run() {
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_process::init())?;
+            // opens the download page for copies that update by hand (Linux .deb)
+            app.handle().plugin(tauri_plugin_opener::init())?;
 
             let place = resolve_data_place(app.handle())?;
             std::fs::create_dir_all(&place.dir)?;
@@ -239,7 +301,7 @@ pub fn run() {
                 .ok_or("tauri.conf.json has no \"main\" window")?;
             let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
             if place.portable {
-                window = window.data_directory(place.dir.join("janela"));
+                window = window.data_directory(place.dir.join(WINDOW_DIR));
             }
             window.build()?;
 
@@ -253,7 +315,8 @@ pub fn run() {
             secret_get,
             secret_set,
             secret_delete,
-            save_download
+            save_download,
+            update_channel
         ])
         .run(tauri::generate_context!())
         .expect("error while running Homunculus");

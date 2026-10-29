@@ -15,10 +15,10 @@ const conf = JSON.parse(readFileSync(confPath, "utf8"));
 const repo = process.env.GITHUB_REPOSITORY;
 if (!repo) fail("GITHUB_REPOSITORY is not set (this script runs inside GitHub Actions).");
 if (!conf.plugins?.updater?.pubkey) {
-  fail("Falta a chave pública em tauri.conf.json. No PC, rode \"Preparar atualizador.bat\" uma vez e envie (commit + push) o tauri.conf.json.");
+  fail("The public key is missing from tauri.conf.json. On the PC, run \"Set up updater.bat\" once, then commit and push tauri.conf.json (and merge dev into main).");
 }
 if (!process.env.TAURI_SIGNING_PRIVATE_KEY) {
-  fail("Falta o segredo TAURI_SIGNING_PRIVATE_KEY no GitHub (Settings → Secrets and variables → Actions). Veja docs/PUBLICAR.md, passo 1.");
+  fail("The secret TAURI_SIGNING_PRIVATE_KEY is missing on GitHub (Settings → Secrets and variables → Actions). See docs/RELEASING.md, step 1.");
 }
 
 const endpoint = `https://github.com/${repo}/releases/latest/download/latest.json`;

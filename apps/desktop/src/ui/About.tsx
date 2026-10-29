@@ -9,11 +9,11 @@ export function AboutSection({ u }: { u: Updates }) {
     <div className="settings-page" data-testid="about">
       <Group title="Homunculus">
         <Row label="Version"><span className="about-version">{u.current}</span></Row>
-        <Row label="Updates" help="The installed app asks GitHub for a newer version each time it opens. It never installs anything until you click Update & Restart. Your chats, characters and keys are not touched by an update.">
+        <Row label="Updates" help="The installed app asks GitHub for a newer version each time it opens. It never installs anything until you click Update & Restart (on Linux .deb: Download, then install the new .deb). Your chats, characters and keys are not touched by an update.">
           <span className="about-update">
             <span className={`about-status${s.kind === "error" ? " danger-text" : ""}`} data-testid="update-status">{updateStatusText(u)}</span>
             {s.kind === "available"
-              ? <Button small variant="bordered" onClick={() => void u.install()}>Update &amp; Restart</Button>
+              ? <Button small variant="bordered" onClick={() => void u.install()}>{s.manual ? "Download" : "Update & Restart"}</Button>
               : s.kind !== "off" && <Button small variant="bordered" disabled={working} onClick={() => void u.check()}>Check for Updates</Button>}
           </span>
         </Row>

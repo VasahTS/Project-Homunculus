@@ -1,17 +1,18 @@
-# Homunculus 2 — "Publicar versão": builds the Windows installer and publishes it as a GitHub Release (D-037).
-# Author: CLAUDE, 2026-10-29. Started by hand: Actions → Publicar versão → Run workflow → type the version.
-# Order: check → tests → build and sign (draft release) → save the new version number in the repo → publish.
-# If anything fails before the last step, nothing is public and the testers' apps see nothing new.
-name: Publicar versão
+# Homunculus 2 — "Publish release": builds the Windows installer and the Linux .deb + AppImage, signs them and
+# publishes a GitHub Release with latest.json for the in-app updater (D-037, D-038). Author: CLAUDE, 2026-10-29.
+# Started by hand: Actions → Publish release → Run workflow (branch main) → type the version.
+# Order: check + tests + draft release → build Windows and Linux at the same time → write latest.json,
+# save the new version number in main (and dev), publish. Anything failing before the end leaves nothing public.
+name: Publish release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Número da nova versão (ex.: 0.2.0)"
+        description: "New version number (e.g. 0.2.0)"
         required: true
       notes:
-        description: "O que mudou, numa linha (opcional; se o CHANGELOG.md tiver a seção desta versão, ela vale)"
+        description: "What changed, in one line (optional; the CHANGELOG.md section for this version wins)"
         required: false
         default: ""
 
@@ -22,25 +23,90 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+env:
+  # the form's text reaches the scripts only through variables (never pasted into a command)
+  INPUT_VERSION: ${{ inputs.version }}
+  INPUT_NOTES: ${{ inputs.notes }}
+
 jobs:
-  publish:
-    runs-on: windows-latest
-    timeout-minutes: 75
-    env:
-      # the form's text reaches the scripts only through variables (never pasted into a command)
-      INPUT_VERSION: ${{ inputs.version }}
-      INPUT_NOTES: ${{ inputs.notes }}
+  check:
+    name: Check and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_id: ${{ steps.draft.outputs.release_id }}
     steps:
-      - name: Só publica a partir da main
+      - name: Only main publishes
         if: github.ref != 'refs/heads/main'
-        shell: bash
         run: |
-          echo "✖ Escolha a branch main em \"Use workflow from\" (a dev é para o dia a dia)."
+          echo "✖ Pick the main branch in \"Use workflow from\" (dev is for daily work)."
           exit 1
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Version and signing key
+        id: version
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          VERSION="$(echo "$INPUT_VERSION" | tr -d '[:space:]')"
+          VERSION="${VERSION#v}"
+          node scripts/release/set-version.mjs "$VERSION"
+          node scripts/release/release-config.mjs
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Tests (a broken build is never published)
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Draft release
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node scripts/release/notes.mjs "$VERSION" "$INPUT_NOTES" > release-notes.md
+          # a draft left by a failed run of the same version is reused
+          ID="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.draft and .tag_name == \"v$VERSION\") | .id" | head -n1)"
+          if [ -z "$ID" ]; then
+            gh release create "v$VERSION" --draft --title "Homunculus $VERSION" --notes-file release-notes.md --target "$GITHUB_SHA"
+            ID="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.draft and .tag_name == \"v$VERSION\") | .id" | head -n1)"
+          else
+            gh release edit "v$VERSION" --notes-file release-notes.md
+          fi
+          echo "release_id=$ID" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: check
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            bundles: nsis
+          - name: Linux
+            os: ubuntu-22.04
+            bundles: deb,appimage
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
@@ -53,31 +119,24 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri -> target
 
-      - name: Conferir versão e chave de assinatura
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libdbus-1-dev libssl-dev libxdo-dev
+
+      - name: Version and updater settings
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          VERSION="$(echo "$INPUT_VERSION" | tr -d '[:space:]')"
-          VERSION="${VERSION#v}"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           node scripts/release/set-version.mjs "$VERSION"
           node scripts/release/release-config.mjs
-          {
-            echo "NOTES_BODY<<H2_NOTES_END"
-            node scripts/release/notes.mjs "$VERSION" "$INPUT_NOTES"
-            echo "H2_NOTES_END"
-          } >> "$GITHUB_ENV"
 
-      - name: Instalar dependências
+      - name: Install
         run: npm install --no-audit --no-fund
 
-      - name: Testes (não publica uma versão quebrada)
-        run: |
-          npm run typecheck
-          npm test
-
-      - name: Criar o instalador e assinar
+      - name: Build and sign
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -85,40 +144,56 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
-          args: --config src-tauri/tauri.release.conf.json
-          tagName: v${{ env.VERSION }}
-          releaseName: Homunculus ${{ env.VERSION }}
-          releaseBody: ${{ env.NOTES_BODY }}
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.check.outputs.release_id }}
+          args: --config src-tauri/tauri.release.conf.json --bundles ${{ matrix.bundles }}
+          uploadUpdaterJson: false
 
-      - name: Guardar o número da versão no projeto
-        shell: bash
+  publish:
+    name: Publish
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: latest.json for the in-app updater
         run: |
+          node scripts/release/updater-json.mjs "$VERSION" > latest.json
+          cat latest.json
+          gh release upload "v$VERSION" latest.json --clobber
+
+      - name: Save the version number in main
+        run: |
+          node scripts/release/set-version.mjs "$VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json apps/desktop/package.json apps/desktop/src-tauri/tauri.conf.json apps/desktop/src-tauri/Cargo.toml
           if ! git diff --cached --quiet; then
-            git commit -m "Versão $VERSION"
-            git pull --rebase origin "${GITHUB_REF_NAME}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
+            git commit -m "Version $VERSION"
+            git pull --rebase origin main
+            git push origin HEAD:main
           fi
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-      - name: Publicar
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish
         run: |
           gh release edit "v$VERSION" --draft=false --latest --target "$RELEASE_SHA"
-          echo "### Homunculus $VERSION publicado" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Homunculus $VERSION published" >> "$GITHUB_STEP_SUMMARY"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v$VERSION" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Levar o número da versão para a dev
+      - name: Bring the version number to dev
         continue-on-error: true
-        shell: bash
         run: |
           git fetch origin dev
           git checkout -B dev origin/dev
-          git merge --no-edit "$RELEASE_SHA" -m "Versão $VERSION (da main)"
+          git merge --no-edit "$RELEASE_SHA" -m "Version $VERSION (from main)"
           git push origin dev
