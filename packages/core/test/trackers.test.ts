@@ -55,7 +55,7 @@ describe("tracker engine (schema only)", () => {
   });
 
   it("makes field keys from labels", () => {
-    expect(fieldKeyFrom("Confiança em mim!")).toBe("confianca_em_mim");
+    expect(fieldKeyFrom("Naïve résumé café!")).toBe("naive_resume_cafe");
     expect(fieldKeyFrom("Coins", ["coins"])).toBe("coins_2");
     expect(fieldKeyFrom("123")).toBe("f_123");
   });

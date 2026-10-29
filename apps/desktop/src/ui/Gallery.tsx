@@ -115,7 +115,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   const [q, setQ] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const searching = q.trim() !== "";
-  // a search looks in every folder (Daniel: "você pode pesquisar no All que vai mostrar todos")
+  // a search looks in every folder (Daniel: "you can search in All and it will show everything")
   const shown = searching
     ? characters.filter((c) => [c.name, c.creator, ...c.tags].some((x) => x.toLowerCase().includes(q.trim().toLowerCase())))
     : inFolder ? characters.filter(inFolder) : characters;

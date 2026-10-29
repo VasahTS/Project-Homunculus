@@ -1,5 +1,5 @@
 // Homunculus 2 — a picture you click to change (NPCs, narrators, stories). Author: CLAUDE, 2026-10-29.
-// (Daniel: "ser possível botar imagens para os NPCs, Narradores e Stories".) Same storage as characters' pictures
+// (Daniel: "make it possible to put pictures on NPCs, Narrators and Stories".) Same storage as characters' pictures
 // (the avatars table, keyed by the item's id); any image becomes a PNG (files.ts imageFileToPngAvatar).
 import { useRef } from "react";
 import type { Avatar } from "@homunculus/schemas";

@@ -145,7 +145,7 @@ export function LorebookEditor(p: LorebookEditorProps) {
   const exists = savedOnce;
   const usedBy = p.usedBy;
 
-  // ---- saving by itself (Daniel, 29/10: "SEMPRE salve mudanças em lorebooks"): every change is saved a moment after
+  // ---- saving by itself (Daniel, 10/29: "ALWAYS save changes in lorebooks"): every change is saved a moment after
   // it is made, and right away when the editor closes (Close, another book, another area). No Save button, no warning.
   const latest = useRef(d);
   latest.current = d;

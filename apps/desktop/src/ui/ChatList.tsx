@@ -1,5 +1,5 @@
 // Homunculus 2 — a list of chats you can search and export (round 3, D-036). Author: CLAUDE, 2026-10-29.
-// Used at the bottom of a Story's page ("a última coisa que você rola", Daniel) and in a character's sheet.
+// Used at the bottom of a Story's page ("the last thing you scroll to", Daniel) and in a character's sheet.
 // Search looks in the chats' names and in every message; a match shows the line with the words marked, and clicking it
 // opens the chat at that message. Each chat has ⋯: Open · Rename · Export as (Homunculus, SillyTavern JSONL, Markdown,
 // text) · Move to Trash.

@@ -53,8 +53,8 @@ export function Picker({ title, kinds, initial, onClose }: { title: string; kind
   const [q, setQ] = useState("");
   const [folder, setFolder] = useState<string | null>(null);
   const [cursor, setCursor] = useState(0);
-  // "Folders" (open one at a time) or "All" (everything in one list, with where it is) — Daniel: "ter uma opção pra
-  // mostrar tudo, daí fica mais fácil se você não quiser olhar pasta por pasta"; remembered per viewer
+  // "Folders" (open one at a time) or "All" (everything in one list, with where it is) — Daniel: "have an option to
+  // show everything, so it's easier if you don't want to look folder by folder"; remembered per viewer
   const [view, setViewState] = useState<"folders" | "all">(() => { try { return localStorage.getItem("h2.picker.view") === "all" ? "all" : "folders"; } catch { return "folders"; } });
   const setView = (v: "folders" | "all") => { setViewState(v); setFolder(null); try { localStorage.setItem("h2.picker.view", v); } catch { /* per viewer only */ } };
   const list = useRef<HTMLDivElement>(null);

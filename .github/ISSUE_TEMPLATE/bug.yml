@@ -1,44 +1,54 @@
-name: Problema
-description: Algo não funcionou como devia.
+name: Bug
+description: Something did not work the way it should.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Obrigado! Uma frase e um print já ajudam muito. **Nunca cole a sua chave de API aqui** — as issues são públicas.
+        Thank you! One sentence and a screenshot already help a lot. **Never paste your API key here** — issues are public.
   - type: input
-    id: versao
+    id: version
     attributes:
-      label: Versão
+      label: Version
       description: Settings → About
       placeholder: "0.1.0"
     validations:
       required: true
-  - type: textarea
-    id: oque
+  - type: dropdown
+    id: system
     attributes:
-      label: O que aconteceu?
-      description: O que você fez, passo a passo, e o que apareceu.
-      placeholder: |
-        1. Abri um chat com a Lyra
-        2. Cliquei em…
-        3. Apareceu…
+      label: System
+      options:
+        - Windows
+        - Linux (AppImage)
+        - Linux (.deb)
     validations:
       required: true
   - type: textarea
-    id: esperado
+    id: what
     attributes:
-      label: O que você esperava?
+      label: What happened?
+      description: What you did, step by step, and what showed up.
+      placeholder: |
+        1. I opened a chat with Lyra
+        2. I clicked…
+        3. Then…
+    validations:
+      required: true
   - type: textarea
-    id: prints
+    id: expected
     attributes:
-      label: Prints
-      description: Win + Shift + S para tirar, depois Ctrl + V aqui.
+      label: What did you expect?
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: On Windows, Win + Shift + S to take one, then Ctrl + V here.
   - type: dropdown
-    id: frequencia
+    id: frequency
     attributes:
-      label: Acontece sempre?
+      label: Does it always happen?
       options:
-        - Sempre
-        - Às vezes
-        - Só aconteceu uma vez
+        - Always
+        - Sometimes
+        - It only happened once

@@ -1,5 +1,5 @@
 // Click tests: a reply keeps being written when you leave its chat; several chats write at once. Author: CLAUDE, 2026-10-29.
-// (Daniel: "as coisas param de gerar quando a gente sai do chat… gerar múltiplas mensagens em chats diferentes".)
+// (Daniel: "things stop generating when we leave the chat… generate several messages in different chats".)
 import { expect, test, type Page } from "@playwright/test";
 import { newChatWith } from "./ui.ts";
 

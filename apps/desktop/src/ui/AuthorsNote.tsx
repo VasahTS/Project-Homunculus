@@ -1,5 +1,5 @@
-// Homunculus 2 — the Author's Note group (canvas "Homunculus 2 — Author's Note", version A, Daniel 29/10: "pode ser a A,
-// mas faça ser possível colapsar"). Author: CLAUDE, 2026-10-29.
+// Homunculus 2 — the Author's Note group (canvas "Homunculus 2 — Author's Note", version A, Daniel 10/29: "A is fine,
+// but make it collapsible"). Author: CLAUDE, 2026-10-29.
 // One group for every layer: Settings → Defaults ("for new chats"), a story's page, a chat's Prompt tab. Each line is
 // inherited on its own from the layer above (core/setup.ts `resolveSetup`); the group folds to a one-line summary.
 import { useEffect, useRef, useState } from "react";

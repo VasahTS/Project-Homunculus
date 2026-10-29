@@ -6,7 +6,7 @@
 // and the message action bar (copy, edit, new version, branch, hide from the AI, details, delete).
 // 2026-10-29 (after Daniel's tests, D-032 v2): branches are direct, like SillyTavern and Marinara — "Branch from here"
 // on any message makes the branch and puts you on it; a branch is a named end; each branch keeps its own versions.
-// 2026-10-29 (Daniel: "as coisas param de gerar quando a gente sai do chat"): the turn lives in `turns.ts`, outside this
+// 2026-10-29 (Daniel: "things stop generating when we leave the chat"): the turn lives in `turns.ts`, outside this
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
 import { useCallback, useEffect, useRef, useState, Fragment } from "react";
 import type { Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";

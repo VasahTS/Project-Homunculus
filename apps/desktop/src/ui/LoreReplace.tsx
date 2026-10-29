@@ -1,5 +1,5 @@
-// Homunculus 2 — Find and Replace for the lorebook editor (Daniel, 29/10: "uma feature do Notepad++… dá Ctrl+H e
-// consegue substituir o texto"). Ctrl+H or Ctrl+F opens it; Enter = find next, Shift+Enter = previous, F3 / Shift+F3
+// Homunculus 2 — Find and Replace for the lorebook editor (Daniel, 10/29: "a Notepad++ feature… you press Ctrl+H and
+// you can replace the text"). Ctrl+H or Ctrl+F opens it; Enter = find next, Shift+Enter = previous, F3 / Shift+F3
 // anywhere in the editor; Replace replaces the match that is selected and goes to the next; Replace All works on all
 // entries (or the open one) and can be undone from the bar. Match case, whole word, regular expression ($1 works),
 // and optionally titles and keywords too. Author: CLAUDE, 2026-10-29.

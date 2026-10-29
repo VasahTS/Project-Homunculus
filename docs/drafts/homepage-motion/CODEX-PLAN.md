@@ -1,79 +1,79 @@
-# Home com movimento — rodada 2
+# Home with motion — round 2
 
-Autor: **CODEX**, 29/10/2026. Rascunhos locais, sem integração, commit ou push. A rodada anterior permanece em `../homepage/`.
+Author: **CODEX**, 10/29/2026. Local drafts, no integration, commit or push. The previous round stays in `../homepage/`. (Translated to English by CLAUDE, D-038.)
 
-## Contexto e leitura crítica
+## Context and critical reading
 
-Homunculus 2 é um app desktop Tauri/React para narrativas. Esta Home deve permitir escolher um mundo, retomar um chat específico e começar outra experiência. O pedido atual é explorar menus e animações com Apple Design; não implementar no app.
+Homunculus 2 is a Tauri/React desktop app for narratives. This Home should let you pick a world, resume a specific chat and start another experience. The current request is to explore menus and animations with Apple Design; not to implement it in the app.
 
-Revisão dos drafts anteriores, julgamento CODEX: a retomada é clara, mas quase todos os cliques terminam em diálogos explicativos. Isso impede experimentar a continuidade de navegação. A nova rodada terá Home → Story → chat, seleção com preview, menu contextual e criação temporária em memória. Retiram-se slogans, etiquetas decorativas e mensagens técnicas de dentro da interface proposta.
+Review of the previous drafts, CODEX's judgment: resuming is clear, but almost every click ends in explanatory dialogs. That prevents trying the continuity of navigation. The new round will have Home → Story → chat, selection with a preview, a context menu and temporary creation in memory. Slogans, decorative labels and technical messages are removed from the proposed interface.
 
-Skills aplicadas: apple-design, frontend-design, animate e design-taste-frontend. A última exclui telas de app no próprio escopo: aproveitam-se seu critério de composição, identidade e inspeção visual. Não se aplicam o piso de oito movimentos, vídeo obrigatório, sorteio de landing page, ausência de sidebar/glass ou tipografia de marketing; contrariam o pedido de Apple Design e o uso diário do painel. O produto tem prioridade.
+Skills applied: apple-design, frontend-design, animate and design-taste-frontend. The last one excludes app screens from its own scope: its criteria for composition, identity and visual inspection are used. Its eight-motion floor, mandatory video, landing-page lottery, no sidebar/glass or marketing typography do not apply; they contradict the request for Apple Design and the panel's daily use. The product comes first.
 
-O auxiliar `pick-ui-library` mencionado por animate não está no catálogo nem nas pastas locais pesquisadas. Não é necessário instalar outro pacote: menus usam Popover API nativa e a tarefa modal usa `<dialog>`, com foco/escape nativos e teclado de menu complementado. Sem componentes modais desenhados só com divs.
+The `pick-ui-library` helper mentioned by animate is not in the catalog nor in the local folders searched. No need to install another package: menus use the native Popover API and the modal task uses `<dialog>`, with native focus/escape and menu keyboard handling added. No modal components drawn with divs only.
 
-Referências lidas em apple-design: accessibility, layout, typography, color, designing-for-macos, motion, sidebars, menus, popovers, sheets, liquid-glass e cross-platform. Orientações aplicadas e citações curtas:
+References read in apple-design: accessibility, layout, typography, color, designing-for-macos, motion, sidebars, menus, popovers, sheets, liquid-glass and cross-platform. Guidance applied and short quotes:
 
-- `motion.md › Best practices`: “Add motion purposefully, supporting the experience without overshadowing it.” Movimento descreve mudanças, sem efeitos contínuos.
-- `motion.md › Providing feedback`: “Let people cancel motion.” Novas ações interrompem transições; não há bloqueio até o fim da animação.
-- `liquid-glass.md › The two layers`: “Content layer” / “Functional layer”. Texto e capas são sólidos; translucidez fica na navegação flutuante e menus.
-- `designing-for-macos.md › Best practices`: “Handle keyboard shortcuts”. Navegação completa por teclado; Ctrl/Cmd+K abre a busca sem animação.
-- `menus.md › Labels`: “write a label that clearly and succinctly describes it”. Comandos nomeiam a ação e usam a mesma linguagem no resultado.
+- `motion.md › Best practices`: "Add motion purposefully, supporting the experience without overshadowing it." Motion describes changes, without continuous effects.
+- `motion.md › Providing feedback`: "Let people cancel motion." New actions interrupt transitions; nothing is blocked until the animation ends.
+- `liquid-glass.md › The two layers`: "Content layer" / "Functional layer". Text and covers are solid; translucency lives in floating navigation and menus.
+- `designing-for-macos.md › Best practices`: "Handle keyboard shortcuts". Full keyboard navigation; Ctrl/Cmd+K opens search without animation.
+- `menus.md › Labels`: "write a label that clearly and succinctly describes it". Commands name the action and use the same language in the result.
 
-Não é uma implementação de Liquid Glass nativo: é uma aproximação CSS em protótipo web. No Tauri, materiais e preferências nativos precisam de integração própria.
+It is not a native Liquid Glass implementation: it is a CSS approximation in a web prototype. In Tauri, native materials and preferences need their own integration.
 
-## Plano visual
+## Visual plan
 
-Paleta semântica, claro / escuro: background `#f4f5f2` / `#191e1c`; surface `#ffffff` / `#242b27`; foreground `#24352c` / `#edf2ec`; secondary `#59665e` / `#b3c0b6`; accent `#34694f` / `#b5d4b5`; separator `#d7dfd5` / `#414e44`. Contrastes calculados pelo verificador e registrados no resultado, incluindo superfícies de navegação opacas que limitam a translucidez. Capas mantêm cores próprias e não carregam texto de controles.
+Semantic palette, light / dark: background `#f4f5f2` / `#191e1c`; surface `#ffffff` / `#242b27`; foreground `#24352c` / `#edf2ec`; secondary `#59665e` / `#b3c0b6`; accent `#34694f` / `#b5d4b5`; separator `#d7dfd5` / `#414e44`. Contrasts computed by the verifier and recorded in the result, including opaque navigation surfaces that limit translucency. Covers keep their own colors and carry no control text.
 
-Tipografia: sistema para controles, 13–15 px; Literata local para títulos narrativos, 28–38 px, e trechos, 15–17 px com entrelinha 1.7. Texto secundário mínimo de 12 px. Alvos desktop de pelo menos 28 px; 44 px em largura compacta. O texto pode quebrar; nunca se usa corte no conteúdo principal.
+Typography: the system font for controls, 13–15 px; local Literata for narrative titles, 28–38 px, and excerpts, 15–17 px with line height 1.7. Minimum secondary text 12 px. Desktop targets of at least 28 px; 44 px at compact width. Text may wrap; the main content is never cut.
 
 ### D · Atelier
 
-Galeria com sidebar recolhível. A assinatura é a capa que se transforma na abertura da Story e volta ao lugar.
+A gallery with a collapsible sidebar. The signature is the cover that turns into the Story's opening and back into place.
 
 ```text
 Regular: [sidebar] [toolbar                         +]
-                  [Continue: capa | trecho + retomar]
-                  [Stories: capa  capa  capa]
-Compact: [toolbar/menu] [Continue] [Stories empilhadas]
+                  [Continue: cover | excerpt + resume]
+                  [Stories: cover  cover  cover]
+Compact: [toolbar/menu] [Continue] [stacked Stories]
 ```
 
 ### E · Lantern
 
-Um espaço de leitura com navegação leve flutuando sobre a lateral do mundo da Story. A área de conteúdo continua sólida. A assinatura é a passagem entre mundo e menus, sem efeitos sobre a leitura.
+A reading space with light navigation floating over the side of the Story's world. The content area stays solid. The signature is the passage between world and menus, with no effects on reading.
 
 ```text
-Regular: [navegação] [capa grande | último chat]
-                    [Recentes em lista aberta]
-Compact: [toolbar/menu] [capa + último chat] [Recentes]
+Regular: [navigation] [big cover | last chat]
+                     [Recent as an open list]
+Compact: [toolbar/menu] [cover + last chat] [Recent]
 ```
 
 ### F · Workspace
 
-Split view inspirado na seleção de documentos: lista de Stories à esquerda do preview. A assinatura é selecionar sem abrir uma janela ou perder a lista.
+A split view inspired by document selection: a list of Stories to the left of the preview. The signature is selecting without opening a window or losing the list.
 
 ```text
-Regular: [sidebar] [lista de Stories | preview + chats]
-Compact: [toolbar] [lista] → [preview com voltar]
+Regular: [sidebar] [list of Stories | preview + chats]
+Compact: [toolbar] [list] → [preview with back]
 ```
 
-Crítica do plano: três simples trocas de cor repetiriam a rodada anterior. Por isso os drafts diferem em fluxo (galeria com abertura, leitura com navegação discreta, seleção/preview), compartilhando um vocabulário de movimento. Não se imitam semáforos de janela, marcas Apple ou controles de sistema falsos. O conteúdo vem do Homunculus: Story com vários chats, branch e última mensagem, Library/Vault e criação com modo de jogo.
+Critique of the plan: three simple color swaps would repeat the previous round. So the drafts differ in flow (gallery with an opening, reading with discreet navigation, selection/preview), sharing a motion vocabulary. No imitation of window traffic lights, Apple marks or fake system controls. The content comes from Homunculus: a Story with several chats, branch and last message, Library/Vault and creation with a play mode.
 
-## Contrato de movimento
+## Motion contract
 
-Frequência/purpose: menu e sheet ocasionais = consistência espacial; abrir/voltar Story = evitar mudança brusca; seleção diária = indicação de estado muito discreta; pressão = feedback. Teclado e busca digitada = resposta imediata. Nenhum efeito autônomo em texto, capas em repouso ou ponteiro.
+Frequency/purpose: occasional menu and sheet = spatial consistency; opening/going back from a Story = avoid an abrupt change; daily selection = a very discreet state indication; press = feedback. Keyboard and typed search = immediate response. No autonomous effect on text, resting covers or the pointer.
 
-Tokens existentes reutilizados: `--ease-out: cubic-bezier(0.22,1,0.36,1)` do app; `--ease-in-out: cubic-bezier(0.77,0,0.175,1)`; `--dur-fast:160ms` e `--dur:280ms`. Extensão: menu 180 ms, mudança de conteúdo/capa 240 ms, drawer `cubic-bezier(0.32,0.72,0,1)` da skill animate. Sem curva aproximada ou biblioteca nova.
+Existing tokens reused: `--ease-out: cubic-bezier(0.22,1,0.36,1)` from the app; `--ease-in-out: cubic-bezier(0.77,0,0.175,1)`; `--dur-fast:160ms` and `--dur:280ms`. Extension: menu 180 ms, content/cover change 240 ms, drawer `cubic-bezier(0.32,0.72,0,1)` from the animate skill. No approximated curve or new library.
 
-CSS transitions para press e seleção; CSS `@starting-style` e transições discretas para o popover; WAAPI para capa e sheet com cancelamento e saída simétrica. Transform/opacity são interpolados, com a exceção permitida pela skill animate: `clip-path` no enquadramento da capa. O recorte muda de proporção enquanto a ilustração mantém escala uniforme, evitando deformação. Dimensões dos clones são medidas uma vez antes da animação. Foco, interação e retorno permanecem disponíveis durante a transição.
+CSS transitions for press and selection; CSS `@starting-style` and discrete transitions for the popover; WAAPI for the cover and the sheet with cancellation and a symmetric exit. Transform/opacity are interpolated, with the exception the animate skill allows: `clip-path` on the cover's framing. The clip changes proportion while the illustration keeps a uniform scale, avoiding distortion. The clones' sizes are measured once before the animation. Focus, interaction and going back remain available during the transition.
 
-Reduced motion remove deslocamento/escala e mantém opacidade curta. Reduced transparency usa superfícies opacas. Increased contrast reforça contornos e texto. O painel de revisão permite simular movimento reduzido; não é preferência nova dentro do produto.
+Reduced motion removes travel/scale and keeps a short opacity. Reduced transparency uses opaque surfaces. Increased contrast strengthens outlines and text. The review panel can simulate reduced motion; it is not a new preference inside the product.
 
-## Estados, dados e limites
+## States, data and limits
 
-Estados para revisar: normal, biblioteca com 12 Stories, primeira visita sem histórias, busca sem resultados; loading/erro via painel de revisão. Exemplos fictícios reaproveitam nomes da rodada anterior. Criação, favoritos e desfazer só alteram memória temporária do protótipo; nenhum banco, API, arquivo pessoal ou credencial é lido.
+States to review: normal, a library with 12 Stories, first visit without stories, search without results; loading/error via the review panel. Fictional examples reuse names from the previous round. Creation, favorites and undo only change the prototype's temporary memory; no database, API, personal file or credential is read.
 
-Validação planejada: screenshots claro/escuro em desktop e compacto; overflow e contraste medidos; teclado em menus, escape, retorno de foco, atalhos instantâneos, abertura/saída de Story, criação e desfazer, interrupções rápidas e movimento/transparência reduzidos. O feel será conferido por capturas intermediárias, não inferido de uma imagem em repouso.
+Planned validation: light/dark screenshots on desktop and compact; overflow and contrast measured; keyboard in menus, escape, focus return, instant shortcuts, Story open/exit, creation and undo, quick interruptions and reduced motion/transparency. The feel will be checked with mid-transition screenshots, not inferred from a resting image.
 
-Assinado: **CODEX**.
+Signed: **CODEX**.

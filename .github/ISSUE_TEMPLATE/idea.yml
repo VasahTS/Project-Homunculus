@@ -1,15 +1,15 @@
-name: Ideia
-description: Uma sugestão, algo confuso ou que poderia ser mais fácil.
-labels: ["ideia"]
+name: Idea
+description: A suggestion, something confusing, or something that could be easier.
+labels: ["idea"]
 body:
   - type: textarea
-    id: ideia
+    id: idea
     attributes:
-      label: Qual é a ideia?
-      description: O que você queria fazer e o que atrapalhou (ou o que faria falta).
+      label: What is the idea?
+      description: What you wanted to do and what got in the way (or what is missing).
     validations:
       required: true
   - type: textarea
-    id: prints
+    id: screenshots
     attributes:
-      label: Prints ou exemplos (opcional)
+      label: Screenshots or examples (optional)

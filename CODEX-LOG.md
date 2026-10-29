@@ -1,23 +1,25 @@
-# Registro de trabalho — CODEX
+# Work log — CODEX
 
-## 2026-10-29 · Rodada 2: Apple Design, navegação e movimento
+(Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
-Autor: **CODEX**. Estado: local / não publicado, sem commit ou push. Pedido de Daniel: outros drafts com apple-design, frontend-design, design-taste-frontend e animate, com foco na experiência de menus.
+## 2026-10-29 · Round 2: Apple Design, navigation and motion
 
-Arquivos novos em `docs/drafts/homepage-motion/`: `PLANO-CODEX.md`, `LEIA-ME.md`, `index.html`, `styles.css`, `app.js`, `build.mjs`, `verify.mjs`, `home-motion-drafts.html`, `validation.json`; fontes e licença Literata e quatro SVGs em `assets/`; capturas em `previews/`. SVGs CODEX reutilizados da rodada 1, com indicação nos arquivos; copyright original da fonte preservado. Nenhum trabalho preexistente do CLAUDE foi atribuído ao CODEX. Rodada anterior preservada.
+Author: **CODEX**. State: local / unpublished, no commit or push. Daniel's request: more drafts with apple-design, frontend-design, design-taste-frontend and animate, focused on the menu experience.
 
-Três drafts: D Atelier (galeria e transição da capa), E Lantern (leitura e navegação discreta), F Workspace (lista e preview). Popovers e dialog nativos, atalhos imediatos, mudanças temporárias com desfazer, teclado e variantes de acessibilidade. O workflow de landing page de taste foi adaptado ao pedido explícito de Apple Design para app; a justificativa está no plano.
+New files in `docs/drafts/homepage-motion/`: `CODEX-PLAN.md`, `README.md`, `index.html`, `styles.css`, `app.js`, `build.mjs`, `verify.mjs`, `home-motion-drafts.html`, `validation.json`; Literata fonts and license and four SVGs in `assets/`; screenshots in `previews/`. CODEX SVGs reused from round 1, noted in the files; the font's original copyright preserved. No pre-existing CLAUDE work was attributed to CODEX. The previous round preserved.
 
-Validação: `node --check docs/drafts/homepage-motion/app.js`; verificador Playwright/Chrome passou para fontes separados e para o HTML portátil final. 18 combinações de layout/cores por execução, estados adicionais, sem overflow/imagens quebradas/erros de JavaScript. Contraste mínimo dos pares semânticos sólidos: 4,76:1. Verificados foco/setas/Escape, atalhos sem animação, criação e Undo, pin e Undo, split view/tabs/filtro, cover transition/cancelamento, reduced motion, reduced transparency e contraste aumentado. Capturas em repouso e intermediária inspecionadas. Não medido FPS ou comportamento nativo Tauri. Nenhum banco, instalação pessoal, API ou credencial acessado; nenhuma tela do app foi implementada. Assinado: **CODEX**.
+Three drafts: D Atelier (gallery and cover transition), E Lantern (reading and discreet navigation), F Workspace (list and preview). Native popovers and dialog, immediate shortcuts, temporary changes with undo, keyboard and accessibility variants. The taste landing-page workflow was adapted to the explicit request for Apple Design in an app; the reasoning is in the plan.
 
-## 2026-10-29 · Drafts de HomePage do Homunculus 2
+Validation: `node --check docs/drafts/homepage-motion/app.js`; the Playwright/Chrome verifier passed for the separate sources and for the final portable HTML. 18 layout/color combinations per run, extra states, no overflow/broken images/JavaScript errors. Minimum contrast of the solid semantic pairs: 4.76:1. Checked focus/arrows/Escape, shortcuts without animation, create and Undo, pin and Undo, split view/tabs/filter, cover transition/cancellation, reduced motion, reduced transparency and increased contrast. Resting and mid-transition screenshots inspected. FPS and native Tauri behavior not measured. No database, personal installation, API or credential accessed; no app screen was implemented. Signed: **CODEX**.
 
-Autor: **CODEX**. Estado: local / não publicado, sem commit ou push.
+## 2026-10-29 · Homunculus 2 HomePage drafts
 
-Pedido: olhar o projeto e sugerir um HTML com alternativas para a tela inicial do app, confirmado por Daniel.
+Author: **CODEX**. State: local / unpublished, no commit or push.
 
-Arquivos novos: `docs/drafts/homepage/index.html`, `styles.css`, `app.js`, `LEIA-ME.md`, `verify.mjs` (verificação isolada), `serve.mjs` (prévia em loopback); recursos locais da fonte Literata e respectiva licença em `assets/`; capturas em `previews/`; este registro. Três propostas independentes da aplicação atual: A Retomar, B Biblioteca, C Refúgio. Os dados são fictícios; não houve acesso à instalação pessoal, ao banco do app nem a credenciais. Fontes copiadas das dependências já presentes; autoria original da Literata preservada na licença. Nenhum trabalho preexistente do CLAUDE foi atribuído ao CODEX.
+Request: look at the project and suggest an HTML with alternatives for the app's start screen, confirmed by Daniel.
 
-Arquivo adicional de entrega: `docs/drafts/homepage/home-drafts.html`, versão única que incorpora CSS, JavaScript, fontes e ilustrações dos fontes separados.
+New files: `docs/drafts/homepage/index.html`, `styles.css`, `app.js`, `README.md`, `verify.mjs` (isolated verification), `serve.mjs` (loopback preview); local Literata font resources and their license in `assets/`; screenshots in `previews/`; this log. Three proposals independent from the current app: A Resume, B Library, C Refuge. The data is fictional; there was no access to the personal installation, the app's database or credentials. Fonts copied from dependencies already present; Literata's original authorship preserved in the license. No pre-existing CLAUDE work was attributed to CODEX.
 
-Validação: `node --check docs/drafts/homepage/app.js` e `node docs/drafts/homepage/verify.mjs` passaram, tanto para `index.html` quanto para `home-drafts.html`. Playwright + Chrome em contexto isolado: 45 combinações por arquivo (3 propostas, 3 larguras, 5 estados), sem overflow horizontal ou erros de console/JavaScript; verificação das ações de busca, filtro, Story/chat, retomada, criação/importação e navegação simuladas, recuperação de erro, sidebar estreita e redução de movimento. Inspeção visual das capturas desktop A/B/C e A estreita. Testes do app não executados: nenhum código de aplicação foi alterado. A prévia HTTP não ficou acessível no navegador integrado; servidor encerrado, entrega pelo HTML local. Assinado: **CODEX**.
+Additional delivery file: `docs/drafts/homepage/home-drafts.html`, a single version that embeds the CSS, JavaScript, fonts and illustrations of the separate sources.
+
+Validation: `node --check docs/drafts/homepage/app.js` and `node docs/drafts/homepage/verify.mjs` passed, for both `index.html` and `home-drafts.html`. Playwright + Chrome in an isolated context: 45 combinations per file (3 proposals, 3 widths, 5 states), no horizontal overflow or console/JavaScript errors; checked search, filter, Story/chat, resume, create/import and simulated navigation actions, error recovery, narrow sidebar and reduced motion. Visual inspection of the desktop A/B/C screenshots and narrow A. App tests not run: no application code was changed. The HTTP preview was not reachable in the built-in browser; server stopped, delivery through the local HTML. Signed: **CODEX**.

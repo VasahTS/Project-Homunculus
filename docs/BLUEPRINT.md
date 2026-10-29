@@ -1,478 +1,478 @@
-# BLUEPRINT — Homunculus 2 (o desenho completo)
+# BLUEPRINT — Homunculus 2 (the full design)
 
-Autor: CLAUDE. v1 em 2026-10-27; **v2 em 2026-10-27** (revisão crítica pedida pelo Daniel: lacunas de dados, agentes, prompt, desempenho, segurança, custo). Status: **proposta para o Daniel aprovar** (perguntas do §12 respondidas; Style Reviewer acrescentado).
-Este é o mapa do app inteiro. Toda funcionalidade nova precisa caber aqui; se não couber, primeiro muda-se o blueprint (e registra-se em `DECISIONS.md`), depois o código.
-Escrito em português porque o Daniel lê e aprova este documento (exceção à D-004; nomes técnicos ficam em inglês).
-Relacionados: `ARCHITECTURE.md` (como o núcleo é feito), `DECISIONS.md`, `docs/reference/` (onde olhar nos outros apps).
-
----
-
-## 1. A ideia em uma frase
-
-**Um núcleo pequeno que roda "turnos", e todo o resto são peças combináveis** — personagens, personas, presets, lorebooks, agentes, trackers, companions — que o usuário monta do jeito que joga: por campanha, por sessão curta, ou como padrão.
-
-Princípios que decidem as dúvidas:
-
-1. **Flexível como o usuário joga.** Um preset, um tracker ou um agente pode valer para *tudo*, para *uma campanha* ou para *uma sessão*; a camada mais específica ganha (§3).
-2. **Agentes são cidadãos do app, não remendos.** Um formato só, um lugar só onde rodam (o turno), resultados organizados e visíveis. Os 69 modelos do Homunculus v1 entram por **importação** — o app não se adapta a eles.
-3. **Tudo que acontece numa mensagem fica preso àquela mensagem** (D-001 ampliada). Swipe, voltar ou ramificar sempre mostra tudo certo.
-4. **Nada se perde em silêncio.** Toda reescrita é desfazível, toda edição tem histórico, todo apagar passa pela lixeira, e o app sempre consegue mostrar *o que foi enviado à IA e por quê*.
-5. **Custo sob controle.** Agentes rodam em paralelo e com modelos baratos, mas com limites claros por conexão e por agente; o usuário vê quanto cada sessão gastou.
+Author: CLAUDE. v1 on 2026-10-27; **v2 on 2026-10-27** (critical review Daniel asked for: gaps in data, agents, prompt, performance, security, cost). Status: **approved by Daniel** (§12 questions answered; Style Reviewer added).
+This is the map of the whole app. Every new feature has to fit here; if it does not, first the blueprint changes (and it is recorded in `DECISIONS.md`), then the code.
+Written in English like everything in the repository (D-038; it was in Portuguese before, as an exception to D-004).
+Related: `ARCHITECTURE.md` (how the core is built), `DECISIONS.md`, `docs/reference/` (where to look in the other apps).
 
 ---
 
-## 2. As peças (o modelo de dados)
+## 1. The idea in one sentence
 
-### 2.1 Biblioteca — coisas reutilizáveis
+**A small core that runs "turns", and everything else is combinable pieces** — characters, personas, presets, lorebooks, agents, trackers, companions — that the user puts together the way they play: per campaign, per short session, or as the default.
 
-| Peça | O que é | Detalhes importantes |
+Principles that settle doubts:
+
+1. **As flexible as the user plays.** A preset, a tracker or an agent can apply to *everything*, to *one campaign* or to *one session*; the most specific layer wins (§3).
+2. **Agents are citizens of the app, not patches.** One format, one place where they run (the turn), organized and visible results. Homunculus v1's 69 templates come in by **import** — the app does not adapt itself to them.
+3. **Everything that happens at a message is tied to that message** (D-001, extended). Swiping, going back or branching always shows everything right.
+4. **Nothing is lost in silence.** Every rewrite can be undone, every edit has history, every delete goes through the trash, and the app can always show *what was sent to the AI and why*.
+5. **Cost under control.** Agents run in parallel and with cheap models, but with clear limits per connection and per agent; the user sees how much each session spent.
+
+---
+
+## 2. The pieces (the data model)
+
+### 2.1 Library — reusable things
+
+| Piece | What it is | Important details |
 |---|---|---|
-| **Character** | Um personagem (card do ST por dentro) | **Variantes** (§2.5). Guarda o card original para exportar sem perda (D-012). |
-| **Persona** | Quem o usuário é na história | Mesmo mecanismo de variantes. Imagem própria. |
-| **Preset** | A receita do prompt: blocos ordenados + parâmetros da IA | Import/export de preset Chat Completion do ST. **Variáveis de estilo** (`{{pov}}`, `{{tense}}`…). |
-| **Lorebook** | Entradas ativadas por palavras-chave | Ativação **igual à do ST**; extensão nossa: ativar também **por estado do mundo** (§5.3). |
-| **Agent** | Um ajudante de IA (§4) | É **dado** (editável, importável). |
-| **Tracker schema** | Os campos que um tracker acompanha | Desenha o painel e define o que o tracker preenche (§4.5). |
-| **Kit** | Um setup salvo com nome: "Campanha de RPG", "Drama", "Conversa leve" | Aplicar um kit **copia** os valores para a camada (§2.6). |
-| **Connection** | Provedor + endereço + modelo (+ limites, §7.3) | Chave no cofre do Windows (D-011). |
-| **Scenario** (Vault) | Ambientação, NPCs, aberturas, lorebooks, hora inicial | Inicia uma campanha ou sessão. |
-| **NPC sheet** (Vault) | Ficha de NPC | Pode virar Character. |
-| **Regex script** | Buscar/substituir no texto (exibição, prompt ou os dois) | Import do ST; também usado por agentes. |
+| **Character** | A character (an ST card inside) | **Variants** (§2.5). Keeps the original card to export without loss (D-012). |
+| **Persona** | Who the user is in the story | Same variant mechanism. Its own picture. |
+| **Preset** | The prompt's recipe: ordered blocks + AI parameters | Import/export of ST Chat Completion presets. **Style variables** (`{{pov}}`, `{{tense}}`…). |
+| **Lorebook** | Entries activated by keywords | Activation **the same as ST's**; our extension: also activate **by world state** (§5.3). |
+| **Agent** | An AI helper (§4) | It is **data** (editable, importable). |
+| **Tracker schema** | The fields a tracker follows | Draws the panel and defines what the tracker fills (§4.5). |
+| **Kit** | A named saved setup: "RPG campaign", "Drama", "Light chat" | Applying a kit **copies** the values into the layer (§2.6). |
+| **Connection** | Provider + address + model (+ limits, §7.3) | Key in the OS keychain (D-011). |
+| **Scenario** (Vault) | Setting, NPCs, openings, lorebooks, starting time | Starts a campaign or session. |
+| **NPC sheet** (Vault) | An NPC's sheet | Can become a Character. |
+| **Regex script** | Find/replace in the text (display, prompt or both) | Import from ST; also used by agents. |
 
-### 2.2 Jogo — onde a história acontece
+### 2.2 Play — where the story happens
 
 ```
-Story (opcional, no Vault) ──< Session ──< Message (árvore) ──< registros por mensagem (§2.4)
-   │ narrador (Vault / card / próprio)  │ setup da sessão
-   │ NPCs (Vault) + cards opcionais     │ cast (personagem + variante + presença), NPCs extras
-   │ scenario + aberturas               │ persona (+ variante), papel do usuário
-   │ papel do usuário, setup da story   │ branches, marcadores ("save points")
-   └ sessões da story                   └ espaço de memória dos agentes (no estado, §4.7)
+Story (optional, in the Vault) ──< Session ──< Message (tree) ──< per-message records (§2.4)
+   │ narrator (Vault / card / own)       │ session setup
+   │ NPCs (Vault) + optional cards       │ cast (character + variant + presence), extra NPCs
+   │ scenario + openings                 │ persona (+ variant), user's role
+   │ user's role, story setup            │ branches, markers ("save points")
+   └ the story's sessions                └ agents' memory space (in the state, §4.7)
 ```
 
-- **Story** (D-029, substitui a "Campaign"): história narrada, área separada dos chats 1:1. Contada por um **Narrator** (não é personagem: item do Vault com instruções, estilo, "may bring in new people" e instrução por turno; vem o **Simple Narrator**; ou um card do usuário; ou escrito só para ela). Tem **NPCs** (fichas leves do Vault com os campos por personagem de um conjunto do Scene: Characters, sem os de "Now"; o mesmo NPC pode estar em várias Stories e chats; "Make a Copy"), cards opcionais (entram como são), Scenario, aberturas, papel do usuário (*player / coauthor / director*) e a camada de setup "story". Cada Play cria uma sessão. Continuar do estado final de outra sessão: depois.
-- **Vault** = Stories, Narrators, NPCs (peças de história). **Library** = o que é do formato do ST e do motor (Characters, Personas, Lorebooks, Presets, Trackers, Trash). Lorebook é só lore.
-- **Session**: uma conversa — cast (membros com variante, *In scene / Offscreen / Off*, *muted*, ficha para o narrador; ou um **narrador**), papel do usuário (*player / coauthor / director*), persona + variante, setup próprio.
-- Um chat 1:1, um grupo e uma aventura narrada são **o mesmo sistema** com cast diferente.
+- **Story** (D-029, replaces "Campaign"): a narrated story, an area separate from 1:1 chats. Told by a **Narrator** (not a character: a Vault item with instructions, style, "may bring in new people" and a per-turn instruction; the **Simple Narrator** comes with the app; or one of the user's cards; or written just for it). It has **NPCs** (light Vault sheets with the per-character fields of a Scene: Characters set, without the "Now" ones; the same NPC can be in several Stories and chats; "Make a Copy"), optional cards (they go in as they are), Scenario, openings, the user's role (*player / coauthor / director*) and the "story" setup layer. Each Play creates a session. Continuing from the final state of another session: later.
+- **Vault** = Stories, Narrators, NPCs (story pieces). **Library** = what belongs to the ST format and to the engine (Characters, Personas, Lorebooks, Presets, Trackers, Trash). A lorebook is only lore.
+- **Session**: one conversation — cast (members with a variant, *In scene / Offscreen / Off*, *muted*, a sheet for the narrator; or a **narrator**), the user's role (*player / coauthor / director*), persona + variant, its own setup.
+- A 1:1 chat, a group and a narrated adventure are **the same system** with a different cast.
 
-### 2.3 Mensagens — tipos e visibilidade
+### 2.3 Messages — kinds and visibility
 
-Nem toda mensagem é "fala". Cada mensagem tem um **tipo** e uma **visibilidade**:
+Not every message is "speech". Each message has a **kind** and a **visibility**:
 
-| Tipo | Exemplo |
+| Kind | Example |
 |---|---|
-| `user` | fala/ação do jogador |
-| `direction` | ordem do coauthor/director ("façam eles discutirem") |
-| `reply` | resposta da IA (quem falou — personagem ou narrador — fica no campo `speaker`) |
-| `ooc` | nota fora do personagem (fica visível, pode não ir para a IA) |
-| `event` | marcador do sistema: "passaram-se 3 dias", "nova cena", "capítulo 2" |
+| `user` | the player's speech/action |
+| `direction` | an order from the coauthor/director ("make them argue") |
+| `reply` | the AI's reply (who spoke — character or narrator — is in the `speaker` field) |
+| `ooc` | an out-of-character note (stays visible, may not go to the AI) |
+| `event` | a system marker: "3 days passed", "new scene", "chapter 2" |
 
-Visibilidade: **para a IA** (sim / não / só resumo) e **para o usuário** (visível / oculta). Isso substitui os vários jeitinhos do v1 (OOC blocks, esconder mensagens resumidas).
+Visibility: **for the AI** (yes / no / summary only) and **for the user** (visible / hidden). This replaces v1's various workarounds (OOC blocks, hiding summarized messages).
 
-### 2.4 O que fica preso a cada mensagem
+### 2.4 What is tied to each message
 
-| Registro | Exemplo | Para quê |
+| Record | Example | What for |
 |---|---|---|
-| `state delta` | "hora: 21:40", "Lyra.roupa: capa molhada" | Swipe/voltar mostra o mundo certo (D-001). |
-| `agent run` | "Prose Polisher: ok, 1,2 s, modelo X, 340 tokens, saída Y" | Ver o que cada agente fez, rodar de novo, depurar, custo. |
-| `revision` | original × reescrito (por agente **ou pelo usuário**) | Desfazer qualquer reescrita/edição. |
-| `companion note` | resumo, comentário do diretor | O painel mostra a nota do swipe atual. |
-| `generation record` | modelo, parâmetros, **prompt enviado** (comprimido), de qual bloco veio cada pedaço, tokens, custo, tempo | "Ver o prompt" de **qualquer** mensagem, não só da última; comparar swipes. |
-| `reasoning` | o "pensamento" de modelos thinking (ex.: GLM thinking do Daniel) | Guardado à parte: mostrar/esconder; **nunca** volta para o histórico do prompt. |
+| `state delta` | "time: 21:40", "Lyra.outfit: wet cloak" | Swiping/going back shows the right world (D-001). |
+| `agent run` | "Prose Polisher: ok, 1.2 s, model X, 340 tokens, output Y" | See what each agent did, run it again, debug, cost. |
+| `revision` | original × rewritten (by an agent **or by the user**) | Undo any rewrite/edit. |
+| `companion note` | summary, director's comment | The panel shows the note of the current swipe. |
+| `generation record` | model, parameters, **prompt sent** (compressed), which block each piece came from, tokens, cost, time | "See the prompt" of **any** message, not just the last one; compare swipes. |
+| `reasoning` | the "thinking" of thinking models (e.g. Daniel's GLM thinking) | Kept separately: show/hide; **never** goes back into the prompt history. |
 
-**Mensagens antigas editadas:** se o usuário editar a mensagem N (ou um valor do painel em N), os registros das mensagens **depois de N** podem ficar desatualizados. O app marca esses como **"desatualizado"** e oferece "recalcular a partir daqui" — nunca recalcula sozinho (gastaria tokens sem pedir).
+**Old messages edited:** if the user edits message N (or a panel value at N), the records of the messages **after N** may become outdated. The app marks those as **"outdated"** and offers "recalculate from here" — it never recalculates by itself (it would spend tokens without asking).
 
-### 2.5 Variantes (opção B do Daniel)
+### 2.5 Variants (Daniel's option B)
 
-- Um Character (ou Persona) tem **uma ou mais variantes**: "Lyra — fantasia", "Lyra — moderna". A primeira é a principal.
-- Uma variante guarda **só o que muda** em relação à principal. Editar a principal atualiza o que as variantes não mudaram.
-- **Cada sessão escolhe a variante** de cada membro do cast (e da persona).
-- Exportar para o ST: exporta **uma variante** como card normal.
+- A Character (or Persona) has **one or more variants**: "Lyra — fantasy", "Lyra — modern". The first is the main one.
+- A variant keeps **only what changes** from the main one. Editing the main one updates whatever the variants did not change.
+- **Each session picks the variant** of each cast member (and of the persona).
+- Export to ST: exports **one variant** as a normal card.
 
-### 2.6 Regras gerais da biblioteca
+### 2.6 General library rules
 
-- **Referência viva x cópia.** Sessões e campanhas **apontam** para itens da biblioteca (editar um lorebook vale para todas que o usam). **Kits e cenários são copiados** ao aplicar (mudar o kit depois não mexe em campanhas já criadas). O app mostra "usado em 3 campanhas" antes de editar algo compartilhado, com opção **"duplicar e editar só aqui"**.
-- **Histórico para tudo**, não só personagens: presets, lorebooks, agentes, schemas e kits guardam versões; dá para comparar e voltar. **Feito para personagens e personas** (2026-10-28, D-019: tabela `item_history`); os outros entram quando ganharem editor.
-- **Lixeira**: apagar manda para a lixeira (personagens, sessões, mensagens, itens); some de vez só ao esvaziar. Apagar algo em uso avisa quem usa. **Feito para sessões, personagens e personas** (D-019), com "Desfazer"; trackers e mensagens entram depois.
-- **Pacotes para compartilhar**: exportar uma campanha inteira (cards, lorebooks, kit, agentes, schemas) como **um arquivo** do Homunculus, e importar. Formato próprio, versionado (lição do Aventuras: não enfiar tudo num card do ST). Cards/lorebooks/presets continuam saindo também no formato do ST.
-
----
-
-## 3. Setup em camadas — o coração da flexibilidade
-
-Tudo o que configura o jeito de jogar mora num **Setup**:
-preset · persona · lorebooks extras · agentes · trackers (e seus campos) · companions · estilo da história · conexão principal e conexões dos agentes · regras de quem responde · narrador e abertura · limites de custo · regras de quando os trackers rodam.
-
-```
-  Padrão (o que eu uso sempre)
-     ↓ sobrescrito por
-  Campanha
-     ↓ sobrescrito por
-  Sessão
-```
-
-- Cada item é **"herdar"** (vazio) ou um valor. A camada mais de baixo com valor ganha.
-- Listas (agentes, lorebooks, trackers): **manter os de cima / só estes / somar** (+ estes − os desmarcados).
-- A UI mostra **de onde veio** cada valor e um botão "voltar a herdar".
-- **Uma função só** resolve o setup (`resolveSetup`). Ninguém mais lê camada por camada.
-- O setup **muda no meio da sessão** (ligar um tracker na mensagem 200) e vale **dali para frente**; o registro de geração (§2.4) guarda qual setup foi usado em cada resposta.
-
-Exemplos do Daniel:
-- **Campanha completa de RPG**: kit "RPG" → trackers de mundo, **dinheiro**, inventário, **quests**, **facções**, reputação; preset Game Master; narrador. Toda sessão da campanha herda.
-- **Sessão normal, outro foco**: kit "Drama" na sessão → trackers de **emoções** e **relacionamentos**; nada de dinheiro ou quests.
-- Os dois usam **o mesmo mecanismo**: escolher/editar schemas, nunca programar.
+- **Live reference × copy.** Sessions and campaigns **point** to library items (editing a lorebook applies to everyone using it). **Kits and scenarios are copied** when applied (changing the kit later does not touch campaigns already created). The app shows "used in 3 campaigns" before editing something shared, with an option **"duplicate and edit only here"**.
+- **History for everything**, not just characters: presets, lorebooks, agents, schemas and kits keep versions; they can be compared and restored. **Done for characters and personas** (2026-10-28, D-019: table `item_history`); the others join when they get an editor.
+- **Trash**: deleting sends to the trash (characters, sessions, messages, items); it only disappears for good when emptied. Deleting something in use warns who uses it. **Done for sessions, characters and personas** (D-019), with "Undo"; trackers and messages join later.
+- **Packages to share**: export a whole campaign (cards, lorebooks, kit, agents, schemas) as **one** Homunculus file, and import it. Our own versioned format (Aventuras' lesson: do not cram everything into an ST card). Cards/lorebooks/presets still export in ST's format too.
 
 ---
 
-## 4. Agentes — um modelo só, feito para o app
+## 3. Layered setup — the heart of the flexibility
 
-### 4.1 O formato: gatilho → entrada → saída
+Everything that configures the way of playing lives in a **Setup**:
+preset · persona · extra lorebooks · agents · trackers (and their fields) · companions · story style · main connection and agents' connections · rules for who replies · narrator and opening · cost limits · rules for when trackers run.
 
-Todo agente (embutido ou do usuário) é **um gatilho**, **o que ele lê** e **para onde vai o resultado**, mais opções.
+```
+  Default (what I always use)
+     ↓ overridden by
+  Campaign
+     ↓ overridden by
+  Session
+```
 
-**Gatilhos** (quando roda):
-| Gatilho | Exemplo |
+- Each item is **"inherit"** (empty) or a value. The lowest layer with a value wins.
+- Lists (agents, lorebooks, trackers): **keep the ones above / only these / add** (+ these − the unticked ones).
+- The UI shows **where each value came from** and a "go back to inheriting" button.
+- **A single function** resolves the setup (`resolveSetup`). Nobody else reads layer by layer.
+- The setup **changes mid-session** (turning a tracker on at message 200) and applies **from then on**; the generation record (§2.4) keeps which setup was used for each reply.
+
+Daniel's examples:
+- **A full RPG campaign**: kit "RPG" → world trackers, **money**, inventory, **quests**, **factions**, reputation; Game Master preset; narrator. Every session of the campaign inherits.
+- **A normal session, another focus**: kit "Drama" on the session → **emotions** and **relationships** trackers; no money or quests.
+- Both use **the same mechanism**: pick/edit schemas, never program.
+
+---
+
+## 4. Agents — a single model, made for the app
+
+### 4.1 The format: trigger → input → output
+
+Every agent (built-in or the user's) is **a trigger**, **what it reads** and **where the result goes**, plus options.
+
+**Triggers** (when it runs):
+| Trigger | Example |
 |---|---|
-| `turn.before` / `turn.parallel` / `turn.after` | antes, junto ou depois da resposta principal |
-| `every N messages` | resumo de capítulo a cada 40 mensagens |
-| `state change` | "o lugar mudou" → descrever o ambiente novo |
-| `session start` / `chapter end` | montar a abertura; fechar o capítulo |
-| `manual` | botão na UI ou no painel |
+| `turn.before` / `turn.parallel` / `turn.after` | before, together with or after the main reply |
+| `every N messages` | a chapter summary every 40 messages |
+| `state change` | "the place changed" → describe the new surroundings |
+| `session start` / `chapter end` | set up the opening; close the chapter |
+| `manual` | a button in the UI or in the panel |
 
-**Entradas** (o que lê): N últimas mensagens · cards e lorebooks ativos · estado do mundo · **resultado de outros agentes** (ver dependências) · sua própria memória (§4.7). Tudo com limite de tokens.
+**Inputs** (what it reads): the last N messages · active cards and lorebooks · world state · **other agents' results** (see dependencies) · its own memory (§4.7). All with a token limit.
 
-**Saídas** (para onde vai o resultado):
-| Saída | O que faz | Exemplos do v1 |
+**Outputs** (where the result goes):
+| Output | What it does | v1 examples |
 |---|---|---|
-| `inject` | texto que entra no prompt da resposta principal | Don't write for user, HTML toggle, randomizers |
-| `intercept` | reescreve a mensagem do usuário antes de enviar (guarda revision) | modo intercept do v1 |
-| `rewrite` | reescreve a resposta (guarda revision, desfazível) | Prose Polisher |
-| `state` | dados estruturados → estado do mundo, validados por schema | todos os trackers |
-| `note` | nota própria no painel do agente; pode voltar ao prompt | companions |
-| `check` | aprova ou reprova a resposta, com motivo → **avisar**, **corrigir** (chama um rewrite) ou **gerar de novo** (com limite de tentativas) | Continuity Checker |
-| `choices` | opções que viram **botões clicáveis** na UI, fora do texto | CYOA, Direction Menu, Reply Ideas |
-| `proposal` | propõe mudar dados da biblioteca (card, lorebook, vault) → **o usuário aprova ou recusa** | Lorebook Keeper, Card Evolution (Marinara) |
-| `speaker` | decide **quem fala agora** num grupo | ordem natural/pooled do ST, decisão do Marinara |
-| `media` (depois) | imagem, música, voz | Illustrator (Marinara) |
+| `inject` | text that goes into the main reply's prompt | Don't write for user, HTML toggle, randomizers |
+| `intercept` | rewrites the user's message before sending (keeps a revision) | v1's intercept mode |
+| `rewrite` | rewrites the reply (keeps a revision, undoable) | Prose Polisher |
+| `state` | structured data → world state, validated by schema | all trackers |
+| `note` | its own note in the agent's panel; can go back into the prompt | companions |
+| `check` | approves or rejects the reply, with a reason → **warn**, **fix** (calls a rewrite) or **generate again** (with a retry limit) | Continuity Checker |
+| `choices` | options that become **clickable buttons** in the UI, outside the text | CYOA, Direction Menu, Reply Ideas |
+| `proposal` | proposes changing library data (card, lorebook, vault) → **the user approves or rejects** | Lorebook Keeper, Card Evolution (Marinara) |
+| `speaker` | decides **who speaks now** in a group | ST's natural/pooled order, Marinara's decision |
+| `media` (later) | image, music, voice | Illustrator (Marinara) |
 
-**Opções que valem para qualquer agente:**
-- **Como roda**: `separate` (chamada própria, pode ser modelo barato) ou `inline` (o modelo principal escreve um bloco junto da resposta e o app **retira** e guarda — 1 chamada só; é como 36 dos 69 modelos do v1 funcionam). Inline economiza, mas deixa a resposta principal mais longa e pode piorar a escrita; o padrão para trackers novos é `separate`.
-- **Ferramentas** (`tools`): **habilidade**, não tipo — qualquer agente pode receber ferramentas (buscar no lorebook, ler mensagens antigas, consultar o estado). O Pathfinder é um agente `inject` com ferramentas.
-- **Condições**: palavras-gatilho, probabilidade, tipo de geração (normal, swipe, continue, impersonate), papéis do usuário, só se um valor do estado for X.
-- **Dependências**: "rodar depois de X e ler o resultado dele" (ex.: Relacionamentos → Diretor). O runner organiza a ordem; ciclos são recusados ao salvar.
-- **Conexão**: a do setup ou uma própria.
-- **Limites**: tokens máximos por execução, só depois de N mensagens, no máximo X execuções por turno.
-- **Sorte e swipe**: agentes aleatórios podem **sortear de novo a cada swipe** ou **manter o mesmo sorteio** (semente presa à mensagem-pai).
-- **Saída validada** por schema antes de salvar (já existe no núcleo). Resposta mal formada → uma tentativa de reparo automática, depois falha visível.
+**Options that apply to any agent:**
+- **How it runs**: `separate` (its own call, can be a cheap model) or `inline` (the main model writes a block together with the reply and the app **strips** and keeps it — a single call; it is how 36 of v1's 69 templates work). Inline saves money, but makes the main reply longer and may worsen the writing; the default for new trackers is `separate`.
+- **Tools** (`tools`): an **ability**, not a kind — any agent can get tools (search the lorebook, read old messages, query the state). The Pathfinder is an `inject` agent with tools.
+- **Conditions**: trigger words, probability, generation type (normal, swipe, continue, impersonate), the user's roles, only if a state value is X.
+- **Dependencies**: "run after X and read its result" (e.g. Relationships → Director). The runner sorts the order; cycles are refused on save.
+- **Connection**: the setup's or its own.
+- **Limits**: maximum tokens per run, only after N messages, at most X runs per turn.
+- **Luck and swipes**: random agents can **draw again on every swipe** or **keep the same draw** (seed tied to the parent message).
+- **Output validated** by schema before saving (already in the core). A malformed reply → one automatic repair attempt, then a visible failure.
 
-Agentes **embutidos** (módulos) e **do usuário** (dados) usam o mesmo formato; o runner não sabe a diferença.
+**Built-in** agents (modules) and **user** agents (data) use the same format; the runner cannot tell them apart.
 
-### 4.2 Fases dentro de um turno
+### 4.2 Phases inside a turn
 
-`before` roda **em paralelo** (agrupando agentes da mesma conexão numa chamada só, ideia do Marinara). `after` roda em **duas ondas**: primeiro os que mexem no texto (`rewrite` e `check`, **em sequência**, na ordem definida), depois os que só leem (`state`, `note`, `choices`, `proposal`, **em paralelo**), assim os trackers leem o texto final.
+`before` runs **in parallel** (grouping agents of the same connection into a single call, Marinara's idea). `after` runs in **two waves**: first the ones that touch the text (`rewrite` and `check`, **in sequence**, in the set order), then the ones that only read (`state`, `note`, `choices`, `proposal`, **in parallel**), so the trackers read the final text.
 
-### 4.3 Exemplos de combinações
+### 4.3 Example combinations
 
-- **Tracker de relacionamento**: `turn.after` → lê 6 mensagens + estado → `state` (schema "por par": afeto, confiança, tensão).
-- **Diretor de história** (Story Director do Daniel): `turn.after`, depende do tracker de plot → `note` + memória de objetivos (§4.7) → no turno seguinte `inject` "puxe a história para o beat X".
-- **Guardião "não escreva pelo usuário"**: `turn.after` → `check` → se reprovar, `rewrite` corrige só o trecho.
-- **Resumo de capítulo**: `every 40 messages` → `note` + marca as mensagens resumidas como "só resumo para a IA" (§2.3).
+- **Relationship tracker**: `turn.after` → reads 6 messages + state → `state` (a "per pair" schema: affection, trust, tension).
+- **Story director** (Daniel's Story Director): `turn.after`, depends on the plot tracker → `note` + goals memory (§4.7) → on the next turn `inject` "steer the story toward beat X".
+- **"Don't write for the user" guard**: `turn.after` → `check` → if it fails, `rewrite` fixes only that part.
+- **Chapter summary**: `every 40 messages` → `note` + marks the summarized messages as "summary only for the AI" (§2.3).
 
-### 4.4 Style Reviewer (pedido do Daniel, 2026-10-27)
+### 4.4 Style Reviewer (Daniel's request, 2026-10-27)
 
-Um revisor de estilo da escrita da IA, na linha do Prose Polisher do SillyBunny, mas mais forte. Referência: **fiction-prose-style** (github.com/unkarelian/fiction-prose-style, licença MIT, commit 2f5947ac de 2026-10-24) — um padrão de prosa testado às cegas com um leitor real, que ataca os *formatos* de frase típicos de IA ("Não era X. Era Y.", eco duplo, fecho espirituoso, narrador que explica a cena, toda cena terminando em calma…).
+A reviewer of the AI's writing style, along the lines of SillyBunny's Prose Polisher, but stronger. Reference: **fiction-prose-style** (github.com/unkarelian/fiction-prose-style, MIT license, commit 2f5947ac from 2026-10-24) — a prose standard blind-tested with a real reader, which goes after the *shapes* of sentences typical of AI ("It wasn't X. It was Y.", double echo, the witty closer, the narrator explaining the scene, every scene ending in calm…).
 
-A grande ideia dele, que adotamos: **duas metades**.
-1. **Contagem (sem IA, de graça)**: um código lê as últimas mensagens — ou o capítulo — e conta o que um modelo não percebe sozinho ao longo de muitas respostas: **frases repetidas**, palavras usadas muito mais que o normal, ritmo (frases todas curtas ou todas encadeadas com "e"), densidade de comparações, fechos de parágrafo. Compara com uma **referência** (os textos que o usuário marcou como "gostei"; começa com a referência do projeto).
-2. **Julgamento (agente)**: um revisor que **só aponta** trechos que batem com os formatos proibidos do guia, sem reescrever (o `REVIEWER.md` deles).
+Its big idea, which we adopt: **two halves**.
+1. **Counting (no AI, free)**: code reads the last messages — or the chapter — and counts what a model does not notice by itself across many replies: **repeated phrases**, words used far more than normal, rhythm (all short sentences or all chained with "and"), density of comparisons, paragraph closers. It compares against a **reference** (texts the user marked "liked"; starts with the project's reference).
+2. **Judgment (agent)**: a reviewer that **only points out** passages that match the guide's banned shapes, without rewriting (their `REVIEWER.md`).
 
-Como entra no nosso modelo de agentes (§4.1), sem nada especial:
-- **Contagem** = código de um módulo, roda a cada turno sobre a janela recente (custo zero).
-- **Revisor** = agente com saída `check`, gatilho `every N messages` ou `manual`; resultado aparece num **relatório** com os trechos marcados.
-- **Volta para a história** de três jeitos, à escolha: `inject` ("evite estas frases e formatos nesta resposta" — o mais barato e o mais eficaz contra repetição), `rewrite` só dos trechos marcados (o Prose Polisher), ou só o relatório.
-- **O guia de estilo é dado**: o padrão vem do fiction-prose-style, mas o usuário troca, edita ou escreve o seu (é um bloco/arquivo, não código).
-- **"Gostei" numa mensagem** ensina a referência de ritmo e vocabulário do usuário.
+How it fits our agent model (§4.1), with nothing special:
+- **Counting** = a module's code, runs every turn over the recent window (zero cost).
+- **Reviewer** = an agent with `check` output, trigger `every N messages` or `manual`; the result shows in a **report** with the marked passages.
+- **Back into the story** in three ways, by choice: `inject` ("avoid these phrases and shapes in this reply" — the cheapest and the most effective against repetition), `rewrite` only of the marked passages (the Prose Polisher), or just the report.
+- **The style guide is data**: the default comes from fiction-prose-style, but the user swaps, edits or writes their own (it is a block/file, not code).
+- **"Liked" on a message** teaches the user's reference rhythm and vocabulary.
 
-Módulo `style-reviewer`. O Aventuras tem algo parecido (`StyleReviewerService.ts`, frases repetidas entre entradas) — ver `docs/reference/aventuras.md`. O contador é Python (`scripts/prose_check.py`); portar para TypeScript com crédito em `CREDITS.md` (MIT).
+Module `style-reviewer`. Aventuras has something similar (`StyleReviewerService.ts`, phrases repeated across entries) — see `docs/reference/aventuras.md`. The counter is Python (`scripts/prose_check.py`); port it to TypeScript with credit in `CREDITS.md` (MIT).
 
-### 4.5 Trackers e o painel Scene (editáveis e na UI)
+### 4.5 Trackers and the Scene panel (editable and in the UI)
 
-- Tracker = agente com saída `state` + **Tracker schema**.
-- O painel é **desenhado a partir do schema**: tracker novo ganha painel sem programar tela.
-- **Tipos de campo**: texto · número (moedas) · medidor 0–100 (afeto) · status (quest *ativa/feita/falhou*) · lista de itens (inventário com quantidade) · **data/hora da história** (com calendário, como o v1) · **por personagem** (um valor por membro do cast) · **por par** (A→B) · grupo de campos.
-- Cada campo tem: rótulo, ajuda ("?"), se o tracker pode mudar sozinho ou **só o usuário** (travado), e se vai para o prompt.
-- **Dono do campo**: cada namespace do estado tem **um** tracker dono; os outros só leem. Isso evita dois trackers brigando pelo mesmo valor.
-- **Edição do usuário** → delta do usuário naquela mensagem (ou **pin**, que vale em todos os ramos). Edição do usuário sempre ganha da do tracker na mesma mensagem.
-- Volta para o prompt como um resumo curto (marcador "cena atual"), com limite de tokens.
-- **Regra do Daniel (2026-10-27): nada de tracker com nome ou função fixa no código.** O app não sabe *o que* é acompanhado; o usuário cria o tracker e os campos na tela, e serve do jeito que ele quiser. Exemplos como RPG (dinheiro, quests, facções) ou Drama (emoções, relacionamentos) são só **configurações que o usuário monta** — se um dia vierem prontos, vêm como **dados opcionais** (um arquivo para importar ou um Kit), nunca como código.
-- **Trackers iniciais (pedido do Daniel, 2026-10-27, D-017):** os do v1 — **Scene: World** (Standard, Survival, Minimal), **Scene: Characters** (Standard, **Fantasy** — novo: raça, classe, nível, vida, mana, afinidade, slots de skill, skills, magias, equipamento, condições —, Superpowers, Sci-fi, Minimal) e **Scene: Plot** — vêm **como dados editáveis** (`apps/desktop/src/starter/trackers.json`), instalados uma vez; o motor continua sem saber o que eles são. **Scene: Map** fica para quando existir a tela de mapa (World Map, "depois" no §10): ele responde só com o que mudou e precisa de coordenadas e rotas.
-- **Field sets**: um tracker pode ter vários conjuntos de campos; a sessão escolhe um (`agentOverrides[tracker].schemaId`), senão vale o padrão do tracker. Campos com a mesma chave mantêm o valor ao trocar de conjunto. Campos têm **seção** (só agrupa no painel e no prompt), **"sempre preenchido"**, e listas podem ter **colunas** (quests: título/status/nota). Um conjunto diz **quem tem valores por personagem**: só o elenco, elenco + usuário, ou **qualquer um que a história nomear** (o tracker adiciona NPCs). Opcional: o campo que diz **quem está na cena** — quem não está vai ao prompt só pelo nome.
-- **Prova de conceito feita (2026-10-27):** `packages/core/src/trackers.ts` (o motor só lê o schema) + editor de trackers + painel Scene. Ver `DECISIONS.md` D-016.
+- Tracker = an agent with `state` output + **Tracker schema**.
+- The panel is **drawn from the schema**: a new tracker gets a panel without programming a screen.
+- **Field types**: text · number (coins) · 0–100 gauge (affection) · status (quest *active/done/failed*) · item list (inventory with quantity) · **story date/time** (with a calendar, like v1) · **per character** (one value per cast member) · **per pair** (A→B) · field group.
+- Each field has: a label, help ("?"), whether the tracker can change it by itself or **only the user** (locked), and whether it goes to the prompt.
+- **Field owner**: each state namespace has **one** owning tracker; the others only read. This keeps two trackers from fighting over the same value.
+- **User edit** → a user delta at that message (or a **pin**, which applies on every branch). A user edit always wins over the tracker's at the same message.
+- Goes back into the prompt as a short summary ("current scene" marker), with a token limit.
+- **Daniel's rule (2026-10-27): no tracker with a fixed name or function in code.** The app does not know *what* is followed; the user creates the tracker and its fields on screen, and it works however they want. Examples like RPG (money, quests, factions) or Drama (emotions, relationships) are just **configurations the user builds** — if they ever come ready-made, they come as **optional data** (a file to import or a Kit), never as code.
+- **Starter trackers (Daniel's request, 2026-10-27, D-017):** v1's — **Scene: World** (Standard, Survival, Minimal), **Scene: Characters** (Standard, **Fantasy** — new: race, class, level, health, mana, affinity, skill slots, skills, spells, equipment, conditions —, Superpowers, Sci-fi, Minimal) and **Scene: Plot** — come **as editable data** (`apps/desktop/src/starter/trackers.json`), installed once; the engine still does not know what they are. **Scene: Map** waits for the map screen (World Map, "later" in §10): it only replies with what changed and needs coordinates and routes.
+- **Field sets**: a tracker can have several field sets; the session picks one (`agentOverrides[tracker].schemaId`), otherwise the tracker's default applies. Fields with the same key keep their value when switching sets. Fields have a **section** (only groups in the panel and the prompt), **"always filled"**, and lists can have **columns** (quests: title/status/note). A set says **who has per-character values**: only the cast, cast + user, or **anyone the story names** (the tracker adds NPCs). Optional: the field that says **who is in the scene** — whoever is not goes to the prompt by name only.
+- **Proof of concept done (2026-10-27):** `packages/core/src/trackers.ts` (the engine only reads the schema) + tracker editor + Scene panel. See `DECISIONS.md` D-016.
 
 ### 4.6 Companions
 
-Agente com saída `note`: notas por mensagem, painel próprio, pode alimentar o próximo prompt e ler notas de outros agentes. Exemplos do v1: Memory Shard, Director's Commentary, Continuity.
+An agent with `note` output: notes per message, its own panel, can feed the next prompt and read other agents' notes. v1 examples: Memory Shard, Director's Commentary, Continuity.
 
-### 4.7 Memória dos agentes
+### 4.7 Agents' memory
 
-Notas por mensagem servem para "o que aconteceu aqui". Para coisas que **duram** (objetivos de longo prazo, segredos plantados, beats planejados), cada agente tem um **espaço próprio dentro do estado do mundo** (namespace `agent:<id>`). Como é estado, funciona com swipe e ramos sem nada novo.
+Notes per message are for "what happened here". For things that **last** (long-term goals, planted secrets, planned beats), each agent has **its own space inside the world state** (namespace `agent:<id>`). Since it is state, it works with swipes and branches with nothing new.
 
-### 4.8 Importar os agentes do Homunculus v1
+### 4.8 Importing Homunculus v1's agents
 
-Módulo `homunculus-v1-agents`: traduz `phase`, `execution`, `injection`, `postProcess.extract/regex`, `conditions`, `companion` para o formato acima. Trackers inline do v1 viram `state` com um **schema deduzido** do bloco que extraíam (quando possível). Os que não couberem mostram um aviso do que ficou de fora.
+Module `homunculus-v1-agents`: translates `phase`, `execution`, `injection`, `postProcess.extract/regex`, `conditions`, `companion` into the format above. v1's inline trackers become `state` with a **schema inferred** from the block they extracted (when possible). The ones that do not fit show a notice of what was left out.
 
-### 4.9 Assistente da Biblioteca (ideia do Daniel, 2026-10-27 — **para executar depois**)
+### 4.9 Library Assistant (Daniel's idea, 2026-10-27 — **to build later**)
 
-Um chat com uma IA que **cria e edita coisas da biblioteca por você**, no estilo do **VaultAssistant do Aventuras** (estudado no commit `d98ad752`, ver `docs/reference/aventuras.md` §2). Exemplos de pedido: "cria um tracker para o mundo com hora, clima e lugar", "cria um tracker por personagem do jeito que eu descrever", "melhora a descrição da Lyra", "faz uma entrada de lorebook sobre a guilda".
+A chat with an AI that **creates and edits library things for you**, in the style of **Aventuras' VaultAssistant** (studied at commit `d98ad752`, see `docs/reference/aventuras.md` §2). Example requests: "make a world tracker with time, weather and place", "make a per-character tracker the way I describe", "improve Lyra's description", "write a lorebook entry about the guild".
 
-**O que o Aventuras faz e vale copiar** (a ideia, não o código):
-- **Chat com streaming**, raciocínio dobrado e as **ferramentas que a IA usou** aparecendo como cartões na conversa.
-- **Toda mudança é uma proposta**: a IA nunca salva sozinha; aparece um cartão com o "antes → depois", e o usuário **aprova, recusa ou edita** antes de aprovar (pode aprovar várias de uma vez).
-- **As ferramentas veem a biblioteca "efetiva"**: o que está salvo + as propostas ainda não decididas + o que o usuário digitou e não salvou. Assim a IA não trabalha com dados velhos.
-- **Ferramentas carregadas por categoria quando precisa** (`load_toolset`: personagens, lorebooks, cenários…), para o prompt ficar pequeno.
-- **Abrir a partir de um editor** já focado naquele item (o registro do item vai junto, e só é reenviado se mudou).
-- **Conversas salvas**: lista, renomear, continuar depois.
-- **Configurações próprias**: perfil de API (vazio = o da história), modelo, temperatura, **esforço de raciocínio** (reasoning effort), corpo manual da requisição; o **system prompt é editável**. Limite de passos de ferramenta por mensagem (eles usam 50).
+**What Aventuras does that is worth copying** (the idea, not the code):
+- **A streaming chat**, folded reasoning, and the **tools the AI used** showing as cards in the conversation.
+- **Every change is a proposal**: the AI never saves by itself; a card shows "before → after", and the user **approves, rejects or edits** before approving (several can be approved at once).
+- **The tools see the "effective" library**: what is saved + the proposals not yet decided + what the user typed and did not save. So the AI never works with stale data.
+- **Tools loaded by category when needed** (`load_toolset`: characters, lorebooks, scenarios…), so the prompt stays small.
+- **Opening from an editor** already focused on that item (the item's record goes along, and is only resent if it changed).
+- **Saved conversations**: list, rename, continue later.
+- **Its own settings**: API profile (empty = the story's), model, temperature, **reasoning effort**, manual request body; the **system prompt is editable**. A limit of tool steps per message (they use 50).
 
-**Como entra no nosso desenho** (respostas do §13):
-1. **Peça (§2)**: não é peça nova de dados — é um **agente**: gatilho `manual`, com **ferramentas** (`tools`), saída `proposal` (§4.1). Novo só o registro **"conversa do assistente"** (mensagens + propostas e o que foi decidido), guardado na biblioteca.
-2. **Camada do setup (§3)**: as configurações do assistente (conexão/perfil, modelo, esforço, temperatura, prompt) ficam no **Padrão**; podem ser trocadas no próprio painel do assistente.
-3. **Passo do turno (§6)**: nenhum — roda fora dos turnos, quando o usuário conversa com ele.
-4. **Núcleo ou módulo (§8)**: módulo `library-assistant`. Cada tipo de item traz suas ferramentas (ex.: o módulo de trackers registra `list_trackers`, `read_tracker`, `create_tracker`, `update_tracker_fields`, `switch_on_in_session`).
-5. **Preso à mensagem (§2.4)**: não; as propostas ficam presas à conversa do assistente. Ao aprovar, o item ganha uma entrada no **histórico** (§2.6), então dá para desfazer.
-6. **Falha / custo / desfazer**: nada é salvo sem aprovação; erro de ferramenta aparece no cartão; tokens e custo por conversa visíveis; limite de passos; desfazer pelo histórico do item.
+**How it fits our design** (answers to §13):
+1. **Piece (§2)**: not a new data piece — it is an **agent**: `manual` trigger, with **tools** (`tools`), `proposal` output (§4.1). Only the **"assistant conversation"** record is new (messages + proposals and what was decided), kept in the library.
+2. **Setup layer (§3)**: the assistant's settings (connection/profile, model, effort, temperature, prompt) live in the **Default**; they can be changed in the assistant's own panel.
+3. **Turn step (§6)**: none — it runs outside turns, when the user talks to it.
+4. **Core or module (§8)**: module `library-assistant`. Each item type brings its tools (e.g. the trackers module registers `list_trackers`, `read_tracker`, `create_tracker`, `update_tracker_fields`, `switch_on_in_session`).
+5. **Tied to the message (§2.4)**: no; proposals are tied to the assistant conversation. On approval, the item gets an entry in its **history** (§2.6), so it can be undone.
+6. **Failure / cost / undo**: nothing is saved without approval; a tool error shows on the card; tokens and cost per conversation visible; a step limit; undo through the item's history.
 
-**Trackers pelo assistente** (pedido explícito do Daniel): o usuário descreve o que quer ("um tracker de mundo…", "um por personagem…") e a IA propõe **um tracker completo** — nome, instruções, campos com tipo, escopo (um valor / por personagem / por par), faixas, opções, travado, vai para o prompt. A proposta aparece **como no editor de trackers** (e com uma prévia de como fica no painel Scene); aprovar = salvar; botão extra "ligar nesta sessão". Continua valendo a regra: nada pronto no código — o assistente só **monta dados** a partir do pedido.
+**Trackers through the assistant** (Daniel's explicit request): the user describes what they want ("a world tracker…", "one per character…") and the AI proposes **a complete tracker** — name, instructions, fields with type, scope (one value / per character / per pair), ranges, options, locked, goes to the prompt. The proposal shows **like in the tracker editor** (and with a preview of how it looks in the Scene panel); approve = save; an extra "turn on in this session" button. The rule still applies: nothing ready-made in code — the assistant only **builds data** from the request.
 
-**Precisa antes**: (a) ✅ **perfis de conexão com nome** (feito 2026-10-28, D-020: endereço, chave no cofre, modelo, **esforço de raciocínio**, limites, reserva); (b) **ferramentas** dos agentes funcionando de verdade (fatia 5; hoje são só contrato); (c) saída `proposal` com tela de aprovar/recusar; (d) histórico dos itens da biblioteca (fatia 1). **Encaixe sugerido**: logo depois da fatia 5, junto da fatia 6 (trackers + painel Scene) — ver §10.
-
----
-
-## 5. O prompt
-
-### 5.1 Blocos
-
-Um **Preset** é uma lista ordenada de **blocos** (papel system/user/assistant, posição na lista ou "a N mensagens do fim", liga/desliga).
-- **Blocos de texto** do usuário (com macros).
-- **Marcadores** preenchidos por módulos: card, persona, exemplos, histórico, World Info antes/depois, cast, cena atual, capítulos, estilo da história, instruções do papel, injeções dos agentes.
-- Marcador ligado sem lugar no preset → **posição padrão** + aviso "colocado automaticamente — fixar no preset?". Nunca some em silêncio.
-- Import do ST: `prompt_order` + prompts → blocos; teste compara nosso prompt com o do ST.
-- **"Ver o prompt"** de qualquer mensagem (§2.4), mostrando de onde veio cada pedaço e quantos tokens.
-
-### 5.2 Orçamento de contexto (faltava na v1)
-
-O prompt tem um tamanho máximo. Quando não cabe tudo, **um gerenciador de orçamento** decide o que cortar, sempre do mesmo jeito e de forma visível:
-- cada marcador tem **prioridade** e **teto** (ex.: World Info ≤ 25%, cena atual ≤ 800 tokens, capítulos ≤ 15%);
-- o histórico de mensagens ocupa o que sobrar, das mais novas para as mais velhas;
-- o que foi cortado aparece no "ver o prompt" ("3 entradas de lorebook ficaram de fora por falta de espaço").
-Contagem de tokens: estimativa por modelo; exata quando o provedor informar.
-
-### 5.3 Macros e estado
-
-- Motor de macros com a mesma sintaxe do ST (`{{char}}`, `{{user}}`, `{{random}}`, `{{if}}`, variáveis…).
-- **Macros de estado**: `{{state.world.time}}`, `{{state.relationships.Lyra.trust}}` — presets, agentes e lorebooks podem usar o estado do mundo.
-- **Lorebook por estado** (extensão nossa): uma entrada pode exigir uma condição ("só se o lugar for a Taverna"). Sem condição, a ativação é idêntica à do ST.
-
-### 5.4 Ordem para economizar (cache do provedor)
-
-Provedores cobram menos quando o **começo** do prompt é igual ao da chamada anterior. O montador coloca primeiro o que muda pouco (instruções, card, persona) e por último o que muda sempre (cena atual, injeções, histórico recente) — ideia do Aventuras. É o padrão dos presets embutidos; presets importados do ST mantêm a ordem deles.
+**Needs first**: (a) ✅ **named connection profiles** (done 2026-10-28, D-020: address, key in the keychain, model, **reasoning effort**, limits, backup); (b) agent **tools** really working (slice 5; today they are only a contract); (c) `proposal` output with an approve/reject screen; (d) library item history (slice 1). **Suggested fit**: right after slice 5, together with slice 6 (trackers + Scene panel) — see §10.
 
 ---
 
-## 6. Um turno, do clique ao fim
+## 5. The prompt
 
-**Tipos de geração**: `normal` · `swipe` (outra versão da mesma resposta) · `continue` (continuar a última) · `impersonate` (a IA escreve a *sua* fala) · `let them act` (turno sem fala do usuário) · `quiet` (só agentes, nada aparece no chat).
+### 5.1 Blocks
+
+A **Preset** is an ordered list of **blocks** (role system/user/assistant, position in the list or "N messages from the end", on/off).
+- The user's **text blocks** (with macros).
+- **Markers** filled by modules: card, persona, examples, history, World Info before/after, cast, current scene, chapters, story style, role instructions, agents' injections.
+- A marker that is on but has no place in the preset → **default position** + a notice "placed automatically — pin it in the preset?". It never disappears silently.
+- ST import: `prompt_order` + prompts → blocks; a test compares our prompt with ST's.
+- **"See the prompt"** of any message (§2.4), showing where each piece came from and how many tokens.
+
+### 5.2 Context budget (missing in v1)
+
+The prompt has a maximum size. When everything does not fit, **a budget manager** decides what to cut, always the same way and visibly:
+- each marker has a **priority** and a **ceiling** (e.g. World Info ≤ 25%, current scene ≤ 800 tokens, chapters ≤ 15%);
+- the message history takes what is left, newest to oldest;
+- what was cut shows in "see the prompt" ("3 lorebook entries were left out for lack of space").
+Token counting: an estimate per model; exact when the provider reports it.
+
+### 5.3 Macros and state
+
+- A macro engine with the same syntax as ST (`{{char}}`, `{{user}}`, `{{random}}`, `{{if}}`, variables…).
+- **State macros**: `{{state.world.time}}`, `{{state.relationships.Lyra.trust}}` — presets, agents and lorebooks can use the world state.
+- **Lorebook by state** (our extension): an entry can require a condition ("only if the place is the Tavern"). Without a condition, activation is identical to ST's.
+
+### 5.4 Order that saves money (provider cache)
+
+Providers charge less when the **start** of the prompt is the same as the previous call's. The builder puts first what changes little (instructions, card, persona) and last what always changes (current scene, injections, recent history) — Aventuras' idea. It is the default of the built-in presets; presets imported from ST keep their own order.
+
+---
+
+## 6. A turn, from the click to the end
+
+**Generation types**: `normal` · `swipe` (another version of the same reply) · `continue` (continue the last one) · `impersonate` (the AI writes *your* line) · `let them act` (a turn without the user speaking) · `quiet` (agents only, nothing shows in the chat).
 
 ```
- 1. Usuário envia (ou swipe / continue / impersonate / let them act / auto-play)
- 2. resolveSetup(session)                  → preset, persona, agentes, trackers, conexões, limites
- 3. BEFORE   (paralelo, agrupado por conexão)
-      intercept → mensagem do usuário reescrita (revision)
-      inject (+ tools) → textos para o prompt; Pathfinder escolhe entradas
-      speaker  → em grupo, quem fala agora
- 4. Lorebook scan (regras do ST + condições de estado)
- 5. Montagem do prompt: blocos + orçamento de contexto (§5.2) + instruções dos agentes inline
- 6. Resposta principal em streaming  ── PARALLEL roda junto
- 7. Salva mensagem + generation record + reasoning; retira blocos inline → dados
- 8. AFTER, onda 1 (sequência): rewrite, check (pode corrigir ou pedir nova geração)
-    AFTER, onda 2 (paralelo):  state, note, choices, proposal
- 9. Gatilhos não-turno: every N, state change, chapter end
-10. Eventos → UI atualiza painel Scene, companions, botões de escolha, status e custo
+ 1. The user sends (or swipe / continue / impersonate / let them act / auto-play)
+ 2. resolveSetup(session)                  → preset, persona, agents, trackers, connections, limits
+ 3. BEFORE   (parallel, grouped by connection)
+      intercept → the user's message rewritten (revision)
+      inject (+ tools) → texts for the prompt; Pathfinder picks entries
+      speaker  → in a group, who speaks now
+ 4. Lorebook scan (ST rules + state conditions)
+ 5. Prompt assembly: blocks + context budget (§5.2) + inline agents' instructions
+ 6. Main reply streaming  ── PARALLEL runs alongside
+ 7. Save message + generation record + reasoning; strip inline blocks → data
+ 8. AFTER, wave 1 (sequence): rewrite, check (can fix or ask for a new generation)
+    AFTER, wave 2 (parallel):  state, note, choices, proposal
+ 9. Non-turn triggers: every N, state change, chapter end
+10. Events → the UI updates the Scene panel, companions, choice buttons, status and cost
 ```
 
-Regras:
-- **Só o passo 6 é fatal.** Agente que falha → a resposta fica, aviso visível, botão "tentar de novo".
-- **Stop** cancela tudo do turno, inclusive agentes; o texto parcial fica (já existe).
-- **Swipe** repete do passo 3. Setup decide se trackers rodam em todo swipe ou só quando a história continua.
-- **Auto-play** tem limite de turnos e de custo, e para em qualquer erro.
-- O turno é **uma peça do núcleo** (`TurnPipeline`), testável passo a passo com a IA offline (D-009).
-- **Uma geração por sessão de cada vez**; sessões diferentes podem gerar ao mesmo tempo (ler uma enquanto outra gera).
+Rules:
+- **Only step 6 is fatal.** An agent that fails → the reply stays, a visible notice, a "try again" button.
+- **Stop** cancels everything in the turn, agents included; the partial text stays (already exists).
+- **Swipe** repeats from step 3. The setup decides whether trackers run on every swipe or only when the story continues.
+- **Auto-play** has a turn and cost limit, and stops on any error.
+- The turn is **a core piece** (`TurnPipeline`), testable step by step with the offline AI (D-009).
+- **One generation per session at a time**; different sessions can generate at the same time (read one while another generates).
 
 ---
 
-## 7. Coisas que atravessam tudo (faltavam na v1)
+## 7. Things that cut across everything (missing in v1)
 
-### 7.1 Desempenho
-- **Estado com "fotos" periódicas**: reconstruir o estado somando deltas desde a mensagem 1 fica lento em chats de milhares de mensagens. O núcleo guarda uma foto do estado a cada ~50 mensagens e soma só a partir dela (cache; pode ser recriado a qualquer momento).
-- **Chat longo**: a tela só desenha as mensagens visíveis; avatares em miniatura.
-- **Banco**: índices nas tabelas por mensagem; prompts antigos guardados comprimidos.
+### 7.1 Performance
+- **State with periodic "snapshots"**: rebuilding the state by adding deltas since message 1 gets slow in chats with thousands of messages. The core keeps a snapshot of the state every ~50 messages and adds only from there (a cache; can be recreated any time).
+- **Long chat**: the screen only draws the visible messages; thumbnail avatars.
+- **Database**: indexes on the per-message tables; old prompts stored compressed.
 
-### 7.2 Segurança (conteúdo importado é desconhecido)
-- **HTML vindo da IA ou de agentes** (os agentes de render do Daniel) roda **numa caixa isolada** (iframe sem acesso ao app nem à rede). Bonito, mas inofensivo.
-- **Regex** com tempo máximo (regex mal feita não trava o app).
-- Agentes importados **não executam código** — só prompts, schemas e regras. Código só em módulos.
-- Chaves só no cofre (D-011); nunca em exportações.
+### 7.2 Security (imported content is unknown)
+- **HTML coming from the AI or from agents** (Daniel's render agents) runs **in an isolated box** (an iframe with no access to the app or the network). Pretty, but harmless.
+- **Regex** with a time limit (a bad regex does not freeze the app).
+- Imported agents **do not run code** — only prompts, schemas and rules. Code only in modules.
+- Keys only in the keychain (D-011); never in exports.
 
-### 7.3 Custo e limites
-- Cada **Connection** tem: máximo de chamadas simultâneas, espera entre chamadas e **conexão reserva** (se a principal falhar, tenta a reserva — ideia do Marinara).
-- Custo por mensagem, por agente e por sessão, quando o provedor informar preço/uso.
-- Limite opcional de custo por sessão/auto-play.
+### 7.3 Cost and limits
+- Each **Connection** has: maximum simultaneous calls, wait between calls and a **backup connection** (if the main one fails, it tries the backup — Marinara's idea).
+- Cost per message, per agent and per session, when the provider reports price/usage.
+- An optional cost limit per session/auto-play.
 
-### 7.4 Dados: backup e importação
-- Backup automático do banco antes de atualizar (já existe, D-008) + **backup agendado** + "exportar tudo".
-- **Importar a pasta inteira do SillyTavern/Homunculus v1** de uma vez (cards, personas, lorebooks, presets, chats), com relatório do que entrou e do que não entrou.
+### 7.4 Data: backup and import
+- An automatic database backup before upgrading (already exists, D-008) + **scheduled backup** + "export everything".
+- **Import the whole SillyTavern/Homunculus v1 folder** at once (cards, personas, lorebooks, presets, chats), with a report of what came in and what did not.
 
-### 7.5 Testes
-- Testes "iguais ao ST" para prompt e lorebook (mesma entrada → mesmo resultado).
-- IA offline para testar turnos inteiros sem gastar tokens (já existe).
-- Testes de clique na UI antes de entregar (D-007).
+### 7.5 Tests
+- "Same as ST" tests for the prompt and lorebooks (same input → same result).
+- An offline AI to test whole turns without spending tokens (already exists).
+- UI click tests before delivering (D-007).
 
 ---
 
-## 8. Onde cada coisa se encaixa
+## 8. Where each thing fits
 
-**Núcleo** (`packages/core`): dados e banco · eventos · `resolveSetup` · `TurnPipeline` · runner de agentes (gatilhos, dependências, ondas, limites) · estado por mensagem (+ fotos) · montador de prompt + orçamento · motor de macros · limites por conexão · pontos de extensão.
+**Core** (`packages/core`): data and database · events · `resolveSetup` · `TurnPipeline` · agent runner (triggers, dependencies, waves, limits) · per-message state (+ snapshots) · prompt builder + budget · macro engine · per-connection limits · extension points.
 
-**Pontos de extensão**:
-| Já existe | A criar |
+**Extension points**:
+| Already exists | To create |
 |---|---|
-| `registerAgent`, `registerMacro`, `registerPanel`, `registerSetting`, `registerProvider`, `registerCharacterImporter/Exporter` | `registerPromptBlock` · `registerTrackerSchema` · `registerFieldType` (tipo de campo novo no painel) · `registerAgentTool` · `registerAgentOutput` (saída nova, ex.: `media`) · `registerTrigger` · `registerImporter/Exporter` genéricos · `registerSetupField` |
+| `registerAgent`, `registerMacro`, `registerPanel`, `registerSetting`, `registerProvider`, `registerCharacterImporter/Exporter` | `registerPromptBlock` · `registerTrackerSchema` · `registerFieldType` (a new field type in the panel) · `registerAgentTool` · `registerAgentOutput` (a new output, e.g. `media`) · `registerTrigger` · generic `registerImporter/Exporter` · `registerSetupField` |
 
-**Módulos**:
-| Módulo | Faz |
+**Modules**:
+| Module | Does |
 |---|---|
-| `provider-openai` ✅ | IA compatível com OpenAI |
-| `st-cards` ✅ | cards PNG/JSON V1–V3 |
-| `personas` ✅ | personas, variantes (núcleo + telas); import do ST no módulo `st-personas` |
-| `st-presets` ✅ | presets CC do ST (import/export, D-021) |
-| `lorebooks` ✅ | ativação igual ao ST + condições de estado (núcleo `lorebook.ts`) + import/export (módulo `st-lorebooks`) — D-027 |
-| `st-import` | importar a pasta inteira do ST/v1 |
-| `scene` | trackers World/Characters/Plot + pacotes de campos + painel |
-| `companions` | painel e notas |
-| `homunculus-v1-agents` | importa os 69 modelos |
-| `memory-chapters` | capítulos + marcador `chapters` — estudo das referências (amiga/Jev, Marinara, Summaryception) em `docs/MEMORY-PLAN.md` (29/10, nada aprovado) |
-| `story-style` | pov/tense/length/tone + marcador |
+| `provider-openai` ✅ | OpenAI-compatible AI |
+| `st-cards` ✅ | PNG/JSON cards V1–V3 |
+| `personas` ✅ | personas, variants (core + screens); ST import in the `st-personas` module |
+| `st-presets` ✅ | ST CC presets (import/export, D-021) |
+| `lorebooks` ✅ | activation the same as ST + state conditions (core `lorebook.ts`) + import/export (module `st-lorebooks`) — D-027 |
+| `st-import` | import the whole ST/v1 folder |
+| `scene` | World/Characters/Plot trackers + field packs + panel |
+| `companions` | panel and notes |
+| `homunculus-v1-agents` | imports the 69 templates |
+| `memory-chapters` | chapters + `chapters` marker — study of the references (a friend's/Jev's, Marinara, Summaryception) in `docs/MEMORY-PLAN.md` (10/29, nothing approved) |
+| `story-style` | pov/tense/length/tone + marker |
 | `roles` | coauthor/director, let them act, auto-play |
-| `group-turns` | quem fala agora (ordens do ST + agente `speaker`) |
-| `vault` | cenários e NPCs |
+| `group-turns` | who speaks now (ST's orders + `speaker` agent) |
+| `vault` | scenarios and NPCs |
 | `card-browser` | Chub, JannyAI, Wyvern… |
-| `regex-render` | regex + HTML em caixa isolada |
-| `guided` | correções e respostas guiadas |
-| `style-reviewer` | contagem de repetições/ritmo + agente revisor + guia de estilo editável (§4.4) |
-| `card-scripts` (depois) | scripts de card na caixa isolada, com permissão (§12) |
-| `world-map` / `calendars` (depois) | mapa do mundo e calendários do v1 |
-| depois | `recall` (embeddings em Rust), `pathfinder`, `conversation-mode`, `media`, temas |
+| `regex-render` | regex + HTML in an isolated box |
+| `guided` | guided corrections and replies |
+| `style-reviewer` | repetition/rhythm counting + reviewer agent + editable style guide (§4.4) |
+| `card-scripts` (later) | card scripts in the isolated box, with permission (§12) |
+| `world-map` / `calendars` (later) | v1's world map and calendars |
+| later | `recall` (embeddings in Rust), `pathfinder`, `conversation-mode`, `media`, themes |
 
 ---
 
-## 9. Inventário do Homunculus v1 → Homunculus 2
+## 9. Homunculus v1 → Homunculus 2 inventory
 
-| Funcionalidade do v1 | No H2 | Como |
+| v1 feature | In H2 | How |
 |---|---|---|
-| In-Chat Agents | ✅ | §4 + importação |
+| In-Chat Agents | ✅ | §4 + import |
 | Companions | ✅ | §4.6 |
-| Pathfinder | ✅ depois | agente `inject` com ferramentas |
-| Group Studio | ✅ | página da Story (D-029) |
-| Modo Narrado + fichas do cast | ✅ | cast com narrador + `sheet` |
-| Papéis, Let them act, auto-play | ✅ | `roles` |
-| Painel Scene editável | ✅ | §4.5 |
-| Group bar | ✅ | barra da sessão |
-| Configurações do grupo que trocam ao abrir | 🔄 | **Setup em camadas** (§3) |
+| Pathfinder | ✅ later | `inject` agent with tools |
+| Group Studio | ✅ | Story page (D-029) |
+| Narrated mode + cast sheets | ✅ | cast with a narrator + `sheet` |
+| Roles, Let them act, auto-play | ✅ | `roles` |
+| Editable Scene panel | ✅ | §4.5 |
+| Group bar | ✅ | session bar |
+| Group settings that switch on open | 🔄 | **Layered setup** (§3) |
 | Vault | ✅ | `vault` |
-| Memória: capítulos | ✅ | `memory-chapters` |
-| Memória: Recall | ✅ depois | `recall` |
-| Card Browser, Quick Connection | ✅ | módulos |
-| World Map, calendários | ✅ depois | `world-map`, tipo de campo data/hora |
-| OOC blocks | 🔄 | tipo de mensagem `ooc` (§2.3) |
-| Prompt inspector | 🔄 | "ver o prompt" de qualquer mensagem (§2.4) — aba **Reply** do inspetor (D-018) |
-| Sampling parameter policy (parâmetros por modelo) | ✅ | na Connection |
-| Geração que sobrevive a queda | ✅ | texto parcial já salvo; "retomar" depois |
-| Chat archive | 🔄 | lixeira + busca |
-| Home, temas, layouts, efeitos | ✅ fase de UI | base pronta (D-018): tokens, perfis de aparência, `data-region`; falta a tela Customize |
-| Presets Homunculus, Hob, The Ninth Summoning | ✅ | conteúdo embutido |
+| Memory: chapters | ✅ | `memory-chapters` |
+| Memory: Recall | ✅ later | `recall` |
+| Card Browser, Quick Connection | ✅ | modules |
+| World Map, calendars | ✅ later | `world-map`, date/time field type |
+| OOC blocks | 🔄 | `ooc` message kind (§2.3) |
+| Prompt inspector | 🔄 | "see the prompt" of any message (§2.4) — the inspector's **Reply** tab (D-018) |
+| Sampling parameter policy (per-model parameters) | ✅ | in the Connection |
+| Generation that survives a drop | ✅ | partial text already saved; "resume" later |
+| Chat archive | 🔄 | trash + search |
+| Home, themes, layouts, effects | ✅ UI phase | base ready (D-018): tokens, appearance profiles, `data-region`; the Customize screen is missing |
+| Homunculus, Hob, The Ninth Summoning presets | ✅ | built-in content |
 | Guided generations | ✅ | `guided` |
-| Prose Polisher | 🔄 | parte do **Style Reviewer** (§4.4) |
-| Modo Conversa | ⏳ depois | módulo próprio |
-| Card scripts com sandbox | ❓ | §12 |
-| Extensões do ST, Quick Replies, slash commands | ❌ | módulos e agentes no lugar |
-| Text Completion/instruct, Horde, Kobold, NovelAI | ❌ por ora | só Chat Completion (cobre nano-gpt, OpenRouter, servidores locais compatíveis) |
+| Prose Polisher | 🔄 | part of the **Style Reviewer** (§4.4) |
+| Conversation mode | ⏳ later | its own module |
+| Card scripts with a sandbox | ❓ | §12 |
+| ST extensions, Quick Replies, slash commands | ❌ | modules and agents instead |
+| Text Completion/instruct, Horde, Kobold, NovelAI | ❌ for now | only Chat Completion (covers nano-gpt, OpenRouter, compatible local servers) |
 
 ---
 
-## 10. Ordem de construção (fatias de ponta a ponta)
+## 10. Build order (end-to-end slices)
 
-Cada fatia termina com: testes passando, o Daniel testando no Windows, conferência contra este blueprint.
+Each slice ends with: tests passing, Daniel testing on Windows, a check against this blueprint.
 
-| # | Fatia | O Daniel consegue… |
+| # | Slice | Daniel can… |
 |---|---|---|
-| 0 | **Alinhar a fundação** (§11) | — (base certa) |
-| **PoC** ✅ | **Prova de conceito** (feita 2026-10-27, D-016): uma sessão com um tracker **criado pelo usuário na tela** (qualquer campo), feito só de dados, painel mínimo editável, certo no swipe, registro do que o agente fez | ver o coração do desenho funcionando cedo; se houver furo, aparece aqui |
-| 1 ✅ | Variantes de **Characters**; **Personas** com variantes + import do ST; histórico e lixeira (feita 2026-10-28, D-019) | Lyra fantasia/moderna; persona por sessão |
-| 1b ✅ | **Configurações** + **perfis de conexão** com nome (feita 2026-10-28, D-020) (vários endereços/chaves/modelos, esforço de raciocínio, limites, reserva) — pedido do Daniel 2026-10-28; também é pré-requisito do §4.9 | escolher a conexão por sessão e por agente |
-| 2 ✅ | **Presets por blocos** + macros + orçamento + import do ST + "ver o prompt" (feita 2026-10-28, D-021) | usar os presets do ST e ver o prompt exato |
-| 3 ✅ | **Lorebooks** iguais ao ST + condições de estado — motor, import/export e prompt (2026-10-28, D-027; comparado com o código do ST) e telas (2026-10-29, D-028) | usar os lorebooks dele |
-| 4 ✅ | **Stories + Vault (Narrators, NPCs)** + camada "story" do setup (2026-10-29, D-029); Kits ficaram para depois | histórias narradas com narrador e NPCs reutilizáveis; Director mode |
-| 5 | **Agentes completos**: gatilhos, saídas inject/intercept/rewrite/check/choices, dependências, limites; import dos modelos do v1 | Prose Polisher, Don't write for user, CYOA em botões… |
-| 6 | **Trackers + painel Scene** (World, Characters, Plot, pacotes RPG/Drama) | jogar com o painel Scene |
-| 6b | **Assistente da Biblioteca** (§4.9) — chat que propõe e edita personagens, lorebooks, **trackers** etc.; perfil de API, modelo e esforço próprios | pedir "cria um tracker por personagem assim…" e aprovar |
-| 7 | **Grupos e narrador**: cast completo, papéis, quem fala, let them act, auto-play, estilo | aventuras narradas |
-| 8 | **Companions**, **memória** (capítulos, memória dos agentes), **proposals**, **Style Reviewer** | companions, capítulos, Story Director, revisão de estilo |
-| 9 | **Vault**, **Card Browser**, Quick Connection, **importar pasta do ST/v1**, pacotes de campanha | trazer tudo do v1 de uma vez |
-| UI ✅ | **Direção de UI "I"** adiantada (feita 2026-10-27, D-018): barra lateral Sessions/Library, inspetor Scene/Prompt/Reply com o "recibo", tokens + perfis de aparência | um app agradável de usar, que continua mudável |
-| 10 | **Fase de UI** (tela Customize: perfis, layouts, efeitos, importar/exportar; tema Blood & Ink; Home; menu nativo) | o app bonito e do jeito dele |
-| depois | Recall, Pathfinder, World Map, Modo Conversa, mídia | — |
+| 0 | **Align the foundation** (§11) | — (the right base) |
+| **PoC** ✅ | **Proof of concept** (done 2026-10-27, D-016): a session with a tracker **created by the user on screen** (any field), made only of data, a minimal editable panel, right on swipes, a record of what the agent did | see the heart of the design working early; if there is a hole, it shows here |
+| 1 ✅ | **Character** variants; **Personas** with variants + ST import; history and trash (done 2026-10-28, D-019) | Lyra fantasy/modern; a persona per session |
+| 1b ✅ | **Settings** + named **connection profiles** (done 2026-10-28, D-020) (several addresses/keys/models, reasoning effort, limits, backup) — Daniel's request 2026-10-28; also a prerequisite of §4.9 | pick the connection per session and per agent |
+| 2 ✅ | **Block presets** + macros + budget + ST import + "see the prompt" (done 2026-10-28, D-021) | use his ST presets and see the exact prompt |
+| 3 ✅ | **Lorebooks** the same as ST + state conditions — engine, import/export and prompt (2026-10-28, D-027; compared with ST's code) and screens (2026-10-29, D-028) | use his lorebooks |
+| 4 ✅ | **Stories + Vault (Narrators, NPCs)** + the "story" setup layer (2026-10-29, D-029); Kits came later (D-036) | narrated stories with a narrator and reusable NPCs; Director mode |
+| 5 | **Full agents**: triggers, inject/intercept/rewrite/check/choices outputs, dependencies, limits; import of v1's templates | Prose Polisher, Don't write for user, CYOA as buttons… |
+| 6 | **Trackers + Scene panel** (World, Characters, Plot, RPG/Drama packs) | play with the Scene panel |
+| 6b | **Library Assistant** (§4.9) — a chat that proposes and edits characters, lorebooks, **trackers** etc.; its own API profile, model and effort | ask "make a per-character tracker like…" and approve |
+| 7 | **Groups and narrator**: full cast, roles, who speaks, let them act, auto-play, style | narrated adventures |
+| 8 | **Companions**, **memory** (chapters, agents' memory), **proposals**, **Style Reviewer** | companions, chapters, Story Director, style review |
+| 9 | **Vault**, **Card Browser**, Quick Connection, **import the ST/v1 folder**, campaign packages | bring everything from v1 at once |
+| UI ✅ | **UI direction "I"** brought forward (done 2026-10-27, D-018): Sessions/Library sidebar, Scene/Prompt/Reply inspector with the "receipt", tokens + appearance profiles | a pleasant app to use, still changeable |
+| 10 | **UI phase** (Customize screen: profiles, layouts, effects, import/export; Blood & Ink theme; Home; native menu) | the app beautiful and his way |
+| later | Recall, Pathfinder, World Map, Conversation mode, media | — |
 
 ---
 
-## 11. O que muda no código que já existe (fatia 0) — ✅ FEITO em 2026-10-27
+## 11. What changes in the existing code (slice 0) — ✅ DONE on 2026-10-27
 
-Conferido em 2026-10-27 contra `packages/schemas` e `packages/core`, e implementado no mesmo dia (D-015; detalhes em `ARCHITECTURE.md`). Ficaram para depois, de propósito: `check` com `fix` age como `warn` até existir o rewrite de correção (fatia 5); ferramentas e marcadores de prompt são só contratos (fatias 2 e 5); quem fala usa só a ordem natural ou o agente `speaker` (fatia 7).
+Checked on 2026-10-27 against `packages/schemas` and `packages/core`, and implemented the same day (D-015; details in `ARCHITECTURE.md`). Left for later on purpose: `check` with `fix` acts as `warn` until the fixing rewrite exists (slice 5); tools and prompt markers are only contracts (slices 2 and 5); who speaks uses only the natural order or the `speaker` agent (slice 7).
 
-| Hoje | Ajuste |
+| Today | Adjustment |
 |---|---|
-| `Session` com `presetId`, `personaId`, `lorebookIds`, `agents`, `settings` soltos | `setup: SetupLayer` (tudo opcional = herdar) + `storyId?` + `npcIds` |
+| `Session` with loose `presetId`, `personaId`, `lorebookIds`, `agents`, `settings` | `setup: SetupLayer` (everything optional = inherit) + `storyId?` + `npcIds` |
 | `CastMember` = `characterId`, `role`, `active` | + `variantId`, `presence`, `muted`, `sheet?` |
-| `Persona` = nome + descrição | variantes, imagem (mesmo formato do Character) |
-| `Message.speaker` + `meta` livre | + `kind` (user/direction/character/narrator/ooc/event) e `visibility`; `reasoning` à parte |
-| `AgentDefinition` com `trigger` before/after/manual, só código | schema `AgentConfig` (dados): gatilhos, entradas, saídas, opções (§4.1) |
-| `runAgents`: todos em paralelo, só grava delta | runner por fase e ondas, dependências, limites; tabelas `agent_runs`, `message_revisions`, `companion_notes`, `generation_records` |
-| `ChatService.generate` chama agentes no fim | `TurnPipeline` (§6); `ChatService` passa a usá-lo |
-| `WorldState.resolve` soma desde a mensagem 1 | + fotos periódicas (§7.1); dono por namespace |
-| `PanelDefinition` = só namespace | `TrackerSchema` + tipos de campo |
-| `ConnectionConfig` sem limites | + simultâneas, espera, reserva |
-| `buildPrompt` v0 e `macros.ts` básico | ficam até a fatia 2 |
+| `Persona` = name + description | variants, picture (same format as Character) |
+| `Message.speaker` + free `meta` | + `kind` (user/direction/character/narrator/ooc/event) and `visibility`; `reasoning` separately |
+| `AgentDefinition` with `trigger` before/after/manual, code only | `AgentConfig` schema (data): triggers, inputs, outputs, options (§4.1) |
+| `runAgents`: all in parallel, only writes a delta | runner by phase and waves, dependencies, limits; tables `agent_runs`, `message_revisions`, `companion_notes`, `generation_records` |
+| `ChatService.generate` calls agents at the end | `TurnPipeline` (§6); `ChatService` starts using it |
+| `WorldState.resolve` adds from message 1 | + periodic snapshots (§7.1); an owner per namespace |
+| `PanelDefinition` = only a namespace | `TrackerSchema` + field types |
+| `ConnectionConfig` without limits | + simultaneous calls, wait, backup |
+| `buildPrompt` v0 and basic `macros.ts` | stay until slice 2 |
 
-Nada é jogado fora: banco, estado por mensagem, árvore, cards, provedor, cofre e telas continuam. JSON validado (D-008) aceita campos novos sem migração; tabelas novas entram em migrations novas.
-
----
-
-## 12. Decisões do Daniel sobre as perguntas em aberto (2026-10-27)
-
-1. **Celular**: não joga no celular, mas **deixar a porta aberta**. Regra que garante isso: o núcleo e os módulos **nunca** dependem do Tauri nem da tela (já verificado por `architecture.test.ts`); tudo que é do Windows (banco, cofre, arquivos) fica atrás de interfaces pequenas. Assim o núcleo pode, um dia, rodar como servidor local acessado pelo navegador do celular.
-2. **Card scripts** (cards cujas mensagens trazem HTML com `<script>`/`<iframe>`: telas de status animadas, mini-jogos, barras de vida dentro do chat — comuns em cards de algumas comunidades do Chub): não sabe se usa; **deixar viável**. Como o HTML já roda numa caixa isolada (§7.2), scripts de card viram uma opção dessa mesma caixa: desligados por padrão, ligados **por card com permissão do usuário**, sem acesso ao app nem à rede (o v1 faz parecido em `card-script-runtime.js`). Entra como módulo `card-scripts`, depois da fase de UI.
-3. **Modelos locais**: não usa, mas **deixar aberto**. Já funciona com qualquer endereço compatível com OpenAI (LM Studio, KoboldCpp, Ollama, llama.cpp). Text Completion "de verdade" fica possível por `registerProvider` (um módulo novo, sem mexer no núcleo).
-4. **Trackers**: **separados por padrão**, inline como opção para economizar. ✅
+Nothing is thrown away: database, per-message state, tree, cards, provider, keychain and screens stay. Validated JSON (D-008) accepts new fields without a migration; new tables come in new migrations.
 
 ---
 
-## 13. Regra para nunca perder a coesão
+## 12. Daniel's decisions on the open questions (2026-10-27)
 
-Antes de construir qualquer coisa nova, responder:
-1. **Em que peça (§2) ela mora?** Peça nova entra no §2 primeiro.
-2. **Em que camada do setup (§3) ela se configura?**
-3. **Em que passo do turno (§6) — ou em que gatilho (§4.1) — ela age?**
-4. **É núcleo ou módulo (§8)?** (Quase sempre módulo.)
-5. **O que fica preso à mensagem (§2.4)?**
-6. **Como ela falha, quanto custa, e como o usuário desfaz?** (§1, princípios 4 e 5)
+1. **Mobile**: he does not play on mobile, but **keep the door open**. The rule that guarantees it: the core and the modules **never** depend on Tauri or on the screen (already checked by `architecture.test.ts`); everything platform-specific (database, keychain, files) sits behind small interfaces. So the core could, one day, run as a local server reached by the phone's browser.
+2. **Card scripts** (cards whose messages carry HTML with `<script>`/`<iframe>`: animated status screens, mini-games, health bars inside the chat — common in cards from some Chub communities): he does not know if he will use them; **keep it possible**. Since HTML already runs in an isolated box (§7.2), card scripts become an option of that same box: off by default, on **per card with the user's permission**, with no access to the app or the network (v1 does something similar in `card-script-runtime.js`). It comes as the `card-scripts` module, after the UI phase.
+3. **Local models**: he does not use them, but **keep it open**. It already works with any OpenAI-compatible address (LM Studio, KoboldCpp, Ollama, llama.cpp). "Real" Text Completion is possible through `registerProvider` (a new module, without touching the core).
+4. **Trackers**: **separate by default**, inline as an option to save money. ✅
 
-Se alguma resposta for "não sei" ou "precisa de um jeitinho", **parar e ajustar o blueprint** com o Daniel.
+---
+
+## 13. The rule so cohesion is never lost
+
+Before building anything new, answer:
+1. **Which piece (§2) does it live in?** A new piece goes into §2 first.
+2. **Which setup layer (§3) configures it?**
+3. **Which turn step (§6) — or which trigger (§4.1) — does it act in?**
+4. **Is it core or a module (§8)?** (Almost always a module.)
+5. **What is tied to the message (§2.4)?**
+6. **How does it fail, how much does it cost, and how does the user undo it?** (§1, principles 4 and 5)
+
+If any answer is "I don't know" or "it needs a workaround", **stop and adjust the blueprint** with Daniel.

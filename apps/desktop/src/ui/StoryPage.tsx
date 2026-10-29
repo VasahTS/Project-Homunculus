@@ -2,8 +2,8 @@
 // inherits that setup and may change some of it (D-031). Built from the approved drafts, canvas "Homunculus 2 —
 // Stories" (Main.dc.html and NewChat.dc.html). Author: CLAUDE, 2026-10-29 (first version D-029, same day).
 // Saves by itself a moment after each change (like the lorebook editor, D-028).
-// Round 3 (D-036): the chats are the last thing on the page (Daniel: "os chats em baixo para ser a última coisa que você
-// rola"), as a list you can search (names and messages) and export. The same page edits a Kit (kind="kit"): no chats,
+// Round 3 (D-036): the chats are the last thing on the page (Daniel: "the chats at the bottom so they are the last thing you
+// scroll to"), as a list you can search (names and messages) and export. The same page edits a Kit (kind="kit"): no chats,
 // and "Start a Story" instead of Play.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, UserRole } from "@homunculus/schemas";
@@ -376,7 +376,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               </div>
             </SetupSection>
 
-            {/* the chats: last on the page, in the page's column (Daniel: "no canto, seguindo a formatação da página") */}
+            {/* the chats: last on the page, in the page's column (Daniel: "in the corner, following the page's layout") */}
             {!isKit && (
               <SetupSection title="Chats" aside="each one is its own adventure from this story" testId="story-chats">
                 <ChatList testId="story-chat-list" initial={3} empty="No chats yet. Start one: it takes this story's setup."

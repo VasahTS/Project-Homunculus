@@ -1,49 +1,49 @@
-# HomePage — estudos de composição
+# HomePage — composition studies
 
-Autor: **CODEX** · 29/10/2026. Trabalho local, não publicado. Protótipo separado do app; sem commit ou push.
+Author: **CODEX** · 10/29/2026. Local work, unpublished. A prototype separate from the app; no commit or push. (Translated to English by CLAUDE, D-038.)
 
-**Arquivo para revisão: `home-drafts.html`** — HTML único com estilos, scripts, ilustrações e fontes incorporados. Abra diretamente no navegador; pode ser copiado sozinho. Não precisa instalar, iniciar o Tauri nem configurar uma conexão. `index.html`, `styles.css` e `app.js` são os fontes separados da mesma versão. Alternativa: `node docs/drafts/homepage/serve.mjs` na raiz do projeto inicia um servidor local em `http://127.0.0.1:4492`. A barra superior em português pertence à revisão; a interface proposta continua em inglês, como o app. Licença da Literata em `assets/`.
+**File to review: `home-drafts.html`** — a single HTML with embedded styles, scripts, illustrations and fonts. Open it directly in the browser; it can be copied on its own. No need to install, start Tauri or set up a connection. `index.html`, `styles.css` and `app.js` are the separate sources of the same version. Alternative: `node docs/drafts/homepage/serve.mjs` at the project root starts a local server at `http://127.0.0.1:4492`. The top bar belongs to the review; the proposed interface is in English, like the app. Literata's license in `assets/`.
 
-## Leitura do projeto
+## Reading the project
 
-Referências lidas: `README.md`, `PASSAGEM.md`, `docs/BLUEPRINT.md`, `docs/UI-PLAN.md`, `docs/ARCHITECTURE.md`, `apps/desktop/src/App.tsx`, `ui/Sidebar.tsx`, `ui/kit.tsx`, `ui/Vault.tsx` e `theme/`.
+References read: `README.md`, the handoff notes (now `HANDOFF.md`), `docs/BLUEPRINT.md`, `docs/UI-PLAN.md`, `docs/ARCHITECTURE.md`, `apps/desktop/src/App.tsx`, `ui/Sidebar.tsx`, `ui/kit.tsx`, `ui/Vault.tsx` and `theme/`.
 
-O Homunculus 2 é um app Tauri/React, com Graphite, verde discreto, Literata e navegação Library/Vault/Stories/Chats. Hoje o estado sem sessão aberta oferece somente “No session open”. O blueprint já reserva uma Home para a fase de UI. As propostas não alteram as telas aprovadas pelo Daniel nem atribuem ao CODEX o trabalho preexistente do CLAUDE.
+Homunculus 2 is a Tauri/React app, with Graphite, a discreet green, Literata and Library/Vault/Stories/Chats navigation. Today the state with no open session only offers "No session open". The blueprint already reserves a Home for the UI phase. The proposals do not change the screens Daniel approved nor attribute CLAUDE's pre-existing work to CODEX.
 
-## Plano do painel
+## Panel plan
 
-- Finalidade: retomar um chat, abrir uma Story ou começar algo novo. Consultado ao abrir o app sem conversa ativa ou ao voltar para Home.
-- Primário: Story e chat exatos que serão retomados, com último trecho; ação Continue. A Story continua sendo o molde de vários chats.
-- Secundário: demais Stories, chats 1:1 e caminhos para Library/Vault. Abrir a Story mostra seus chats; Continue abre um chat específico.
-- Sob demanda: criação, seleção de personagem, importação e configurações. Setup e trackers permanecem nas telas existentes.
-- Estados no protótipo: primeiro uso, uso normal, biblioteca cheia com 12 Stories e títulos longos, carregando, erro com recuperação e busca sem resultados. Busca filtra os exemplos de Stories pelo título, trecho e modo.
-- Ações simuladas: alternar propostas/estados, buscar, filtrar a biblioteca, abrir a Story, escolher chat, continuar, começar Story/chat, importação e atalhos. Os diálogos explicam o destino; não implementam editores nem geração de IA.
-- Herança do projeto: hierarquia do Sidebar, distinção Story/chat e identidade Literata/verde. A nova entrada Home e suas composições são propostas. A/B conservam uma família escura; C explora papel e verde. São layouts alternativos, não perfis instalados.
-- Questões para a próxima revisão: qual hierarquia favorece o uso diário; se Home deve abrir sempre ou apenas sem chat ativo; se a direção clara C deve existir como perfil opcional.
+- Purpose: resume a chat, open a Story or start something new. Looked at when opening the app without an active conversation or when going back Home.
+- Primary: the exact Story and chat that will be resumed, with the last excerpt; a Continue action. The Story is still the template for several chats.
+- Secondary: the other Stories, 1:1 chats and ways to Library/Vault. Opening the Story shows its chats; Continue opens a specific chat.
+- On demand: creation, character picking, import and settings. Setup and trackers stay on the existing screens.
+- States in the prototype: first use, normal use, a full library with 12 Stories and long titles, loading, error with recovery and search without results. Search filters the example Stories by title, excerpt and mode.
+- Simulated actions: switch proposals/states, search, filter the library, open the Story, pick a chat, continue, start a Story/chat, import and shortcuts. The dialogs explain the destination; they do not implement editors or AI generation.
+- Inherited from the project: the Sidebar hierarchy, the Story/chat distinction and the Literata/green identity. The new Home entry and its compositions are proposals. A/B keep a dark family; C explores paper and green. They are alternative layouts, not installed profiles.
+- Questions for the next review: which hierarchy favors daily use; whether Home should always open or only without an active chat; whether the light direction C should exist as an optional profile.
 
-## As três propostas
+## The three proposals
 
-**A · Retomar (recomendação inicial):** o último chat ocupa o destaque, com Story, nome do chat, branch e trecho. Demais Stories em lista e ações de criação ao lado. Pouca mudança conceitual em relação ao app atual.
+**A · Resume (initial recommendation):** the last chat takes the highlight, with Story, chat name, branch and excerpt. The other Stories in a list and creation actions beside it. Little conceptual change from the current app.
 
-**B · Biblioteca:** capas ilustradas e uma estante de Stories; abrir a Story e continuar um chat são ações distintas. Melhor para reconhecer mundos pela imagem e alternar entre várias histórias. Filtros All / In progress / Not started.
+**B · Library:** illustrated covers and a shelf of Stories; opening the Story and continuing a chat are separate actions. Better for recognizing worlds by image and switching between several stories. Filters All / In progress / Not started.
 
-**C · Refúgio:** composição editorial, papel e verde; menos elementos, lista de retomada e criação discreta. Usa mais espaço para leitura e introduz uma direção clara opcional.
+**C · Refuge:** an editorial composition, paper and green; fewer elements, a resume list and discreet creation. Uses more space for reading and introduces an optional light direction.
 
-## Dados e limites
+## Data and limits
 
-Todos os nomes, números e trechos são fictícios, identificados como tal na barra de revisão. Nenhum banco pessoal, chat, personagem ou credencial foi acessado. As ilustrações vetoriais são originais deste protótipo (CODEX); as iniciais de personagens substituem retratos não fornecidos. São exemplos mais densos que o modo offline do app, mas não substituem validação futura com os dados que Daniel autorizar.
+All names, numbers and excerpts are fictional, marked as such in the review bar. No personal database, chat, character or credential was accessed. The vector illustrations are original to this prototype (CODEX); character initials replace portraits that were not provided. They are denser examples than the app's offline mode, but do not replace future validation with data Daniel authorizes.
 
-O pedido atual autoriza drafts HTML. A integração ao React permanece dependente da escolha/revisão do Daniel. A regra local de planejar a hierarquia foi aplicada neste documento; não foi feita implementação de tela no app.
+The current request authorizes HTML drafts. Integration into React depends on Daniel's choice/review. The local rule of planning the hierarchy was applied in this document; no screen was implemented in the app.
 
-## Validação
+## Validation
 
-`node docs/drafts/homepage/verify.mjs`: **PASS**, usando Playwright com Chrome instalado em contexto isolado, sem perfil pessoal. A mesma verificação também passou com `HOME_DRAFT_FILE=home-drafts.html`, confirmando o arquivo único entregue.
+`node docs/drafts/homepage/verify.mjs`: **PASS**, using Playwright with installed Chrome in an isolated context, without a personal profile. The same check also passed with `HOME_DRAFT_FILE=home-drafts.html`, confirming the delivered single file.
 
-- 45 combinações: três propostas × larguras de 1440, 900 e 390 px × cinco estados. Sem overflow horizontal no documento ou conteúdo principal.
-- Sem erros de JavaScript ou console. Fonte carregada do próprio protótipo.
-- Verificados: retomar chat, abrir Story e escolher chat, busca positiva/sem resultados, filtro de Stories não iniciadas, biblioteca com 12 Stories, recuperação de erro, diálogos de criação/importação/navegação, barra lateral estreita e respeito a redução de movimento.
-- Capturas em `previews/`: três propostas nas três larguras, primeiro uso em desktop e B com biblioteca cheia. Inspeção visual de A/B/C em desktop e A estreita; títulos e trechos quebram sem truncamento do conteúdo principal.
-- Validação restrita ao protótipo HTML. O app React/Tauri e seus testes não foram alterados ou executados.
-- O navegador integrado não alcançou a prévia HTTP em loopback neste ambiente; o servidor de revisão foi encerrado. A entrega usa o HTML aberto diretamente do disco, validado no Chrome.
+- 45 combinations: three proposals × widths of 1440, 900 and 390 px × five states. No horizontal overflow in the document or main content.
+- No JavaScript or console errors. Font loaded from the prototype itself.
+- Checked: resume chat, open Story and pick a chat, positive/no-result search, filter of not-started Stories, library with 12 Stories, error recovery, create/import/navigation dialogs, narrow sidebar and respect for reduced motion.
+- Screenshots in `previews/`: three proposals at three widths, first use on desktop and B with a full library. Visual inspection of A/B/C on desktop and narrow A; titles and excerpts wrap without truncating the main content.
+- Validation limited to the HTML prototype. The React/Tauri app and its tests were not changed or run.
+- The built-in browser did not reach the loopback HTTP preview in this environment; the review server was stopped. Delivery uses the HTML opened directly from disk, validated in Chrome.
 
-Autoria das notas, ilustrações e arquivos novos: **CODEX**.
+Authorship of the notes, illustrations and new files: **CODEX**.

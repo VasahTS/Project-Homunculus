@@ -30,15 +30,15 @@ dialog{--accent:#a8d4bf;--hover:#37433c;border:1px solid #45564a;border-radius:1
 </head>
 <body>
   <a class="skip" href="#home">Skip to Home</a>
-  <header class="review" lang="pt-BR">
-    <div class="review-brand"><strong>Homunculus 2</strong><span>Estudos de Home · dados fictícios</span></div>
-    <nav aria-label="Propostas de homepage" class="draft-tabs">
-      <button data-draft="a" aria-pressed="true">A <span>Retomar</span></button>
-      <button data-draft="b" aria-pressed="false">B <span>Biblioteca</span></button>
-      <button data-draft="c" aria-pressed="false">C <span>Refúgio</span></button>
+  <header class="review" lang="en">
+    <div class="review-brand"><strong>Homunculus 2</strong><span>Home studies · fictional data</span></div>
+    <nav aria-label="Homepage proposals" class="draft-tabs">
+      <button data-draft="a" aria-pressed="true">A <span>Resume</span></button>
+      <button data-draft="b" aria-pressed="false">B <span>Library</span></button>
+      <button data-draft="c" aria-pressed="false">C <span>Refuge</span></button>
     </nav>
-    <label class="state-control">Estado <select id="state"><option value="normal">Em uso</option><option value="full">Biblioteca cheia</option><option value="empty">Primeiro uso</option><option value="loading">Carregando</option><option value="error">Erro ao carregar</option></select></label>
-    <p id="rationale">A · O último chat vem primeiro. Stories e conversas ficam a um clique.</p>
+    <label class="state-control">State <select id="state"><option value="normal">In use</option><option value="full">Full library</option><option value="empty">First use</option><option value="loading">Loading</option><option value="error">Error while loading</option></select></label>
+    <p id="rationale">A · The last chat comes first. Stories and conversations are one click away.</p>
   </header>
   <div class="app-shell" data-draft="a">
     <aside class="sidebar" aria-label="Sidebar"></aside>
@@ -53,7 +53,7 @@ dialog{--accent:#a8d4bf;--hover:#37433c;border:1px solid #45564a;border-radius:1
       <footer class="app-footer"><span>Your stories, at your pace.</span><span>Homunculus</span></footer>
     </div>
   </div>
-  <dialog id="preview" aria-labelledby="modal-title"><div class="dialog-top"><span lang="pt-BR">Prévia de navegação · dados fictícios</span><button class="icon-button" id="close" aria-label="Close preview">✕</button></div><div id="modal-body"></div></dialog>
+  <dialog id="preview" aria-labelledby="modal-title"><div class="dialog-top"><span lang="en">Navigation preview · fictional data</span><button class="icon-button" id="close" aria-label="Close preview">✕</button></div><div id="modal-body"></div></dialog>
   <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
 <script>// Homunculus 2 — standalone HomePage prototypes. Author: CODEX, 2026-10-29.
 // Fictional fixtures only; no API, application storage or personal data access.
@@ -90,7 +90,7 @@ const stories = [
   ...['The House Beneath the Willow','An Atlas of Unfinished Journeys','The Last Lighthouse on the Northern Shore','Of Moths, Moonlight and Other Small Promises','The Observatory at the End of Autumn','A Very Long Way Home Through the Sleeping Mountains','The Keeper of Impossible Things','Where the River Remembers'].map((name,i)=>({id:i+4,name,kind:i%4,chats:i%4+1,chat:`Chat ${i%3+1}`,time:'Oct 24',messages:18+i*13,mode:'Narrated adventure',line:'The path continued beyond the familiar trees. There was still time to choose another way.'})),
 ];
 const people = ['Elowen','Silas','Mira','Rowan'];
-const rationales = {a:'A · O último chat vem primeiro. Stories e conversas ficam a um clique.',b:'B · As Stories viram uma biblioteca visual. Abrir a Story e continuar um chat são ações separadas.',c:'C · Uma entrada silenciosa, em papel e verde. Menos elementos competem com a próxima leitura.'};
+const rationales = {a:'A · The last chat comes first. Stories and conversations are one click away.',b:'B · Stories become a visual library. Opening the Story and continuing a chat are separate actions.',c:'C · A quiet entrance, in paper and green. Fewer elements compete with the next read.'};
 let draft = ['a','b','c'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'a';
 let state = 'normal', query = '', filter = 'all', modalReturnFocus;
 const dialog = $('#preview');
@@ -128,7 +128,7 @@ function render() {
 }
 function openModal(html) {modalReturnFocus=document.activeElement;$('#modal-body').innerHTML=html;if(!dialog.open)dialog.showModal();}
 function storyModal(s) {openModal(`<p class="caption">Story · ${escapeHtml(s.mode)}</p><h2 id="modal-title">${escapeHtml(s.name)}</h2><p>${escapeHtml(s.line)}</p><p class="meta">A Story is a world and its setup. Each chat follows its own path.</p><div class="modal-options">${s.chats?Array.from({length:s.chats},(_,i)=>`<button class="modal-option" data-action="resume" data-id="${s.id}" data-chat="Chat ${i+1}"><strong>Chat ${i+1} ${('Chat '+(i+1))===s.chat?'· Last played':''}</strong><span>${('Chat '+(i+1))===s.chat?s.messages:24+i*7} messages · ${i?'Main branch':'The arrival'}</span></button>`).join(''):'<p>No chats yet. Choose an opening to begin.</p>'}</div><button class="primary" data-action="new-story-chat" data-id="${s.id}">+ New Chat</button>`);}
-function resumeModal(s, chat=s.chat) {openModal(`<p class="caption">${escapeHtml(s.name)} / ${escapeHtml(chat)} / Main</p><h2 id="modal-title">Back in the story.</h2><p class="meta">Narrator · Last reply</p><div class="chat-preview">${escapeHtml(s.line)}<p>Somewhere beyond the trees, a bell rang once. Elowen turned toward the sound, her hand resting on the latch.</p></div><p lang="pt-BR">No app, este botão abriria exatamente este chat e seu branch atual. Aqui você está apenas vendo a transição do rascunho.</p><button class="primary" data-action="close">Return to Home</button>`);}
+function resumeModal(s, chat=s.chat) {openModal(`<p class="caption">${escapeHtml(s.name)} / ${escapeHtml(chat)} / Main</p><h2 id="modal-title">Back in the story.</h2><p class="meta">Narrator · Last reply</p><div class="chat-preview">${escapeHtml(s.line)}<p>Somewhere beyond the trees, a bell rang once. Elowen turned toward the sound, her hand resting on the latch.</p></div><p lang="en">In the app, this button would open exactly this chat and its current branch. Here you are only seeing the draft’s transition.</p><button class="primary" data-action="close">Return to Home</button>`);}
 function action(name, data) {
   const s=storyById(data.id);
   if(name==='home'){dialog.close();query='';$('#search').value='';render();}
@@ -136,11 +136,11 @@ function action(name, data) {
   else if(name==='resume')resumeModal(s,data.chat||s.chat);
   else if(name==='create')openModal('<p class="caption">New Story</p><h2 id="modal-title">Where would you like to begin?</h2><p>Start from a character card, or give an empty world its own narrator and setup.</p><div class="modal-options"><button class="modal-option" data-action="start-from-card"><strong>From a character card</strong><span>Bring the card’s scenario and openings into a Story.</span></button><button class="modal-option" data-action="empty-story"><strong>An empty Story</strong><span>Your own setting, narrator and openings.</span></button></div>');
   else if(name==='start-from-card'||name==='chat-new')openModal(`<p class="caption">${name==='chat-new'?'New conversation':'Story from a card'}</p><h2 id="modal-title">Choose a character.</h2><div class="modal-options">${people.map(n=>`<button class="modal-option" data-action="${name==='chat-new'?'person':'card-setup'}" data-name="${n}"><strong>${n}</strong><span>Main version · From your Library</span></button>`).join('')}</div><button class="primary" data-action="import">Import a character</button>`);
-  else if(name==='empty-story'||name==='card-setup')openModal(`<p class="caption">Story setup</p><h2 id="modal-title">${name==='card-setup'?`A story with ${escapeHtml(data.name)}`:'A world of your own.'}</h2><p>A narrator, a scenario and one or more openings. Preset, connection and trackers belong to this Story; each chat can override them.</p><p lang="pt-BR">Este caminho levaria à criação de Story já existente no projeto. Nenhuma Story foi criada neste protótipo.</p><button class="primary" data-action="close">Return to Home</button>`);
-  else if(name==='person')openModal(`<p class="caption">Character · Main version</p><h2 id="modal-title">${escapeHtml(data.name)}</h2><p>A familiar face from the example Library.</p><div class="chat-preview">The room smelled of rain and dried herbs. “You’re earlier than I expected,” ${escapeHtml(data.name)} said.</div><p lang="pt-BR">No app, este caminho abriria o chat com o personagem escolhido.</p><button class="primary" data-action="close">Return to Home</button>`);
+  else if(name==='empty-story'||name==='card-setup')openModal(`<p class="caption">Story setup</p><h2 id="modal-title">${name==='card-setup'?`A story with ${escapeHtml(data.name)}`:'A world of your own.'}</h2><p>A narrator, a scenario and one or more openings. Preset, connection and trackers belong to this Story; each chat can override them.</p><p lang="en">This path would lead to the Story creation that already exists in the project. No Story was created in this prototype.</p><button class="primary" data-action="close">Return to Home</button>`);
+  else if(name==='person')openModal(`<p class="caption">Character · Main version</p><h2 id="modal-title">${escapeHtml(data.name)}</h2><p>A familiar face from the example Library.</p><div class="chat-preview">The room smelled of rain and dried herbs. “You’re earlier than I expected,” ${escapeHtml(data.name)} said.</div><p lang="en">In the app, this path would open the chat with the chosen character.</p><button class="primary" data-action="close">Return to Home</button>`);
   else if(name==='new-story-chat')openModal(`<p class="caption">${escapeHtml(s.name)} · New Chat</p><h2 id="modal-title">Choose an opening.</h2><p>Same setup as the Story. A new chat keeps its own messages and branches.</p><div class="modal-options"><button class="modal-option" data-action="resume" data-id="${s.id}" data-chat="New Chat"><strong>Opening 1 · At the gate</strong><span>Begin with the Story’s original opening.</span></button></div>`);
-  else if(name==='import')openModal('<p class="caption">Library · Import</p><h2 id="modal-title">Bring someone along.</h2><p>Import a SillyTavern character card in PNG or JSON format.</p><p lang="pt-BR">Este atalho levaria ao importador existente da Library. O rascunho não lê arquivos nem altera seus personagens.</p><button class="primary" data-action="close">Return to Home</button>');
-  else if(['grid','lock','settings','library-section'].includes(name)){const title=name==='grid'?'Library':name==='lock'?'Vault':name==='settings'?'Settings':data.name;openModal(`<p class="caption">Home / ${escapeHtml(title)}</p><h2 id="modal-title">${escapeHtml(title)}</h2><p>${name==='settings'?'Connections, models and appearance.':name==='lock'?'Stories, Narrators and NPCs.':'Characters, Personas, Lorebooks, Presets and Trackers.'}</p><p lang="pt-BR">Este atalho abriria a tela existente do projeto. A proposta desta rodada cobre somente a Home.</p><button class="primary" data-action="close">Return to Home</button>`);}
+  else if(name==='import')openModal('<p class="caption">Library · Import</p><h2 id="modal-title">Bring someone along.</h2><p>Import a SillyTavern character card in PNG or JSON format.</p><p lang="en">This shortcut would lead to the Library’s existing importer. The draft does not read files or change your characters.</p><button class="primary" data-action="close">Return to Home</button>');
+  else if(['grid','lock','settings','library-section'].includes(name)){const title=name==='grid'?'Library':name==='lock'?'Vault':name==='settings'?'Settings':data.name;openModal(`<p class="caption">Home / ${escapeHtml(title)}</p><h2 id="modal-title">${escapeHtml(title)}</h2><p>${name==='settings'?'Connections, models and appearance.':name==='lock'?'Stories, Narrators and NPCs.':'Characters, Personas, Lorebooks, Presets and Trackers.'}</p><p lang="en">This shortcut would open the project’s existing screen. This round’s proposal only covers the Home.</p><button class="primary" data-action="close">Return to Home</button>`);}
   else if(name==='all-stories'){draft='b';filter='all';render();history.replaceState(null,'','#b');}
   else if(name==='clear'){query='';$('#search').value='';render();$('#search').focus();}
   else if(name==='retry'){state='normal';$('#state').value=state;render();}

@@ -1,7 +1,7 @@
 // Homunculus 2 — the chat's character, editable in place in the Prompt tab (round 3, D-036, draft G). Author: CLAUDE,
-// 2026-10-29. Daniel: "na parte de prompts deve ser facilitado editar o personagem igual é no ST … não quero extra clicks
-// desnecessários tipo ter que voltar tudo no menu"; and "faça a card inteira poder ser colapsável pra não ficar
-// atrapalhando quando não tiver editando".
+// 2026-10-29. Daniel: "in the prompts part it should be easy to edit the character like in ST … I don't want extra
+// unnecessary clicks like having to go all the way back through the menu"; and "make the whole card collapsible so it
+// doesn't get in the way when I'm not editing".
 // The whole group folds to one line (remembered). Open: each field is a line you click to edit (several at once);
 // changes save a moment after you stop typing, to the version of the card THIS chat uses (Main or a version).
 import { useEffect, useRef, useState } from "react";

@@ -129,11 +129,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 </head>
 <body>
   <a href="#content" class="skip">Skip to content</a>
-  <header class="review" lang="pt-BR">
-    <div class="review-name"><strong>Homunculus</strong><span>Estudos de navegação · rodada 2</span></div>
+  <header class="review" lang="en">
+    <div class="review-name"><strong>Homunculus</strong><span>Navigation studies · round 2</span></div>
     <nav class="draft-picker" aria-label="Drafts"><button data-draft="d" aria-pressed="true">D <span>Atelier</span></button><button data-draft="e" aria-pressed="false">E <span>Lantern</span></button><button data-draft="f" aria-pressed="false">F <span>Workspace</span></button></nav>
-    <div class="review-settings"><label><input id="reduce" type="checkbox"> Movimento reduzido</label><label class="state-label">Estado <select id="state"><option value="normal">Em uso</option><option value="full">Biblioteca cheia</option><option value="empty">Primeiro uso</option><option value="loading">Carregando</option><option value="error">Erro</option></select></label></div>
-    <p id="direction-note">Clique em uma capa, volte e experimente os menus. Todos os dados são fictícios.</p>
+    <div class="review-settings"><label><input id="reduce" type="checkbox"> Reduced motion</label><label class="state-label">State <select id="state"><option value="normal">In use</option><option value="full">Full library</option><option value="empty">First use</option><option value="loading">Loading</option><option value="error">Error</option></select></label></div>
+    <p id="direction-note">Click a cover, go back and try the menus. All data is fictional.</p>
   </header>
   <div class="shell" data-draft="d" data-ui>
     <aside class="sidebar" aria-label="Main navigation"></aside>
@@ -253,7 +253,7 @@ function renderContent(){
   else content.innerHTML=({d:atelier,e:lantern,f:workbench})[S.draft](available());
   placeMarker(true);updateNav();
 }
-function render(){shell.dataset.draft=S.draft;$('#sidebar-toggle').setAttribute('aria-expanded',String(matchMedia('(max-width:700px)').matches?shell.hasAttribute('data-sidebar-open'):!shell.classList.contains('sidebar-hidden')));$$('[data-draft]', $('.draft-picker')).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.draft===S.draft)));$('#direction-note').textContent=({d:'D · Abra uma capa e volte: a Story mantém seu lugar. Experimente o botão + e o menu de cada capa.',e:'E · Conteúdo sólido, navegação discreta. Explore Stories, Library, Vault e o menu +.',f:'F · Selecione sem sair da lista. Alterne Chats / Setup e continue um chat.'})[S.draft]+' Dados fictícios.';renderSidebar();renderContent();}
+function render(){shell.dataset.draft=S.draft;$('#sidebar-toggle').setAttribute('aria-expanded',String(matchMedia('(max-width:700px)').matches?shell.hasAttribute('data-sidebar-open'):!shell.classList.contains('sidebar-hidden')));$$('[data-draft]', $('.draft-picker')).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.draft===S.draft)));$('#direction-note').textContent=({d:'D · Open a cover and go back: the Story keeps its place. Try the + button and each cover’s menu.',e:'E · Solid content, discreet navigation. Explore Stories, Library, Vault and the + menu.',f:'F · Select without leaving the list. Switch Chats / Setup and continue a chat.'})[S.draft]+' Fictional data.';renderSidebar();renderContent();}
 function closeMenus(){for(const id of ['new-menu','story-menu']){const menu=$('#'+id);if(menu.matches(':popover-open'))menu.hidePopover();}}
 function openStory(id,trigger){const numeric=Number(id),rect=sourceRect(numeric,trigger);closeMenus();S.area='home';S.view='story';S.storyId=numeric;S.selected=numeric;renderContent();sharedCover(numeric,rect);content.focus({preventScroll:true});}
 function goHome(){const id=S.storyId,rect=sourceRect(id);closeMenus();S.area='home';S.view='home';renderContent();sharedCover(id,rect);content.focus({preventScroll:true});}

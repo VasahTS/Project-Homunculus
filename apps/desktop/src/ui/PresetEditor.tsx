@@ -56,7 +56,7 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
   const [d, setD] = useState<Preset>(preset);
   const [saved, setSaved] = useState(justSaved);
   const [error, setError] = useState("");
-  /** Blocks shown open (several at once, 29/10: "fazer o preset ser expansível"). */
+  /** Blocks shown open (several at once, 10/29: "make the preset expandable"). */
   const [openIds, setOpenIds] = useState<string[]>(openBlock ? [openBlock] : []);
   const isOpen = (id: string) => openIds.includes(id);
   const toggle = (id: string) => setOpenIds((x) => (x.includes(id) ? x.filter((k) => k !== id) : [...x, id]));

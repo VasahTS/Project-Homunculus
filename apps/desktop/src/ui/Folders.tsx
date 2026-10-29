@@ -1,9 +1,9 @@
 // Homunculus 2 — folders you can see (round 3, D-036). Author: CLAUDE, 2026-10-29.
-// Daniel: "eu gosto de ver as pastas e não ser só um clicável"; "pasta dentro de pastas deve ser possível também, já que
-// você pode pesquisar no All que vai mostrar todos os arquivos"; "melhor fazer tudo poder usar pastas".
-// Look (29/10, 18h40, after trying it): "discreta e elegante, não diminutiva e infuncional… não é pra ficar tão compacto"
+// Daniel: "I like seeing the folders, not just something to click"; "folders inside folders should be possible too, since
+// you can search in All and it will show every file"; "better to make everything able to use folders".
+// Look (10/29, 18h40, after trying it): "discreet and elegant, not tiny and useless… it shouldn't be this compact"
 // — a folder is a calm tile: a tinted folder mark, the name, what it holds, and the faces of the first few inside.
-// Dragging (same evening: "faça poder segurar e arrastar os characters"): hold a card and drag it onto a folder (or a
+// Dragging (same evening: "make it possible to hold and drag the characters"): hold a card and drag it onto a folder (or a
 // step of the path "All › Fantasy"). It is done with pointer events, not the browser's HTML drag and drop, which the
 // desktop window (WebView2) can swallow. The sheet of an item has a "Folder" pick that does the same with the keyboard.
 import { useEffect, useId, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";

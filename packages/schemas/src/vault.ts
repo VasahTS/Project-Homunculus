@@ -35,7 +35,7 @@ export type Npc = z.infer<typeof Npc>;
 export type NpcInput = z.input<typeof Npc>;
 
 // ---------------------------------------------------------------- folders (round 3, D-036) — CLAUDE, 2026-10-29
-// Daniel: "fazer tudo poder usar pastas"; folders inside folders are allowed (a search over "All" finds everything).
+// Daniel: "make everything able to use folders"; folders inside folders are allowed (a search over "All" finds everything).
 /** What a folder holds. Each kind has its own tree. */
 export const FolderKind = z.enum(["character", "npc", "narrator", "lorebook", "kit", "story"]);
 export type FolderKind = z.infer<typeof FolderKind>;

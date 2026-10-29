@@ -1,13 +1,14 @@
 # Changelog
 
-O que mudou em cada versão. A seção da versão vira o texto da página de download e o “What’s New” dentro do app,
-então escreva para quem usa, não para quem programa. Versão nova: acrescente `## X.Y.Z` no topo antes de publicar.
+What changed in each version. A version's section becomes the text of its download page and the "What's New"
+inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
-## 0.1.0 — primeira versão para testes
+## 0.1.0 — first version for testing
 
-- **Chats 1:1** com personagens: importe cards do SillyTavern (PNG ou JSON), crie versões de um personagem, troque de resposta (swipe) e crie ramos (branches) a partir de qualquer mensagem.
-- **Stories**: histórias contadas por um narrador, com NPCs, cenário e aberturas. Salve uma story como **Kit** para começar outras iguais.
-- **Trackers**: depois de cada resposta, o painel **Scene** se atualiza sozinho (quem está na cena, onde, quando, humor, objetivos) e mostra o que mudou.
-- **Biblioteca**: personas, presets, lorebooks (compatíveis com o SillyTavern) e pastas em tudo.
-- **Chats**: busca por nome e por conteúdo; exportar como SillyTavern (JSONL), Markdown ou texto.
-- **Atualização automática**: quando sair versão nova, aparece uma faixa discreta com **Update & Restart**. Nada instala sem você clicar, e seus chats e personagens continuam.
+- **1:1 chats** with characters: import SillyTavern cards (PNG or JSON), make versions of a character, swap replies (swipes) and start branches from any message.
+- **Stories**: stories told by a narrator, with NPCs, a scenario and openings. Save a story as a **Kit** to start others like it.
+- **Trackers**: after each reply, the **Scene** panel updates itself (who is in the scene, where, when, mood, goals) and shows what changed.
+- **Library**: personas, presets, lorebooks (SillyTavern-compatible) and folders everywhere.
+- **Chats**: search by name and by content; export as SillyTavern (JSONL), Markdown or text.
+- **Windows and Linux**: a Windows installer, a Linux AppImage and a Debian `.deb`.
+- **Automatic updates**: when a new version is out, a quiet bar offers **Update & Restart**. Nothing is installed until you click, and your chats and characters stay.

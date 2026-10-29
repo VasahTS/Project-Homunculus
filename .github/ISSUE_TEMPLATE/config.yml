@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Guia do testador
-    url: https://github.com/VasahTS/Project-Homunculus/blob/main/docs/TESTAR.md
-    about: Como instalar, atualizar e o que mandar quando algo der errado.
+  - name: Tester's guide
+    url: https://github.com/VasahTS/Project-Homunculus/blob/main/docs/TESTING.md
+    about: How to install, update, and what to send when something goes wrong.

@@ -1,8 +1,8 @@
 // Homunculus 2 — sidebar: where you go (Library, Vault) and what you play (Stories, Chats). Author: CLAUDE, 2026-10-23;
 // UI "I" 2026-10-27 (D-018); slice 4 (2026-10-29, D-029): Library and Vault are two places at the top (their kinds are
 // tabs inside them), Stories and Chats are the lists below, each row with its last line so same-named chats differ.
-// 2026-10-29 (round 3, D-036): the long list of chats left the sidebar (Daniel: "vai ficar muito clogged quando tiver
-// muitos personagens"): Characters is a place (the cards, in folders; a character's chats are on its sheet), and
+// 2026-10-29 (round 3, D-036): the long list of chats left the sidebar (Daniel: "it will get really clogged when there are
+// many characters"): Characters is a place (the cards, in folders; a character's chats are on its sheet), and
 // "Recent" keeps the last 3 chats at hand.
 // 2026-10-29: a chat writing a reply in the background says so ("writing…"), and its story too, even folded.
 // Floats in the functional (glass) layer. Two levels at most. Nothing critical at the bottom.

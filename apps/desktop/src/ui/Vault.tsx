@@ -71,7 +71,7 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
   /** The story's chats (a ChatList). */
   chats?: ReactNode;
 }) {
-  // like a character's sheet (Daniel, 29/10: "aba de Stories igual à de personagem por enquanto"): the whole story
+  // like a character's sheet (Daniel, 10/29: "the Stories tab like the character one for now"): the whole story
   // first, Continue / + New Chat, then its chats
   const people = [...cardNames, ...npcNames];
   const opening = story.openings.find((o) => o.trim());
@@ -454,8 +454,8 @@ export interface SaveNpcChoice { name: string; schemaId: string; values: Record<
 
 /**
  * "Save to the Vault" for a person of the Scene that is not a Vault NPC yet (draft F). Where it goes is a list you can
- * see: this chat's story, your NPC folders, or loose; "+ New folder" makes one on the spot. Daniel (29/10): "salvar
- * NPCs pro Vault … escolhendo a pasta".
+ * see: this chat's story, your NPC folders, or loose; "+ New folder" makes one on the spot. Daniel (10/29): "save
+ * NPCs to the Vault … choosing the folder".
  */
 export function SaveNpcSheet({ draft, fieldSets, story, folders, onSave, onClose }: {
   draft: NpcDraft; fieldSets: FieldSetOption[];

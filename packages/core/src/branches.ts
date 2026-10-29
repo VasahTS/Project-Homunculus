@@ -1,6 +1,6 @@
 // Homunculus 2 — branches of a chat (D-032). Author: CLAUDE, 2026-10-29.
 //
-// v2 (29/10, after Daniel's test: "é pra ser direto ao ponto", like SillyTavern and Marinara): a branch is a NAMED
+// v2 (10/29, after Daniel's test: "it should be straight to the point", like SillyTavern and Marinara): a branch is a NAMED
 // END in the message tree — a saved row whose `endMessageId` is the newest message of that line. "Branch from here"
 // on any message makes a new row ending at that message and you are on it at once (SillyTavern `createBranch` +
 // `branchChat`, Marinara `POST /chats/:id/branch` then switch). Whatever you do next moves only that branch's end.

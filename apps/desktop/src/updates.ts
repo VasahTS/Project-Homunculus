@@ -1,6 +1,6 @@
 // Homunculus 2 — updates from GitHub Releases (D-037). Author: CLAUDE, 2026-10-29.
 // The installed app asks GitHub, a few seconds after it opens, whether a newer version exists (the
-// `latest.json` that the "Publicar versão" workflow uploads). It never updates on its own: a quiet bar
+// `latest.json` that the "Publish release" workflow uploads). It never updates on its own: a quiet bar
 // offers "Update & Restart", and Settings → About has "Check for Updates".
 // Off in: the browser preview, `npm run app` (dev), and portable copies (those keep "Update Homunculus.bat").
 // A Linux .deb is updated by the system's package manager, so there the bar only says a version is out and

@@ -1,5 +1,5 @@
 // Homunculus 2 — exporting a chat (round 3, D-036). Author: CLAUDE, 2026-10-29.
-// Daniel: "pode exportar como o formato do programa ou jsonl ou .md ou plain text".
+// Daniel: "you can export in the program's format or jsonl or .md or plain text".
 // - "homunculus": everything — the whole message tree (every branch and version), the branch names, the world state of
 //   each message (the trackers' and your own changes) — to keep or move between installs.
 // - "jsonl": SillyTavern's chat file (a header line, then one line per message) of ONE path: the branch shown.
