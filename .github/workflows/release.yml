@@ -81,11 +81,17 @@ jobs:
           # a draft left by a failed run of the same version is reused
           ID="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.draft and .tag_name == \"v$VERSION\") | .id" | head -n1)"
           if [ -z "$ID" ]; then
-            gh release create "v$VERSION" --draft --title "Homunculus $VERSION" --notes-file release-notes.md --target "$GITHUB_SHA"
-            ID="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.draft and .tag_name == \"v$VERSION\") | .id" | head -n1)"
+            # the id comes straight from the answer (the release list can lag a few seconds behind)
+            ID="$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="v$VERSION" -f target_commitish="$GITHUB_SHA" \
+              -f name="Homunculus $VERSION" -F body=@release-notes.md -F draft=true --jq .id)"
           else
-            gh release edit "v$VERSION" --notes-file release-notes.md
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" -F body=@release-notes.md > /dev/null
           fi
+          if [ -z "$ID" ]; then
+            echo "✖ Could not create the draft release. Run the workflow again."
+            exit 1
+          fi
+          echo "Draft release id: $ID"
           echo "release_id=$ID" >> "$GITHUB_OUTPUT"
 
   build:
