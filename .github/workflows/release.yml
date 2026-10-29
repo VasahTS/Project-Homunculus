@@ -79,7 +79,7 @@ jobs:
         run: |
           node scripts/release/notes.mjs "$VERSION" "$INPUT_NOTES" > release-notes.md
           # a draft left by a failed run of the same version is reused
-          ID="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.draft and .tag_name == \"v$VERSION\") | .id" | head -n1)"
+          ID="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.draft and .name == \"Homunculus $VERSION\") | .id" | head -n1)"
           if [ -z "$ID" ]; then
             # the id comes straight from the answer (the release list can lag a few seconds behind)
             ID="$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="v$VERSION" -f target_commitish="$GITHUB_SHA" \
@@ -162,6 +162,7 @@ jobs:
     env:
       VERSION: ${{ needs.check.outputs.version }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_ID: ${{ needs.check.outputs.release_id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -175,7 +176,11 @@ jobs:
         run: |
           node scripts/release/updater-json.mjs "$VERSION" > latest.json
           cat latest.json
-          gh release upload "v$VERSION" latest.json --clobber
+          # a latest.json left by an earlier try is replaced
+          OLD="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '.[] | select(.name == "latest.json") | .id')"
+          if [ -n "$OLD" ]; then gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$OLD"; fi
+          gh api -X POST "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=latest.json" \
+            -H "Content-Type: application/json" --input latest.json > /dev/null
 
       - name: Save the version number in main
         run: |
@@ -192,7 +197,8 @@ jobs:
 
       - name: Publish
         run: |
-          gh release edit "v$VERSION" --draft=false --latest --target "$RELEASE_SHA"
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -f tag_name="v$VERSION" \
+            -f target_commitish="$RELEASE_SHA" -F draft=false -f make_latest=true > /dev/null
           echo "### Homunculus $VERSION published" >> "$GITHUB_STEP_SUMMARY"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v$VERSION" >> "$GITHUB_STEP_SUMMARY"
 

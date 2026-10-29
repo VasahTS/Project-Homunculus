@@ -5,7 +5,7 @@
 // Only bundles that can replace themselves are listed: the Windows installer and the Linux AppImage.
 // A Linux .deb is updated by hand (the app opens the release page), so it is not in here.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,13 +34,18 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const version = (process.argv[2] ?? "").replace(/^v/, "");
   const repo = process.env.GITHUB_REPOSITORY;
   const fail = (msg) => { console.error(`\n✖ ${msg}\n`); process.exit(1); };
-  if (!version || !repo) fail("Usage: GITHUB_REPOSITORY=owner/repo node scripts/release/updater-json.mjs <version>");
+  if (!version || !repo) fail("Usage: GITHUB_REPOSITORY=owner/repo RELEASE_ID=123 node scripts/release/updater-json.mjs <version>");
   const gh = (...args) => execFileSync("gh", args, { encoding: "utf8" });
-  const release = JSON.parse(gh("api", `repos/${repo}/releases`, "--paginate", "--jq", `[.[] | select(.tag_name == "v${version}")][0]`) || "null");
-  if (!release) fail(`No release v${version} found.`);
+  // a draft's tag reads "untagged-…" until it is published, so the release is found by its id
+  const id = process.env.RELEASE_ID;
+  if (!id) fail("RELEASE_ID is missing.");
+  const release = JSON.parse(gh("api", `repos/${repo}/releases/${id}`));
   const assets = release.assets.map((a) => a.name);
   const dir = mkdtempSync(join(tmpdir(), "h2-sig-"));
-  gh("release", "download", `v${version}`, "--repo", repo, "--pattern", "*.sig", "--dir", dir);
+  for (const a of release.assets.filter((x) => x.name.endsWith(".sig"))) {
+    const text = gh("api", `repos/${repo}/releases/assets/${a.id}`, "-H", "Accept: application/octet-stream");
+    writeFileSync(join(dir, a.name), text);
+  }
   const manifest = buildManifest({ version, notes: release.body ?? "", repo, assets, signature: (name) => readFileSync(join(dir, name), "utf8").trim() });
   const missing = ["windows-x86_64", "linux-x86_64"].filter((p) => !manifest.platforms[p]);
   if (missing.length) fail(`The release has no signed files for: ${missing.join(", ")}. Assets: ${assets.join(", ")}`);
