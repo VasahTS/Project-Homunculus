@@ -4,6 +4,10 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Node.js tooling update (2026-10-29) — CODEX — D-039
+
+Development, CI and release builds use **Node.js 24 LTS** (`.nvmrc`, `engines.node`, Node types and README aligned). Both workflows use `checkout@v6` and `setup-node@v6` to remove the warning about the actions' old Node.js 20 runtime. Node.js 22 itself remains supported until April 30, 2027.
+
 ## How to use it (Daniel's PC), inside the project folder
 - **Easy way (10/28):** double-click **`Open Homunculus.bat`**: it runs `npm install` (quick when nothing changed) and opens the app with the newest code. The black window has to stay open while you use the app.
 - **For the tester / public versions (10/29, D-037):** `docs/RELEASING.md` — Actions → **Publish release**; the installed app updates itself (it asks first). Windows installer, Linux `.deb` and AppImage (D-038).

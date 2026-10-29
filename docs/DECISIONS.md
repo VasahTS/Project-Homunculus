@@ -326,3 +326,13 @@ Daniel: "all files in git must be in ENGLISH" (a standing rule — also in `CLAU
 - **API keys on Linux:** `keyring` with `linux-native-sync-persistent` + `crypto-rust`: the kernel keyring backed by the Secret Service (GNOME Keyring / KWallet), so keys survive a restart (`linux-native` alone forgets them on reboot). The `.deb` depends on `libdbus-1-3`.
 - **CI:** "Tests" also checks that the Rust shell compiles on Linux (`cargo check` after building the screens).
 Verification: on GitHub, typecheck + unit tests and the Rust check green on `dev` (the renamed data folders, the opener plugin and the Linux keyring compile); release scripts and `latest.json` building tested locally and in `release.test.mjs`. Not yet run: a real release build (needs the signing secret) and the click tests (on the PC).
+
+## D-039 — Node.js 24 LTS for development, tests and builds (2026-10-29)
+
+Daniel asked to update the Node.js requirement and resolve the end-of-life warning in GitHub Actions. Node.js 22 is still supported until April 30, 2027; the observed warning instead identifies `actions/checkout@v4` and `actions/setup-node@v4`, which declare the deprecated Node.js 20 action runtime.
+- **Project runtime:** Node.js 24 LTS, matching the version already installed on Daniel's PC. `.nvmrc` selects the major version, `package.json` declares `engines.node = 24.x`, the Node types use major 24, and the README names this requirement.
+- **Workflows:** all five Node setup steps in Tests and Publish release read `.nvmrc`; `actions/checkout@v6` and `actions/setup-node@v6` run on Node.js 24 themselves. Patch updates stay automatic within major 24.
+- **Scope:** development and build tooling only; no UI, application data, release version or installer changes. Work stays on `dev`; publishing remains a separate action.
+- **References:** [Node.js release schedule](https://github.com/nodejs/Release/blob/main/schedule.json), [setup-node runtime](https://github.com/actions/setup-node/blob/v6/action.yml), [checkout runtime](https://github.com/actions/checkout/blob/v6/action.yml).
+
+Verification on Node.js 24.19.0: typecheck clean; 194 unit tests passed (2 skipped); all 96 browser click tests passed; the production UI build passed. CI and a signed installer release are separate checks.

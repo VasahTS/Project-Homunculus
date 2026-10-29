@@ -46,7 +46,7 @@ Updating: the app tells you. Your chats, characters and keys are kept.
 
 ## Build from source
 
-Needs [Node.js 22](https://nodejs.org) and [Rust](https://rustup.rs) (for the desktop shell). On Debian/Ubuntu also: `sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev libssl-dev libxdo-dev`.
+Needs [Node.js 24 LTS](https://nodejs.org) (the version in `.nvmrc`, also used by CI and release builds) and [Rust](https://rustup.rs) (for the desktop shell). On Debian/Ubuntu also: `sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev libssl-dev libxdo-dev`.
 
 ```bash
 npm install
