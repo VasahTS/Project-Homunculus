@@ -3,6 +3,14 @@
 For Daniel. Author: CLAUDE, 2026-10-29 (D-037, D-038). Repository: <https://github.com/VasahTS/Project-Homunculus>.
 Step 1 is **once only**; after that, every new version is step 2.
 
+## Daily routine (the short version)
+
+1. GitHub Desktop: *Current branch* = **dev** → **Fetch origin → Pull origin**.
+2. Ask the AI for the change. It works on `dev` and pushes; Actions runs the tests (green ✓ = fine).
+3. **Pull origin** again, test with `Open Homunculus.bat`.
+4. Changed files in your folder yourself? *Changes* → **Commit to dev** → **Push origin** (before the next AI session).
+5. Ready for the tester? Step 2 below. Never commit on `main` directly.
+
 ## Branches
 
 - **`dev`** — daily work. Claude and CODEX work here; every Push runs the tests.
