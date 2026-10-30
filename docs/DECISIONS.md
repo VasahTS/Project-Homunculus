@@ -462,3 +462,9 @@ Daniel authorized the first agent reliability task in the isolated CODEX checkou
 - Lorebook keepers serialize only their read/merge/write step per story within this runner, so concurrent proposals preserve both contributions and a story without a book creates one shared destination. AI calls and different stories remain parallel. The Library original and other stories remain unchanged. Story-wide lore sharing remains the D-049 behavior; branch-specific lore is still deferred.
 
 BLUEPRINT §13: this affects the existing Library Agent editor (desktop) and the existing core Agent runner. Setup layers, triggers and turn placement are unchanged. Existing message-bound runs/revisions/state/proposal metadata are retained. There is no schema migration or new module, extra AI call or feature. Failures keep recoverable edits or recorded failed/cancelled runs; rewriting/undo retain their existing contracts. Evidence and verification: `docs/AGENT-RELIABILITY-AUDIT.md`. Signed: **CODEX**.
+
+## D-052 — Try it text scope and authorized review examples (2026-10-30)
+
+Daniel approved the Try it text plan: a direct action in the existing agent editor, selecting a chat/message and connection, explicit Run/Stop, and inspection of the current draft's result and inputs without applying outputs. Global activation/scopes remain deferred. The visual draft is a separate review gate; approval of its appearance and production implementation is still pending.
+
+Daniel explicitly authorized using project examples for this draft instead of the real-data requirement in HANDOFF. Use the shipped agent definitions and clearly identified scripted conversation/results; no private play folder, credentials or automatic private database access. This exception covers the draft review stage. Reference: `docs/UI-PLAN.md` and `docs/drafts/agent-try-it/README.md`. Signed: **CODEX**.

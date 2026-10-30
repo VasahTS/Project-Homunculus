@@ -7,10 +7,10 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
-## Try it in the agent editor — CODEX, 2026-10-30 · text plan awaiting Daniel's review
+## Try it in the agent editor — CODEX, 2026-10-30 · text approved; visual draft awaiting review (D-052)
 
 ### Purpose and scope
-Test the agent currently being edited, inspect what it read and what it answered, and return to editing without applying the result to a story or chat. Daniel authorized starting this feature; this text is the Step 1 deliverable required by HANDOFF. No visual draft or implementation is approved by this entry.
+Test the agent currently being edited, inspect what it read and what it answered, and return to editing without applying the result to a story or chat. Daniel approved this Step 1 text and authorized project examples for the draft. The visual draft is now available at `docs/drafts/agent-try-it/index.html`; production implementation awaits visual approval.
 
 Global agent activation/scopes remain deferred at Daniel's request. This task adds no Settings section or agent activation changes.
 
@@ -64,9 +64,9 @@ Core regression coverage: current draft versus saved definition; no writes for e
 Browser coverage: opening without a request, choosing context, text-mode preview, successful AI preview with a fake provider, double-click prevention, Stop, errors/retry, close/navigation during a delayed request, stale results, keyboard focus and full/narrow layouts.
 
 ### Review gates and data
-Daniel reviews this text before a visual draft. After text approval, prepare a draft using review data explicitly authorized by Daniel, following HANDOFF's data rule. Never inspect or request the portable play folder or keys. Implementation follows approval of that draft. A UI description here is a proposal, not an approved design decision.
+Daniel approved this text and selected project examples instead of real data for this draft review stage (D-052). The portable draft and validation are in `docs/drafts/agent-try-it/`. Never inspect or request the portable play folder or keys. Production implementation follows approval of the visual draft.
 
-**Open question:** approve this modal flow and the existing-chat/message scope for the first version, or request adjustments before drafting.
+**Open review:** approve or adjust the visual draft before production implementation.
 
 Signed: **CODEX**.
 

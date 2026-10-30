@@ -29,6 +29,7 @@ Base layout = SillyTavern's (see `sillytavern.md`), **but the shared files are h
 | Tracker blocks (`[TAG]…[/TAG]` in replies), inspection and repair | `tracker-state.js` `findTrackerBlocks` L30, `inspectTrackerState` L116, `mergeTrackerRepairPayload` L221 |
 | Agent regex scripts + snapshots per chat | `regex-scripts.js`, `regex-snapshot-store.js` |
 | Tool registry for agents | `tool-action-registry.js` |
+| Preview the current editor prompt with macros (reference for Try it) | `index.js` `previewPreGenerationPrompt` L1251; opens `.ica--prompt-preview` in a popup. Prompt-only, not a model execution. Reference reviewed by **CODEX**, 2026-10-30. |
 | UI (panel, editor, tabs All/Quick/Pre/Post/Companions) | `index.js` (6.3k lines), `editor.html`, `settings.html` |
 | **Companions**: build prompt, run, store result, feed back into next generation, batching, panel + dashboard | `companion/companion-runner.js` — `buildCompanionPromptMessages` L1227, `runCompanionStage` L2046, `injectCompanionFeedbackPrompts` L2064, `runCompanionsOnMessage` L2299, `setCompanionResult` L490; UI `companion/companion-panel.js`, `companion/companion-dashboard.js` |
 | **Pathfinder** (agentic lorebook retrieval: model browses/searches/edits lorebooks with tools; tree of entries; summary memory) | `pathfinder/` (`tree-builder.js`, `tree-store.js`, `entry-manager.js`, `sidecar-retrieval.js`, `pathfinder-tool-bridge.js`, `prompts/`, `tools/`), settings `pathfinder-settings-ui.js` |

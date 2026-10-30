@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Try it: visual draft ready (2026-10-30) — CODEX — D-052
+
+Daniel approved the text plan and explicitly chose project examples for this draft, replacing the real-data rule for this review stage. The portable interactive draft is `docs/drafts/agent-try-it/index.html`; captures and instructions are beside it. It uses the current Quiet profile and four real starter agent definitions, with scripted old-mill conversation/results and clear review controls. No model/API calls or production changes are included.
+
+Draft validation: 54 layout checks/combinations (four window sizes, reduced motion and 150% text), six interaction groups, minimum sampled text contrast 8.32:1, no page errors or HTTP(S) requests. Final project checks are recorded in `CODEX-LOG.md`. **Visual approval is still pending before implementation.** Agent activation/scopes remain deferred. Signed: **CODEX**.
+
 ## Try it: text plan for review (2026-10-30) — CODEX
 
 Daniel deferred the agent activation/scopes task and authorized starting Try it in the editor. The Step 1 plan is in `docs/UI-PLAN.md` under "Try it in the agent editor". It proposes a contextual modal preview of the current draft, explicit Run/Stop, readable results/input details and no application of outputs. It reuses the existing Compare/dry-run foundation. Text approval, visual draft and implementation remain separate HANDOFF gates; no screen, production code or new design decision is implemented by this planning entry.

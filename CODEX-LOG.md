@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-30 · Try it visual draft — D-052
+
+After Daniel approved the text plan and authorized project examples, created `docs/drafts/agent-try-it/`: portable HTML, source template/styles/script, builder, verifier, validation report, font license, README and eight captures. Reused current app tokens/styles and Quiet profile; extracted four starter agent definitions directly from project source. Additional scene dialogue, results, reasoning explanation and model usage are explicitly scripted examples. Added focus cycling, stop/close cancellation, stale-result snapshots, typed result previews and full/empty/error states. Production source files and functionality are unchanged; implementation awaits visual approval. Signed: **CODEX**.
+
+Validation: draft verification passed 54 layout checks/combinations and six interaction groups, including reduced motion and simulated 150% text; minimum sampled text contrast 8.32:1; no page errors or HTTP(S) requests. Project typecheck passed; 240 unit tests passed (2 skipped); diff check passed. Only documentation and draft artifacts changed; no production app, package, lockfile or workflow changes.
+
 ## 2026-10-30 · Try it text plan for review
 
 Prepared the Step 1 UI plan after Daniel deferred agent activation/scopes and authorized Try it. Inspected the current editor, Compare sheet and pipeline, and the original prompt preview reference. Planned current-draft preview, existing chat/message context, explicit request/cost feedback, cancellation, read-only outputs, error/full states and regression criteria. Applied targeted UI/UX Pro Max guidance for loading feedback, duplicate-action prevention and contextual status announcements. No screen/draft or application code was created; the text awaits Daniel's review under HANDOFF.
