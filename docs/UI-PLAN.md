@@ -6,6 +6,64 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Agents (slice 5) — CLAUDE, 10/30/2026 · 🟡 draft sent, waiting for Daniel
+
+**What it is for:** the agents Daniel "can't live without" from v1 (In-Chat Agents), on the engine Homunculus 2 already has. The core
+runner already runs every output kind (inject, intercept, rewrite, check, choices, note, state, speaker), with conditions, order,
+dependencies, inline/separate, own connection, every-N and manual triggers, and tests for each (`packages/core/src/agents`,
+`turn.test.ts`). **What is missing is everything Daniel sees:** a place to make/edit agents, a way to switch them on per story/chat,
+and a place for their results in the chat. Plus bringing v1's 69 templates over as **data** (never as code — the app knows no agent by name).
+
+### A1. Library → Agents (beside Trackers)
+- **List**, grouped by what the agent does, in plain words (not output kinds):
+  *Adds rules to the prompt* (inject: Don't Write for User, Grounded Prose, HTML Toggle) · *Rolls dice on the scene* (inject with chance:
+  randomizers) · *Rewrites the reply* (rewrite: Prose Polisher) · *Checks the reply* (check) · *Offers choices* (choices: CYOA, Direction
+  Menu) · *Writes a side note* (note: Continuity, Director's Commentary, Actor Interview) · *Rewrites your message* (intercept).
+  Each row: name, one-line description, where it is on (count of stories/chats), folder like the rest of the Library.
+- **"Add from templates…"**: the big "Add…" window (D-036) listing v1's templates by group, with a preview of the prompt; adding makes an
+  editable copy. Nothing is installed or switched on by itself.
+- **Editor** (same look as the tracker editor, D-026: cards that open in place):
+  1. **What it does** (the 7 plain choices above) and **When** (before the reply / after the reply / every N messages / only when I ask).
+  2. **Instructions** — the prompt, with `{{char}}`, `{{user}}`, `{{lastMessage}}`… and a "?" listing the macros.
+  3. **Where it goes** — only for "adds rules": the lorebook's "Where it goes" button (D-028: in the chat N back as System/User/AI, before/after the character…).
+  4. **What it reads** — last N messages, the cards, the lorebooks, the Scene values, other agents' results.
+  5. **When it fires** (folded): keywords, chance %, kinds of generation (normal / swipe / continue), only after N messages, same roll on every swipe.
+  6. **Advanced** (folded): separate call vs. written by the main model (inline), its own connection, order among rewriters, token limit,
+     for "checks": what happens on a fail (just warn / fix with a rewrite / write the reply again, up to N times).
+  - **Try it** button: runs the agent on the last message of the latest chat and shows the result without saving (like Preview Prompt).
+
+### A2. Switching them on — Setup → Agents (story and chat)
+- Same rows as Trackers: a switch per agent, "Default · on/off" until changed, **"changed in this chat"** + "Use the story's" (layers D-031).
+  The empty "No other agents yet" box goes away.
+- Default = off everywhere. Settings → Agents can switch one on for **every** story/chat (the Default layer), like v1's global scope.
+
+### A3. Results in the chat
+- **Choices** → buttons under the latest AI reply (not in the text). Click = **sends it as your message**; Alt/right-click = put it in the box
+  to edit first. They disappear when you write something else. Swipes keep their own choices.
+- **Rewrites** (Prose Polisher, intercept) → the message gets a quiet "polished by Prose Polisher · Undo" line; the original stays as a revision (already stored).
+- **Checks** → pass = nothing shown; fail = a small warning mark on the message with the reason (and "Fix" / "Write again" if the agent allows).
+- **Notes** (companions) → a new **Notes** group in the Reply tab of the inspector, one card per agent for the message on screen; a
+  "Run" button for agents that run only when asked (Actor Interview, Lorebook Scout).
+- **Only when I ask** agents also appear in the message's action bar under "⋯ → Run agent ▸".
+- Everything an agent did stays in the Reply tab's receipt (it already lists agent runs).
+
+### A4. v1's templates
+- Imported once into `apps/desktop/src/starter/agents.json` (translated to English), like the starter trackers (D-017): data the user can edit or delete.
+- v1's inline "tracker" templates (Item, Relationship, Time, Status…) become **Scene trackers** where they map cleanly; the others become
+  "writes a side note" agents. The ones that do not fit (Pathfinder — needs tools; Expressions — needs sprites; Chatroom/Message Inbox — need
+  their own panels) stay out with a note, for later.
+- **Import my v1 agents…** (Settings → Agents): reads an exported v1 agent JSON, with a report of what was left out (BLUEPRINT §4.8).
+
+### States
+Empty (no agents: "Add from templates…" as the main action) · running (the message shows "Prose Polisher…" like "updating…" of trackers) ·
+failed (the receipt says why; the reply is never lost — already true in the core) · many (10+ agents on: Setup groups them by kind, folded).
+
+### Daniel's answers (10/30)
+1. **Almost nothing from v1**: only a few basic examples, one per kind, to test each one. The Prose Polisher will be redone later with another idea. → A4 shrinks to ~7 small starter agents written for Homunculus 2.
+2. **Choices: a click sends at once** (right-click puts it in the box to edit).
+3. **Notes: he needs to see it first** → draft with three placements (A Reply tab · B own Notes tab · C under the message, folded): artifact "Homunculus Agents Draft".
+4. **v1 compatibility only if it sacrifices NOTHING** of our app → no v1 importer in this slice.
+
 ## Story setup simplification — CODEX, 2026-10-29 · D-045
 
 Daniel asked to remove Prompt blocks from the Story screen and put narrator placement near the narrator, subtly. Implement his explicit direction with the current palette, system control font, spacing and semantic tokens; no new visual theme. Reference draft: `docs/drafts/story-narrator/quiet.html`, with closed/open states using the narrator shown in Daniel's screenshot.
