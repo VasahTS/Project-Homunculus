@@ -27,6 +27,8 @@ A **small core** with no UI stores data, runs **turns** (prompt → AI → agent
 - `legacy.ts` — upgrades v0.0.1 sessions/cast on read (no data migration needed).
 
 ## Core pieces (`packages/core/src`)
+- `prompt-control.ts` — immutable preset-ID/block-ID patches, inherited merge, order, field edits and reset (CODEX, D-042). `SetupLayer` also carries optional field-wise narrator placement. Turn/preview/manual context all resolve these before assembly; no database migration.
+- `field-sets.ts` — versioned portable definition schema/validation, JSON serialization and immutable all-or-nothing copy/move between field-set drafts (CODEX, D-043). No UI/storage imports. `FieldSetTools.tsx` presents these operations in the existing tracker editor; `trackers.ts:portableSetOf` normalizes draft keys for Save/export.
 - `events.ts` — `EventBus`: listeners run in parallel; a crashing listener is reported via `core.error`.
 - `extensions.ts` — `ExtensionPoint<T>` and contracts: providers (`StreamChunk` = text | reasoning | usage), `ConnectionConfig` (+ `limits`, `fallback`), `AgentDefinition` (config + output schema + `run`), `AgentRunContext`, `AgentExecutor`, `AgentToolDefinition`, `PromptBlockDefinition`, `SetupFieldDefinition`, importers/exporters, macros, panels (+ `schemaId`).
 - `core.ts` — `HomunculusCore`: module loading (dependency order), all extension points, `connections`, `state`.

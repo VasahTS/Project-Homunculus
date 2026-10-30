@@ -11,6 +11,7 @@ import { blankField, blankSet, checkDraft, copySet, isTempKey, type SetDraft, ty
 import { ConfirmButton, Help } from "./Help.tsx";
 import { move, SortableList } from "./Sortable.tsx";
 import { TrackerPreview } from "./ScenePanel.tsx";
+import { FieldSetTools } from "./FieldSetTools.tsx";
 
 const DISPLAYS: Array<{ value: FieldDisplay; label: string }> = [
   { value: "auto", label: "Auto" }, { value: "header", label: "Top strip" }, { value: "subtitle", label: "Under the name" }, { value: "lead", label: "Lead" },
@@ -296,6 +297,7 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
             )}
           </div>
 
+          <FieldSetTools key={current.id} sets={draft.sets} current={current} onChange={(sets) => set({ sets })} />
           <div className="fields-head">
             <h3 className="label-row grow">Groups and fields <Help text="Each field is one value the AI keeps up to date. Fields sit in groups; the order here is the order on the person's page and in the Scene panel. Drag a group or a field by its ⋮⋮ (or focus the ⋮⋮ and use the arrow keys). Click a field to open its settings; several can be open at once." /></h3>
             <button type="button" className="link quiet" data-testid="fields-open-all"

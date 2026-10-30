@@ -6,6 +6,16 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Functional rounds 4–5 — CODEX, 2026-10-29
+
+Daniel authorized continuing the functional plans and reviewing the result on his return (D-041). Keep the current appearance; no new visual direction or Customize work.
+
+- **Prompt:** retain the inspector's existing block list. A scope selector defaults to the current chat/Story; shared-preset edits require selecting that scope. Opening a text block reveals its editor in place. Reset resumes inheritance. Narrator placement uses the existing setup rows. Empty text and disabled blocks remain intentional values; failures are shown beside the controls.
+- **Tracker editor:** retain its existing set selector, fields, settings and preview. A closed disclosure, **Reuse fields and sets**, contains selection, destination, Copy/Move, Undo, JSON import/export. Selection is independent of opening a field. Transfers operate within the current tracker; files reuse sets across trackers. Duplicate keys stop the entire transfer. Moving every field is refused. Imports append fresh sets after validating the whole file; nothing existing is overwritten. Changes remain a draft until Save. Long lists use the editor's existing scrolling area.
+- **Review:** verify inheritance and actual generation, selection/transfer failures and undo, portable round-trips, invalid imports, existing editor flows and narrow-window layout. Test data stays isolated from Daniel's private app data.
+
+Signed: **CODEX**.
+
 ## Collection navigation — CODEX, 2026-10-29 · approved for implementation (D-040)
 
 **Purpose:** choose a character or story, inspect it, and continue a chat; find reusable resources predictably. Daniel approved the latest draft after rejecting a version that gave every interactive row a heavy outline.

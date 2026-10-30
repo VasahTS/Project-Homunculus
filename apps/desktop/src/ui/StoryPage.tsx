@@ -7,11 +7,14 @@
 // and "Start a Story" instead of Play.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, UserRole } from "@homunculus/schemas";
-import { effectiveCharacter, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
+import { DEFAULT_PRESET, effectiveCharacter, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { LorebookChips } from "./LorePanels.tsx";
 import { Button, Icon, IconButton, Segmented } from "./kit.tsx";
+import { PromptBlocks } from "./PromptBlocks.tsx";
+import { NarratorPromptGroup } from "./NarratorPromptGroup.tsx";
+import { Group } from "./kit.tsx";
 import { AuthorsNoteGroup } from "./AuthorsNote.tsx";
 import { SetupFields, SetupSection, type StorySetupProps } from "./SetupFields.tsx";
 export type { StorySetupProps };
@@ -408,6 +411,17 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
             <SetupFields mode="story" layer={draft.setup} onChange={(s) => change({ setup: s })} names={setup.namesFor(undefined)} director={draft.userRole === "director"}
               presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers}
               aside="every chat of this story starts with this" testId="story-setup" />
+
+            {(() => {
+              const above = setup.setupAbove();
+              const selected = draft.setup.presetId !== undefined ? draft.setup.presetId : above.presetId;
+              const preset = setup.presets.find((p) => p.id === selected) ?? setup.presets.find((p) => p.id === DEFAULT_PRESET.id) ?? DEFAULT_PRESET;
+              return preset ? <Group title="Prompt blocks" testId="story-prompt-blocks">
+                <PromptBlocks key={preset.id} preset={preset} layer={draft.setup} above={above} level="story"
+                  onChange={(layer) => change({ setup: layer })} onSavePreset={setup.onSavePreset} onOpenPreset={setup.onOpenPreset} />
+              </Group> : null;
+            })()}
+            <NarratorPromptGroup level="story" layer={draft.setup} above={setup.setupAbove().narratorPrompt} onChange={(layer) => change({ setup: layer })} />
 
             <AuthorsNoteGroup level="story" layer={draft.setup} above={setup.noteAbove(undefined)} onChange={(s) => change({ setup: s })} testId="story-authors-note" />
 

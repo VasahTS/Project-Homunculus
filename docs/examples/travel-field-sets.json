@@ -1,0 +1,28 @@
+{
+  "format": "homunculus-field-sets",
+  "version": 1,
+  "sets": [
+    {
+      "name": "Travel",
+      "help": "Places, supplies and people on the journey.",
+      "characters": "castAndUser",
+      "presence": { "field": "presence", "value": "here" },
+      "fields": [
+        { "key": "place", "label": "Place", "type": "text", "section": "Journey", "display": "header" },
+        { "key": "supplies", "label": "Supplies", "type": "meter", "min": 0, "max": 100, "section": "Journey" },
+        { "key": "presence", "label": "Presence", "type": "status", "scope": "perCharacter", "options": ["here", "away"], "section": "People" },
+        { "key": "inventory", "label": "Inventory", "type": "list", "scope": "perCharacter", "section": "People", "fields": [
+          { "key": "item", "label": "Item", "type": "text" },
+          { "key": "quantity", "label": "Quantity", "type": "number", "min": 0 }
+        ] }
+      ]
+    },
+    {
+      "name": "Minimal travel",
+      "characters": "cast",
+      "fields": [
+        { "key": "place", "label": "Place", "type": "text", "display": "header" }
+      ]
+    }
+  ]
+}

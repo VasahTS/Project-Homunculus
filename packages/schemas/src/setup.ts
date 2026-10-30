@@ -48,8 +48,37 @@ export const AuthorsNote = z.object({
 });
 export type AuthorsNote = z.infer<typeof AuthorsNote>;
 
+/** A scoped patch, keyed by preset and stable block ids. Missing fields keep inheriting. CODEX, D-042. */
+export const PresetBlockOverride = z.object({
+  content: z.string().optional(),
+  enabled: z.boolean().optional(),
+  role: z.enum(["system", "user", "assistant"]).optional(),
+  position: z.enum(["list", "depth"]).optional(),
+  depth: z.number().int().min(0).max(999).optional(),
+  order: z.number().int().optional(),
+  noOverride: z.boolean().optional(),
+});
+export type PresetBlockOverride = z.infer<typeof PresetBlockOverride>;
+export const PresetOverride = z.object({
+  blocks: z.record(z.string(), PresetBlockOverride).optional(),
+  order: z.array(Id).optional(),
+});
+export type PresetOverride = z.infer<typeof PresetOverride>;
+
+/** Narrator placement affects the AI prompt, never the stored conversation. */
+export const NarratorPrompt = z.object({
+  position: z.enum(["card", "system", "inChat"]).optional(),
+  depth: z.number().int().min(0).max(999).optional(),
+  alsoInChat: z.boolean().optional(),
+  role: z.enum(["system", "user", "assistant"]).optional(),
+  order: z.number().int().optional(),
+});
+export type NarratorPrompt = z.infer<typeof NarratorPrompt>;
+
 export const SetupLayer = z.object({
   presetId: Id.nullable().optional(),
+  presetOverrides: z.record(z.string(), PresetOverride).optional(),
+  narratorPrompt: NarratorPrompt.optional(),
   personaId: Id.nullable().optional(),
   personaVariantId: Id.nullable().optional(),
   /** Main connection (where the story is written): a connection profile id. */

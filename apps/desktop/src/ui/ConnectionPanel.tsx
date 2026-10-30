@@ -5,10 +5,11 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { ConnectionProfile, Preset, ReasoningEffort, Session, SetupLayer } from "@homunculus/schemas";
 import { SetupFields, type StorySetupProps } from "./SetupFields.tsx";
-import { estimateTokens, type BuiltPrompt, type ProviderDefinition } from "@homunculus/core";
+import { DEFAULT_PRESET, resolveSetup, type BuiltPrompt, type ProviderDefinition } from "@homunculus/core";
 import type { Tracker } from "../trackers.ts";
-import { Button, Icon, Switch } from "./kit.tsx";
-import { move, SortableList } from "./Sortable.tsx";
+import { Button, Icon } from "./kit.tsx";
+import { PromptBlocks } from "./PromptBlocks.tsx";
+import { NarratorPromptGroup } from "./NarratorPromptGroup.tsx";
 import { PromptSheet } from "./PromptSheet.tsx";
 import { needsKey, type ConnectionState } from "../connection.ts";
 import { Group, Row } from "./kit.tsx";
@@ -59,7 +60,7 @@ const SAME_AS_STORY = "__story__";
 export type PromptPreview = BuiltPrompt & { presetName: string; model: string; sent: number };
 
 export function PromptPane({ c, providers, session, storySetup, storyName, director = false, setupProps, onChangeSession, onOpenSettings, presets, defaultPresetId, onSavePreset, onOpenPreset, preview, trackers, lore, authorsNote, character }: {
-  c: ConnectionState; providers: ProviderDefinition[]; session: Session; onChangeSession: (s: Session) => void; onOpenSettings: () => void;
+  c: ConnectionState; providers: ProviderDefinition[]; session: Session; onChangeSession: (s: Session) => void | Promise<void>; onOpenSettings: () => void;
   /** A story chat (D-031): the story's layer and name, and the setup block it shares with the story's page. */
   storySetup?: SetupLayer | undefined; storyName?: string | undefined; director?: boolean; setupProps?: StorySetupProps | undefined;
   presets: Preset[]; defaultPresetId: string; onSavePreset: (p: Preset) => Promise<void>; onOpenPreset: (id: string, block?: string) => void;
@@ -77,7 +78,9 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
   const [previewError, setPreviewError] = useState("");
   const [previewing, setPreviewing] = useState(false);
   const inStory = !!(storySetup && setupProps);
-  const preset = presets.find((p) => p.id === (session.setup.presetId ?? storySetup?.presetId ?? defaultPresetId)) ?? presets.find((p) => p.id === defaultPresetId);
+  const aboveSetup = setupProps?.setupAbove(storySetup) ?? resolveSetup({ story: storySetup });
+  const selectedPresetId = session.setup.presetId !== undefined ? session.setup.presetId : aboveSetup.presetId ?? defaultPresetId;
+  const preset = presets.find((p) => p.id === selectedPresetId) ?? presets.find((p) => p.id === DEFAULT_PRESET.id) ?? DEFAULT_PRESET;
   const defaultPresetName = presets.find((p) => p.id === defaultPresetId)?.name ?? "Homunculus Default";
   const runPreview = async () => {
     setPreviewing(true); setPreviewError("");
@@ -137,7 +140,7 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
         </Row>
       </Group>}
 
-      <Group title="Preset" help="The recipe of the prompt: which blocks the AI reads, in which order. Switching a block here changes the preset itself, for every session that uses it. Edit, import and export presets in Library → Presets."
+      <Group title="Preset" help="The recipe of the prompt: which blocks the AI reads, in which order. Choose whether block edits apply only here or to the shared preset. Edit, import and export presets in Library → Presets."
         testId="prompt-preset">
         {!inStory && <Row label="Preset">
           <select aria-label="Session preset" value={session.setup.presetId ?? ""}
@@ -146,30 +149,8 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
             {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Row>}
-        {preset && (
-          <Row wide>
-            <SortableList items={preset.blocks} id={(b) => b.id} name={(b) => b.name || b.id} label={`Blocks of ${preset.name}`} className="quick-blocks"
-              itemClassName={(b) => (b.enabled ? "" : "off")}
-              onReorder={(from, to) => void onSavePreset({ ...preset, blocks: move(preset.blocks, from, to) })}
-              render={(b, handle) => (
-                <div className="quick-block">
-                  {handle}
-                  <button type="button" className="quick-name" onClick={() => onOpenPreset(preset.id, b.id)} title="Open this block in the preset editor">{b.name || b.id}</button>
-                  {b.marker
-                    ? <span className="tag marker" title="Filled by the app (card, persona, scene, chat…)">auto</span>
-                    : <span className="hint tabular" title="Estimated tokens of this block's text">{b.content.trim() ? `${estimateTokens(b.content)} tok` : "empty"}</span>}
-                  <Switch label={`${b.name || b.id} on`} checked={b.enabled}
-                    onChange={(v) => void onSavePreset({ ...preset, blocks: preset.blocks.map((x) => (x.id === b.id ? { ...x, enabled: v } : x)) })} />
-                </div>
-              )} />
-          </Row>
-        )}
-        <Row wide>
-          <span className="preset-foot">
-            <span className="hint">{preset?.contextSize ? `Context ${preset.contextSize.toLocaleString("en-US")} tokens` : "No context limit"} · drag <Icon name="grip" size={11} stroke={2.6} /> to reorder</span>
-            {preset && <button className="link" onClick={() => onOpenPreset(preset.id)}>Edit Preset</button>}
-          </span>
-        </Row>
+        {preset && <Row wide><PromptBlocks key={preset.id} preset={preset} layer={session.setup} above={aboveSetup} level="chat"
+          onChange={(setup) => onChangeSession({ ...session, setup })} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} /></Row>}
         <Row wide>
           <span className="preview-cta">
             <Button onClick={() => void runPreview()} disabled={previewing}><Icon name="eye" size={14} />{previewing ? "Building…" : "Preview Prompt"}</Button>
@@ -178,6 +159,8 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
         </Row>
         {previewError && <Row wide><span className="error-text">{previewError}</span></Row>}
       </Group>
+
+      {(inStory || session.cast.some((member) => member.role === "narrator" && member.presence !== "off")) && <NarratorPromptGroup level="chat" layer={session.setup} above={aboveSetup.narratorPrompt} onChange={(setup) => onChangeSession({ ...session, setup })} />}
 
       {lore}
 

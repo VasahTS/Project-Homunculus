@@ -9,6 +9,7 @@
 // Ours on top: `scene` and `agentPrompts` markers; when a preset has no place for them they are put right
 // before the chat history, with a note ("placed automatically"), never dropped in silence.
 import { Preset, type Character, type GenerationType, type Message, type PresetBlock, type PromptPart } from "@homunculus/schemas";
+import type { ResolvedNarratorPrompt } from "./setup.ts";
 import type { ChatTurn } from "./extensions.ts";
 import { expandMacros, type MacroContext } from "./macros.ts";
 
@@ -28,6 +29,8 @@ export interface BuildPromptInput {
   generationType: GenerationType;
   /** The speaking character as this session sees it (its version applied). */
   character: Character | undefined;
+  /** Missing/card placement preserves existing presets exactly. CODEX, D-042. */
+  narrator?: ResolvedNarratorPrompt;
   persona?: { name: string; description: string; placement: { position: "inPrompt" | "atDepth" | "none"; depth: number; role: "system" | "user" | "assistant" } };
   /** The session's own scenario (wins over the card's, as in SillyTavern). */
   sessionScenario: string;
@@ -126,14 +129,17 @@ interface DepthItem { depth: number; order: number; role: PromptPart["role"]; co
 const ROLE_ORDER = { system: 0, user: 1, assistant: 2 } as const;
 
 export function buildPrompt(input: BuildPromptInput): BuiltPrompt {
-  const { preset, character: c, names } = input;
+  const { preset, names } = input;
+  const narratorCard = input.character;
+  const movedNarrator = input.narrator && input.narrator.position !== "card";
+  const c = movedNarrator && narratorCard ? { ...narratorCard, description: "", personality: "", scenario: "", exampleMessages: "", systemPrompt: "", postHistoryInstructions: "" } : narratorCard;
   const notes: string[] = [];
   const persona = input.persona;
   const scenarioText = input.sessionScenario.trim() || c?.scenario || "";
   const ctx: MacroContext = {
     ...input.macros, ...names,
-    description: c?.description ?? "", personality: c?.personality ?? "", scenario: scenarioText,
-    persona: persona?.description ?? "", mesExamples: c?.exampleMessages ?? "",
+    description: narratorCard?.description ?? "", personality: narratorCard?.personality ?? "", scenario: input.sessionScenario.trim() || narratorCard?.scenario || "",
+    persona: persona?.description ?? "", mesExamples: narratorCard?.exampleMessages ?? "",
     lastMessage: input.history.at(-1)?.content ?? "",
     lastUserMessage: [...input.history].reverse().find((m) => m.speaker.kind === "user")?.content ?? "",
     lastCharMessage: [...input.history].reverse().find((m) => m.speaker.kind !== "user")?.content ?? "",
@@ -203,6 +209,37 @@ export function buildPrompt(input: BuildPromptInput): BuiltPrompt {
       case "scene": for (const p of sceneParts()) add(p); break;
       case "agentPrompts": for (const p of agentParts()) add(p); break;
       case "chatHistory": segs.push({ kind: "history" }); break;
+    }
+  }
+
+  // Narrator placement is independent of the card marker layout; its name/macros stay available. CODEX, D-042.
+  const narrator = input.narrator;
+  if (narrator && narratorCard && (movedNarrator || narrator.alsoInChat)) {
+    const content = m([
+      narratorCard.systemPrompt,
+      narratorCard.description,
+      narratorCard.personality.trim() ? `Personality:
+${narratorCard.personality}` : "",
+      narratorCard.scenario.trim() && narratorCard.scenario.trim() !== input.sessionScenario.trim() ? `Scenario:
+${narratorCard.scenario}` : "",
+      narratorCard.exampleMessages.trim() ? `Example dialogue:
+${narratorCard.exampleMessages}` : "",
+      narratorCard.postHistoryInstructions,
+    ].filter((text) => text.trim()).join("\n\n"));
+    if (content.trim()) {
+      const text = `Narrator instructions (${m(narratorCard.name)}):
+${content}`;
+      if (narrator.position === "system") {
+        const mainAt = mainSeg ? segs.indexOf(mainSeg) : -1;
+        segs.splice(mainAt + 1, 0, { kind: "part", part: { role: "system", content: text, source: "narrator:system" } });
+      }
+      if (narrator.position === "inChat" || narrator.alsoInChat) {
+        if (has("chatHistory")) depthItems.push({ depth: narrator.depth, order: narrator.order, role: narrator.role, content: text, source: "narrator:inChat" });
+        else {
+          add({ role: "system", content: text, source: "narrator:fallback" });
+          notes.push("Narrator instructions were sent as a system block because this preset has no Chat History block for their requested depth.");
+        }
+      }
     }
   }
 

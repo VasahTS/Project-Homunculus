@@ -14,6 +14,7 @@ import type { HomunculusCore } from "./core.ts";
 import type { ConnectionConfig } from "./extensions.ts";
 import { scanLorebooks, type LoreScope } from "./lorebook.ts";
 import { applyBasicMacros, DEFAULT_USER_NAME, expandMacros, type MacroContext } from "./macros.ts";
+import { applyPresetOverride } from "./prompt-control.ts";
 import { buildPrompt, DEFAULT_PRESET, presetParams, squashSystem, toTurns, type BuiltPrompt, type PromptInjection } from "./presets.ts";
 
 /** The prompt plus what the lorebooks did for it. */
@@ -98,7 +99,7 @@ export class TurnPipeline {
     const session = await this.store.getSession(req.sessionId);
     if (!session) throw new Error(`Session "${req.sessionId}" not found`);
     const setup = await this.setupFor(session);
-    const preset = await this.presetFor(setup.presetId);
+    const preset = await this.presetFor(setup.presetId, setup);
     const main = withPresetParams((setup.connectionId ? req.connections?.[setup.connectionId] : undefined) ?? req.connection, preset);
     if (!this.core.providers.get(main.providerId)) throw new Error(`No AI provider "${main.providerId}" is installed`);
 
@@ -268,7 +269,7 @@ export class TurnPipeline {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
-    const preset = await this.presetFor(setup.presetId);
+    const preset = await this.presetFor(setup.presetId, setup);
     const main = withPresetParams((setup.connectionId ? options.connections?.[setup.connectionId] : undefined) ?? connection, preset);
     const entries = await this.runner.enabledAgents(setup);
     const speaking = await this.pickSpeaker(session);
@@ -333,7 +334,7 @@ export class TurnPipeline {
       return { report: r.report, messages: history.map((m) => ({ who: "User", text: m.content, read: true })), settings };
     }
     const setup = await this.setupFor(session);
-    const preset = await this.presetFor(setup.presetId);
+    const preset = await this.presetFor(setup.presetId, setup);
     const speaking = await this.pickSpeaker(session);
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const effPersona = persona ? effectivePersona(persona, setup.personaVariantId) : undefined;
@@ -366,9 +367,10 @@ export class TurnPipeline {
   }
 
   /** The preset a setup picks, else the library's "Homunculus Default", else the built-in one. */
-  private async presetFor(id: string | null): Promise<Preset> {
+  private async presetFor(id: string | null, setup: ResolvedSetup): Promise<Preset> {
     const picked = id ? await this.store.presets.get(id) : undefined;
-    return picked ?? (await this.store.presets.get(DEFAULT_PRESET.id)) ?? DEFAULT_PRESET;
+    const base = picked ?? (await this.store.presets.get(DEFAULT_PRESET.id)) ?? DEFAULT_PRESET;
+    return applyPresetOverride(base, setup.presetOverrides[base.id]);
   }
 
   /** Step 4 of the turn: the scene, the macros' context, and the preset → the prompt. */
@@ -397,7 +399,8 @@ export class TurnPipeline {
     } });
     const cast = await this.castFor(a.session);
     const built = buildPrompt({
-      preset: a.preset, generationType: a.type, character: a.character, ...(cast ? { cast } : {}),
+      preset: a.preset, generationType: a.type, character: a.character,
+      ...(a.session.storyId || a.session.cast.some((member) => member.role === "narrator" && member.presence !== "off") ? { narrator: a.setup.narratorPrompt } : {}), ...(cast ? { cast } : {}),
       persona: a.persona ? { name: a.persona.name, description: a.persona.description, placement: a.persona.placement } : undefined,
       sessionScenario: a.session.scenario, history: a.history, names: { char: a.names.char, user: a.names.user }, scene,
       injections: a.injections,

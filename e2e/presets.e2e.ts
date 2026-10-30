@@ -60,11 +60,14 @@ test("blocks can be dragged into a new order, in the editor and in the Prompt ta
   // round 3: the character sits on top of the Prompt tab; fold it (one line) to have the preset in view
   await page.getByTestId("prompt-character-toggle").click();
   await expect(page.getByTestId("prompt-character-field")).toHaveCount(0); // folded (after its animation)
+  await page.getByLabel("Prompt edit scope").selectOption("preset");
   const quick = page.getByTestId("prompt-preset").locator(".sortable-item");
   await expect(quick.nth(0)).toContainText("Main Prompt");
   // drag "Main Prompt" by its handle below "Char Description" (the 3rd row)
   const grip = page.getByTestId("prompt-preset").getByRole("button", { name: "Reorder Main Prompt" });
   const target = quick.nth(2);
+  await target.scrollIntoViewIfNeeded();
+  await grip.scrollIntoViewIfNeeded();
   const g = (await grip.boundingBox())!;
   const t = (await target.boundingBox())!;
   await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
@@ -77,11 +80,13 @@ test("blocks can be dragged into a new order, in the editor and in the Prompt ta
   // the preset itself changed: the editor shows the same order
   await page.getByRole("button", { name: "Edit Preset" }).click();
   await expect(editor(page).getByTestId("preset-block").nth(2)).toContainText("Main Prompt");
-  // and clicking a block's name in the Prompt tab opens it in the editor
+  // markers explain their automatic content inline; the full editor remains available
   await openSession(page);
   await openTab(page, "prompt");
   await page.getByTestId("prompt-preset").getByRole("button", { name: "Char Personality", exact: true }).click();
-  await expect(editor(page).getByLabel("Block name")).toHaveValue("Char Personality");
+  await expect(page.getByText("This marker is filled by the app.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Edit Preset", exact: true }).click();
+  await expect(editor(page)).toBeVisible();
 });
 
 test("a block switched off in the Prompt tab is left out", async ({ page }) => {

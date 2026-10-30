@@ -2,13 +2,19 @@
 //
 // builtin → default → story → session. A field missing from a layer is inherited (a 1:1 chat has no story layer).
 // This is the ONLY place that reads layers; everything else uses the ResolvedSetup.
-import type { AgentOverride, ListOverride, SetupLayer, SetupLevel, TurnOrder } from "@homunculus/schemas";
+import { mergePresetOverride } from "./prompt-control.ts";
+import type { AgentOverride, ListOverride, PresetOverride, SetupLayer, SetupLevel, TurnOrder } from "@homunculus/schemas";
 
 /** The Author's Note with every field filled (SillyTavern's defaults: every turn, in the chat 4 back, as System). */
 export interface ResolvedAuthorsNote { text: string; interval: number; position: "inChat" | "afterMain" | "beforeMain"; depth: number; role: "system" | "user" | "assistant" }
 export const AUTHORS_NOTE_DEFAULTS: ResolvedAuthorsNote = { text: "", interval: 1, position: "inChat", depth: 4, role: "system" };
 
+export interface ResolvedNarratorPrompt { position: "card" | "system" | "inChat"; depth: number; alsoInChat: boolean; role: "system" | "user" | "assistant"; order: number }
+export const NARRATOR_PROMPT_DEFAULTS: ResolvedNarratorPrompt = { position: "card", depth: 4, alsoInChat: false, role: "system", order: 100 };
+
 export interface ResolvedSetup {
+  presetOverrides: Record<string, PresetOverride>;
+  narratorPrompt: ResolvedNarratorPrompt;
   presetId: string | null;
   personaId: string | null;
   personaVariantId: string | null;
@@ -58,6 +64,7 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
   ];
   const out: ResolvedSetup = {
     presetId: null, personaId: null, personaVariantId: null, connectionId: null, agentConnectionId: null,
+    presetOverrides: Object.create(null), narratorPrompt: { ...NARRATOR_PROMPT_DEFAULTS },
     lorebooks: [], agents: [], agentOverrides: {}, storyStyle: {}, turnOrder: "natural",
     trackersOnSwipe: true, limits: {}, extra: {}, authorsNote: { ...AUTHORS_NOTE_DEFAULTS }, sources: {},
   };
@@ -88,6 +95,21 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
         settings: { ...(prev.settings ?? {}), ...(ov.settings ?? {}) },
       };
       out.sources[`agentOverrides:${agentId}`] = level;
+    }
+    // Prompt control follows the same field-by-field inheritance as the Author's Note. CODEX, D-042.
+    for (const [key, value] of Object.entries(layer.narratorPrompt ?? {})) {
+      if (value === undefined) continue;
+      (out.narratorPrompt as unknown as Record<string, unknown>)[key] = value;
+      out.sources[`narratorPrompt.${key}`] = level;
+    }
+    for (const [presetId, override] of Object.entries(layer.presetOverrides ?? {})) {
+      const previous = out.presetOverrides[presetId] ?? {};
+      for (const [blockId, patch] of Object.entries(override.blocks ?? {})) {
+        const fields = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
+        for (const key of Object.keys(fields)) out.sources[`presetOverrides:${presetId}:${blockId}:${key}`] = level;
+      }
+      out.presetOverrides[presetId] = mergePresetOverride(previous, override);
+      if (override.order !== undefined) out.sources[`presetOverrides:${presetId}:order`] = level;
     }
     // the Author's Note: each field on its own ("authorsNote.text" from the story, "authorsNote.depth" from the chat…)
     for (const [k, v] of Object.entries(layer.authorsNote ?? {})) {

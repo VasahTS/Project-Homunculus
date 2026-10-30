@@ -596,7 +596,11 @@ export function App() {
     if (!p?.listModels) throw new Error("This AI can't list its models. Type the model's ID instead.");
     return p.listModels(config, signal);
   };
-  const setupProps: StorySetupProps = { presets, profiles: connection.profiles, personas, trackers, namesFor, noteAbove };
+  const setupProps: StorySetupProps = { presets, profiles: connection.profiles, personas, trackers, namesFor, noteAbove,
+    setupAbove: (story) => resolveSetup({ default: defaultSetup, ...(story ? { story } : {}) }),
+    onSavePreset: async (preset) => { await svc.store.savePreset(preset); await refresh(svc); },
+    onOpenPreset: (id) => setView({ kind: "presets", id }),
+  };
 
   /** The narrator card's greetings (a story made from a card without openings of its own uses them). */
   const greetingsOf = (st: Story): string[] => {
@@ -1137,7 +1141,7 @@ export function App() {
         personas={personas}
         defaultPersonaId={defaultPersonaId}
         avatars={avatars}
-        onChangeSession={(s) => void updateSession(s)}
+        onChangeSession={updateSession}
         onOpenSettings={() => setView({ kind: "settings", tab: "connections" })}
           listModels={listModels}
         presets={presets}

@@ -59,7 +59,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   personas: Persona[];
   defaultPersonaId: string | null;
   avatars: Record<string, Avatar>;
-  onChangeSession: (s: Session) => void;
+  onChangeSession: (s: Session) => void | Promise<void>;
   /** Save someone of the Scene to the Vault (round 3). */
   /** Saves a card edited in the Prompt tab; opens the full editor (round 3). */
   onSaveCharacter?: ((c: Character) => Promise<void>) | undefined;

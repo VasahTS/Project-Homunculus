@@ -357,3 +357,24 @@ Verification: final TypeScript check and production UI build passed; 194 unit te
 Daniel asked to set UI refinement aside and focus on completing application functionality. Customize and further visual revisions are deferred until the app is more complete. Keep the approved UI as the current baseline; this does not remove the customization-first architecture requirement or authorize dropping features. CODEX must document its changes in English and sign them **CODEX**. The existing six-round plan resumes with round 4 (prompt control), then round 5 (tracker field sets); round 6 (multi-character cards to NPCs) still depends on the Library Assistant. No next feature is implemented by this priority update.
 
 This changes work priority, not the app architecture or existing features. Signed: **CODEX**.
+
+## D-042 — Scoped prompt blocks and narrator placement (2026-10-29)
+
+Daniel authorized continuing the functional plan and reviewing on his return. Round 4 keeps the current UI and adds controls in its existing inspector/Story setup.
+
+- `SetupLayer.presetOverrides[presetId]` contains per-block field patches and an optional stable-ID order. Missing fields inherit; intentional empty strings and false values remain meaningful. New shared blocks survive old local orders. Switching presets isolates their patches. Reset removes only the current preset's local patch. Shared preset editing requires explicitly choosing that scope; the default is Only this chat / This story and its chats.
+- Text blocks open inline; automatic markers explain their generated content. The full preset editor remains reachable. Main/post-history blocks expose their existing card-override behavior.
+- `SetupLayer.narratorPrompt` inherits each placement field. The default card layout gives the same prompt as before. System/depth placement moves narrator instructions out of automatic card markers; original card macros remain available. An explicit repeat option adds depth placement alongside card/system. Depth instructions fall back visibly to a system block when no history marker exists. Prompt source labels identify narrator instructions. Stored messages are untouched.
+- Preview, ordinary replies and manual agent context all apply the same resolved preset. Existing JSON gains optional fields only; no migration is needed. A Story/Kit keeps its existing autosave; chat/shared-preset saves are awaited and failures shown.
+
+Verification includes SQLite round-trip and actual generated/recorded prompts, inheritance/reset/isolation, default compatibility, narrator depth/fallback and browser workflows. Signed: **CODEX**.
+
+## D-043 — Portable field-set definitions and atomic draft transfers (2026-10-29)
+
+Round 5 adds a collapsed reuse tool to the existing tracker editor. Copy/Move operates between sets of the tracker being edited; JSON import/export enables reuse across trackers. No tracker subject or field list is hard-coded.
+
+- Transfers preserve keys, nested fields, presentation and order. Any destination key collision refuses the entire operation; Move must leave a source field. The selected presence field carries its rule only when the destination has none; Move removes that rule from the source. Source/target definitions change together in the draft. Undo is available only while those definitions are unchanged, so it cannot overwrite later edits or a saved draft.
+- `homunculus-field-sets`, version 1, contains validated definitions without database/tracker IDs, agent instructions or saved chat values. Export normalizes unsaved keys as Save does. Import validates the complete envelope, every set and nested field, duplicate sibling keys, status options, bounds and presence references before appending new IDs. Duplicate set names receive a suffix. Existing/default sets remain intact. Later edits during asynchronous file reading cancel the import rather than overwrite those edits.
+- Draft changes use the existing Save operation. No historical state/message rewriting or automatic live-value migration is introduced. The native export uses the existing Downloads helper; browser preview uses a download. `docs/FIELD-SET-FORMAT.md` documents the boundary and future Assistant instructions with a tested example. The Assistant itself and round 6 are separate future work.
+
+Verification covers pure transfer/format regressions and real editor/browser copy/move, refusal, undo, save/reopen and JSON download/import flows. Signed: **CODEX**.

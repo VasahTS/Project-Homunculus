@@ -3,7 +3,7 @@
 // The agent id is also the state namespace, so renaming a tracker, a set or a field never loses
 // saved values (field keys are made once and never change). Nothing here knows what is tracked.
 import type { AgentConfig, Session, SetupLayer, TrackerField, TrackerSchema } from "@homunculus/schemas";
-import { castOf, fieldKeyFrom, type SqlStore, type TrackerCastMember } from "@homunculus/core";
+import { castOf, fieldKeyFrom, type PortableFieldSet, type SqlStore, type TrackerCastMember } from "@homunculus/core";
 import type { AppServices } from "./core-instance.ts";
 import starter from "./starter/trackers.json";
 
@@ -123,12 +123,19 @@ function cleanFields(fields: TrackerField[], column = false): TrackerField[] {
   });
 }
 
+/** Normalizes a draft for portability/save, retaining stable keys and remapping a new presence field. CODEX. */
+export function portableSetOf(s: SetDraft): PortableFieldSet {
+  const fields = cleanFields(s.fields);
+  const index = s.presence ? s.fields.findIndex((f) => f.key === s.presence!.field) : -1;
+  return { name: s.name.trim(), help: s.help.trim(), version: 1, characters: s.characters, fields,
+    ...(s.presence && index >= 0 ? { presence: { ...s.presence, field: fields[index]!.key } } : {}) };
+}
+
 /** Saves the tracker (agent + every field set) and removes sets deleted in the editor. Returns the saved draft. */
 export async function saveTracker(store: SqlStore, d: TrackerDraft): Promise<TrackerDraft> {
   const before = (await listTrackers(store)).find((t) => t.agent.id === d.id);
   for (const s of d.sets) {
-    const presence = s.presence && s.fields.some((f) => f.key === s.presence!.field) ? s.presence : undefined;
-    await store.saveTrackerSchema({ id: s.id, name: s.name.trim(), help: s.help.trim(), trackerId: d.id, characters: s.characters, ...(presence ? { presence } : {}), fields: cleanFields(s.fields) });
+    await store.saveTrackerSchema({ ...portableSetOf(s), id: s.id, trackerId: d.id });
   }
   for (const old of before?.sets ?? []) if (!d.sets.some((s) => s.id === old.id)) await store.trackerSchemas.delete(old.id);
   const previous = before?.agent;

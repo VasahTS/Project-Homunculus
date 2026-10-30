@@ -37,9 +37,9 @@ test("a narrated story: Simple Narrator, an NPC made in the story, how it starts
   await newStory(page, "High Fantasy Party", /Narrated adventure/);
   await expect(page.getByTestId("story-page")).toContainText("High Fantasy Party");
   await page.getByTestId("story-narrator").getByRole("button", { name: "Change…" }).click();
-  await expect(page.getByLabel("Narrator")).toHaveValue("vault:simple-narrator");
+  await expect(page.getByLabel("Narrator", { exact: true })).toHaveValue("vault:simple-narrator");
 
-  await page.getByLabel("Scenario").fill("A tavern in Greywater, the night the bells stop.");
+  await page.getByLabel("Scenario", { exact: true }).fill("A tavern in Greywater, the night the bells stop.");
   await page.getByLabel("Opening 1").fill("The tavern is loud tonight.");
   await page.getByTestId("story-people").getByRole("button", { name: "New NPC" }).click();
   const npc = page.getByTestId("npc-sheet");
@@ -104,7 +104,7 @@ test("turn a card into a story from its sheet in the Library", async ({ page }) 
   await sheet.getByTestId("create-story").click();
   await expect(page.getByTestId("story-page")).toBeVisible();
   await page.getByTestId("story-narrator").getByRole("button", { name: "Change…" }).click();
-  await expect(page.getByLabel("Narrator")).toHaveValue(/^card:/);
+  await expect(page.getByLabel("Narrator", { exact: true })).toHaveValue(/^card:/);
   await expect(page.getByLabel("Opening 1")).toHaveValue(/That's close enough/);
   await expect(page.getByTestId("story-page")).toContainText("Lyra");
 });

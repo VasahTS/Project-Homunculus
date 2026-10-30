@@ -2,6 +2,16 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-29 · Functional rounds 4–5 — D-042 / D-043
+
+Implemented scoped prompt-block edits in the chat inspector and Story/Kit, explicit shared-preset scope, field-by-field inheritance/reset, and configurable narrator placement/repetition without adding stored messages. Added optional setup schemas and immutable core helpers; preview, recorded generation and real turn assembly share the same effective preset. Existing defaults and full editors remain available.
+
+Implemented tracker-set field selection, copy/move, collision refusal, nonempty-source protection, guarded draft undo and versioned JSON import/export (whole set, selection or all sets). Imports append fresh IDs after complete validation. Preserves stable keys, nested fields, display hints and presence rules; no saved chat values are rewritten. Added an English format/AI guide and a tested portable example. UI additions use the existing controls and tokens; no Customize work or visual redesign.
+
+Review: `docs/REVIEW-CODEX-2026-10-29.md`. Existing local lockfile changes are excluded. Work is limited to `dev`; no release workflow or private portable data was touched. Signed: **CODEX**.
+
+Verification: typecheck and production build passed; 213 unit tests passed (2 skipped); all 105 browser flows passed. Screenshot review caught the tracker preview compressing the form inside Library: corrected using the editor container's width and explicit shrinking grid tracks. All 18 affected flows passed again, including a new 1280/620 px regression (106 flows now in the suite). No reuse-panel or containing-panel overflow/page errors in the final captures. Native rendering and a real AI service remain separate manual checks. Signed: **CODEX**.
+
 ## 2026-10-29 · Functional work takes priority — D-041
 
 Daniel asked to set UI refinement aside and focus on completing application functionality. Customize and further visual revisions are deferred until the app is more complete. Keep the approved UI as the current baseline; this does not remove the customization-first architecture requirement or authorize dropping features. CODEX must document its changes in English and sign them **CODEX**. The existing six-round plan resumes with round 4 (prompt control), then round 5 (tracker field sets); round 6 (multi-character cards to NPCs) still depends on the Library Assistant. No next feature is implemented by this priority update.

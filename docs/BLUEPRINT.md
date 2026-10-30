@@ -252,6 +252,8 @@ A chat with an AI that **creates and edits library things for you**, in the styl
 
 ### 5.1 Blocks
 
+**Implemented by CODEX, D-042:** inline text-block editing, switches and order at chat/Story scope, with an explicit shared-preset scope. Optional patches are keyed by preset and block IDs; Default → Story → chat merges individual fields, and reset resumes inheritance. Narrator instructions can stay in the card's layout (default), move to a system block or go at a chosen chat depth/role/order, with explicit optional repetition. Preview and actual generation share this resolution; saved messages are unchanged.
+
 A **Preset** is an ordered list of **blocks** (role system/user/assistant, position in the list or "N messages from the end", on/off).
 - The user's **text blocks** (with macros).
 - **Markers** filled by modules: card, persona, examples, history, World Info before/after, cast, current scene, chapters, story style, role instructions, agents' injections.

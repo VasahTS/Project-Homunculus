@@ -17,6 +17,7 @@ const agentName = (id: string, trackers: Tracker[]) => trackers.find((t) => t.ag
 
 export function sourceInfo(source: string, trackers: Tracker[]): { label: string; category: SourceCategory } {
   if (source === "history") return { label: "Chat history", category: "history" };
+  if (source.startsWith("narrator:")) return { label: source === "narrator:inChat" ? "Narrator in chat" : "Narrator instructions", category: "character" };
   if (source === "card") return { label: "Character card", category: "character" };
   if (source.startsWith("card:")) {
     const field = ({ description: "Description", personality: "Personality", scenario: "Scenario", examples: "Example dialogue", systemPrompt: "Card's own main prompt", note: "Character's Note" } as Record<string, string>)[source.slice(5)];

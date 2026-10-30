@@ -14,7 +14,7 @@ const NONE = "__none__";
 const SAME = "__same__";
 
 /** What the setup blocks need from the app (the lists to pick from, and the names of what is inherited). */
-import type { ResolvedAuthorsNote } from "@homunculus/core";
+import type { ResolvedAuthorsNote, ResolvedSetup } from "@homunculus/core";
 
 export interface StorySetupProps {
   presets: Preset[];
@@ -25,6 +25,9 @@ export interface StorySetupProps {
   namesFor: (story?: SetupLayer) => SetupNames;
   /** The Author's Note a layer under `story` inherits (undefined = Settings → Defaults). */
   noteAbove: (story?: SetupLayer) => ResolvedAuthorsNote;
+  setupAbove: (story?: SetupLayer) => ResolvedSetup;
+  onSavePreset: (preset: Preset) => Promise<void>;
+  onOpenPreset: (id: string) => void;
 }
 
 export interface SetupNames {
