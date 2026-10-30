@@ -7,7 +7,7 @@
 //
 // Only step 5 is fatal: an agent failing never loses the reply.
 import type { Character, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, Session, Story } from "@homunculus/schemas";
-import { AgentRunner, type AgentEntry, type AgentOutcome, type RunRequest } from "./agents/runner.ts";
+import { AgentRunner, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
 import { extractInline, inlineInstruction, parseAnswer } from "./agents/outputs.ts";
 import { isAbort } from "./connections.ts";
 import type { HomunculusCore } from "./core.ts";
@@ -86,6 +86,17 @@ export class TurnPipeline {
       core, store, newId: this.newId, now: this.now,
       random: options.random ?? Math.random,
       resolveConnection: (id, main) => (id ? options.connectionById?.(id) : undefined) ?? main,
+      // what agents read about the story's people and the user (D-048)
+      people: async (session) => {
+        const story = session.storyId ? await this.store.getStory(session.storyId) : undefined;
+        return { narrator: story ? await this.storyNarrator(story) : undefined, cast: await this.castFor(session) };
+      },
+      persona: async (_session, setup) => {
+        const p = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
+        if (!p) return "";
+        const e = effectivePersona(p, setup.personaVariantId);
+        return e.description.trim() ? `${e.name}: ${applyBasicMacros(e.description, { char: e.name, user: e.name })}` : e.name;
+      },
     });
   }
 
@@ -236,6 +247,33 @@ export class TurnPipeline {
     await this.core.events.emit("turn.finished", { sessionId: session.id, messageId: reply.id });
     reply = (await this.store.getMessage(reply.id)) ?? reply;
     return { userMessage, reply, outcomes };
+  }
+
+  /**
+   * Compare (D-048): runs one agent on a message with each of these connections, the same input for all, and changes
+   * nothing. The first entry can be the agent's own connection (pass undefined).
+   */
+  async compareAgent(sessionId: string, agentId: string, messageId: string, connection: ConnectionConfig,
+    candidates: Array<ConnectionConfig | undefined>, connections?: Record<string, ConnectionConfig>, signal?: AbortSignal): Promise<DryRun[]> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    const setup = await this.setupFor(session);
+    const entries = await this.runner.enabledAgents({ ...setup, agents: [...new Set([...setup.agents, agentId])] });
+    const entry = entries.find((e) => e.config.id === agentId);
+    if (!entry) throw new Error(`Agent "${agentId}" is not installed`);
+    const m = await this.store.getMessage(messageId);
+    if (!m) throw new Error(`Message "${messageId}" not found`);
+    const speaking = await this.pickSpeaker(session);
+    const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
+    const user = (persona ? effectivePersona(persona, setup.personaVariantId).name : undefined) ?? DEFAULT_USER_NAME;
+    const names = { char: speaking.character?.name ?? "Narrator", user, bySpeaker: (x: Message) => this.nameOf(x, user) };
+    const main = (setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection;
+    const trigger = entry.config.triggers.some((t) => t.on === "turn" && t.phase === "before") ? "turn.before" : "turn.after";
+    // the agent's own results from that run, so agents that read others see the same input
+    const results = new Map((await this.store.listAgentRuns(messageId)).filter((r) => r.status === "ok").map((r) => [r.agentId, r.output as unknown]));
+    const req: RunRequest = { session, setup, trigger, generationType: "normal", messageId, text: m.content, mainConnection: main,
+      connections, names, seed: m.parentId ?? sessionId, results, signal };
+    return Promise.all(candidates.map((c) => this.runner.dryRun(entry, req, c)));
   }
 
   /** Runs one agent by hand on a message (the "run now" button). */

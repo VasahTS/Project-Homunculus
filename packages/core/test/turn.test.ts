@@ -263,6 +263,37 @@ describe("a turn with agents", () => {
     expect((await prompt(swipe.id)).find((p) => p.source === "agent:dice")!.content).toBe(roll);
   });
 
+  it("a run keeps why it answered: reasoning, what it was sent and the raw answer (D-048)", async () => {
+    const w = await world((m) => isAgentCall(m) ? [{ reasoning: "The scene is tense." }, '["Run", "Hide"]'] : "ok");
+    await install(w.store, [{ id: "cyoa", name: "CYOA", triggers: after, output: "choices" }]);
+    const { session, first } = await start(w);
+    const { reply } = await w.chat.send(session.id, first.id, "Hi", connection);
+    const [run] = await w.store.listAgentRuns(reply.id);
+    expect(run).toMatchObject({ status: "ok", reasoning: "The scene is tense.", raw: '["Run", "Hide"]' });
+    expect(run!.prompt?.at(-1)?.content).toContain("Answer with ONLY a JSON array");
+  });
+
+  it("agents can read the persona and scenario; Compare runs on other models and changes nothing (D-048)", async () => {
+    const w = await world((m) => isAgentCall(m) ? "A note." : "ok");
+    await install(w.store, [{ id: "notes", name: "Notes", triggers: after, output: "note",
+      input: { messages: 2, lorebooks: false, cards: true, state: false, readsAgents: [], persona: true, scenario: true } }]);
+    await w.store.personas.save({ id: "dan", name: "Dan", description: "A tired courier." });
+    const { session, first } = await start(w);
+    await w.store.saveSession({ ...session, scenario: "A rainy mill.", setup: { ...session.setup, personaId: "dan" } });
+    const { reply } = await w.chat.send(session.id, first.id, "Hi", connection);
+    const sent = w.ai.prompts.find((p) => isAgentCall(p))!.at(-1)!.content;
+    expect(sent).toContain("## The user's character (persona)\nDan: A tired courier.");
+    expect(sent).toContain("## Scenario\nA rainy mill.");
+    expect(sent).toContain("### Lyra");
+    const notesBefore = (await w.store.listNotes(reply.id)).length;
+    const runsBefore = (await w.store.listAgentRuns(reply.id)).length;
+    const [same, other] = await w.chat.turns.compareAgent(session.id, "notes", reply.id, connection, [undefined, { providerId: "fake", model: "fake-2" }]);
+    expect(same).toMatchObject({ output: "A note.", model: "fake-1" });
+    expect(other).toMatchObject({ output: "A note.", model: "fake-2" });
+    expect((await w.store.listNotes(reply.id)).length).toBe(notesBefore);
+    expect((await w.store.listAgentRuns(reply.id)).length).toBe(runsBefore);
+  });
+
   it("choices and other results are announced for the UI", async () => {
     const w = await world((m) => isAgentCall(m) ? '["Follow her", "Stay"]' : "ok");
     await install(w.store, [{ id: "cyoa", name: "CYOA", triggers: after, output: "choices" }]);

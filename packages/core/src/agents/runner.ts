@@ -6,7 +6,7 @@
 //  - gives each one its context and connection (with limits and Stop),
 //  - validates the answer, applies it (state, notes, revisions) and records what happened.
 // One agent failing never stops the others, and never loses the reply.
-import { AgentConfig, type AgentOutputKind, type AgentRun, type GenerationType, type Message, type Session, type TrackerSchema } from "@homunculus/schemas";
+import { AgentConfig, type AgentOutputKind, type AgentRun, type Character, type GenerationType, type Message, type Session, type TrackerSchema } from "@homunculus/schemas";
 import type { HomunculusCore } from "../core.ts";
 import { errorText } from "../core.ts";
 import { isAbort } from "../connections.ts";
@@ -34,7 +34,17 @@ export interface RunnerDeps {
   random: () => number;
   /** Finds the connection for an agent: its own (from the setup) or the main one. */
   resolveConnection: (connectionId: string | null | undefined, main: ConnectionConfig) => ConnectionConfig;
+  /** A story's narrator and the "people in this story" text (NPC sheets, other cards), as the main prompt sees them. D-048. */
+  people?: (session: Session) => Promise<{ narrator?: Character | undefined; cast: string }>;
+  /** The user's persona text for this session (its chosen variant), if any. D-048. */
+  persona?: (session: Session, setup: ResolvedSetup) => Promise<string>;
 }
+
+/** What one run used and answered (D-048): kept on the run so you can see why it did what it did. */
+type Usage = Partial<Pick<Completion, "model" | "tokensIn" | "tokensOut" | "cost" | "reasoning">> & { prompt?: Array<{ role: string; content: string }>; raw?: string };
+
+/** A run that changes nothing (Compare, D-048). */
+export interface DryRun { output?: unknown; error?: string; raw?: string; reasoning?: string; prompt?: Array<{ role: string; content: string }>; model?: string; tokensIn?: number; tokensOut?: number; durationMs: number }
 
 export interface RunRequest {
   session: Session;
@@ -162,7 +172,7 @@ export class AgentRunner {
     const { core, store } = this.deps;
     const a = entry.config;
     const started = this.deps.now();
-    const usage: Partial<Completion> = {};
+    const usage: Usage = {};
     await core.events.emit("agent.started", { agentId: a.id, messageId: req.messageId, trigger: req.trigger });
     try {
       if (a.output === "state") {
@@ -223,7 +233,7 @@ export class AgentRunner {
     return { schema, cast: await castOf(this.deps.store, session), withUser: await userInStory(this.deps.store, session) };
   }
 
-  private async context(entry: AgentEntry, req: RunRequest, usage: Partial<Completion>,
+  private async context(entry: AgentEntry, req: RunRequest, usage: Usage,
     tracker?: { schema: TrackerSchema; cast: TrackerCastMember[]; withUser: boolean }): Promise<AgentRunContext> {
     const a = entry.config;
     const { core, store } = this.deps;
@@ -238,6 +248,10 @@ export class AgentRunner {
     const connection = (wanted ? req.connections?.[wanted] : undefined) ?? this.deps.resolveConnection(wanted, req.mainConnection);
     const ownValues = a.state?.namespace ? state[a.state.namespace] : undefined;
     const cards = a.input.cards ? await this.cardsText(req) : "";
+    const persona = a.input.persona && this.deps.persona ? (await this.deps.persona(req.session, req.setup)).trim() : "";
+    const story = a.input.scenario && req.session.storyId ? await store.getStory(req.session.storyId) : undefined;
+    const scenario = a.input.scenario ? (req.session.scenario.trim() || story?.scenario?.trim() || "") : "";
+    const lore = a.input.lorebooks ? await this.loreText(path) : "";
     return {
       agent: a,
       sessionId: req.session.id,
@@ -253,8 +267,14 @@ export class AgentRunner {
       signal: req.signal,
       ...(tracker ? { tracker: { schema: tracker.schema, people: trackerPeople(tracker.schema, ownValues, tracker.cast, req.names.user, tracker.withUser) } } : {}),
       ...(cards ? { cards } : {}),
+      ...(persona ? { persona } : {}),
+      ...(scenario ? { scenario } : {}),
+      ...(lore ? { lore } : {}),
       complete: async (messages, options) => {
         const c = await core.connections.complete(connection, messages, { signal: req.signal, maxTokens: options?.maxTokens ?? a.limits.maxTokens });
+        usage.prompt = [...(usage.prompt ?? []), ...messages.map((m) => ({ role: m.role, content: m.content }))];
+        usage.raw = usage.raw ? `${usage.raw}\n\n${c.text}` : c.text;
+        if (c.reasoning) usage.reasoning = usage.reasoning ? `${usage.reasoning}\n\n${c.reasoning}` : c.reasoning;
         usage.model = c.model;
         usage.tokensIn = (usage.tokensIn ?? 0) + (c.tokensIn ?? 0) || undefined;
         usage.tokensOut = (usage.tokensOut ?? 0) + (c.tokensOut ?? 0) || undefined;
@@ -279,7 +299,60 @@ export class AgentRunner {
       if (c.personality.trim()) lines.push(`Personality: ${cut(applyBasicMacros(c.personality, names))}`);
       parts.push(lines.join("\n"));
     }
+    // a story's narrator and its NPC sheets, as the main prompt has them (D-048: agents in a story saw neither)
+    if (this.deps.people) {
+      const p = await this.deps.people(req.session);
+      if (p.narrator && !req.session.cast.some((m) => m.characterId === p.narrator!.id)) {
+        const n = p.narrator;
+        const text = [n.systemPrompt, n.description, n.personality ? `Personality: ${n.personality}` : ""].filter((t) => t.trim()).join("\n");
+        if (text.trim()) parts.unshift(`### Narrator: ${n.name}\n${applyBasicMacros(text.length > 1500 ? `${text.slice(0, 1500)}…` : text, { char: n.name, user: req.names.user })}`);
+      }
+      if (p.cast.trim()) parts.push(p.cast.trim());
+    }
     return parts.join("\n\n");
+  }
+
+  /** The lorebook entries that went into the latest reply's prompt on this branch (D-048). */
+  private async loreText(path: Message[]): Promise<string> {
+    for (const m of [...path].reverse()) {
+      if (m.speaker.kind === "user") continue;
+      const rec = await this.deps.store.getGenerationRecord(m.id);
+      if (!rec) continue;
+      return rec.prompt.filter((p) => p.source?.startsWith("lore:") && p.source !== "lore:note").map((p) => p.content.trim()).filter(Boolean).join("\n\n");
+    }
+    return "";
+  }
+
+  /**
+   * Runs an agent without changing anything (Compare, D-048): same input, optionally another connection; no state,
+   * notes, revisions, records or events. Returns what it answered and why.
+   */
+  async dryRun(entry: AgentEntry, req: RunRequest, connection?: ConnectionConfig): Promise<DryRun> {
+    const a = entry.config;
+    const started = this.deps.now();
+    const usage: Usage = {};
+    const forced: RunRequest = connection ? { ...req, setup: { ...req.setup, agentConnectionId: null, agentOverrides: { ...req.setup.agentOverrides, [a.id]: { ...req.setup.agentOverrides[a.id], connectionId: null } } }, mainConnection: connection, connections: {} } : req;
+    try {
+      let raw: unknown;
+      if (a.runMode === "text") raw = await this.textAnswer(a, forced);
+      else {
+        const tracker = await this.trackerOf(a, req.session, req.setup);
+        const ctx = await this.context(entry, { ...forced, results: new Map(req.results) }, usage, tracker);
+        if (entry.definition) raw = await entry.definition.run(ctx);
+        else {
+          const executor = a.runMode === "separate" ? separateExecutor : this.deps.core.agentExecutors.get(a.runMode);
+          if (!executor) throw new Error(`No way to run agents in "${a.runMode}" mode is installed`);
+          raw = await executor(ctx);
+        }
+      }
+      const shape = entry.definition?.output ?? OUTPUT_SHAPES[a.output];
+      const parsed = shape.safeParse(raw);
+      const out: DryRun = { ...usage, durationMs: this.deps.now() - started };
+      if (parsed.success) out.output = parsed.data; else out.error = `Answer had the wrong shape: ${parsed.error.message}`;
+      return out;
+    } catch (e) {
+      return { ...usage, error: isAbort(e, req.signal) ? "Stopped" : errorText(e), durationMs: this.deps.now() - started };
+    }
   }
 
   /** A "text" agent's answer (D-047): its own text, macros expanded, no AI call and nothing recorded. A "stable" agent

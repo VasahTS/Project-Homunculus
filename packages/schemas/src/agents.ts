@@ -83,8 +83,12 @@ export const AgentConfig = z.object({
       state: z.union([z.boolean(), z.array(z.string())]).default(true),
       /** Agents whose result this one reads. They run first (dependencies). */
       readsAgents: z.array(Id).default([]),
+      /** The user's persona (D-048). */
+      persona: z.boolean().default(false),
+      /** The story's / chat's scenario (D-048). */
+      scenario: z.boolean().default(false),
     })
-    .default({ messages: 6, lorebooks: false, cards: true, state: true, readsAgents: [] }),
+    .default({ messages: 6, lorebooks: false, cards: true, state: true, readsAgents: [], persona: false, scenario: false }),
   conditions: AgentConditions.default({
     keywords: [], probability: 100, generationTypes: [], roles: [], minMessages: 0, state: [],
   }),
@@ -114,8 +118,17 @@ export const AgentConfig = z.object({
   check: z
     .object({ onFail: z.enum(["warn", "fix", "regenerate"]).default("warn"), maxRetries: z.number().int().min(0).default(1) })
     .optional(),
-  /** How the app shows the result (D-047). `note`: under the message, or in the chat's agents menu. */
-  display: z.object({ note: z.enum(["message", "menu"]).default("message") }).optional(),
+  /** How the app shows the result (D-047, D-048). Each kind has a default; nothing here changes what the agent does. */
+  display: z.object({
+    /** Notes: a closed label under the reply, an open card under it, or only in the agents panel. */
+    note: z.enum(["message", "card", "menu"]).default("message"),
+    /** Choices: buttons under the reply, a numbered list in the reply, above the message box, or only in the panel. */
+    choices: z.enum(["buttons", "list", "composer", "menu"]).default("buttons"),
+    /** Checks: a mark beside the name, a line under the reply, or nothing in the chat. */
+    check: z.enum(["mark", "line", "silent"]).default("mark"),
+    /** Rewrites: a mark beside the name, or nothing in the chat. */
+    rewrite: z.enum(["mark", "silent"]).default("mark"),
+  }).partial().optional(),
   /** For `inline`: the tag the main model writes, e.g. "SCENE" for [SCENE]…[/SCENE]. */
   inlineTag: z.string().optional(),
   source: z

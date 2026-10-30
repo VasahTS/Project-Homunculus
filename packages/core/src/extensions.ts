@@ -135,8 +135,13 @@ export interface AgentRunContext {
   signal?: AbortSignal;
   /** For trackers (state agents with a field set): the fields and who can have per-character values. */
   tracker?: { schema: TrackerSchema; people: TrackerCastMember[] };
-  /** The cast's character cards, short (agents with input.cards). */
+  /** The cast's character cards, short (agents with input.cards): the chat's characters, the story's narrator and NPCs. */
   cards?: string;
+  /** The user's persona (input.persona), the scenario (input.scenario) and the lorebook entries that went into the
+   * latest reply's prompt (input.lorebooks). D-048. */
+  persona?: string;
+  scenario?: string;
+  lore?: string;
 }
 
 /** A built-in agent: its data plus code. User agents are only data (AgentConfig) and run through an executor. */

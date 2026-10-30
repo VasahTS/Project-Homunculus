@@ -36,6 +36,10 @@ export const AgentRun = z.object({
   error: z.string().optional(),
   /** Parts of a valid answer that were left out (e.g. a tracker value that did not fit its field). */
   warnings: z.array(z.string()).optional(),
+  /** Why it answered that (D-048): the model's thinking, what it was sent, and its answer before parsing. */
+  reasoning: z.string().optional(),
+  prompt: z.array(z.object({ role: z.string(), content: z.string() })).optional(),
+  raw: z.string().optional(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
 export type AgentRunInput = z.input<typeof AgentRun>;

@@ -72,6 +72,9 @@ export function buildAgentMessages(ctx: AgentRunContext): ChatTurn[] {
   const a: AgentConfig = ctx.agent;
   const parts: string[] = [];
   if (ctx.cards) parts.push(`## Characters (from their cards)\n${ctx.cards}`);
+  if (ctx.persona) parts.push(`## The user's character (persona)\n${ctx.persona}`);
+  if (ctx.scenario) parts.push(`## Scenario\n${ctx.scenario}`);
+  if (ctx.lore) parts.push(`## Lorebook entries active now\n${ctx.lore}`);
   if (ctx.messages.length) parts.push(`## Recent messages\n${transcript(ctx)}`);
   if (a.input.state !== false) {
     const state = Array.isArray(a.input.state)
