@@ -6,6 +6,20 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Collection navigation — CODEX, 2026-10-29 · approved for implementation (D-040)
+
+**Purpose:** choose a character or story, inspect it, and continue a chat; find reusable resources predictably. Daniel approved the latest draft after rejecting a version that gave every interactive row a heavy outline.
+
+**Hierarchy:** Stories and Characters are peer destinations. Library contains grouped reusable resources; Recent is a shortcut list. Category groups are quiet static headings; categories are brighter indented rows with a restrained selected marker. Collection headers own creation/import; folder controls own organization; selecting a card reveals its details and existing actions.
+
+**States:** empty collections retain creation guidance; empty folders retain the path and creation controls; name search spans folders and has a no-match state; Recently played uses actual chat activity; long names wrap/truncate without hiding actions; existing loading/error notices remain. Resource editors and all existing actions remain accessible, including Trash.
+
+**Implementation:** one shared collection toolbar, the existing card/sheet and folder components, and a grouped Library shell around existing pages. Quiet supplies the approved appearance; navigation and visual defaults are data/tokens. Full chat/Scene/Settings redesign and Customize are outside this approval.
+
+**Content and review:** the draft used the screenshot and organization export supplied in this chat. Implementation verification uses the app's isolated built-in test data; no private play folder or keys are accessed.
+
+---
+
 ## Branches — CLAUDE, 10/29/2026 · ✅ approved and done in the app (D-032)
 **Done (10/29, 07h):** the same as the canvas "Homunculus 2 — Branches" (details in HANDOFF and in D-032). Small differences: the list has no search magnifier yet; the action bar shows on hover (on the last message it is always shown); on the user's messages the bar sits under the bubble.
 **Daniel's answers (06:39):** marker on the message: yes · delete = **for good** (no Trash) · **tree now** · the swipe question was explained again · reference: Marinara's message action bar. Drafts on the canvas **"Homunculus 2 — Branches"**: (1) **Main** — action bar on the message (‹ 2/3 ›, Copy, Edit, New Version, **Branch from here**, Hide from the AI, Details | Delete), marker "The story splits here · 2 branches ▸", selector "⑂ Main ▾" with the list (current first; name, last line, number of messages, when, where it came from; rename, delete; Show Tree, Make a Separate Chat); (2) **Tree** — the whole chat as a tree, the path on screen in green, "Every message | Only where it splits", on the right the chosen message with Go Here / Branch from here; (3) **Actions** — the small Branch from here form, delete for good (the branch on screen cannot be deleted), and where it shows (sidebar "⑂ 3", chat card "3 branches", the open marker). Marinara's translation and search stay out for now (they do not exist in the app).

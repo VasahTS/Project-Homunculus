@@ -336,3 +336,18 @@ Daniel asked to update the Node.js requirement and resolve the end-of-life warni
 - **References:** [Node.js release schedule](https://github.com/nodejs/Release/blob/main/schedule.json), [setup-node runtime](https://github.com/actions/setup-node/blob/v6/action.yml), [checkout runtime](https://github.com/actions/checkout/blob/v6/action.yml).
 
 Verification on Node.js 24.19.0: typecheck clean; 194 unit tests passed (2 skipped); all 96 browser click tests passed; the production UI build passed. CI and a signed installer release are separate checks.
+
+## D-040 — Approved collection navigation and quiet Library hierarchy (2026-10-29)
+
+Daniel approved implementing the latest navigation draft before building Customize. His requirement is additive, extensible UI: appearance and organization must remain customizable, and a visual redesign must preserve existing operations. He rejected a heavier revision with outlined controls and approved the subsequent subtle Library hierarchy.
+
+- **Navigation:** Stories and Characters are peer primary destinations. Reusable Kits, Narrators and NPCs move into Library beside Personas, Lorebooks, Presets and Trackers; Trash remains accessible under Manage. Internal vault routes and data identifiers stay compatible. The default navigation, category groups, recent-chat limit and optional story shortcuts are data in theme/navigation.ts. No database migration is involved.
+- **Library:** LibraryWorkspace wraps the existing editors and collections. Static group headings are smaller and quieter; category rows are slightly indented, with a faint selection wash, a short leading marker and keyboard focus. No new row outlines, icons or chevrons. Empty resource collections do not reserve an unused details pane.
+- **Collections:** Stories and Characters share CollectionTools, scoped search, All/Recently played filters based on real chat activity, folder navigation, vertical image cards and a selected-item sheet. Folder nesting/dragging, card versions, import/export, full editors, chat search/export, story duplication, Kits and image editing remain available. Actions that formerly named the Vault now point to Library.
+- **Search:** sidebar search covers existing story/chat results plus character and Library resource names. Ctrl+K reveals the sidebar if needed and focuses search. It does not issue a model request.
+- **Appearance:** Quiet is an additional registered profile and the new default; Graphite remains registered. Collection dimensions and Library hierarchy use shared tokens and stable data-region hooks. Customize, arbitrary layout editing and profile persistence are still a separate next task; no customization screen is claimed here.
+- **Scope:** shared navigation and collection presentation only. Existing chat, Scene, prompt assembly, agent execution, credentials and data ownership remain unchanged. No release or workflow changes.
+
+Blueprint §13: this belongs to the desktop presentation shell; it uses viewer-level appearance/navigation defaults rather than story/session setup; it participates in no turn step or agent trigger; it is desktop UI, not a core module; nothing new is attached to a message; failures use existing inline notices/empty states, cost no model calls and do not mutate data simply by navigating.
+
+Verification: final TypeScript check and production UI build passed; 194 unit tests passed (2 skipped). All 100 browser tests passed after the affected 32-case suite passed. Browser tests use isolated seeded data and no real service credentials; native Tauri rendering and the private play installation were not inspected. Signed: **CODEX**.

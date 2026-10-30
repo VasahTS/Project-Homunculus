@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-29 · Approved navigation draft implementation — D-040
+
+Author: **CODEX**. Daniel approved moving the last refined draft into the app before Customize. Stories and Characters are peer collections; Library groups reusable resources using quiet headings, indented categories and subtle selection. Existing data, editors and operations are retained. Shared collection tools, global name search (Ctrl+K), data-defined navigation and an additional Quiet profile are integrated. The Graphite profile remains available in the registry; no Customize UI is added.
+
+Checks: typecheck, 194 unit tests (2 skipped) and production UI build passed. Affected browser flows: 32/32 passed; final full browser suite: 100/100 passed. Screenshots are from isolated seeded browser data. Native Tauri behavior is not claimed. Existing dependency-lock changes are outside the UI commit. Signed: **CODEX**.
+
 ## 2026-10-29 · Round 2: Apple Design, navigation and motion
 
 Author: **CODEX**. State: local / unpublished, no commit or push. Daniel's request: more drafts with apple-design, frontend-design, design-taste-frontend and animate, focused on the menu experience.

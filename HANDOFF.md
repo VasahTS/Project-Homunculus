@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Approved navigation draft in the app (2026-10-29) — CODEX — D-040
+
+Daniel asked to finish the approved draft before Customize. Primary navigation is now **Stories / Characters / Library**. Library groups **Kits, Narrators, NPCs**, **Personas, Lorebooks, Presets**, **Trackers**, and **Trash**. Group headings are quiet text; categories are indented with a faint selected state. Existing editors, actions and data are retained. Stories and Characters share collection filters, scoped search, folders, vertical cards and details. **Ctrl+K** searches stories/chats, character names and Library resources.
+
+The new **Quiet** appearance profile is the default; Graphite remains registered. Navigation groups and recent-list behavior are profile data in `theme/navigation.ts`; collection/layout values remain tokens. **Customize is not implemented yet.** Do not reintroduce the rejected revision's heavy outlines and tinted boxes on every control. This is a customization-first project: reorganizing the UI must not silently remove capabilities.
+
+Validation: typecheck and UI build passed; 194 unit tests passed (2 skipped); all 100 browser flows passed, including narrow-window navigation and global search. Screenshots use isolated test data, not Daniel's private database. The real native window still needs Daniel's check. Existing local changes in package-lock.json and Cargo.lock are preserved and excluded from this UI commit. Signed: **CODEX**.
+
 ## Node.js tooling update (2026-10-29) — CODEX — D-039
 
 Development, CI and release builds use **Node.js 24 LTS** (`.nvmrc`, `engines.node`, Node types and README aligned). Both workflows use `checkout@v6` and `setup-node@v6` to remove the warning about the actions' old Node.js 20 runtime. Node.js 22 itself remains supported until April 30, 2027.

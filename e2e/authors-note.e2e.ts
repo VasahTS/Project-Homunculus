@@ -1,6 +1,6 @@
 // Click tests of the Author's Note (canvas "Homunculus 2 — Author's Note", version A with folding). Author: CLAUDE, 2026-10-29.
 import { expect, test, type Page } from "@playwright/test";
-import { openTab, send } from "./ui.ts";
+import { openLibrary, openTab, send } from "./ui.ts";
 
 async function writeNote(page: Page, text: string) {
   const box = page.getByTestId("authors-note").getByLabel("Author's Note");
@@ -65,7 +65,8 @@ test("Settings → Defaults gives chats a note; a chat shows where it comes from
 
 test("a story's note reaches its chats; a chat can change it and go back to the story's", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "New story", exact: true }).click();
+  await openLibrary(page, "Stories");
+  await page.getByRole("button", { name: "New Story", exact: true }).click();
   const sheet = page.getByTestId("new-story");
   await sheet.getByLabel("Story name").fill("Mill Road");
   await sheet.getByRole("button", { name: /Narrated adventure/ }).click();

@@ -13,8 +13,7 @@ async function newFolder(page: Page, name: string) {
 }
 
 async function vault(page: Page, tab: "Stories" | "Kits" | "Narrators" | "NPCs") {
-  await page.getByTestId("place-list").getByRole("button", { name: "Vault" }).click();
-  await page.getByTestId("vault-tabs").getByRole("tab", { name: tab }).click();
+  await openLibrary(page, tab);
 }
 
 test("Characters: folders you can see (nested), a search looks in all of them, the sheet shows the whole card and its chats", async ({ page }) => {
@@ -123,7 +122,7 @@ test("the big Add window: opaque, with folders and search; Enter adds", async ({
   await newFolder(page, "Fantasy");
   await page.getByTestId("character-list").getByRole("button", { name: "Lyra" }).click();
   await page.getByTestId("character-sheet").getByLabel("Folder").selectOption({ label: "Fantasy" });
-  await page.getByTestId("place-list").getByRole("button", { name: "Vault" }).click();
+  await openLibrary(page, "Stories");
   await page.getByRole("button", { name: "New Story", exact: true }).click();
   await page.getByTestId("new-story").getByTestId("create-story").click();
   await page.getByTestId("story-people").getByRole("button", { name: "+ Add a Card" }).click();
@@ -141,7 +140,7 @@ test("the big Add window: opaque, with folders and search; Enter adds", async ({
   await expect(page.getByTestId("story-card-row")).toContainText("Lyra");
 });
 
-test("Save to the Vault: someone the tracker knows becomes a Vault NPC, in a folder you pick", async ({ page }) => {
+test("Save to the Library: someone the tracker knows becomes a Library NPC, in a folder you pick", async ({ page }) => {
   await page.goto("/");
   // a Vault NPC joins, the tracker learns about him, then he leaves the chat's list: only the tracker knows him now
   await vault(page, "NPCs");
@@ -166,8 +165,8 @@ test("Save to the Vault: someone the tracker knows becomes a Vault NPC, in a fol
   await dialog.getByRole("button", { name: "+ New folder" }).click();
   await dialog.getByLabel("New folder name").fill("Villagers");
   await dialog.getByTestId("save-npc-confirm").click();
-  await expect(page.getByTestId("notice")).toContainText("Tom the Miller is in the Vault");
-  await page.getByTestId("notice").getByRole("button", { name: "Open in the Vault" }).click();
+  await expect(page.getByTestId("notice")).toContainText("Tom the Miller is in the Library");
+  await page.getByTestId("notice").getByRole("button", { name: "Open in the Library" }).click();
   await expect(page.getByTestId("npc-sheet").getByLabel("NPC name")).toHaveValue("Tom the Miller");
   await expect(page.getByTestId("folder-tile").filter({ hasText: "Villagers" })).toBeVisible();
 });
@@ -229,7 +228,7 @@ test("the Add window can show everything at once (All), not folder by folder", a
   await newFolder(page, "Fantasy");
   await page.getByTestId("character-list").getByRole("button", { name: "Lyra" }).click();
   await page.getByTestId("character-sheet").getByLabel("Folder").selectOption({ label: "Fantasy" });
-  await page.getByTestId("place-list").getByRole("button", { name: "Vault" }).click();
+  await openLibrary(page, "Stories");
   await page.getByRole("button", { name: "New Story", exact: true }).click();
   await page.getByTestId("new-story").getByTestId("create-story").click();
   await page.getByTestId("story-people").getByRole("button", { name: "+ Add a Card" }).click();

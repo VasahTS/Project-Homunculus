@@ -48,7 +48,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
   const shown = characters.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="page">
-      <Toolbar lead={lead} title="Library" center={tabs} subtitle={`${characters.length} in the library`}
+      <Toolbar lead={lead} title="Characters" center={tabs} subtitle={`${characters.length} in the library`}
         trailing={<>
           <Button onClick={() => fileInput.current?.click()}><Icon name="import" size={14} /> Import</Button>
           <Help text={`Import characters from SillyTavern (or sites that use the same cards). ${importHelp} You can pick several files at once.`} />
@@ -91,7 +91,7 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
   const shown = trackers.filter((t) => t.agent.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="page">
-      <Toolbar lead={lead} title="Library" center={tabs} subtitle="Values the AI keeps up to date after each reply"
+      <Toolbar lead={lead} title="Trackers" center={tabs} subtitle="Values the AI keeps up to date after each reply"
         trailing={<Button onClick={onNew}><Icon name="plus" size={14} /> New Tracker</Button>} />
       <MasterDetail
         list={<>
@@ -133,7 +133,7 @@ export function PersonasPage({ lead, tabs, personas, avatars, defaultId, selecte
   const shown = personas.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="page">
-      <Toolbar lead={lead} title="Library" center={tabs} subtitle="Who you are in the story"
+      <Toolbar lead={lead} title="Personas" center={tabs} subtitle="Who you are in the story"
         trailing={<>
           <Button onClick={() => fileInput.current?.click()}><Icon name="import" size={14} /> Import</Button>
           <Help text={`Import your personas from SillyTavern. ${importHelp} You can pick several files at once.`} />
@@ -183,7 +183,7 @@ export function PresetsPage({ lead, tabs, presets, defaultId, selectedId, import
   const shown = presets.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="page">
-      <Toolbar lead={lead} title="Library" center={tabs} subtitle="The recipe of the prompt"
+      <Toolbar lead={lead} title="Presets" center={tabs} subtitle="The recipe of the prompt"
         trailing={<>
           <Button onClick={() => fileInput.current?.click()}><Icon name="import" size={14} /> Import</Button>
           <Help text={`Import presets from SillyTavern. ${importHelp} You can pick several files at once.`} />
@@ -243,7 +243,7 @@ export function LorebooksPage({ lead, tabs, books, usedBy, selectedId, importHel
   const from = (b: Lorebook) => (b.source.kind === "card" ? "from a card" : b.source.kind === "stFile" ? "from SillyTavern" : "");
   return (
     <div className={`page lore-page${detail ? " has-detail" : ""}`}>
-      <Toolbar lead={lead} title="Library" center={tabs} subtitle="Lore that goes into the prompt when its keywords come up"
+      <Toolbar lead={lead} title="Lorebooks" center={tabs} subtitle="Lore that goes into the prompt when its keywords come up"
         trailing={<>
           <Button onClick={() => fileInput.current?.click()}><Icon name="import" size={14} /> Import</Button>
           <Help text={`Import lorebooks from SillyTavern. ${importHelp} You can pick several files at once. Characters and personas that name a book get it linked.`} />
@@ -297,7 +297,7 @@ export function TrashPage({ lead, tabs, items, onRestore, onDeleteForever, onEmp
 }) {
   return (
     <div className="page">
-      <Toolbar lead={lead} title="Library" center={tabs} subtitle={items.length ? `${items.length} item(s)` : "Empty"}
+      <Toolbar lead={lead} title="Trash" center={tabs} subtitle={items.length ? `${items.length} item(s)` : "Empty"}
         trailing={<>
           <Help text="Things you delete come here first, so nothing is lost by accident. Restore puts them back as they were. Delete Forever can't be undone." />
           {items.length > 0 && <ConfirmButton label="Empty Trash" confirmLabel="Click Again to Empty" onConfirm={onEmpty} />}

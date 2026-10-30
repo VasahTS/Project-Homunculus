@@ -8,11 +8,12 @@ import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Sessio
 import { npcSheetFields, npcTagline, type ListItem } from "@homunculus/core";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
-import { CardPicture, GalleryCard, SheetSection, VaultTabs, type VaultTab } from "./Gallery.tsx";
+import { CardPicture, GalleryCard, SheetSection, type VaultTab } from "./Gallery.tsx";
 import { StoryMark } from "./Sidebar.tsx";
 import { ImagePicker } from "./ImagePicker.tsx";
 import { SetupFields, SetupSection, type StorySetupProps } from "./SetupFields.tsx";
 import { layerHasTracker } from "../trackers.ts";
+import { CollectionTools } from "./CollectionTools.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 
 /** A field set an NPC sheet can use (a Scene: Characters set, or any set with per-character fields). */
@@ -23,30 +24,36 @@ export const ROLE_LABEL: Record<UserRole, string> = { player: "You play a charac
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // ------------------------------------------------------------------------------------------------ the Vault page
-export function VaultPage({ lead, tab, onTab, selectedId, onSelect, newButton, search, onSearch, cards, sheet, emptyText, folders }: {
-  lead: ReactNode; tab: VaultTab; onTab: (t: VaultTab) => void; selectedId: string | null; onSelect: (id: string) => void;
+export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, onSearch, cards, sheet, emptyText, folders, title = "Library", activity = {} }: {
+  title?: string; activity?: Record<string, number>;
+  lead: ReactNode; tab: VaultTab; selectedId: string | null; onSelect: (id: string) => void;
   newButton: ReactNode; search: string; onSearch: (q: string) => void;
   cards: Array<{ id: string; name: string; by?: string | undefined; summary?: string; tags?: string[]; size?: string; picture?: ReactNode; dragId?: string }>;
   sheet: ReactNode; emptyText: string;
   /** The folders (round 3): shown when not searching; `cards` are then the open folder's. */
   folders?: ReactNode;
 }) {
+  const [recent, setRecent] = useState(false);
+  const isStories = tab === "stories";
+  const visible = cards.filter((c) => !isStories || !recent || (activity[c.id] ?? 0) > 0).sort((a, b) => isStories ? (activity[b.id] ?? 0) - (activity[a.id] ?? 0) : 0);
   return (
-    <div className="page">
-      <Toolbar lead={lead} title="Vault" center={<VaultTabs tab={tab} onOpen={onTab} />}
+    <div className={`page${isStories ? " collection-page" : " resource-page"}`} data-region="collection">
+      <Toolbar lead={lead} title={title} subtitle={isStories ? "Your worlds, their cast and every conversation." : undefined}
         trailing={<>
-          <label className="search-box toolbar-search"><Icon name="search" size={13} /><input aria-label={`Search ${tab}`} placeholder="Search" value={search} onChange={(e) => onSearch(e.target.value)} /></label>
+          {!isStories && <label className="search-box toolbar-search"><Icon name="search" size={13} /><input aria-label={`Search ${tab}`} placeholder={`Search ${tab}`} value={search} onChange={(e) => onSearch(e.target.value)} /></label>}
           {newButton}
         </>} />
+      {isStories && <CollectionTools label="stories" query={search} onQuery={onSearch} recent={recent} onRecent={setRecent} />}
       <div className="gallery-layout">
         <div className="gallery-grid">
           {!search.trim() && folders}
           <div className="gallery-cards" data-testid={`vault-${tab}`}>
-            {cards.map((c) => <GalleryCard key={c.id} {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />)}
+            {isStories && <div className="collection-heading"><h2>{search ? "Search results" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
+            {visible.map((c) => <GalleryCard key={c.id} {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />)}
           </div>
-          {cards.length === 0 && <p className="hint gallery-empty">{search ? "Nothing matches, in any folder." : emptyText}</p>}
+          {visible.length === 0 && <p className="hint gallery-empty">{search ? "Nothing matches, in any folder." : emptyText}</p>}
         </div>
-        <aside className="gallery-sheet" data-region="sheet">{sheet}</aside>
+        {(isStories || selectedId) && <aside className="gallery-sheet" data-region="sheet">{isStories && <div className="collection-detail-label">Story details</div>}{sheet}</aside>}
       </div>
     </div>
   );
@@ -88,7 +95,7 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
         <Button variant={onContinue ? "bordered" : "prominent"} onClick={onNewChat} data-testid="story-new-chat">{onContinue ? "+ New Chat" : "Play"}</Button>
         <Button onClick={onOpen}><Icon name="pencil" size={13} /> Open Story</Button>
         <Button onClick={onDuplicate}>Duplicate</Button>
-        {onSaveAsKit && <Button onClick={onSaveAsKit} title="Keep how this story starts in Vault › Kits, to start new stories from it">Save as Kit</Button>}
+        {onSaveAsKit && <Button onClick={onSaveAsKit} title="Keep how this story starts in Library › Kits, to start new stories from it">Save as Kit</Button>}
         <ConfirmButton label="Move to Trash" confirmLabel="Click Again" className="btn btn-plain btn-small danger-text" onConfirm={onTrash} />
       </div>
       {folder && <div className="vs-folder">{folder}</div>}
@@ -414,7 +421,7 @@ export function NewStorySheet({ characters, avatars, lorebooks, setup, initialCa
             )}
             <label className={`setup-row choice-row${from === "empty" ? " on" : ""}`}>
               <input type="radio" name="start-from" checked={from === "empty"} onChange={() => setFrom("empty")} aria-label="An empty story" />
-              <span className="setup-k grow"><span>An empty story</span><small>The Simple Narrator from the Vault; you write how it starts.</small></span>
+              <span className="setup-k grow"><span>An empty story</span><small>The Simple Narrator from the Library; you write how it starts.</small></span>
             </label>
             <div className="setup-row choice-row disabled" aria-disabled="true">
               <input type="radio" name="start-from" disabled aria-label="Describe an idea to the Assistant" />
@@ -453,7 +460,7 @@ export interface NpcDraft { name: string; schemaId: string; values: Record<strin
 export interface SaveNpcChoice { name: string; schemaId: string; values: Record<string, unknown>; storyId: string | null; folderId: string | null; newFolder?: string; keepInChat: boolean }
 
 /**
- * "Save to the Vault" for a person of the Scene that is not a Vault NPC yet (draft F). Where it goes is a list you can
+ * "Save to the Library" for a person of the Scene that is not a Library NPC yet (draft F). Where it goes is a list you can
  * see: this chat's story, your NPC folders, or loose; "+ New folder" makes one on the spot. Daniel (10/29): "save
  * NPCs to the Vault … choosing the folder".
  */
@@ -490,13 +497,13 @@ export function SaveNpcSheet({ draft, fieldSets, story, folders, onSave, onClose
     </label>
   );
   return (
-    <Modal title={`Save ${draft.name} to the Vault`} onClose={onClose} testId="save-npc" className="modal-chat">
+    <Modal title={`Save ${draft.name} to the Library`} onClose={onClose} testId="save-npc" className="modal-chat">
       <p className="hint">Keeps what the Scene knows about them as an NPC sheet, to use in other stories and chats.</p>
       <label className="stack"><span className="setup-title">Name</span><input aria-label="NPC name" value={name} onChange={(e) => setName(e.target.value)} /></label>
       <label className="stack"><span className="setup-title label-row">Sheet <Help text="Which fields the NPC keeps (a field set of Scene: Characters). Fields under “Now” (mood, where they are) stay with the trackers." /></span>
         <select aria-label="Sheet" value={schemaId} onChange={(e) => setSchemaId(e.target.value)}>{fieldSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
       </label>
-      <p className="hint">{filled.length ? `Comes with: ${filled.map((f) => f.label).join(", ")}.` : "No values to bring for this sheet yet; you can fill it in the Vault."}</p>
+      <p className="hint">{filled.length ? `Comes with: ${filled.map((f) => f.label).join(", ")}.` : "No values to bring for this sheet yet; you can fill it in the Library."}</p>
       <SetupSection title="Keep in">
         {story && option(`story:${story.id}`, "book", story.name, "This chat's story: its own NPCs")}
         {folders.map((f) => option(`folder:${f.id}`, "folder", f.label, "", f.depth))}
@@ -506,11 +513,11 @@ export function SaveNpcSheet({ draft, fieldSets, story, folders, onSave, onClose
           : <div className="setup-row"><Icon name="folder" size={15} /><input autoFocus aria-label="New folder name" placeholder="Folder name" value={naming}
               onChange={(e) => { setNaming(e.target.value); setWhere("new"); }} /></div>}
       </SetupSection>
-      <label className="row-line"><Switch checked={keep} onChange={setKeep} label="Keep in this chat" /><span className="label-row">Use the saved NPC in this chat <Help text="On: this chat uses the Vault NPC from now on (its sheet is sent with each reply). Off: only a copy goes to the Vault." /></span></label>
+      <label className="row-line"><Switch checked={keep} onChange={setKeep} label="Keep in this chat" /><span className="label-row">Use the saved NPC in this chat <Help text="On: this chat uses the Library NPC from now on (its sheet is sent with each reply). Off: only a copy goes to the Library." /></span></label>
       <div className="modal-foot">
         <span className="grow" />
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="prominent" disabled={!name.trim() || (where === "new" && !naming?.trim())} onClick={save} data-testid="save-npc-confirm">Save to the Vault</Button>
+        <Button variant="prominent" disabled={!name.trim() || (where === "new" && !naming?.trim())} onClick={save} data-testid="save-npc-confirm">Save to the Library</Button>
       </div>
     </Modal>
   );

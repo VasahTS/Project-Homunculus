@@ -8,7 +8,8 @@ import { editCharacter, openLibrary, addCardToStory } from "./ui.ts";
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4GBgYGJAQoAHxcCAr7HtOUAAAAASUVORK5CYII=", "base64");
 
 async function newStory(page: Page, name: string) {
-  await page.getByRole("button", { name: "New story" }).click();
+  await openLibrary(page, "Stories");
+  await page.getByRole("button", { name: "New Story", exact: true }).click();
   const sheet = page.getByTestId("new-story");
   await sheet.getByLabel("Story name").fill(name);
   await sheet.getByRole("button", { name: /Narrated adventure/ }).click();
@@ -48,8 +49,7 @@ test("a story uses the version of a card you pick, and its chats follow", async 
 
 test("NPCs, narrators and stories can have a picture", async ({ page }) => {
   await page.goto("/");
-  await page.getByTestId("place-list").getByRole("button", { name: "Vault" }).click();
-  await page.getByTestId("vault-tabs").getByRole("tab", { name: "NPCs" }).click();
+  await openLibrary(page, "NPCs");
   await page.getByRole("button", { name: "New NPC" }).click();
   const npc = page.getByTestId("npc-sheet");
   await npc.getByLabel("NPC name").fill("Old Tom");
@@ -58,7 +58,7 @@ test("NPCs, narrators and stories can have a picture", async ({ page }) => {
   await expect(npc.getByTestId("npc-image").locator("img")).toHaveCount(1);
   await expect(page.locator(".gallery-card, [data-testid=vault-npcs] button").filter({ hasText: "Old Tom" }).locator("img").first()).toBeVisible();
 
-  await page.getByTestId("vault-tabs").getByRole("tab", { name: "Narrators" }).click();
+  await openLibrary(page, "Narrators");
   await page.getByTestId("vault-narrators").getByRole("button", { name: "Simple Narrator" }).click();
   await page.getByTestId("narrator-image-input").setInputFiles({ name: "n.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByTestId("narrator-image").locator("img")).toHaveCount(1);
@@ -68,7 +68,8 @@ test("NPCs, narrators and stories can have a picture", async ({ page }) => {
   await expect(page.getByTestId("story-image").locator("img")).toHaveCount(1);
   await page.getByTestId("story-image-input").setInputFiles({ name: "s.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByTestId("story-image").getByRole("button", { name: "Remove" })).toBeVisible();
-  await expect(page.getByTestId("story-list").locator("img")).toHaveCount(1);
+  await openLibrary(page, "Stories");
+  await expect(page.getByTestId("vault-stories").locator("img")).toHaveCount(1);
   await page.screenshot({ path: "e2e/.results/story-picture.png" });
 });
 

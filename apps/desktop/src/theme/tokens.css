@@ -107,6 +107,22 @@
   --cat-other: #6e7781;
   --flash: rgba(98, 182, 164, 0.32);    /* a value that just changed glows with this, then fades */
   --scrim: rgba(8, 9, 11, 0.55);         /* behind sheets */
+
+  /* Shared collection and Library hierarchy. CODEX, D-040; values remain profile-overridable. */
+  --collection-title: 26px;
+  --collection-cover: 178px;
+  --collection-card-min: 244px;
+  --collection-sheet-w: 354px;
+  --collection-gap: 28px;
+  --collection-gutter: 36px;
+  --collection-heading-gap: 24px;
+  --library-nav-w: 185px;
+  --navigation-group-gap: 25px;
+  --navigation-heading-size: 11.5px;
+  --navigation-item-size: 13.5px;
+  --navigation-indent: 12px;
+  --navigation-marker-w: 2px;
+  --navigation-marker-h: 14px;
 }
 
 /* People who ask the system for less transparency get opaque panels. */

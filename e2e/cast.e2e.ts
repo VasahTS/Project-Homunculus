@@ -1,13 +1,12 @@
 // Click tests: the Scene's cast works like Homunculus v1 — open in place, Show All / Fold All, drag between
 // "In the scene" and "Not in the scene", remove an NPC. Author: CLAUDE, 2026-10-29.
 import { expect, test, type Page } from "@playwright/test";
-import { openTab, send, setTracker } from "./ui.ts";
+import { openLibrary, openTab, send, setTracker } from "./ui.ts";
 
 const card = (page: Page, name: string) => page.getByTestId("person-card").filter({ has: page.getByTestId("who-block").filter({ hasText: name }) }).first();
 
 async function withNpc(page: Page, name: string) {
-  await page.getByTestId("place-list").getByRole("button", { name: "Vault" }).click();
-  await page.getByTestId("vault-tabs").getByRole("tab", { name: "NPCs" }).click();
+  await openLibrary(page, "NPCs");
   await page.getByRole("button", { name: "New NPC" }).click();
   const npc = page.getByTestId("npc-sheet");
   await npc.getByLabel("NPC name").fill(name);

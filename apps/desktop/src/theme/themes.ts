@@ -26,10 +26,24 @@ export interface AppearanceProfile {
   css?: string;
 }
 
+export const DEFAULT_PROFILE_ID = "quiet";
+
 export const BUILTIN_PROFILES: AppearanceProfile[] = [
   {
     id: "graphite", name: "Graphite", description: "Neutral dark graphite with a verdigris accent. Sidebar, story and inspector.",
     tokens: {}, layout: "inspector", effects: [], tweaks: {},
+  },
+  {
+    id: "quiet", name: "Quiet", description: "The approved graphite collection layout with restrained green selection and a quiet Library hierarchy.",
+    layout: "inspector", effects: [], tweaks: {},
+    tokens: {
+      window: "#1b1d20", backdrop: "#1b1d20", surface: "#23272a", field: "#292d30",
+      label: "#edf0ed", "label-2": "#afb8b5", "label-3": "#9eaaa3", separator: "#3b4244",
+      accent: "#8bc4b0", "accent-ink": "#142b24", "accent-soft": "rgba(139,196,176,.075)",
+      "focus-ring": "#a7d9c7", "glass": "#222528", "glass-edge": "#303639", "glass-blur": "none",
+      "shadow-float": "none", "collection-title": "26px", "collection-cover": "178px",
+    },
+    css: '[data-region="app"] { gap: 0; padding: 0; } [data-region="sidebar"] { border-radius: 0; box-shadow: none; border-right: 1px solid var(--glass-edge); padding: 27px 16px 18px; }',
   },
 ];
 

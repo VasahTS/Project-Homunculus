@@ -6,6 +6,7 @@
 // "Recent" keeps the last 3 chats at hand.
 // 2026-10-29: a chat writing a reply in the background says so ("writing…"), and its story too, even folded.
 // Floats in the functional (glass) layer. Two levels at most. Nothing critical at the bottom.
+import type { LibraryCategory, NavigationPlace, NavigationProfile } from "../theme/navigation.ts";
 import { useRef, useState } from "react";
 import type { Avatar, Character, Session, Story } from "@homunculus/schemas";
 import { variantAvatarId } from "@homunculus/core";
@@ -15,11 +16,16 @@ import { Button, Icon, IconButton } from "./kit.tsx";
 import { useSlidingPill } from "./motion.ts";
 import { useTurns, type LiveTurn } from "../turns.ts";
 
-export type LibraryArea = "characters" | "personas" | "presets" | "lorebooks" | "trackers" | "trash";
-export type Place = "characters" | "library" | "vault" | "settings" | null;
+export interface SidebarSearchItem { id: string; name: string; kind: string; onOpen: () => void }
+
+export type LibraryArea = "characters" | LibraryCategory;
+export type Place = NavigationPlace | "settings" | null;
 
 export function Sidebar({ sessions, stories, characters, avatars, lastLines, branchCounts = {}, activeSessionId, activeStoryId, activeChatId = null, place, status,
-  onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenLibrary, onOpenVault, onOpenSettings }: {
+  navigation, searchItems, onOpenStories, onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenLibrary, onOpenVault, onOpenSettings }: {
+  navigation: NavigationProfile;
+  searchItems: SidebarSearchItem[];
+  onOpenStories: () => void;
   sessions: Session[];
   stories: Story[];
   characters: Character[];
@@ -66,7 +72,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
   const storyName = (s: Session) => stories.find((st) => st.id === s.storyId)?.name;
   const chats = searching
     ? sessions.filter((s) => match(s.title) || match(lead(s)?.name ?? "") || match(storyName(s) ?? ""))
-    : sessions.slice(0, 3);
+    : sessions.slice(0, navigation.recentLimit);
   // stories: the one played most recently first, then new ones
   const lastPlayed = (st: Story) => { const i = sessions.findIndex((s) => s.storyId === st.id); return i < 0 ? Infinity : i; };
   const shownStories = stories.filter((st) => match(st.name)).sort((a, b) => lastPlayed(a) - lastPlayed(b) || b.createdAt - a.createdAt);
@@ -92,27 +98,28 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
       </div>
       <label className="search-box side-search">
         <Icon name="search" size={13} />
-        <input aria-label="Search stories and chats" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input aria-label="Search everything" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
       </label>
 
       <ul className="side-list side-places" data-testid="place-list">
-        <li>
-          <button className={`side-item${place === "characters" ? " on" : ""}`} onClick={onOpenCharacters}>
-            <span className="side-icon"><Icon name="characters" /></span><span className="side-text"><strong>Characters</strong></span>
-          </button>
-        </li>
-        <li>
-          <button className={`side-item${place === "library" ? " on" : ""}`} onClick={onOpenLibrary}>
-            <span className="side-icon"><Icon name="grid" /></span><span className="side-text"><strong>Library</strong></span>
-          </button>
-        </li>
-        <li>
-          <button className={`side-item${place === "vault" ? " on" : ""}`} onClick={onOpenVault}>
-            <span className="side-icon"><Icon name="lock" /></span><span className="side-text"><strong>Vault</strong></span>
-          </button>
-        </li>
+        {navigation.places.map((item) => {
+          const actions = { stories: onOpenStories, characters: onOpenCharacters, library: onOpenLibrary, vault: onOpenVault };
+          const count = item.id === "stories" ? stories.length : item.id === "characters" ? characters.length : null;
+          const busy = item.id === "stories" && sessions.some((session) => session.storyId && live.get(session.id) && live.get(session.id)!.phase !== "done");
+          return <li key={item.id}><button className={`side-item${place === item.id ? " on" : ""}`} aria-current={place === item.id ? "page" : undefined} onClick={actions[item.id]}>
+            <span className="side-icon"><Icon name={item.icon} /></span><span className="side-text"><strong>{item.label}</strong>{busy && <span className="side-writing">writing…</span>}</span>
+            {count !== null && <span className="side-count" aria-hidden="true">{count}</span>}
+          </button></li>;
+        })}
       </ul>
 
+      {searching && <section className="side-search-results" aria-label="Matching library items and characters">
+        <div className="side-head">Characters and Library</div>
+        <ul className="side-list">{searchItems.filter((item) => match(item.name)).map((item) => <li key={item.id}>
+          <button className="side-item" onClick={item.onOpen}><span className="side-text"><strong>{item.name}</strong><span>{item.kind}</span></span>
+          </button></li>)}</ul>
+      </section>}
+      {(searching || navigation.showStoryShortcuts) && <>
       <div className="side-head">
         <span className="label-row">Stories <Help text="Narrated stories: a narrator (not a character), NPCs from the Vault, how it starts and its own setup. Each story can have several chats; each chat starts with the story's setup and can change some of it." /></span>
         <IconButton label="New story" onClick={onNewStory}><Icon name="plus" size={15} /></IconButton>
@@ -152,6 +159,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
         {stories.length === 0 && <li className="side-empty">No stories yet. Start one with “+”.</li>}
         {stories.length > 0 && shownStories.length === 0 && <li className="side-empty">No story matches.</li>}
       </ul>
+      </>}
 
       <div className="side-head">
         <span className="label-row">{searching ? "Chats" : "Recent"} <Help text="Your last chats. Every chat with a character is on its sheet (Characters); a story's chats are on its page." /></span>

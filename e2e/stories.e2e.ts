@@ -4,12 +4,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { openLibrary, openTab, send, addCardToStory } from "./ui.ts";
 
 const vault = async (page: Page, tab: "Stories" | "Narrators" | "NPCs") => {
-  await page.getByTestId("place-list").getByRole("button", { name: "Vault" }).click();
-  await page.getByTestId("vault-tabs").getByRole("tab", { name: tab }).click();
+  await openLibrary(page, tab);
 };
 
 async function newStory(page: Page, name: string, mode: RegExp, setup?: (sheet: ReturnType<Page["getByTestId"]>) => Promise<void>) {
-  await page.getByRole("button", { name: "New story" }).click();
+  await openLibrary(page, "Stories");
+  await page.getByRole("button", { name: "New Story", exact: true }).click();
   const sheet = page.getByTestId("new-story");
   await sheet.getByLabel("Story name").fill(name);
   await sheet.getByRole("button", { name: mode }).click();
@@ -35,7 +35,7 @@ async function previewPrompt(page: Page) {
 test("a narrated story: Simple Narrator, an NPC made in the story, how it starts, Play", async ({ page }) => {
   await page.goto("/");
   await newStory(page, "High Fantasy Party", /Narrated adventure/);
-  await expect(page.getByTestId("story-list")).toContainText("High Fantasy Party");
+  await expect(page.getByTestId("story-page")).toContainText("High Fantasy Party");
   await page.getByTestId("story-narrator").getByRole("button", { name: "Change…" }).click();
   await expect(page.getByLabel("Narrator")).toHaveValue("vault:simple-narrator");
 
@@ -68,7 +68,7 @@ test("a narrated story: Simple Narrator, an NPC made in the story, how it starts
   await send(page, "I look around.");
   await expect(page.getByTestId("message")).toHaveCount(3);
   // the way back to the story, and the session listed there
-  await page.getByRole("button", { name: "High Fantasy Party" }).first().click();
+  await page.getByTestId("story-page-button").click();
   await expect(page.getByTestId("story-chats")).toContainText("Chat 1");
   await expect(page.getByTestId("continue-story")).toHaveText("Continue Chat 1");
 });
@@ -106,7 +106,7 @@ test("turn a card into a story from its sheet in the Library", async ({ page }) 
   await page.getByTestId("story-narrator").getByRole("button", { name: "Change…" }).click();
   await expect(page.getByLabel("Narrator")).toHaveValue(/^card:/);
   await expect(page.getByLabel("Opening 1")).toHaveValue(/That's close enough/);
-  await expect(page.getByTestId("story-list")).toContainText("Lyra");
+  await expect(page.getByTestId("story-page")).toContainText("Lyra");
 });
 
 test("the Vault: edit the Simple Narrator, a loose NPC joins a 1:1 chat", async ({ page }) => {
@@ -148,13 +148,15 @@ test("a story goes to the Trash with its sessions and comes back with them", asy
   await page.getByTestId("story-page").waitFor();
   await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("menuitem", { name: "Move to Trash" }).click();
-  await expect(page.getByTestId("story-list")).not.toContainText("Short One");
+  await openLibrary(page, "Stories");
+  await expect(page.getByTestId("vault-stories")).not.toContainText("Short One");
   await openLibrary(page, "Trash");
   await expect(page.getByTestId("trash-list")).toContainText("Short One");
   await expect(page.getByTestId("trash-list").locator("li")).toHaveCount(1); // its session is not listed apart
   await page.getByRole("button", { name: "Restore" }).click();
-  await expect(page.getByTestId("story-list")).toContainText("Short One");
-  await expect(page.getByTestId("story-list")).toContainText("1 chat");
+  await openLibrary(page, "Stories");
+  await expect(page.getByTestId("vault-stories")).toContainText("Short One");
+  await expect(page.getByTestId("vault-stories")).toContainText("1 chat");
 });
 
 test("a story's setup reaches its chats; a chat can change a row for itself and go back to the story's", async ({ page }) => {
@@ -186,7 +188,8 @@ test("a story's setup reaches its chats; a chat can change a row for itself and 
   await expect(page.getByTestId("chat-setup").getByRole("checkbox", { name: "Scene: World" })).toBeChecked();
 
   // back to the first chat: "Use the story's" undoes its change
-  await page.getByTestId("story-list").getByRole("button", { name: "Chat 1" }).click();
+  await page.getByTestId("story-page-button").click();
+  await page.getByTestId("story-chats").getByTestId("chat-row").filter({ hasText: "Chat 1" }).locator(".cl-main").click();
   await openTab(page, "prompt");
   await page.getByTestId("chat-setup").getByTestId("setup-tracker-scene-plot").getByRole("button", { name: "Use the story's" }).click();
   await expect(page.getByTestId("chat-setup").getByRole("checkbox", { name: "Scene: Plot" })).not.toBeChecked();

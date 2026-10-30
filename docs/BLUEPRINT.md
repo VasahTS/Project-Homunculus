@@ -398,7 +398,7 @@ Rules:
 | Sampling parameter policy (per-model parameters) | ✅ | in the Connection |
 | Generation that survives a drop | ✅ | partial text already saved; "resume" later |
 | Chat archive | 🔄 | trash + search |
-| Home, themes, layouts, effects | ✅ UI phase | base ready (D-018): tokens, appearance profiles, `data-region`; the Customize screen is missing |
+| Home, themes, layouts, effects | ✅ UI phase | tokens, profiles and `data-region` (D-018); Quiet profile, data-defined collection navigation and grouped Library (D-040); Customize remains missing |
 | Homunculus, Hob, The Ninth Summoning presets | ✅ | built-in content |
 | Guided generations | ✅ | `guided` |
 | Prose Polisher | 🔄 | part of the **Style Reviewer** (§4.4) |

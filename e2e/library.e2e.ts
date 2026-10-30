@@ -71,7 +71,7 @@ test("a character used by a session cannot go to the Trash, with a clear reason"
 test("every option has a '?' that explains it", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Explain" }).first().click();
-  await expect(page.getByRole("note")).toContainText("Narrated stories");
+  await expect(page.getByRole("note")).toContainText("Your last chats");
   await page.mouse.click(900, 400); // click elsewhere closes it
   await expect(page.getByRole("note")).toHaveCount(0);
   await page.screenshot({ path: "e2e/.results/library-after.png" });

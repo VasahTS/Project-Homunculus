@@ -145,7 +145,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   const narratorVariant = draft.narrator.kind === "card" ? draft.narrator.variantId : null;
   const narratorName = (narratorCard ? effectiveCharacter(narratorCard, narratorVariant).name : undefined) ?? vaultNarrator?.name ?? (draft.narrator.kind === "own" ? draft.narrator.narrator.name || "Narrator" : "Narrator (missing)");
   const narratorLine = narratorCard ? "Your card, used as the narrator. The card is not changed."
-    : vaultNarrator ? `From the Vault${vaultNarrator.builtin ? " (comes with the app)" : ""}.`
+    : vaultNarrator ? `From the Library${vaultNarrator.builtin ? " (comes with the app)" : ""}.`
       : draft.narrator.kind === "own" ? "Written for this story." : "This narrator is in the Trash or was deleted. Pick another one.";
   const pickNarrator = (v: string) => {
     if (v === "own") {
@@ -216,7 +216,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               <div className="popover more-pop" role="menu">
                 <button type="button" role="menuitem" className="menu-item" onClick={() => { setMore(false); setRenaming(true); }}>Rename</button>
                 {!isKit && onSaveAsKit && <button type="button" role="menuitem" className="menu-item" onClick={() => { setMore(false); flush(); onSaveAsKit(draft); }}
-                  title="Keep this story's start (narrator, people, scenario, openings, setup) in the Vault, to start new stories from it">Save as Kit</button>}
+                  title="Keep this story's start (narrator, people, scenario, openings, setup) in the Library, to start new stories from it">Save as Kit</button>}
                 <button type="button" role="menuitem" className="menu-item danger-text" onClick={() => { setMore(false); flush(); onTrash(draft); }}
                   title={isKit ? "The Kit goes to the Trash (Library → Trash); stories started from it are not touched." : "The story and its chats go to the Trash (Library → Trash); you can restore them."}>Move to Trash</button>
               </div>
@@ -258,15 +258,15 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               </div>
               {narratorOpen && (
                 <div className="setup-row column">
-                  <label className="row-line"><span className="field-label label-row">Who tells it <Help text="The narrator is not a character: it describes the scene and voices everyone else. Keep narrators in the Vault to reuse them, use one of your cards, or write one just for this story." /></span>
+                  <label className="row-line"><span className="field-label label-row">Who tells it <Help text="The narrator is not a character: it describes the scene and voices everyone else. Keep narrators in the Library to reuse them, use one of your cards, or write one just for this story." /></span>
                     <select aria-label="Narrator" value={narratorValue} onChange={(e) => pickNarrator(e.target.value)}>
-                      <optgroup label="Vault">{narrators.map((n) => <option key={n.id} value={`vault:${n.id}`}>{n.name}</option>)}</optgroup>
+                      <optgroup label="Library">{narrators.map((n) => <option key={n.id} value={`vault:${n.id}`}>{n.name}</option>)}</optgroup>
                       <optgroup label="A card tells it">{characters.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name}</option>)}</optgroup>
                       <option value="own">Written for this story…</option>
                     </select>
                   </label>
-                  {pickers && <button type="button" className="link align-start" onClick={() => pickers.narrator(vaultNarrator?.id ?? null, (id) => pickNarrator(`vault:${id}`))}>Browse the Vault's narrators…</button>}
-                  {vaultNarrator && <p className="hint">{vaultNarrator.instructions.slice(0, 180)}{vaultNarrator.instructions.length > 180 ? "…" : ""} <button className="link" onClick={() => onOpenNarrator(vaultNarrator.id)}>Edit in the Vault</button></p>}
+                  {pickers && <button type="button" className="link align-start" onClick={() => pickers.narrator(vaultNarrator?.id ?? null, (id) => pickNarrator(`vault:${id}`))}>Browse the Library's narrators…</button>}
+                  {vaultNarrator && <p className="hint">{vaultNarrator.instructions.slice(0, 180)}{vaultNarrator.instructions.length > 180 ? "…" : ""} <button className="link" onClick={() => onOpenNarrator(vaultNarrator.id)}>Edit in the Library</button></p>}
                   {narratorCard && narratorCard.variants.length > 0 && (
                     <label className="row-line"><span className="field-label label-row">Version <Help text="Which version of the card tells this story. Main = the card as imported." /></span>
                       <VersionSelect c={narratorCard} value={narratorVariant} label="Narrator card version"
@@ -277,7 +277,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                   {draft.narrator.kind === "own" && (
                     <>
                       <NarratorForm value={draft.narrator.narrator} onChange={(n) => change({ narrator: { kind: "own", narrator: n } })} />
-                      <Button small onClick={() => void saveOwnToVault()}>Save to the Vault</Button>
+                      <Button small onClick={() => void saveOwnToVault()}>Save to the Library</Button>
                     </>
                   )}
                 </div>
@@ -287,10 +287,10 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                 <span className="setup-k grow"><span>NPCs</span>{inStory.length === 0 && <small>None yet. The narrator can bring people in as the story goes.</small>}</span>
                 <button type="button" className="link" onClick={() => void newNpc()}>+ New NPC</button>
                 {pickers ? (
-                  <button type="button" className="link" onClick={() => pickers.npc(draft.npcIds, (id) => change({ npcIds: [...draft.npcIds, id] }))}>+ From the Vault</button>
+                  <button type="button" className="link" onClick={() => pickers.npc(draft.npcIds, (id) => change({ npcIds: [...draft.npcIds, id] }))}>+ From the Library</button>
                 ) : addable.length > 0 && (
-                  <select className="link-select" aria-label="Add an NPC from the Vault" value="" onChange={(e) => e.target.value && change({ npcIds: [...draft.npcIds, e.target.value] })}>
-                    <option value="">+ From the Vault</option>
+                  <select className="link-select" aria-label="Add an NPC from the Library" value="" onChange={(e) => e.target.value && change({ npcIds: [...draft.npcIds, e.target.value] })}>
+                    <option value="">+ From the Library</option>
                     {addable.map((n) => <option key={n.id} value={n.id}>{n.name}{n.storyId && n.storyId !== story.id ? ` (${storyName(n.storyId) ?? "other story"})` : n.storyId ? "" : " (loose)"}</option>)}
                   </select>
                 )}

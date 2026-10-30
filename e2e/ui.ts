@@ -2,13 +2,14 @@
 import { expect, type Page } from "@playwright/test";
 
 /**
- * Opens a kind of the Library: the sidebar's Library, then its tab (slice 4, D-029: the kinds are tabs).
+ * Opens a primary collection or a category in the grouped Library (D-040).
  * Round 3 (D-036): Characters is a place of its own in the sidebar.
  */
-export async function openLibrary(page: Page, area: "Characters" | "Personas" | "Lorebooks" | "Presets" | "Trackers" | "Trash") {
+export async function openLibrary(page: Page, area: "Characters" | "Personas" | "Lorebooks" | "Presets" | "Trackers" | "Trash" | "Stories" | "Kits" | "Narrators" | "NPCs") {
+  if (area === "Stories") { await page.getByTestId("place-list").getByRole("button", { name: "Stories", exact: true }).click(); return; }
   if (area === "Characters") { await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click(); return; }
   await page.getByTestId("place-list").getByRole("button", { name: "Library" }).click();
-  await page.getByTestId("library-list").getByRole("tab", { name: area }).click();
+  await page.getByTestId("library-list").getByRole("button", { name: area, exact: true }).click();
 }
 
 /** Opens a character's editor: its card (or the first one), then Edit on its sheet (slice 4: cards + view sheet). */

@@ -21,7 +21,7 @@ import { Picker, type PickKind } from "./ui/Picker.tsx";
 import { ChatList, type ChatRow } from "./ui/ChatList.tsx";
 import { CharacterEditor } from "./ui/CharacterEditor.tsx";
 import { lastLineOf, Sidebar, type LibraryArea, type Place } from "./ui/Sidebar.tsx";
-import { CharacterGallery, CharacterSheet, LibraryTabs, type VaultTab } from "./ui/Gallery.tsx";
+import { CharacterGallery, CharacterSheet, type VaultTab } from "./ui/Gallery.tsx";
 import { KitSheet, SaveNpcSheet, type NpcDraft, type SaveNpcChoice, NarratorEditor, NewStorySheet, NpcEditor, narratorCard, npcCard, StorySheet, storyCard, VaultPage, type FieldSetOption, type NewStoryChoice } from "./ui/Vault.tsx";
 import { changesIn, StoryPage, type NewChatChoice, type StoryChat } from "./ui/StoryPage.tsx";
 import type { SetupNames, StorySetupProps } from "./ui/SetupFields.tsx";
@@ -30,7 +30,9 @@ import { CharactersPage, LorebooksPage, PersonasPage, PresetsPage, TrackersPage,
 import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
-import { applyProfile, BUILTIN_PROFILES } from "./theme/themes.ts";
+import { LibraryWorkspace } from "./ui/LibraryWorkspace.tsx";
+import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
+import { applyProfile, BUILTIN_PROFILES, DEFAULT_PROFILE_ID } from "./theme/themes.ts";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, withFieldSet, withTracker, type Tracker, type TrackerDraft, sampleFor } from "./trackers.ts";
 
 type View =
@@ -52,7 +54,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /** Small per-viewer layout memory (which panels are open). Never required: defaults apply without it. */
 function usePanel(key: string, initial: boolean): [boolean, () => void] {
   const [open, setOpen] = useState(() => { try { const v = localStorage.getItem(key); return v === null ? initial : v === "1"; } catch { return initial; } });
-  const toggle = () => setOpen((v) => { try { localStorage.setItem(key, v ? "0" : "1"); } catch { /* storage unavailable */ } return !v; });
+  const toggle = useCallback(() => setOpen((v) => { try { localStorage.setItem(key, v ? "0" : "1"); } catch { /* storage unavailable */ } return !v; }), [key]);
   return [open, toggle];
 }
 
@@ -116,7 +118,18 @@ export function App() {
   // a newer version on GitHub (D-037): a quiet bar on top + Settings → About
   const updates = useUpdates();
 
-  useEffect(() => { applyProfile(BUILTIN_PROFILES[0]!); }, []);
+  useEffect(() => { applyProfile(BUILTIN_PROFILES.find((p) => p.id === DEFAULT_PROFILE_ID) ?? BUILTIN_PROFILES[0]!); }, []);
+
+  useEffect(() => {
+    const search = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k") return;
+      event.preventDefault();
+      if (!sidebarOpen) toggleSidebar();
+      requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-region="sidebar"] input')?.focus());
+    };
+    document.addEventListener("keydown", search);
+    return () => document.removeEventListener("keydown", search);
+  }, [sidebarOpen, toggleSidebar]);
 
   /** Stories, narrators and NPCs (the Vault). */
   const refreshVault = useCallback(async (s: AppServices) => {
@@ -657,7 +670,7 @@ export function App() {
       const kit = await copyStart(st, crypto.randomUUID(), st.name);
       await svc.store.kits.save(kit);
       await refreshVault(svc);
-      setNotice({ kind: "ok", title: `Saved “${st.name}” as a Kit`, lines: ["It is in Vault › Kits. Start new stories from it; this story is not changed."],
+      setNotice({ kind: "ok", title: `Saved “${st.name}” as a Kit`, lines: ["It is in Library › Kits. Start new stories from it; this story is not changed."],
         action: { label: "Open the Kit", run: () => setView({ kind: "vault", tab: "kits", id: kit.id }) } });
     } catch (e) { setNotice({ kind: "error", title: "Could not save the Kit", lines: [errorText(e)] }); }
   };
@@ -757,8 +770,8 @@ export function App() {
       const chat = sessions.find((x) => x.id === sessionId);
       if (c.keepInChat && chat && !chat.npcIds.includes(id)) await svc.store.saveSession({ ...chat, npcIds: [...chat.npcIds, id] });
       await refresh(svc);
-      setNotice({ kind: "ok", title: `${c.name} is in the Vault`, lines: [c.keepInChat ? "This chat uses the Vault NPC now." : "This chat is not changed."],
-        action: { label: "Open in the Vault", run: () => setView({ kind: "vault", tab: "npcs", id }) } });
+      setNotice({ kind: "ok", title: `${c.name} is in the Library`, lines: [c.keepInChat ? "This chat uses the Library NPC now." : "This chat is not changed."],
+        action: { label: "Open in the Library", run: () => setView({ kind: "vault", tab: "npcs", id }) } });
     } catch (e) { setNotice({ kind: "error", title: `Could not save ${c.name}`, lines: [errorText(e)] }); }
   };
   const folderRows = (kind: FolderKind) => {
@@ -820,8 +833,10 @@ export function App() {
       <Icon name="sidebar" size={17} />
     </IconButton>
   );
-  const openLibrary = (area: LibraryArea) => setView(area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : { kind: "trackers" });
-  const libTabs = (area: LibraryArea) => <LibraryTabs area={area} onOpen={openLibrary} />;
+  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : { kind: "trackers" }); };
+  const libraryCategory: LibraryCategory | null = view.kind === "vault" && view.tab !== "stories" ? view.tab : view.kind === "kit" ? "kits"
+    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "trash" ? view.kind : null;
+  const pageLead = libraryCategory ? null : lead;
   // opened a lorebook from a session (Prompt tab): a button goes straight back to it (Daniel: "me senti perdido")
   const backSession = loreBack ? sessions.find((x) => x.id === loreBack) : undefined;
   const loreLead = backSession ? (
@@ -841,15 +856,16 @@ export function App() {
     </div>
   );
 
-  const place: Place = view.kind === "vault" || view.kind === "kit" ? "vault" : view.kind === "settings" ? "settings" : view.kind === "characters" ? "characters"
-    : view.kind === "session" || view.kind === "story" ? null : "library";
+  const place: Place = libraryCategory ? "library" : view.kind === "settings" ? "settings" : view.kind === "characters" ? "characters"
+    : view.kind === "story" || (view.kind === "vault" && view.tab === "stories") || (view.kind === "session" && active?.storyId) ? "stories" : null;
   let content;
   if (view.kind === "characters") {
     const editing = view.id === "new" ? null : view.id ? byId[view.id] ?? null : undefined;
     const importHelp = svc.core.characterImporters.all().map((i) => i.help).join(" ");
-    const sheetOf = view.id && view.id !== "new" ? byId[view.id] : undefined;
+    const sheetOf = view.id && view.id !== "new" ? byId[view.id] : characters.find((c) => inOpenFolder("character", "characters")(c.id));
     content = !(view.edit || view.id === "new") ? (
-      <CharacterGallery lead={lead} title="Characters" characters={characters} avatars={avatars} selectedId={view.id === "new" ? null : view.id}
+      <CharacterGallery lead={lead} title="Characters" characters={characters} avatars={avatars} selectedId={sheetOf?.id ?? null}
+        activity={Object.fromEntries(characters.map((c) => [c.id, chatsWith(c.id)[0]?.when ?? 0]))}
         importHelp={importHelp} onSelect={(id) => setView({ kind: "characters", id })} onNew={() => setView({ kind: "characters", id: "new" })}
         onImport={(files) => void importFiles(files)}
         folders={folderView("character", "characters", "characters", characters.map((c) => ({ id: c.id, name: c.name, avatar: avatars[c.id] })))}
@@ -897,7 +913,7 @@ export function App() {
   } else if (view.kind === "personas") {
     const editing = view.id === "new" ? null : view.id ? personas.find((p) => p.id === view.id) ?? null : undefined;
     content = (
-      <PersonasPage lead={lead} tabs={libTabs("personas")} personas={personas} avatars={avatars} defaultId={defaultPersonaId} selectedId={view.id}
+      <PersonasPage lead={pageLead} personas={personas} avatars={avatars} defaultId={defaultPersonaId} selectedId={view.id}
         importHelp={svc.core.personaImporters.all().map((i) => i.help).join(" ")}
         onSelect={(id) => setView({ kind: "personas", id })} onNew={() => setView({ kind: "personas", id: "new" })}
         onImport={(files) => void importPersonas(files)}
@@ -922,7 +938,7 @@ export function App() {
   } else if (view.kind === "presets") {
     const editing = view.draft ?? (view.id ? presets.find((p) => p.id === view.id) : undefined);
     content = (
-      <PresetsPage lead={lead} tabs={libTabs("presets")} presets={presets} defaultId={defaultPresetId} selectedId={view.draft ? null : view.id}
+      <PresetsPage lead={pageLead} presets={presets} defaultId={defaultPresetId} selectedId={view.draft ? null : view.id}
         importHelp={svc.core.presetImporters.all().map((i) => i.help).join(" ")}
         onSelect={(id) => setView({ kind: "presets", id })}
         onNew={() => setView({ kind: "presets", id: null, draft: Preset.parse({ ...DEFAULT_PRESET, id: crypto.randomUUID(), name: "New preset", description: "" }) })}
@@ -940,7 +956,7 @@ export function App() {
   } else if (view.kind === "lorebooks") {
     const editing = view.draft ?? (view.id ? lorebooks.find((b) => b.id === view.id) : undefined);
     content = (
-      <LorebooksPage lead={loreLead} tabs={libTabs("lorebooks")} books={lorebooks} selectedId={view.draft ? null : view.id}
+      <LorebooksPage lead={backSession ? loreLead : pageLead} books={lorebooks} selectedId={view.draft ? null : view.id}
         globalIds={defaultSetup.lorebooks && defaultSetup.lorebooks.mode !== "keep" ? defaultSetup.lorebooks.add : []}
         onSetGlobal={(ids) => void setDefaultSetup({ lorebooks: { mode: "add", add: ids, remove: (defaultSetup.lorebooks?.remove ?? []).filter((x) => !ids.includes(x)) } })}
         usedBy={Object.fromEntries(lorebooks.map((b) => { const u = usedByOf(b.id); return [b.id, u.length ? (u.length > 2 ? `${u[0]} +${u.length - 1}` : u.join(", ")) : ""]; }))}
@@ -973,10 +989,10 @@ export function App() {
           { maxTokens: config.params?.maxTokens ?? 512 })} />
     );
   } else if (view.kind === "trash") {
-    content = <TrashPage lead={lead} tabs={libTabs("trash")} items={trash} onRestore={(it) => void restore(it)} onDeleteForever={(it) => void deleteForever(it)} onEmpty={() => void emptyTrash()} />;
+    content = <TrashPage lead={pageLead} items={trash} onRestore={(it) => void restore(it)} onDeleteForever={(it) => void deleteForever(it)} onEmpty={() => void emptyTrash()} />;
   } else if (view.kind === "trackers") {
     content = (
-      <TrackersPage lead={lead} tabs={libTabs("trackers")} trackers={trackers} selectedId={view.draft && !view.isNew ? view.draft.id : null}
+      <TrackersPage lead={pageLead} trackers={trackers} selectedId={view.draft && !view.isNew ? view.draft.id : null}
         onSelect={(id) => openTracker(id)} onNew={() => openTracker("new")}
         detail={view.draft ? (
           <TrackerEditor key={view.draft.id} initial={view.draft} isNew={view.isNew ?? false}
@@ -1001,7 +1017,7 @@ export function App() {
       ({ ...c, dragId: c.id, ...(searching && mapOf(fkind)[c.id] ? { by: `${folderLabel(folders, mapOf(fkind)[c.id])}${c.by ? ` · ${c.by}` : ""}` } : {}) });
     let cards; let sheet; let newButton; let emptyText; let items: FolderItem[]; let extra: React.ReactNode = null; let currentName: string | undefined;
     if (tab === "stories") {
-      const st = stories.find((x) => x.id === view.id);
+      const st = stories.find((x) => x.id === view.id) ?? (!view.id ? shown(stories)[0] : undefined);
       items = stories.map((x) => ({ id: x.id, name: x.name, avatar: storyAvatar(x) }));
       cards = shown(stories).map((x) => withFolder({ ...storyCard(x, narratorOf(x), sessionsOfStory(x.id).length, storyAvatar(x)), by: chatsLine(storyChatRows(x.id)) }));
       const rows = st ? storyChatRows(st.id) : [];
@@ -1070,7 +1086,8 @@ export function App() {
     // nothing left at the top, but there are folders with things in them
     if (!open && items.length > 0 && cards.length === 0) emptyText = "Everything here is in the folders above.";
     content = (
-      <VaultPage lead={lead} tab={tab} onTab={(t) => { setVaultQuery(""); setView({ kind: "vault", tab: t, id: null }); }} selectedId={view.id} onSelect={select}
+      <VaultPage lead={pageLead} title={tab === "stories" ? "Stories" : tab === "kits" ? "Kits" : tab === "narrators" ? "Narrators" : "NPCs"} tab={tab}
+        activity={Object.fromEntries(stories.map((st) => [st.id, storyChatRows(st.id)[0]?.when ?? 0]))} selectedId={view.id ?? (tab === "stories" ? cards[0]?.id ?? null : null)} onSelect={select}
         newButton={newButton} search={vaultQuery} onSearch={setVaultQuery} cards={cards} emptyText={emptyText}
         folders={folderView(fkind, page, tab === "stories" ? "stories" : tab === "kits" ? "kits" : tab === "narrators" ? "narrators" : "NPCs", items, extra, currentName)}
         sheet={sheet ?? <div className="empty-detail"><p>Pick one to see it here.</p></div>} />
@@ -1164,7 +1181,7 @@ export function App() {
         <Toolbar lead={lead} title="Homunculus" />
         <div className="empty-detail">
           <p>No session open.</p>
-          <p className="hint">Open Characters and start a chat from a character's sheet, or a story with “+” next to Stories.</p>
+          <p className="hint">Open Characters and start a chat from a character's sheet, or a story from Stories → New Story.</p>
         </div>
       </div>
     );
@@ -1174,6 +1191,18 @@ export function App() {
     <div className="app" data-region="app">
       {sidebarOpen && (
         <Sidebar
+          navigation={COLLECTION_NAVIGATION}
+          searchItems={[
+            ...characters.map((c) => ({ id: `character:${c.id}`, name: c.name, kind: "Character", onOpen: () => setView({ kind: "characters", id: c.id }) })),
+            ...kits.map((k) => ({ id: `kit:${k.id}`, name: k.name, kind: "Kit", onOpen: () => setView({ kind: "kit", id: k.id }) })),
+            ...narrators.map((n) => ({ id: `narrator:${n.id}`, name: n.name, kind: "Narrator", onOpen: () => setView({ kind: "vault", tab: "narrators", id: n.id }) })),
+            ...npcs.map((n) => ({ id: `npc:${n.id}`, name: n.name, kind: "NPC", onOpen: () => setView({ kind: "vault", tab: "npcs", id: n.id }) })),
+            ...lorebooks.map((b) => ({ id: `lorebook:${b.id}`, name: b.name, kind: "Lorebook", onOpen: () => setView({ kind: "lorebooks", id: b.id }) })),
+            ...personas.map((p) => ({ id: `persona:${p.id}`, name: p.name, kind: "Persona", onOpen: () => setView({ kind: "personas", id: p.id }) })),
+            ...presets.map((p) => ({ id: `preset:${p.id}`, name: p.name, kind: "Preset", onOpen: () => setView({ kind: "presets", id: p.id }) })),
+            ...trackers.map((t) => ({ id: `tracker:${t.agent.id}`, name: t.agent.name, kind: "Tracker", onOpen: () => openTracker(t.agent.id) })),
+          ]}
+          onOpenStories={() => { setVaultQuery(""); setView({ kind: "vault", tab: "stories", id: null }); }}
           sessions={sessions}
           stories={stories}
           characters={characters}
@@ -1189,7 +1218,7 @@ export function App() {
           onOpenStory={(id) => setView({ kind: "story", id })}
           onNewStory={() => setNewStoryOpen({ cardId: null })}
           onOpenCharacters={() => setView({ kind: "characters", id: null })}
-          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "trash" ? view.kind : "personas")}
+          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "trash" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "connections" })}
         />
@@ -1197,7 +1226,9 @@ export function App() {
       <div className="content">
         <UpdateBar u={updates} />
         {noticeBar}
-        {content}
+        {libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
+          counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, trash: trash.length }}
+          onOpen={openLibrary}>{content}</LibraryWorkspace> : content}
       </div>
       {savingNpc && (() => {
         const chat = sessions.find((x) => x.id === savingNpc.sessionId);

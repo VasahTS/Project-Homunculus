@@ -160,7 +160,7 @@ test("changes save by themselves (no Save button, no warnings); typing in the mi
 
   // it saves a moment later; leaving right away also keeps the change (no question asked)
   await expect(ed.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
-  await text.press("End");
+  await text.press("Control+End");
   await page.keyboard.type(" Always.");
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByTestId("notice")).not.toContainText("unsaved");

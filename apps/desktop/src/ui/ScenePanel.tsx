@@ -572,7 +572,7 @@ function PersonCard({ p, avatar, handle, edge, open, disabled, onToggle, onRemov
       <Collapse open={open}>
         <PersonDetails p={p} disabled={disabled} />
         {onSave && <div className="q-card-foot"><button type="button" className="link" onClick={onSave} data-testid="save-to-vault"
-          title="Keep this person as an NPC in the Vault, to use in other stories and chats">Save to the Vault…</button></div>}
+          title="Keep this person as an NPC in the Library, to use in other stories and chats">Save to the Library…</button></div>}
       </Collapse>
     </div>
   );
