@@ -422,3 +422,26 @@ Slice 5. The core runner already ran every output kind (D-016…); nothing showe
 - **In the chat**: the "✦ N" toolbar menu (switches for this chat, last run, Run, menu notes, "Manage"); quiet pencil / triangle marks beside the speaker's name (Undo = the original text back as a user revision; Write again = a new version); note labels under replies; choices as buttons under the latest reply (click sends, right-click puts it in the box).
 - The full "Agents" inspector tab of draft v2 is **kept for a future Settings option** (Daniel).
 Not done here: Settings → Agents (switch on for everything = the Default layer), a "Try it" dry run in the editor, tools. Signed: **CLAUDE**.
+
+## D-048 — Agents panel, why-it-did-this, rewrite comparison, how results show, explicit inputs (2026-10-30)
+
+Daniel's review of D-047 and draft 3 ("pode fazer tudo").
+- **The ✦ panel** is now like the original app's: search, trackers and agents together, switch on the left, kind and model as labels, a status line that follows the core's `agent.started / finished / failed` events live ("Running… 12 s", "Ran on the last reply · 4.1 s", "Failed: …"), ▶ run and ✎ edit, the off ones folded. The full inspector "Agents" tab (draft 2) stays a future Settings option.
+- **Why it did this**: every run keeps the model's `reasoning`, the `prompt` it was sent and its `raw` answer (AgentRun). Details shows them in tabs; **Compare** runs the same agent on the same input with other connections and changes nothing (`TurnPipeline.compareAgent` → `AgentRunner.dryRun`: no state, notes, revisions, records or events).
+- **Rewrite comparison**: the "polished" mark opens a word-by-word diff (Myers over words, `apps/desktop/src/diff.ts`): changes, side by side, original, rewritten; click a change to put the original words back there; Undo all. The result is saved as a user revision.
+- **How it shows** (`AgentConfig.display`): notes (label / open card / view / only in the panel), choices (buttons / numbered list / above the message box / only in the panel), checks (mark / line under the reply / silent), rewrites (mark / silent).
+- **What it reads**, explicit: recent messages, **the cast** (chat cards + the story's narrator + NPC sheets — before, agents in a story saw neither), **persona**, **lorebook entries active now** (from the latest reply's prompt record; the option existed but was ignored), Scene values, **scenario**, other agents' results.
+- "Adds rules to the prompt" is now **"Adds to the prompt"**, without a "When" (it always goes before the reply); the editor says how it differs from a preset block or the Author's Note.
+- The window no longer scrolls as a whole (`overflow: clip` on the root).
+Signed: **CLAUDE**.
+
+## D-049 — A story's own lorebook version; agents that propose and agents that draw (2026-10-30)
+
+Daniel: the v1 Lorebook Keeper "kept changing my lorebook… I lost the original. Let it evolve in that story, as that story's version, and keep the original for other stories."
+- **`Story.lorePatches`**: per book, only the differences (whole changed/new entries, removed ids, who changed each and at which message). `applyLorePatch` gives the story's version; every prompt in the story's chats reads it (`scanLore`). The Library's book is never written by a story. Same idea as the chat's preset patches (D-042).
+- **Lorebook editor**: "Showing: Original / <story>'s version"; edits in a version save only differences (`patchFrom`; an entry changed back follows the original again; entries compared regardless of key order). Entries carry "new / edited / off here" tags with who changed them. **Save as a new lorebook**, **Apply to the original…** (pick which), **Back to the original**.
+- **Proposals** (`output: "proposal"`, `proposal.target: "lorebook"`): the agent answers new entries (an entry with an existing title updates it); they go straight into the story's version (Daniel was asked; the recommended default, since the original is never touched), with a quiet line under the reply: "<agent> added “…” to this story's lorebook · See". A story without a lorebook gets its own "<story> lore" book. Outside a story the run fails with that reason.
+- **Views** (`display.note = "view"`, `display.view`: feed / phone / sheet / cards): the agent answers a fixed JSON shape (the app tells it which) and the app draws it with its own parts, in the theme — never HTML or code from the agent. Plain text shows when the JSON is not there.
+- Starter examples: **Lorebook Keeper** (every 4 messages) and **Class Group Chat** (a feed view), both off.
+- Not yet: card evolution in a story's character version, branch-only lore entries, user-defined view templates.
+Signed: **CLAUDE**.

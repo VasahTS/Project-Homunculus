@@ -6,7 +6,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
-## Agents (slice 5) — CLAUDE, 10/30/2026 · ✅ draft v2 approved, in the app (D-047)
+## Agents (slice 5) — CLAUDE, 10/30/2026 · ✅ draft v2 in the app (D-047); draft 3 approved ("do everything") and in the app (D-048, D-049)
 
 **What it is for:** the agents Daniel "can't live without" from v1 (In-Chat Agents), on the engine Homunculus 2 already has. The core
 runner already runs every output kind (inject, intercept, rewrite, check, choices, note, state, speaker), with conditions, order,

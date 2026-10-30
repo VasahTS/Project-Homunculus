@@ -4,6 +4,15 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Agents, round 2 (2026-10-30) — CLAUDE — D-048 / D-049
+
+- **✦ panel** like v1: trackers + agents, live "Running… N s", ▶ run, ✎ edit, **Details · why it did this** (reasoning, what it read, raw answer, result, **Compare** on other models without changing anything).
+- **Rewrite comparison**: click "polished" → word-by-word diff, side by side, click a change to keep the original there, Undo all.
+- **How it shows** per agent (notes, choices, checks, rewrites) and an explicit **What it reads** (cast incl. narrator + NPCs, persona, active lore, scenario…).
+- **Lorebook per story**: Library → Lorebooks → a book → "Showing: <story>'s version". The story keeps only its differences; the original never changes; Save as new / Apply to the original… / Back to the original. The **Lorebook Keeper** starter writes there.
+- **Views**: an agent can show a feed, phone messages, a stat sheet or cards (starter "Class Group Chat").
+- Tests: 126/126 click tests, 227 unit tests.
+
 ## Agents on screen (2026-10-30) — CLAUDE — D-047
 
 - **Library → Agents** (under "Around each reply", beside Trackers): Table or List view, filters by kind, search; the editor saves by itself. Eight small starter agents, one per kind, all off.
