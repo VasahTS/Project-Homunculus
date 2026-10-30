@@ -9,6 +9,9 @@
 /* ───────────── base */
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
+/* the window never scrolls as a whole: only its panels do (Daniel 10/30: "it lets you scroll out of the UI"). `clip`, not
+   `hidden`, so scrollIntoView and focus can't shift the whole app either. */
+html, body, #root { overflow: clip; }
 body { margin: 0; background: var(--window); color: var(--label); font-family: var(--font-ui); font-size: var(--size-ui); line-height: 1.45; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
 input, select, textarea { background: var(--field); border: 1px solid var(--separator); border-radius: var(--radius-control); padding: 5px 8px; min-width: 0; }
