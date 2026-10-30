@@ -16,7 +16,7 @@ export interface AgentKind {
   when: AgentWhen;
 }
 export const AGENT_KINDS: AgentKind[] = [
-  { output: "inject", label: "Adds rules to the prompt", short: "Adds rules", color: "var(--place-character)", when: "before" },
+  { output: "inject", label: "Adds to the prompt", short: "Adds to prompt", color: "var(--place-character)", when: "before" },
   { output: "rewrite", label: "Rewrites the reply", short: "Rewrites", color: "var(--place-examples)", when: "after" },
   { output: "check", label: "Checks the reply", short: "Checks", color: "var(--warn)", when: "after" },
   { output: "choices", label: "Offers choices", short: "Choices", color: "var(--place-chat)", when: "after" },
@@ -57,7 +57,7 @@ export function blankAgent(output: AgentOutputKind = "inject"): AgentConfigInput
   return {
     id: `agent-${crypto.randomUUID()}`, name: "", help: "", triggers: triggersFor(kind.when, 10), output,
     runMode: output === "inject" ? "text" : "separate", prompt: "",
-    input: { messages: output === "inject" ? 0 : 4, lorebooks: false, cards: output !== "inject", state: false, readsAgents: [] },
+    input: { messages: output === "inject" ? 0 : 4, lorebooks: false, cards: output !== "inject", state: false, readsAgents: [], persona: false, scenario: false },
     ...(output === "inject" ? { injection: { position: "depth" as const, depth: 1, role: "system" as const } } : {}),
     ...(output === "check" ? { check: { onFail: "warn" as const, maxRetries: 1 } } : {}),
     ...(output === "note" ? { display: { note: "message" as const } } : {}),

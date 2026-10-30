@@ -78,7 +78,7 @@ test("a rewrite leaves a quiet mark beside the name, with Undo", async ({ page }
   await expect(mark).toBeVisible({ timeout: 15_000 });
   await expect(reply.locator(".text")).toContainText("Offline test AI");
   await mark.click();
-  await page.getByRole("dialog", { name: /Rewritten by Prose Polisher/ }).getByRole("button", { name: "Undo" }).click();
+  await page.getByTestId("diff-sheet").getByRole("button", { name: "Undo all" }).click();
   await expect(reply.locator(".text")).toContainText("You said: Hello again.");
   await expect(reply.getByTestId("mark-rewrite")).toHaveCount(0);
 });
@@ -129,4 +129,38 @@ test("a story switches an agent on for its chats", async ({ page }) => {
   await page.getByTestId("play-story").click();
   await page.getByTestId("new-chat-sheet").getByTestId("start-chat").click();
   await expect(page.getByTestId("agents-menu-button")).toHaveAccessibleName("Agents: 1 on in this chat");
+});
+
+test("a rewrite opens a word-by-word comparison; putting one change back saves that mix", async ({ page }) => {
+  await page.goto("/");
+  await turnOn(page, "Prose Polisher");
+  await send(page, "Hello again.");
+  const reply = page.getByTestId("message").last();
+  await reply.getByTestId("mark-rewrite").click();
+  const sheet = page.getByTestId("diff-sheet");
+  await expect(sheet.locator(".df-del").first()).toBeVisible();
+  await expect(sheet.locator(".df-ins").first()).toContainText("Offline test AI");
+  await sheet.getByRole("tab", { name: "Side by side" }).click();
+  await expect(sheet.getByRole("heading", { name: "Original" })).toBeVisible();
+  await sheet.getByRole("tab", { name: "Changes" }).click();
+  await sheet.getByRole("button", { name: "Put the original words back" }).first().click();
+  await expect(sheet.getByRole("button", { name: "Use the rewritten words" })).toHaveCount(1);
+  await sheet.getByRole("button", { name: /^Save 1 put back/ }).click();
+  await expect(sheet).toHaveCount(0);
+  // a mix: part of the original is back, the rest stays rewritten
+  await expect(reply.locator(".text")).not.toHaveText("(Offline test AI: no real answer.)");
+  await expect(reply.getByTestId("mark-rewrite")).toHaveCount(0);
+});
+
+test("choices can show as a numbered list or above the message box", async ({ page }) => {
+  await page.goto("/");
+  await openLibrary(page, "Agents");
+  await page.getByTestId("agent-table").getByTestId("agent-row").filter({ hasText: "CYOA Choices" }).click();
+  await page.getByRole("radio", { name: "Above the message box" }).click();
+  await expect(page.getByTestId("agent-save-state")).toHaveText("✓ Saved");
+  await openSession(page);
+  await turnOn(page, "CYOA Choices");
+  await send(page, "Now what?");
+  await expect(page.getByTestId("composer-choices").getByRole("button")).toHaveCount(2, { timeout: 15_000 });
+  await expect(page.getByTestId("message").last().getByTestId("choices")).toHaveCount(0);
 });

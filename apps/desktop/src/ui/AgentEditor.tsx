@@ -9,8 +9,10 @@ import { Collapse, Icon, Segmented } from "./kit.tsx";
 const SAVE_MS = 600;
 const GEN_TYPES = [{ value: "normal", label: "New replies" }, { value: "swipe", label: "New versions" }, { value: "continue", label: "Continue" }] as const;
 
-export function AgentEditor({ agent, onSave, onDelete, onClose }: {
+export function AgentEditor({ agent, agents = [], onSave, onDelete, onClose }: {
   agent: AgentConfig;
+  /** All agents, to pick the ones whose results this one reads. */
+  agents?: AgentConfig[];
   onSave: (a: AgentConfigInput) => Promise<AgentConfig>;
   onDelete: (id: string) => Promise<void>;
   onClose?: () => void;
@@ -47,7 +49,10 @@ export function AgentEditor({ agent, onSave, onDelete, onClose }: {
     d.conditions.keywords.length ? `${d.conditions.keywords.length} keyword${d.conditions.keywords.length === 1 ? "" : "s"}` : "",
     d.conditions.minMessages ? `after ${d.conditions.minMessages} messages` : ""].filter(Boolean).join(" · ");
   const readsSum = out === "inject" && d.runMode === "text" ? "nothing (sent as written)"
-    : [`last ${d.input.messages} messages`, d.input.cards ? "cards" : "", d.input.state !== false ? "Scene values" : "", d.input.lorebooks ? "lorebooks" : ""].filter(Boolean).join(" · ");
+    : [`last ${d.input.messages} messages`, d.input.cards ? "the cast" : "", d.input.persona ? "your persona" : "", d.input.lorebooks ? "active lore" : "",
+      d.input.state !== false ? "Scene values" : "", d.input.scenario ? "scenario" : "", d.input.readsAgents.length ? `${d.input.readsAgents.length} agent result${d.input.readsAgents.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
+  const inp = (patch: Partial<AgentConfig["input"]>) => set({ input: { ...d.input, ...patch } });
+  const disp = (patch: NonNullable<AgentConfig["display"]>) => set({ display: { ...d.display, ...patch } });
 
   return (
     <div className="editor agent-editor" aria-label="Agent editor" data-testid="agent-editor">
@@ -75,13 +80,14 @@ export function AgentEditor({ agent, onSave, onDelete, onClose }: {
           </div>
         </div>
 
-        <div className="ag-field row-line wrap">
+        {out !== "inject" && <div className="ag-field row-line wrap">
           <span className="ag-label">When</span>
           <select aria-label="When it runs" value={when.when} onChange={(e) => set({ triggers: triggersFor(e.target.value as AgentWhen, when.n) })}>
             {(Object.keys(WHEN_LABELS) as AgentWhen[]).map((w) => <option key={w} value={w}>{WHEN_LABELS[w]}</option>)}
           </select>
           {when.when === "everyN" && <NumberBox label="Every how many messages" value={when.n} min={1} max={500} onCommit={(n) => set({ triggers: triggersFor("everyN", n) })} />}
-        </div>
+        </div>}
+        {out === "inject" && <p className="hint">Its text goes into the prompt before each reply, like a preset block or the Author's Note — but you switch it per story or chat, it can have a chance, trigger words or a random pick, and an AI can write it from the latest messages.</p>}
 
         {out === "inject" && (
           <div className="ag-field">
@@ -93,10 +99,33 @@ export function AgentEditor({ agent, onSave, onDelete, onClose }: {
         )}
         {out === "note" && (
           <div className="ag-field">
-            <span className="ag-label">Show its note</span>
-            <Segmented small label="Show its note" value={d.display?.note ?? "message"}
-              options={[{ value: "message", label: "Under the message" }, { value: "menu", label: "In the agents menu" }]}
-              onChange={(v) => set({ display: { note: v } })} />
+            <span className="ag-label">How it shows</span>
+            <Segmented small label="How the note shows" value={d.display?.note ?? "message"}
+              options={[{ value: "message", label: "Label under the reply" }, { value: "card", label: "Open card under the reply" }, { value: "menu", label: "Only in the ✦ panel" }]}
+              onChange={(v) => disp({ note: v })} />
+          </div>
+        )}
+        {out === "choices" && (
+          <div className="ag-field">
+            <span className="ag-label">How it shows</span>
+            <Segmented small label="How the choices show" value={d.display?.choices ?? "buttons"}
+              options={[{ value: "buttons", label: "Buttons under the reply" }, { value: "list", label: "Numbered list" }, { value: "composer", label: "Above the message box" }, { value: "menu", label: "Only in the ✦ panel" }]}
+              onChange={(v) => disp({ choices: v })} />
+          </div>
+        )}
+        {out === "rewrite" && (
+          <div className="ag-field">
+            <span className="ag-label">How it shows</span>
+            <Segmented small label="How the rewrite shows" value={d.display?.rewrite ?? "mark"}
+              options={[{ value: "mark", label: "A mark beside the name" }, { value: "silent", label: "Nothing in the chat" }]} onChange={(v) => disp({ rewrite: v })} />
+          </div>
+        )}
+        {out === "check" && (
+          <div className="ag-field">
+            <span className="ag-label">How it shows</span>
+            <Segmented small label="How a failed check shows" value={d.display?.check ?? "mark"}
+              options={[{ value: "mark", label: "A mark beside the name" }, { value: "line", label: "A line under the reply" }, { value: "silent", label: "Only in the ✦ panel" }]}
+              onChange={(v) => disp({ check: v })} />
           </div>
         )}
         {out === "check" && (
@@ -136,10 +165,22 @@ export function AgentEditor({ agent, onSave, onDelete, onClose }: {
 
         {!(out === "inject" && d.runMode === "text") && (
           <Card id="reads" title="What it reads" sub={readsSum} open={!!open.reads} onToggle={toggle}>
-            <div className="row-line wrap"><span>The last</span>
-              <NumberBox label="Messages it reads" value={d.input.messages} min={0} max={100} onCommit={(n) => set({ input: { ...d.input, messages: n } })} /><span>messages</span></div>
-            <label className="check"><input type="checkbox" checked={d.input.cards} onChange={(e) => set({ input: { ...d.input, cards: e.target.checked } })} />The characters' cards</label>
-            <label className="check"><input type="checkbox" checked={d.input.state !== false} onChange={(e) => set({ input: { ...d.input, state: e.target.checked } })} />The Scene values (trackers)</label>
+            <div className="ag-reads">
+              <div className="ag-read"><span><b>Recent messages</b><small>The latest messages of this branch, oldest first (0 = none)</small></span>
+                <NumberBox label="Messages it reads" value={d.input.messages} min={0} max={100} onCommit={(n) => inp({ messages: n })} /></div>
+              <Read on={d.input.cards} onChange={(v) => inp({ cards: v })} title="The cast" text="Cards of the characters in the chat, the story's narrator and the NPCs (description, personality, their sheets)" />
+              <Read on={d.input.persona} onChange={(v) => inp({ persona: v })} title="Your persona" text="Who you play, as the AI sees it" />
+              <Read on={d.input.lorebooks} onChange={(v) => inp({ lorebooks: v })} title="Lorebook entries active now" text="The entries that went into the latest reply's prompt" />
+              <Read on={d.input.state !== false} onChange={(v) => inp({ state: v })} title="Scene values" text="What the trackers hold right now" />
+              <Read on={d.input.scenario} onChange={(v) => inp({ scenario: v })} title="The scenario" text="The chat's scenario, else the story's" />
+              <div className="ag-read"><span><b>Other agents' results</b><small>They run first and this one reads what they answered (e.g. Continuity → a director)</small></span>
+                <select aria-label="Add an agent it reads" value="" onChange={(e) => { if (e.target.value) inp({ readsAgents: [...d.input.readsAgents, e.target.value] }); }}>
+                  <option value="">+ Add…</option>
+                  {agents.filter((x) => x.id !== d.id && !d.input.readsAgents.includes(x.id) && x.output !== "inject").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select></div>
+              {d.input.readsAgents.length > 0 && <div className="row-line wrap">{d.input.readsAgents.map((id) => (
+                <span key={id} className="tag">{agents.find((x) => x.id === id)?.name ?? id} <button type="button" className="link quiet" aria-label="Stop reading it" onClick={() => inp({ readsAgents: d.input.readsAgents.filter((x) => x !== id) })}>×</button></span>))}</div>}
+            </div>
           </Card>
         )}
 
@@ -209,4 +250,13 @@ function NumberBox({ label, value, min, max, onCommit }: { label: string; value:
   };
   return <input type="number" className="num" aria-label={label} min={min} max={max} value={text} onChange={(e) => setText(e.target.value)}
     onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setText(String(value)); }} />;
+}
+
+function Read({ on, onChange, title, text }: { on: boolean; onChange: (v: boolean) => void; title: string; text: string }) {
+  return (
+    <label className="ag-read check-row">
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
+      <span><b>{title}</b><small>{text}</small></span>
+    </label>
+  );
 }

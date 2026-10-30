@@ -9,8 +9,8 @@
 // 2026-10-29 (Daniel: "things stop generating when we leave the chat"): the turn lives in `turns.ts`, outside this
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
 import { useCallback, useEffect, useRef, useState, Fragment } from "react";
-import type { AgentConfig, Avatar, Character, Lorebook, Message, MessageRevision, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
-import { AgentMarks, Choices, NoteChips, useAgentResults } from "./AgentResults.tsx";
+import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
+import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
@@ -436,8 +436,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   // (+ the message before the latest reply: "before the reply" agents record their runs there)
   const latestParentId = lastAi?.parentId ?? null;
   const agentResults = useAgentResults(svc, [...visible.filter((m) => m.speaker.kind !== "user").slice(-30).map((m) => m.id), ...(latestParentId ? [latestParentId] : [])], sceneKey);
-  const undoRewrite = async (m: Message, rev: MessageRevision) => {
-    await svc.chat.editMessage(m.id, rev.before);
+  /** Undo all / the mix chosen in the rewrite comparison: the message gets that text (the old one is kept as a revision). */
+  const saveText = async (m: Message, text: string) => {
+    if (text === m.content) return;
+    await svc.chat.editMessage(m.id, text);
     scrollTarget.current = { id: m.id, block: "nearest" };
     await showBranch(headId ?? null);
     setSceneKey((k) => k + 1);
@@ -495,7 +497,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               <AgentsPanel svc={svc} agents={agents} trackers={trackers} session={session} storySetup={storySetup}
                 latest={lastAi ? agentResults.get(lastAi.id) : undefined} latestBefore={latestParentId ? agentResults.get(latestParentId) : undefined} latestId={(lastAi ?? last)?.id ?? null} busy={busy} connection={connection}
                 onToggle={(id, on, tracker) => tracker ? onToggleTracker(id, on) : onToggleAgent(id, on)} onRun={runAgentByHand} onOpen={onOpenAgent}
-                onEditTracker={onEditTracker} onChanged={() => setSceneKey((k) => k + 1)} />
+                onEditTracker={onEditTracker} onChanged={() => setSceneKey((k) => k + 1)} onPick={busy ? undefined : sendText} />
             )}
             {onOpenStory && <Button onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
             {/* an icon (29/10): the words took the room of the title, branch and "with …" in narrow windows */}
@@ -526,8 +528,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                 <li className={`msg ${m.speaker.kind}${hidden ? " hidden-ai" : ""}${isLast ? " last" : ""}`} data-testid="message" data-region="message" data-mid={m.id}>
                   <div className="msg-body">
                   <div className="who">{speakerName(m)}
-                    {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} canWriteAgain={isLastAi && m.parentId !== null && !busy}
-                      onUndo={(rev) => void undoRewrite(m, rev)} onWriteAgain={() => regenerate(m)} />}
+                    {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} current={m.content} canWriteAgain={isLastAi && m.parentId !== null && !busy}
+                      onSaveText={(t) => void saveText(m, t)} onWriteAgain={() => regenerate(m)} />}
                     {m.meta.incomplete === true && <span className="warn"> · incomplete</span>}
                     {hidden && <span className="hidden-tag" data-testid="hidden-tag"> · hidden from the AI</span>}
                   </div>
@@ -551,6 +553,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                   ) : (
                     <div className={user ? "text" : "text prose"}>{show(m.content, m)}</div>
                   )}
+                  {!user && !isEditing && <CheckLines results={agentResults.get(m.id)} agents={agents} canWriteAgain={isLastAi && m.parentId !== null && !busy} onWriteAgain={() => regenerate(m)} />}
                   {!user && !isEditing && <NoteChips results={agentResults.get(m.id)} agents={agents} />}
                   {isLastAi && !busy && !pending && !isEditing && (
                     <Choices results={agentResults.get(m.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} />
@@ -638,6 +641,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         {error && <div className="error-bar" role="alert">{error}</div>}
         {busy && !pending && <div className="turn-status" data-testid="turn-status">Reply saved. Trackers are updating…</div>}
 
+        {lastAi && !busy && !pending && <ComposerChoices results={agentResults.get(lastAi.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} />}
         <form className="composer" data-region="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
           <div className="composer-box">
             <QuickConnect svc={svc} c={connection} session={session} storySetup={storySetup} listModels={listModels}

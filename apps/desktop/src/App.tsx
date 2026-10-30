@@ -1043,7 +1043,7 @@ export function App() {
     content = (
       <AgentsPage lead={pageLead} agents={agents} stories={stories} sessions={sessions} selectedId={editing?.id ?? null}
         onSelect={(id) => openAgent(id)} onNew={() => void onNewAgent()}
-        detail={editing ? <AgentEditor key={editing.id} agent={editing} onSave={onSaveAgent} onDelete={onDeleteAgent} onClose={close} /> : null} />
+        detail={editing ? <AgentEditor key={editing.id} agent={editing} agents={agents} onSave={onSaveAgent} onDelete={onDeleteAgent} onClose={close} /> : null} />
     );
   } else if (view.kind === "vault") {
     const q = vaultQuery.trim().toLowerCase();

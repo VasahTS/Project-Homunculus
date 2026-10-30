@@ -42,7 +42,7 @@ function useTick(active: boolean) {
 const secs = (ms: number | undefined) => (ms === undefined ? "" : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`);
 const shortModel = (m: string | undefined) => (m ? m.replace(/^.*\//, "").replace(/:thinking$/, "") : "");
 
-export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest, latestBefore, latestId, busy, connection, onToggle, onRun, onOpen, onEditTracker, onChanged }: {
+export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest, latestBefore, latestId, busy, connection, onToggle, onRun, onOpen, onEditTracker, onChanged, onPick }: {
   svc: AppServices; agents: AgentConfig[]; trackers: Tracker[]; session: Session; storySetup?: SetupLayer | undefined;
   /** What agents did on the latest reply (and its id). */
   latest: MessageAgentResults | undefined; latestId: string | null;
@@ -57,6 +57,8 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
   onEditTracker: (id: string) => void;
   /** Something finished: reload what is shown in the chat. */
   onChanged: () => void;
+  /** Sends a choice (choices agents that show "only in the panel"); undefined while a reply is being written. */
+  onPick?: ((text: string) => void) | undefined;
 }) {
   const live = useLiveRuns(svc, onChanged);
   const anyLive = Object.values(live).some(Boolean);
@@ -118,6 +120,10 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
         {isOpen && (
           <div className="agp-detail">
             {n && <div className="agm-note">{n.content}</div>}
+            {r?.status === "ok" && i.agent?.output === "choices" && Array.isArray(r.output) && (
+              <div className="choices-set" role="group" aria-label={i.name}>{(r.output as string[]).map((c, k) => (
+                <button key={k} type="button" className="choice" disabled={!onPick} onClick={() => { m.setOpen(false); onPick?.(c); }}>{c}</button>))}</div>
+            )}
             {r?.status === "failed" && <p className="error-text">{r.error}</p>}
             {!r && <p className="hint">Nothing on the latest reply yet.</p>}
             <span className="agp-links">
