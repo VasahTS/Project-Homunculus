@@ -6,12 +6,10 @@
 //  - NoteChips: notes shown "under the message", closed until clicked.
 //  - Choices: buttons under the latest reply; a click sends it, right-click puts it in the message box.
 import { useEffect, useState, type ReactNode } from "react";
-import type { AgentConfig, AgentNote, AgentRun, MessageRevision, SetupLayer, Session } from "@homunculus/schemas";
+import type { AgentConfig, AgentNote, AgentRun, MessageRevision } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
-import { kindOf, whenOf } from "../agents.ts";
-import { layerHasTracker } from "../trackers.ts";
 import { useFloatingMenu } from "./FloatingMenu.ts";
-import { Icon, Switch } from "./kit.tsx";
+
 
 export interface MessageAgentResults {
   /** The latest run of each agent on this message. */
@@ -144,89 +142,5 @@ export function Choices({ results, agents, onPick, onEdit }: {
         </div>
       ))}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------- the ✦ button in the chat's toolbar
-
-export function AgentsMenu({ agents, session, storySetup, latest, busy, onToggle, onRun, onOpen }: {
-  agents: AgentConfig[]; session: Session; storySetup?: SetupLayer | undefined;
-  /** What agents did on the latest reply. */
-  latest: MessageAgentResults | undefined;
-  busy: boolean;
-  onToggle: (id: string, on: boolean) => void;
-  /** Runs an agent by hand on the latest message. */
-  onRun: (id: string) => Promise<void>;
-  /** Opens the agent in Library → Agents (null = the list). */
-  onOpen: (id: string | null) => void;
-}) {
-  const isOn = (id: string) => layerHasTracker(session.setup, id, storySetup ? layerHasTracker(storySetup, id) : false);
-  const on = agents.filter((a) => isOn(a.id));
-  const off = agents.filter((a) => !isOn(a.id));
-  const runOf = (id: string) => latest?.runs.find((r) => r.agentId === id);
-  const anyFailed = on.some((a) => runOf(a.id)?.status === "failed");
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [more, setMore] = useState(false);
-  const [running, setRunning] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const m = useFloatingMenu(Math.min(440, 120 + (on.length + (more ? off.length : 0)) * 40), 320, "button");
-  const run = async (id: string) => {
-    setRunning(id); setError("");
-    try { await onRun(id); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setRunning(null); }
-  };
-  const status = (a: AgentConfig) => {
-    if (running === a.id) return <span className="st run">running</span>;
-    const r = runOf(a.id);
-    if (!r) return <span className="st">{busy && whenOf(a).when === "after" ? "waiting" : "—"}</span>;
-    if (r.status === "failed") return <span className="st bad" title={r.error}>failed</span>;
-    return <span className="st ok">ran</span>;
-  };
-  const row = (a: AgentConfig, isOnHere: boolean) => {
-    const manual = whenOf(a).when === "manual";
-    const inMenu = a.output === "note" && a.display?.note === "menu";
-    const open = expanded === a.id;
-    const note = inMenu ? latestNote(latest, a.id) : undefined;
-    return (
-      <div key={a.id} className={`agm-item${open ? " open" : ""}`} data-testid="agents-menu-item">
-        <div className="agm-row">
-          <button type="button" className="agm-name" aria-expanded={open} onClick={() => setExpanded(open ? null : a.id)}>
-            <b>{a.name}</b><small>{kindOf(a)?.short}{inMenu ? " · shows here" : ""}</small>
-          </button>
-          {isOnHere && (manual ? <button type="button" className="btn btn-bordered btn-small" disabled={busy || running !== null} onClick={() => void run(a.id)}>Run</button> : status(a))}
-          <Switch label={`${a.name} in this chat`} checked={isOnHere} onChange={(v) => onToggle(a.id, v)} />
-        </div>
-        {open && (
-          <div className="agm-more">
-            {note && <div className="agm-note">{note.content}</div>}
-            {inMenu && !note && <p className="hint">No note on the latest reply yet.</p>}
-            {runOf(a.id)?.status === "failed" && <p className="error-text">{runOf(a.id)!.error}</p>}
-            <div className="agm-acts">
-              {isOnHere && !manual && <button type="button" className="link quiet" disabled={busy || running !== null} onClick={() => void run(a.id)}>Run again</button>}
-              <button type="button" className="link quiet" onClick={() => { m.setOpen(false); onOpen(a.id); }}>Edit in Library</button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-  return (
-    <span className="agm" ref={m.box} onKeyDown={m.onKeyDown} onBlur={m.onBlur}>
-      <button type="button" className={`agm-btn${on.length ? " has" : ""}`} aria-haspopup="dialog" aria-expanded={m.open} data-testid="agents-menu-button"
-        aria-label={`Agents: ${on.length} on in this chat`} title="Agents in this chat" onClick={() => m.setOpen((v) => !v)}>
-        <Icon name="sparkle" size={14} />{on.length > 0 && <span className="agm-count">{on.length}</span>}{anyFailed && <span className="agm-alert" aria-label="an agent failed" />}
-      </button>
-      {m.open && m.pos && (
-        <div className="agm-pop" role="dialog" aria-label="Agents in this chat" style={{ top: m.pos.top, left: m.pos.left }} data-testid="agents-menu">
-          <div className="agm-head"><span>Agents in this chat</span><button type="button" className="link quiet" onClick={() => { m.setOpen(false); onOpen(null); }}>Manage</button></div>
-          {on.length === 0 && <p className="hint agm-empty">None on yet.</p>}
-          {on.map((a) => row(a, true))}
-          {off.length > 0 && (more
-            ? <><div className="agm-sep">Off in this chat</div>{off.map((a) => row(a, false))}</>
-            : <button type="button" className="link quiet agm-add" onClick={() => setMore(true)}>+ Turn on another agent…</button>)}
-          {agents.length === 0 && <p className="hint agm-empty">No agents yet. <button type="button" className="link" onClick={() => { m.setOpen(false); onOpen(null); }}>Make one</button></p>}
-          {error && <p className="error-text" role="alert">{error}</p>}
-        </div>
-      )}
-    </span>
   );
 }

@@ -10,7 +10,8 @@
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
 import { useCallback, useEffect, useRef, useState, Fragment } from "react";
 import type { AgentConfig, Avatar, Character, Lorebook, Message, MessageRevision, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
-import { AgentMarks, AgentsMenu, Choices, NoteChips, useAgentResults } from "./AgentResults.tsx";
+import { AgentMarks, Choices, NoteChips, useAgentResults } from "./AgentResults.tsx";
+import { AgentsPanel } from "./AgentsPanel.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
 import { applyBasicMacros, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona } from "@homunculus/core";
@@ -432,7 +433,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
 
   const lastAi = [...visible].reverse().find((m) => m.speaker.kind !== "user");
   // what agents did on the replies on screen (the latest 30), reloaded when a turn ends or something changes
-  const agentResults = useAgentResults(svc, visible.filter((m) => m.speaker.kind !== "user").slice(-30).map((m) => m.id), sceneKey);
+  // (+ the message before the latest reply: "before the reply" agents record their runs there)
+  const latestParentId = lastAi?.parentId ?? null;
+  const agentResults = useAgentResults(svc, [...visible.filter((m) => m.speaker.kind !== "user").slice(-30).map((m) => m.id), ...(latestParentId ? [latestParentId] : [])], sceneKey);
   const undoRewrite = async (m: Message, rev: MessageRevision) => {
     await svc.chat.editMessage(m.id, rev.before);
     scrollTarget.current = { id: m.id, block: "nearest" };
@@ -489,8 +492,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           </>}
           trailing={<>
             {onToggleAgent && onOpenAgent && (
-              <AgentsMenu agents={agents} session={session} storySetup={storySetup} latest={lastAi ? agentResults.get(lastAi.id) : undefined} busy={busy}
-                onToggle={onToggleAgent} onRun={runAgentByHand} onOpen={onOpenAgent} />
+              <AgentsPanel svc={svc} agents={agents} trackers={trackers} session={session} storySetup={storySetup}
+                latest={lastAi ? agentResults.get(lastAi.id) : undefined} latestBefore={latestParentId ? agentResults.get(latestParentId) : undefined} latestId={(lastAi ?? last)?.id ?? null} busy={busy} connection={connection}
+                onToggle={(id, on, tracker) => tracker ? onToggleTracker(id, on) : onToggleAgent(id, on)} onRun={runAgentByHand} onOpen={onOpenAgent}
+                onEditTracker={onEditTracker} onChanged={() => setSceneKey((k) => k + 1)} />
             )}
             {onOpenStory && <Button onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
             {/* an icon (29/10): the words took the room of the title, branch and "with …" in narrow windows */}

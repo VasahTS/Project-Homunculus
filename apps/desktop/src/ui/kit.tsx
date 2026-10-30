@@ -102,6 +102,7 @@ export const ICONS = {
   chevron: "M9 6l6 6-6 6",
   close: "M6 6l12 12M18 6L6 18",
   import: "M12 3v12M7 10l5 5 5-5M5 21h14",
+  play: "M8 5.5v13l11-6.5z",
   send: "M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4",
   persona: "M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5M3 4h3M3 4v3M21 4h-3M21 4v3",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",

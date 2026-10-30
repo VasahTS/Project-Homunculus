@@ -6,10 +6,10 @@ import { openLibrary, openSession, openTab, send } from "./ui.ts";
 async function turnOn(page: Page, name: string) {
   const menu = page.getByTestId("agents-menu");
   if (!(await menu.isVisible())) await page.getByTestId("agents-menu-button").click();
-  const add = menu.getByRole("button", { name: "+ Turn on another agent…" });
-  if (await add.isVisible()) await add.click();
-  await menu.getByRole("switch", { name: `${name} in this chat` }).click();
-  await expect(menu.getByRole("switch", { name: `${name} in this chat` })).toHaveAttribute("aria-checked", "true");
+  const sw = menu.getByRole("switch", { name: `${name} in this chat` });
+  if (!(await sw.isVisible())) await menu.getByRole("button", { name: /^Off in this chat/ }).click();
+  await sw.click();
+  await expect(sw).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
 }
 
@@ -83,15 +83,36 @@ test("a rewrite leaves a quiet mark beside the name, with Undo", async ({ page }
   await expect(reply.getByTestId("mark-rewrite")).toHaveCount(0);
 });
 
-test("a manual agent runs from the ✦ menu and its note stays in the menu", async ({ page }) => {
+test("a manual agent runs from the ✦ panel, its note stays there, and Details shows what it read", async ({ page }) => {
   await page.goto("/");
   await turnOn(page, "Actor Interview");
   await page.getByTestId("agents-menu-button").click();
   const menu = page.getByTestId("agents-menu");
-  await menu.getByRole("button", { name: "Run" }).click();
-  await menu.getByRole("button", { name: /Actor Interview/ }).click();
-  await expect(menu).toContainText("Offline test AI", { timeout: 15_000 });
+  await expect(menu.getByText("Runs when you ask")).toBeVisible();
+  await menu.getByRole("button", { name: "Run Actor Interview" }).click();
+  await expect(menu.getByText(/Ran on the last reply/)).toBeVisible({ timeout: 15_000 });
+  await menu.getByRole("button", { name: /Actor Interview/ }).first().click();
+  await expect(menu).toContainText("Offline test AI");
   await expect(page.getByTestId("message").last().getByTestId("agent-notes")).toHaveCount(0);
+  await menu.getByRole("button", { name: "Details · why it did this" }).click();
+  const sheet = page.getByTestId("run-sheet");
+  await sheet.getByRole("tab", { name: "What it read" }).click();
+  await expect(sheet).toContainText("Step outside the story");
+  await sheet.getByRole("tab", { name: "Compare" }).click();
+  await sheet.getByRole("button", { name: "Compare" }).click();
+  await expect(sheet.getByTestId("run-compare")).toContainText("Its own connection", { timeout: 15_000 });
+});
+
+test("the panel lists trackers too and shows a tracker running live", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => { (globalThis as { __h2AgentDelayMs?: number }).__h2AgentDelayMs = 2500; });
+  await turnOn(page, "Scene: World");
+  await page.getByPlaceholder(/Write your message/).fill("Where are we?");
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.getByTestId("agents-menu-button").click();
+  const menu = page.getByTestId("agents-menu");
+  await expect(menu.getByText(/Running…/)).toBeVisible({ timeout: 15_000 });
+  await expect(menu.getByText(/Ran on the last reply/)).toBeVisible({ timeout: 20_000 });
 });
 
 test("a story switches an agent on for its chats", async ({ page }) => {
