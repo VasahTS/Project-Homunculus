@@ -1,6 +1,7 @@
 // Homunculus 2 — where the story happens: stories, sessions, cast, messages. Author: CLAUDE.
 // BLUEPRINT §2.2 and §2.3.
 import { z } from "zod";
+import { LoreEntry } from "./lorebooks.ts";
 import { Id, Json, UserRole } from "./common.ts";
 import { SetupLayer } from "./setup.ts";
 
@@ -54,6 +55,15 @@ export type NarratorRef = z.infer<typeof NarratorRef>;
 /** The narrator that comes with the app (installed once as editable Vault data). */
 export const SIMPLE_NARRATOR_ID = "simple-narrator";
 
+/** A story's changes to one lorebook (D-049): entries it added or changed (whole entries), entries it turned off, and
+ * who made each change (you, or an agent at a message). */
+export const LorePatch = z.object({
+  entries: z.record(z.string(), LoreEntry).default({}),
+  removed: z.array(Id).default([]),
+  meta: z.record(z.string(), z.object({ by: z.string(), messageId: Id.optional(), at: z.number().int() })).default({}),
+});
+export type LorePatch = z.infer<typeof LorePatch>;
+
 export const Story = z.object({
   id: Id,
   name: z.string().min(1).default("Untitled story"),
@@ -72,6 +82,9 @@ export const Story = z.object({
   userRole: UserRole.default("player"),
   /** The story layer of the setup (default → story → session). */
   setup: SetupLayer.default({}),
+  /** The story's own version of the lorebooks it changes (D-049): only the differences, keyed by book id. The book in
+   * the Library is never touched; other stories keep reading it as it is. */
+  lorePatches: z.record(z.string(), LorePatch).default({}),
   createdAt: z.number().int(),
 });
 export type Story = z.infer<typeof Story>;

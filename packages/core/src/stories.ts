@@ -123,6 +123,6 @@ export function castPart(a: { inStory: boolean; role: UserRole; npcs: Array<{ np
 export function storyFromCard(c: Character, id: string, now: number): Story {
   return {
     id, name: c.name, description: "", narrator: { kind: "card", characterId: c.id, variantId: null }, npcIds: [], cast: [],
-    scenario: c.scenario, openings: [...c.firstMessages], userRole: "player", setup: {}, createdAt: now,
+    scenario: c.scenario, openings: [...c.firstMessages], userRole: "player", setup: {}, lorePatches: {}, createdAt: now,
   };
 }

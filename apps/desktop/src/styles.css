@@ -1965,3 +1965,16 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .ag-read b { display: block; font-weight: 500; color: var(--label); }
 .ag-read small { display: block; color: var(--label-3); font-size: var(--size-small); }
 .ag-field .segmented { justify-self: start; max-width: 100%; }
+
+/* a story's version of a lorebook (D-049) */
+.lv-bar { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 8px 20px; border-bottom: 1px solid var(--separator); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.lv-sum { flex: 1; min-width: 200px; }
+.lv-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.lv-tag { flex: none; font-size: 10.5px; padding: 0 6px; border-radius: 6px; margin-left: 6px; white-space: nowrap; }
+.lv-tag.new { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.lv-tag.edited { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.lv-tag.removed { background: var(--danger-soft); color: var(--danger); }
+.lv-list { display: grid; gap: 4px; }
+.lv-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 8px; }
+.lv-item:hover { background: var(--fill); }
+.lv-item .grow { flex: 1; min-width: 0; }

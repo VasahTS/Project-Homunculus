@@ -23,3 +23,4 @@ export * from "./storage/migrations.ts";
 export * from "./storage/store.ts";
 export * from "./storage/sqljs-driver.ts";
 export * from "./chatExport.ts";
+export * from "./lore-versions.ts";

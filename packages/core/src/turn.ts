@@ -39,6 +39,7 @@ import { trackerPeople, trackerSummary } from "./trackers.ts";
 import type { SqlStore } from "./storage/store.ts";
 import { effectiveCharacter, effectivePersona } from "./variants.ts";
 import { castPart, narratorAsCharacter, SIMPLE_NARRATOR } from "./stories.ts";
+import { applyLorePatch } from "./lore-versions.ts";
 
 export interface TurnOptions {
   newId?: () => string;
@@ -477,7 +478,9 @@ export class TurnPipeline {
     let books = a.only ?? [];
     if (!a.only) {
       if (!picks.length) return undefined;
-      const found = new Map((await this.store.lorebooksForUse(picks.map((p) => p.id))).map((b) => [b.id, b]));
+      // a story reads its own version of each book (D-049)
+      const story = a.session.storyId ? await this.store.getStory(a.session.storyId) : undefined;
+      const found = new Map((await this.store.lorebooksForUse(picks.map((p) => p.id))).map((b) => [b.id, applyLorePatch(b, story?.lorePatches[b.id])]));
       books = picks.flatMap((p) => { const book = found.get(p.id); return book ? [{ book, scope: p.scope }] : []; });
     }
     if (!books.length) return undefined;

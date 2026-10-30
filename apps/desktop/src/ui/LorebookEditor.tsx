@@ -129,6 +129,12 @@ export interface LorebookEditorProps {
   onClose: () => void;
   loadHistory: (id: string) => Promise<HistoryEntry[]>;
   tryIt: (b: Lorebook, sessionId: string | null, text: string) => Promise<LoreTryResult>;
+  /** Original / a story's version (D-049), shown under the title bar. */
+  versionBar?: ReactNode;
+  /** Badges for entries a story's version changed. */
+  entryBadge?: (entryId: string) => ReactNode;
+  /** Editing a story's version: the book's name, history and Trash belong to the original. */
+  versionMode?: boolean;
 }
 
 export function LorebookEditor(p: LorebookEditorProps) {
@@ -241,7 +247,7 @@ export function LorebookEditor(p: LorebookEditorProps) {
     <div className="editor lore-editor" aria-label="Lorebook editor" onKeyDown={onKeys}>
       <div className="session-bar lore-bar">
         <div className="lore-head">
-          <input className="lore-name" aria-label="Lorebook name" value={d.name} placeholder="Name of the lorebook…" onChange={(e) => set({ name: e.target.value })} />
+          <input className="lore-name" aria-label="Lorebook name" value={d.name} placeholder="Name of the lorebook…" readOnly={p.versionMode} onChange={(e) => set({ name: e.target.value })} />
           <div className="lore-used" data-testid="lore-used">
             {usedBy.length ? <>Used by {usedBy.slice(0, 3).map((u) => <span key={u} className="tag">{u}</span>)}{usedBy.length > 3 && <span className="tag" title={usedBy.slice(3).join(", ")}>+{usedBy.length - 3} more</span>}</> : <><span className="hint">Not used yet.</span><Help text="Add it to Global Lorebooks (top of this page) to read it in every chat, link it to a character or persona (in their editor), or add it to one session (inspector → Prompt tab)." /></>}
           </div>
@@ -249,13 +255,14 @@ export function LorebookEditor(p: LorebookEditorProps) {
         </div>
         <span className="spacer" />
         <span className="hint lore-dirty" role="status" aria-live="polite">{status === "saving" || status === "waiting" ? "Saving…" : status === "saved" ? "Saved" : ""}</span>
-        {exists && <Button variant="plain" small onClick={() => setHistoryOpen((v) => !v)} aria-expanded={historyOpen}>History</Button>}
+        {exists && !p.versionMode && <Button variant="plain" small onClick={() => setHistoryOpen((v) => !v)} aria-expanded={historyOpen}>History</Button>}
         {exists && <Button variant="plain" small onClick={() => p.onExport(d)}>Export for SillyTavern</Button>}
         {exists && <Button small onClick={() => { void saveNow().then(() => p.onDuplicate(latest.current)); }}>Duplicate</Button>}
-        {exists && <ConfirmButton label="Move to Trash" confirmLabel="Click Again to Move" className="btn btn-plain btn-small danger-text"
+        {exists && !p.versionMode && <ConfirmButton label="Move to Trash" confirmLabel="Click Again to Move" className="btn btn-plain btn-small danger-text"
           onConfirm={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } void queue.current.then(() => { gone.current = true; return p.onTrash(d.id); }).catch((e) => setError(String(e instanceof Error ? e.message : e))); }} />}
         <Button small onClick={p.onClose}>Close</Button>
       </div>
+      {p.versionBar}
       {error && <p className="error-text lore-error" role="alert">{error}</p>}
       <Collapse open={historyOpen}>
         <div className="lore-history">
@@ -305,7 +312,7 @@ export function LorebookEditor(p: LorebookEditorProps) {
                   <Switch label={`${titleOf(e)} on`} checked={e.enabled} onChange={(v) => setEntry(e.id, { enabled: v })} />
                   <button type="button" className="lore-entry-open" aria-expanded={open === e.id} onClick={() => setOpen(open === e.id ? null : e.id)}
                     aria-label={`${titleOf(e)}: ${e.constant ? "always on" : e.keys.join(", ") || "no keywords"} · ${placeShort(e)}`}>
-                    <span className="lore-title">{titleOf(e)}</span>
+                    <span className="lore-title">{titleOf(e)}</span>{p.entryBadge?.(e.id)}
                     <span className="lore-keys">
                       {!e.constant && e.keys.length === 0 && <span className="lore-key warn">No keywords</span>}
                     </span>

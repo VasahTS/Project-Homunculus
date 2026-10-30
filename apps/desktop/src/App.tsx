@@ -4,7 +4,7 @@
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
-import { exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
+import { applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
 import { LorebookEditor } from "./ui/LorebookEditor.tsx";
 import { PresetEditor } from "./ui/PresetEditor.tsx";
@@ -30,6 +30,7 @@ import { CharactersPage, LorebooksPage, PersonasPage, PresetsPage, TrackersPage,
 import { AgentsPage } from "./ui/AgentsPage.tsx";
 import { AgentEditor } from "./ui/AgentEditor.tsx";
 import { blankAgent, deleteAgent, listAgents, saveAgent } from "./agents.ts";
+import { LoreChangeTag, LoreVersionBar } from "./ui/LoreVersions.tsx";
 import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
@@ -86,6 +87,8 @@ export function App() {
   const [avatars, setAvatars] = useState<Record<string, Avatar>>({});
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
+  /** The lorebook editor shows this story's version of the book (D-049); null = the original. */
+  const [loreVersion, setLoreVersion] = useState<{ bookId: string; storyId: string } | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [narrators, setNarrators] = useState<Narrator[]>([]);
   const [npcs, setNpcs] = useState<Npc[]>([]);
@@ -326,6 +329,37 @@ export function App() {
     setLorebooks((ls) => (ls.some((x) => x.id === saved.id) ? ls.map((x) => (x.id === saved.id ? saved : x)) : [...ls, saved]));
     const v = viewRef.current;
     if (v.kind === "lorebooks" && v.draft?.id === saved.id) setViewNow({ kind: "lorebooks", id: saved.id, justSaved: true });
+  };
+
+  // a story's version of a lorebook (D-049): only its differences are saved, on the story
+  const saveStoryLore = async (storyId: string, original: Lorebook, edited: Lorebook) => {
+    const st = await svc.store.getStory(storyId);
+    if (!st) return;
+    const patch = patchFrom(original, edited, st.lorePatches[original.id], "user", Date.now());
+    const empty = !Object.keys(patch.entries).length && !patch.removed.length;
+    const lorePatches = { ...st.lorePatches };
+    if (empty) delete lorePatches[original.id]; else lorePatches[original.id] = patch;
+    await svc.store.saveStory({ ...st, lorePatches });
+    await refreshVault(svc);
+  };
+  const resetStoryLore = async (storyId: string, bookId: string) => {
+    const st = await svc.store.getStory(storyId);
+    if (!st) return;
+    const lorePatches = { ...st.lorePatches };
+    delete lorePatches[bookId];
+    await svc.store.saveStory({ ...st, lorePatches });
+    await refreshVault(svc);
+  };
+  const applyStoryLore = async (storyId: string, original: Lorebook, ids: string[]) => {
+    const st = await svc.store.getStory(storyId);
+    const patch = st?.lorePatches[original.id];
+    if (!st || !patch) return;
+    const r = applyToOriginal(original, patch, new Set(ids));
+    await saveLorebook(r.book);
+    const lorePatches = { ...st.lorePatches };
+    if (!Object.keys(r.patch.entries).length && !r.patch.removed.length) delete lorePatches[original.id]; else lorePatches[original.id] = r.patch;
+    await svc.store.saveStory({ ...st, lorePatches });
+    await refreshVault(svc);
   };
 
   const trashLorebook = async (id: string) => {
@@ -1004,14 +1038,30 @@ export function App() {
         onNew={() => setView({ kind: "lorebooks", id: null, draft: Lorebook.parse({ id: crypto.randomUUID(), name: "New lorebook" }) })}
         onImport={(files) => void importLorebooks(files)}
         detail={editing ? (
-          <LorebookEditor key={editing.id} book={editing} isNew={!!view.draft} justSaved={view.justSaved ?? false}
+          (() => {
+            const vs = loreVersion?.bookId === editing.id ? stories.find((x) => x.id === loreVersion.storyId) : undefined;
+            const patch = vs?.lorePatches[editing.id];
+            const changes = vs ? loreChanges(editing, patch) : undefined;
+            const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? id;
+            const shown = vs ? applyLorePatch(editing, patch) : editing;
+            return (
+          <LorebookEditor key={`${editing.id}|${vs?.id ?? ""}`} book={shown} isNew={!!view.draft} justSaved={view.justSaved ?? false}
             {...(view.draft ? {} : { folder: folderPick("lorebook", editing.id) })}
             usedBy={usedByOf(editing.id)} trackers={trackers} sessions={sessions} preferredSessionId={activeId}
-            onSave={saveLorebook} onTrash={trashLorebook} onExport={(b) => void exportLorebook(b)}
+            onSave={vs ? (b) => saveStoryLore(vs.id, editing, b) : saveLorebook} onTrash={trashLorebook} onExport={(b) => void exportLorebook(b)}
             onDuplicate={(b) => { setViewNow({ kind: "lorebooks", id: null, draft: Lorebook.parse({ ...b, id: crypto.randomUUID(), name: `${b.name} (copy)`, source: { kind: "user" } }) }); }}
             onClose={() => setViewNow({ kind: "lorebooks", id: null })}
             loadHistory={(id) => svc.store.listHistory("lorebook", id)}
-            tryIt={(b, sid, text) => svc.chat.turns.tryLorebook(b, sid, { text })} />
+            tryIt={(b, sid, text) => svc.chat.turns.tryLorebook(b, sid, { text })}
+            versionMode={!!vs}
+            entryBadge={changes ? (id) => <LoreChangeTag change={changes.get(id)} by={patch?.meta[id] ? (patch.meta[id]!.by === "user" ? "you" : agentName(patch.meta[id]!.by)) : undefined} /> : undefined}
+            versionBar={view.draft ? undefined : <LoreVersionBar book={editing} stories={stories} storyId={vs?.id ?? null} agentName={agentName}
+              onPick={(sid) => setLoreVersion(sid ? { bookId: editing.id, storyId: sid } : null)}
+              onSaveAsNew={() => setViewNow({ kind: "lorebooks", id: null, draft: Lorebook.parse({ ...shown, id: crypto.randomUUID(), name: `${editing.name} (${vs?.name})`, source: { kind: "user" } }) })}
+              onApply={(ids) => { if (vs) void applyStoryLore(vs.id, editing, ids); }}
+              onReset={() => { if (vs) void resetStoryLore(vs.id, editing.id); }} />} />
+            );
+          })()
         ) : null} />
     );
   } else if (view.kind === "settings") {
