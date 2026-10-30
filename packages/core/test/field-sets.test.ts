@@ -52,6 +52,13 @@ describe("field-set JSON", () => {
     expect(parseFieldSetFile(serializeFieldSets(file.sets))).toEqual(file);
     expect(file.sets[0]!.fields[3]!.fields[1]!.type).toBe("number");
   });
+  it("the AI guide's complete example imports as written (D-046)", async () => {
+    const guide = await readFile(new URL("../../../docs/FIELD-SET-AI-GUIDE.md", import.meta.url), "utf8");
+    const blocks = [...guide.matchAll(/```json\r?\n([\s\S]*?)```/g)].map((m) => m[1]!).filter((b) => b.includes('"sets"') && !b.includes("…"));
+    expect(blocks).toHaveLength(1);
+    const file = parseFieldSetFile(blocks[0]!);
+    expect(file.sets[0]!.fields.map((f) => f.key)).toContain("presence");
+  });
   it("normalizes temporary keys exactly as saving, including the presence reference", () => {
     const set = sets()[0]!;
     set.fields[0]!.key = "~new"; set.presence!.field = "~new";

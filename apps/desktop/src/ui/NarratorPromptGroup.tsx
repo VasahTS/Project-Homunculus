@@ -2,7 +2,7 @@
 import type { NarratorPrompt, SetupLayer } from "@homunculus/schemas";
 import type { ResolvedNarratorPrompt } from "@homunculus/core";
 import { Group, Icon, Row } from "./kit.tsx";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function NarratorPromptGroup({ layer, above, onChange, level, disclosure = false }: {
   layer: SetupLayer; above: ResolvedNarratorPrompt; level: "chat" | "story";
@@ -32,9 +32,9 @@ export function NarratorPromptGroup({ layer, above, onChange, level, disclosure 
     </select></Row>
     {value.position !== "inChat" && <Row label="Also in chat"><label className="check"><input type="checkbox" aria-label="Also send narrator in chat" checked={value.alsoInChat} onChange={(e) => set({ alsoInChat: e.target.checked })} />Repeat in the chat prompt</label></Row>}
     {(value.position === "inChat" || value.alsoInChat) && <>
-      <Row label="Messages from the end"><input type="number" aria-label="Narrator depth" min={0} max={999} value={value.depth} onChange={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 0 && n <= 999) set({ depth: n }); }} /></Row>
+      <Row label="Messages from the end"><NumberInput label="Narrator depth" min={0} max={999} value={value.depth} onCommit={(n) => set({ depth: n })} /></Row>
       <Row label="Sent as"><select aria-label="Narrator role" value={value.role} onChange={(e) => set({ role: e.target.value as ResolvedNarratorPrompt["role"] })}><option value="system">System</option><option value="user">User</option><option value="assistant">AI</option></select></Row>
-      <Row label="Order at the same depth"><input type="number" aria-label="Narrator injection order" value={value.order} onChange={(e) => { const n = Number(e.target.value); if (Number.isSafeInteger(n)) set({ order: n }); }} /></Row>
+      <Row label="Order at the same depth"><NumberInput label="Narrator injection order" value={value.order} onCommit={(n) => set({ order: n })} /></Row>
     </>}
     {Object.keys(own).length > 0 && <Row wide><span className="row-line wrap"><span className="hint">changed in this {level}</span><button className="link" type="button" onClick={() => { const out = { ...layer }; delete out.narratorPrompt; void save(out); }}>Use inherited placement</button></span></Row>}
     {error && <Row wide><p role="alert" className="error-text">{error}</p></Row>}
@@ -50,4 +50,17 @@ export function NarratorPromptGroup({ layer, above, onChange, level, disclosure 
     </details>;
   }
   return <Group title="Narrator in the prompt" testId="narrator-prompt" help="Choose where the AI reads the narrator's instructions. Card placement preserves the existing preset behavior. These settings do not add messages to your saved conversation.">{controls}</Group>;
+}
+
+/** A whole number saved when you leave the box or press Enter, so clearing it to type never saves 0 (D-046). */
+function NumberInput({ label, value, min, max, onCommit }: { label: string; value: number; min?: number; max?: number; onCommit: (n: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const n = Number(text.trim());
+    const ok = text.trim() !== "" && Number.isSafeInteger(n) && (min === undefined || n >= min) && (max === undefined || n <= max);
+    if (ok && n !== value) onCommit(n); else if (!ok) setText(String(value));
+  };
+  return <input type="number" aria-label={label} min={min} max={max} value={text} onChange={(e) => setText(e.target.value)}
+    onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setText(String(value)); }} />;
 }

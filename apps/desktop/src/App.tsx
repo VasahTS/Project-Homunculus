@@ -276,6 +276,7 @@ export function App() {
     try {
       const file = await exporter.export(p);
       const where = await saveExport(file);
+      if (!where) return;
       setNotice({ kind: file.warnings.length ? "warn" : "ok", title: `Exported ${p.name}`, lines: [`Saved to: ${where}`, ...file.warnings] });
     } catch (e) { setNotice({ kind: "error", title: `Could not export ${p.name}`, lines: [errorText(e)] }); }
   };
@@ -332,6 +333,7 @@ export function App() {
     try {
       const file = await exporter.export(b);
       const where = await saveExport(file);
+      if (!where) return;
       setNotice({ kind: file.warnings.length ? "warn" : "ok", title: `Exported ${b.name}`, lines: [`Saved to: ${where}`, ...file.warnings] });
     } catch (e) { setNotice({ kind: "error", title: `Could not export ${b.name}`, lines: [errorText(e)] }); }
   };
@@ -512,6 +514,7 @@ export function App() {
     try {
       // the card carries its lorebook (the one it came with, edits included), like SillyTavern does
       const where = await saveExport(await exporter.export(characterWithBook(c, await bookForCardExport(svc.store, c)), avatar));
+      if (!where) return;
       setNotice({ kind: "ok", title: `Exported ${c.name}`, lines: [`Saved to: ${where}`] });
     } catch (e) {
       setNotice({ kind: "error", title: `Could not export ${c.name}`, lines: [errorText(e)] });
@@ -797,6 +800,7 @@ export function App() {
     try {
       const file = await exportChat(svc.store, sessionId, format);
       const where = await saveExport(file);
+      if (!where) return;
       setNotice({ kind: "ok", title: `Exported “${sessions.find((x) => x.id === sessionId)?.title ?? "chat"}”`, lines: [`Saved to: ${where}`] });
     } catch (e) { setNotice({ kind: "error", title: "Could not export the chat", lines: [errorText(e)] }); }
   };

@@ -4,14 +4,14 @@
 // 2026-10-28 (D-026): direction "B" from the mockup canvas — groups and fields you drag, a field opens in place,
 // and a live preview of the Scene panel with real values on the right.
 import { useEffect, useState } from "react";
-import { applyBasicMacros } from "@homunculus/core";
+import { applyBasicMacros, transferFields } from "@homunculus/core";
 import type { Avatar, FieldDisplay, FieldType, TrackerField, TrackerSchema } from "@homunculus/schemas";
 import { Collapse, FIELD_ICONS, Icon, isIconName } from "./kit.tsx";
 import { blankField, blankSet, checkDraft, copySet, isTempKey, type SetDraft, type TrackerDraft, type TrackerSample } from "../trackers.ts";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { move, SortableList } from "./Sortable.tsx";
 import { TrackerPreview } from "./ScenePanel.tsx";
-import { FieldSetTools } from "./FieldSetTools.tsx";
+import { SendToMenu, SetFileLinks } from "./FieldSetTools.tsx";
 
 const DISPLAYS: Array<{ value: FieldDisplay; label: string }> = [
   { value: "auto", label: "Auto" }, { value: "header", label: "Top strip" }, { value: "subtitle", label: "Under the name" }, { value: "lead", label: "Lead" },
@@ -190,6 +190,33 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
     setSetId(rest[0]!.id);
   };
 
+  // Reuse (D-046): one quiet line under the set bar says what happened, with Undo while nothing else changed the sets.
+  const [reuse, setReuse] = useState<{ text: string; kind: "ok" | "error"; undo?: { before: SetDraft[]; after: SetDraft[] } } | null>(null);
+  const say = (text: string, kind: "ok" | "error" = "ok") => setReuse({ text, kind });
+  const applySets = (sets: SetDraft[], text: string) => { setReuse({ text, kind: "ok", undo: { before: draft.sets, after: sets } }); set({ sets }); };
+  const targetsFor = (keys: string[]) => draft.sets.filter((s) => s.id !== current.id)
+    .map((s) => ({ id: s.id, name: s.name || "(no name)", has: keys.every((k) => s.fields.some((f) => f.key === k)) }));
+  /** Copies or moves fields to another set (or a new one). Fields the destination already has stay where they are. */
+  const sendFields = (keys: string[], what: string, to: string | "new", mode: "copy" | "move") => {
+    try {
+      let sets = draft.sets;
+      let dest = sets.find((s) => s.id === to);
+      if (!dest) {
+        let name = "New set";
+        for (let i = 2; sets.some((s) => s.name === name); i++) name = `New set ${i}`;
+        dest = { ...blankSet(name), fields: [] };
+        sets = [...sets, dest];
+      }
+      const target = dest;
+      const missing = keys.filter((k) => !target.fields.some((f) => f.key === k));
+      if (!missing.length) { say(`“${target.name}” already has ${what}.`, "error"); return; }
+      const next = transferFields(sets, current.id, target.id, missing, mode);
+      const skipped = keys.length - missing.length;
+      if (mode === "move") setOpenKeys((x) => x.filter((k) => !missing.includes(k)));
+      applySets(next, `${what} ${mode === "copy" ? "copied" : "moved"} to “${target.name}”${skipped ? ` (${skipped} it already had stayed here)` : ""}.`);
+    } catch (e) { say(e instanceof Error ? e.message : String(e), "error"); }
+  };
+
   const save = async () => {
     const p = checkDraft(draft);
     setProblems(p);
@@ -268,7 +295,18 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
               <button className="link" onClick={() => set({ defaultSetId: current.id })}>Make Default</button>
             )}
             {draft.sets.length > 1 && <ConfirmButton label="Delete Set" confirmLabel="Click Again to Delete the Set" onConfirm={removeSet} />}
+            <span className="spacer" />
+            <SetFileLinks sets={draft.sets} current={current} say={say} onImport={applySets} />
           </div>
+          {reuse && (
+            <p className={`set-notice ${reuse.kind === "error" ? "error-text" : "hint"}`} role={reuse.kind === "error" ? "alert" : "status"} data-testid="set-notice">
+              <span>{reuse.text}{reuse.kind === "ok" && reuse.undo ? " Save to keep it." : ""}</span>
+              {reuse.undo && draft.sets === reuse.undo.after &&
+                <button type="button" className="link" onClick={() => { const before = reuse.undo!.before; set({ sets: before }); setReuse({ text: "Undone.", kind: "ok" });
+                  if (!before.some((s) => s.id === setId)) setSetId(before[0]!.id); }}>Undo</button>}
+              <button type="button" className="link quiet" aria-label="Dismiss" onClick={() => setReuse(null)}><Icon name="close" size={12} /></button>
+            </p>
+          )}
           <div className="set-card">
             <div className="field-row">
               <input aria-label="Field set name" placeholder="Set name" value={current.name} onChange={(e) => setCurrent({ name: e.target.value })} />
@@ -297,7 +335,6 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
             )}
           </div>
 
-          <FieldSetTools key={current.id} sets={draft.sets} current={current} onChange={(sets) => set({ sets })} />
           <div className="fields-head">
             <h3 className="label-row grow">Groups and fields <Help text="Each field is one value the AI keeps up to date. Fields sit in groups; the order here is the order on the person's page and in the Scene panel. Drag a group or a field by its ⋮⋮ (or focus the ⋮⋮ and use the arrow keys). Click a field to open its settings; several can be open at once." /></h3>
             <button type="button" className="link quiet" data-testid="fields-open-all"
@@ -317,6 +354,8 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
                     <button type="button" className={`te-fold${isFolded ? " closed" : ""}`} aria-expanded={!isFolded} aria-label={`${isFolded ? "Show" : "Hide"} the fields of ${groupLabel(g.name)}`}
                       onClick={() => setFolded((x) => (isFolded ? x.filter((n) => n !== g.name) : [...x, g.name]))}><Icon name="chevron" size={14} /></button>
                     <GroupName name={g.name} onRename={(to) => renameGroup(g.name, to)} />
+                    <SendToMenu what={`“${groupLabel(g.name)}”`} targets={targetsFor(g.fields.map((f) => f.key))} canMove={g.fields.length < ordered.length}
+                      onSend={(to, mode) => sendFields(g.fields.map((f) => f.key), `“${groupLabel(g.name)}”`, to, mode)} />
                     <span className="te-count">{g.fields.length === 1 ? "1 field" : `${g.fields.length} fields`}</span>
                   </div>
                   <Collapse open={!isFolded}>
@@ -341,6 +380,8 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
                                 <span className="te-meta">{meta}</span>
                                 <span className={`te-chev${open ? " open" : ""}`}><Icon name="chevron" size={13} /></span>
                               </button>
+                              <SendToMenu what={`“${userMacro(f.label) || "New field"}”`} targets={targetsFor([f.key])} canMove={ordered.length > 1}
+                                onSend={(to, mode) => sendFields([f.key], `“${userMacro(f.label) || "New field"}”`, to, mode)} />
                             </div>
                             <Collapse open={open}>
                               <FieldSettings f={f} n={n} groups={groups.map((x) => x.name)} shows={shows}

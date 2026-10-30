@@ -263,11 +263,14 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .set-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--separator); }
 .set-title { font-size: var(--size-section); font-weight: 600; color: var(--label-2); }
 .set-card { border-radius: var(--radius-group); background: var(--group); padding: 10px 12px; display: grid; gap: 8px; }
-.field-set-tools > summary { cursor: pointer; color: var(--label-2); }
-.field-set-tools fieldset { min-width: 0; border: 0; margin: 0; padding: 0; display: grid; gap: var(--gap-float); }
-.field-set-tools legend { color: var(--label-2); font-size: var(--size-small); }
-.field-set-tools .check { overflow-wrap: anywhere; }
+.set-files { display: inline-flex; gap: 12px; font-size: var(--size-small); }
+.set-notice { display: flex; align-items: baseline; gap: 10px; margin: 0; font-size: var(--size-small); }
+.set-notice > span { flex: 1; min-width: 0; }
 .inline-prompt-editor textarea { width: 100%; resize: vertical; }
+/* D-046: the scope is one quiet line; the shared preset is the default target */
+.prompt-scope { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; margin: 0; }
+.prompt-scope b { color: var(--label); font-weight: 600; }
+.inline-prompt-foot { justify-content: space-between; gap: 10px; min-height: 18px; }
 
 /* ───────────── help, notices */
 .help { position: relative; display: inline-flex; }
@@ -860,6 +863,19 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: 2px
 .te-field-row { transition: background-color var(--dur-fast) ease; }
 @media (hover: hover) and (pointer: fine) { .te-field-row:hover { background: var(--fill); } }
 .te-field.open > .te-field-row { background: var(--accent-soft); }
+/* "Send to another set" (D-046): a quiet icon that shows on the row's hover or focus; the menu reuses the lorebook's */
+.te-send { flex: none; display: inline-flex; }
+.te-send-btn { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--label-3); cursor: pointer; opacity: 0; transition: opacity var(--dur-fast) ease, background-color var(--dur-fast) ease; }
+.te-field-row:hover .te-send-btn, .te-group-head:hover .te-send-btn, .te-send-btn:focus-visible, .te-send.open .te-send-btn { opacity: 1; }
+.te-send-btn:hover, .te-send.open .te-send-btn { background: var(--fill-hover); color: var(--label); }
+.te-send-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+@media (hover: none) { .te-send-btn { opacity: 1; } }
+.te-send-menu { width: 300px; }
+.te-send-title { font-size: 11px; color: var(--label-2); padding: 4px 9px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.te-send-menu .lore-qname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.te-send-new { margin-top: 3px; border-top: 1px solid var(--separator); border-radius: 0 0 8px 8px; }
+.te-send-new .lore-qname { display: inline-flex; align-items: center; gap: 6px; color: var(--label-2); font-weight: 400; }
+.te-send-menu .lore-qside:disabled { opacity: 0.4; cursor: default; background: var(--fill); color: var(--label-2); }
 .te-field-icon { flex: none; width: 18px; display: grid; place-items: center; color: var(--label-2); }
 .te-field-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .te-pin { flex: none; padding: 1px 7px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); font-size: 11px; white-space: nowrap; }

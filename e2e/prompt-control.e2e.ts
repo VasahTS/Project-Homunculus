@@ -1,12 +1,20 @@
-// Real prompt output and scope isolation, without model calls. CODEX, D-042.
+// Real prompt output and scope isolation, without model calls. CODEX, D-042; CLAUDE, D-046 (shared preset by
+// default, "Only this chat…" as the quiet second choice, text that saves itself, no Apply/Cancel).
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import { newChatWith, openLibrary, openTab } from "./ui.ts";
 
 async function editMain(blocks: Locator, text: string) {
-  await blocks.getByRole("button", { name: "Main Prompt", exact: true }).click();
+  const name = blocks.getByRole("button", { name: "Main Prompt", exact: true });
+  await name.click();
   await blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true }).fill(text);
-  await blocks.getByRole("button", { name: "Apply block", exact: true }).click();
+  await name.click(); // closing the block saves it
   await expect(blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true })).toHaveCount(0);
+}
+async function setScope(blocks: Locator, scope: "local" | "preset") {
+  const line = blocks.getByTestId("prompt-scope");
+  if (await line.getAttribute("data-scope") === scope) return;
+  await line.getByRole("button").click();
+  await expect(line).toHaveAttribute("data-scope", scope);
 }
 async function preview(page: Page) {
   await page.getByRole("button", { name: "Preview Prompt", exact: true }).click();
@@ -19,7 +27,7 @@ for (const scope of ["local", "preset"]) {
   test(`closing a ${scope} block saves its text without Apply`, async ({ page }) => {
     await page.goto("/"); await openTab(page, "prompt");
     const blocks = page.getByTestId("scoped-prompt-blocks");
-    await blocks.getByLabel("Prompt edit scope").selectOption(scope);
+    await setScope(blocks, scope as "local" | "preset");
     const name = blocks.getByRole("button", { name: "Main Prompt", exact: true });
     const text = blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true });
     await name.click(); await text.fill(`SAVED ON CLOSE ${scope}.`);
@@ -29,7 +37,7 @@ for (const scope of ["local", "preset"]) {
   });
 }
 
-test("leaving Prompt with an open edit saves it; Cancel explicitly discards pending text", async ({ page }) => {
+test("leaving Prompt with an open edit saves it; Undo changes restores the text it was opened with", async ({ page }) => {
   await page.goto("/"); await openTab(page, "prompt");
   const blocks = page.getByTestId("scoped-prompt-blocks");
   const name = blocks.getByRole("button", { name: "Main Prompt", exact: true });
@@ -38,21 +46,31 @@ test("leaving Prompt with an open edit saves it; Cancel explicitly discards pend
   await openTab(page, "scene"); await openTab(page, "prompt");
   if (await text.count() === 0) await name.click();
   await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
-  await text.fill("DISCARD THIS PENDING EDIT.");
-  await blocks.getByRole("button", { name: "Cancel", exact: true }).click();
-  await name.click(); await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
+  await name.click(); await name.click(); // reopen: Undo goes back to the text the block was opened with
+  await text.fill("UNDO THIS EDIT.");
+  await blocks.getByRole("button", { name: "Undo changes", exact: true }).click();
+  await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
+  await name.click(); await name.click(); await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
+});
+
+test("typing saves by itself after a short pause", async ({ page }) => {
+  await page.goto("/"); await openTab(page, "prompt");
+  const blocks = page.getByTestId("scoped-prompt-blocks");
+  await blocks.getByRole("button", { name: "Main Prompt", exact: true }).click();
+  await blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true }).fill("SAVED WHILE TYPING.");
+  await expect(blocks.getByRole("status")).toContainText("Saved to");
 });
 
 test("switching scope saves the pending text in its original scope", async ({ page }) => {
   await page.goto("/"); await openTab(page, "prompt");
   const blocks = page.getByTestId("scoped-prompt-blocks");
+  await setScope(blocks, "local");
   const name = blocks.getByRole("button", { name: "Main Prompt", exact: true });
   const text = blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true });
   await name.click(); await text.fill("LOCAL BEFORE SCOPE SWITCH.");
-  await blocks.getByLabel("Prompt edit scope").selectOption("preset");
-  await expect(blocks.getByLabel("Prompt edit scope")).toHaveValue("preset");
+  await setScope(blocks, "preset");
   await name.click(); await expect(text).not.toHaveValue("LOCAL BEFORE SCOPE SWITCH.");
-  await blocks.getByLabel("Prompt edit scope").selectOption("local");
+  await setScope(blocks, "local");
   await name.click(); await expect(text).toHaveValue("LOCAL BEFORE SCOPE SWITCH.");
 });
 
@@ -68,7 +86,8 @@ test("inline chat edits stay local and can resume inheritance", async ({ page })
   await page.goto("/");
   await openTab(page, "prompt");
   const blocks = page.getByTestId("prompt-preset").getByTestId("scoped-prompt-blocks");
-  await expect(blocks.getByLabel("Prompt edit scope")).toHaveValue("local");
+  await expect(blocks.getByTestId("prompt-scope")).toHaveAttribute("data-scope", "preset"); // the shared preset is the default
+  await setScope(blocks, "local");
   await editMain(blocks, "LOCAL PROMPT CHECK for {{user}}.");
   await expect(await preview(page)).toContainText("LOCAL PROMPT CHECK for User.");
   await page.keyboard.press("Escape");
@@ -81,11 +100,10 @@ test("inline chat edits stay local and can resume inheritance", async ({ page })
   await expect(await preview(page)).not.toContainText("ANOTHER LOCAL CHECK");
 });
 
-test("editing the shared preset is explicit and reaches another chat", async ({ page }) => {
+test("editing the shared preset is the default and reaches another chat", async ({ page }) => {
   await page.goto("/");
   await openTab(page, "prompt");
   const blocks = page.getByTestId("prompt-preset").getByTestId("scoped-prompt-blocks");
-  await blocks.getByLabel("Prompt edit scope").selectOption("preset");
   await editMain(blocks, "SHARED PROMPT CHECK.");
   await newChatWith(page);
   await openTab(page, "prompt");
@@ -96,7 +114,6 @@ test("a Story inherits its preset; quiet narrator placement stays with the narra
   await page.goto("/");
   await openTab(page, "prompt");
   const shared = page.getByTestId("scoped-prompt-blocks");
-  await shared.getByLabel("Prompt edit scope").selectOption("preset");
   await editMain(shared, "STORY PROMPT CHECK.");
   await openLibrary(page, "Stories");
   await page.getByRole("button", { name: "New Story", exact: true }).click();
@@ -128,6 +145,7 @@ test("a Story inherits its preset; quiet narrator placement stays with the narra
   await page.keyboard.press("Escape");
   const count = await page.getByTestId("message").count();
   const own = page.getByTestId("prompt-preset").getByTestId("scoped-prompt-blocks");
+  await setScope(own, "local");
   await editMain(own, "CHAT OVERRIDE CHECK.");
   await expect(await preview(page)).toContainText("CHAT OVERRIDE CHECK");
   await page.keyboard.press("Escape");

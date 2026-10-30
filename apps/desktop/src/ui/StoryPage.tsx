@@ -415,6 +415,16 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
             <SetupFields mode="story" layer={draft.setup} onChange={(s) => change({ setup: s })} names={setup.namesFor(undefined)} director={draft.userRole === "director"}
               presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers}
               aside="every chat of this story starts with this" testId="story-setup" />
+            {(() => {
+              // D-046: block edits saved on this story before D-045 still change its prompt, so they stay visible and removable
+              const changedBlocks = Object.values(draft.setup.presetOverrides ?? {})
+                .reduce((n, o) => n + Object.keys(o.blocks ?? {}).length + (o.order ? 1 : 0), 0);
+              if (!changedBlocks) return null;
+              return <p className="hint row-line wrap" data-testid="story-prompt-changes">
+                <span>This story changes {changedBlocks === 1 ? "1 prompt block" : `${changedBlocks} prompt blocks`} of its preset.</span>
+                <button type="button" className="link" onClick={() => { const next = { ...draft.setup }; delete next.presetOverrides; change({ setup: next }); }}>Use the preset as it is</button>
+              </p>;
+            })()}
 
             <AuthorsNoteGroup level="story" layer={draft.setup} above={setup.noteAbove(undefined)} onChange={(s) => change({ setup: s })} testId="story-authors-note" />
 

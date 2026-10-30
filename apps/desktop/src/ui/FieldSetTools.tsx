@@ -1,88 +1,91 @@
-// Reuse schema definitions without touching a chat's saved values. CODEX, D-043.
-import { useEffect, useRef, useState } from "react";
-import { parseFieldSetFile, serializeFieldSets, transferFields } from "@homunculus/core";
+// Field-set reuse in the tracker editor. CODEX, D-043; CLAUDE, D-046: files live on the set bar (Import · Export ·
+// AI guide, with a "Save as" window), and fields/groups are sent to another set from their own row.
+import { useRef } from "react";
+import { parseFieldSetFile, serializeFieldSets } from "@homunculus/core";
 import { portableSetOf, type SetDraft } from "../trackers.ts";
-import { saveExport } from "../files.ts";
-import { Button } from "./kit.tsx";
+import { fileNameFrom, saveExport } from "../files.ts";
+import { Icon } from "./kit.tsx";
+import { useFloatingMenu } from "./FloatingMenu.ts";
+import aiGuide from "../../../../docs/FIELD-SET-AI-GUIDE.md?raw";
 
-export function FieldSetTools({ sets, current, onChange }: { sets: SetDraft[]; current: SetDraft; onChange: (sets: SetDraft[]) => void }) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const [destination, setDestination] = useState("");
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [undo, setUndo] = useState<{ before: SetDraft[]; after: SetDraft[] } | null>(null);
+type Say = (text: string, kind?: "ok" | "error") => void;
+
+/** Quiet links at the end of the set bar: they act on the set chosen in the select beside them. */
+export function SetFileLinks({ sets, current, onImport, say }: {
+  sets: SetDraft[]; current: SetDraft; onImport: (sets: SetDraft[], message: string) => void; say: Say;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const latest = useRef(sets); latest.current = sets;
-  const active = useRef(true);
-  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
-  const keys = selected.filter((key) => current.fields.some((f) => f.key === key));
-  const run = (action: () => void) => { setError(""); setNotice(""); try { action(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } };
-  const apply = (next: SetDraft[], message: string) => {
-    setUndo({ before: sets, after: next }); onChange(next); setSelected([]); setNotice(message + " Save the tracker to keep these changes.");
-  };
-  const transfer = (mode: "copy" | "move") => run(() => {
-    const next = transferFields(sets, current.id, destination, keys, mode);
-    apply(next, `${keys.length} field(s) ${mode === "copy" ? "copied" : "moved"}.`);
-  });
-  const exportSet = async () => {
-    setBusy(true); setError(""); setNotice("");
+  const save = async (fileName: string, text: string, mime: string, done: (where: string) => string) => {
     try {
-      const bytes = new TextEncoder().encode(serializeFieldSets([portableSetOf(current)]));
-      const fileName = `${current.name.replace(/[^a-zA-Z0-9_-]+/g, "-") || "field-set"}.json`;
-      const path = await saveExport({ fileName, bytes, mime: "application/json" });
-      setNotice(`Exported the complete set to ${path}. Saved chat values are not included.`);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+      const where = await saveExport({ fileName, bytes: new TextEncoder().encode(text), mime });
+      if (where) say(done(where));
+    } catch (e) { say(e instanceof Error ? e.message : String(e), "error"); }
   };
+  const exportSet = () => save(`${fileNameFrom(current.name, "field-set")}.json`, serializeFieldSets([portableSetOf(current)]), "application/json",
+    (where) => `Exported “${current.name || "the set"}” to ${where}. Saved chat values are not included.`);
+  const saveGuide = () => save("homunculus-field-sets-guide.md", aiGuide, "text/markdown",
+    (where) => `Saved the guide to ${where}. Give it to another AI together with what you want to track, then import its answer here.`);
   const importFile = async (file: File) => {
-    setBusy(true); setError(""); setNotice("");
+    const before = latest.current;
     try {
       const parsed = parseFieldSetFile(await file.text());
-      if (!active.current) return;
-      if (latest.current !== sets) throw new Error("The draft changed while the file was being read. Import it again to keep your latest edits.");
-      const names = new Set(sets.map((s) => s.name));
+      if (latest.current !== before) throw new Error("The tracker changed while the file was being read. Import it again.");
+      const names = new Set(before.map((s) => s.name));
       const added = parsed.sets.map((s) => {
         let name = s.name;
         for (let n = 2; names.has(name); n++) name = `${s.name} (${n})`;
         names.add(name);
         return { ...s, name, id: `set-${crypto.randomUUID()}` };
       });
-      apply([...sets, ...added], `Imported ${added.length} set(s). Existing sets were kept.`);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+      onImport([...before, ...added], added.length === 1 ? `Imported the set “${added[0]!.name}”.` : `Imported ${added.length} sets.`);
+    } catch (e) {
+      say(`“${file.name}” was not imported: ${e instanceof Error ? e.message : String(e)}`, "error");
+    }
   };
-  return <div className="stack" data-testid="field-set-reuse">
-    <div className="row-line wrap" data-testid="field-set-files">
-      <Button small disabled={busy} onClick={() => void exportSet()}>Export Set</Button>
-      <Button small disabled={busy} onClick={() => input.current?.click()}>Import Sets</Button>
-      <input ref={input} type="file" accept=".json,application/json" aria-label="Import field sets JSON" hidden disabled={busy} onChange={(e) => {
-        const file = e.target.files?.[0]; e.target.value = ""; if (file) void importFile(file);
-      }} />
-    </div>
-    {undo && sets === undo.after && <button type="button" className="link" disabled={busy} onClick={() => { onChange(undo.before); setUndo(null); setNotice("Last reuse action undone. Save to keep this draft."); setError(""); }}>Undo last reuse action</button>}
-    {notice && <p className="hint" role="status">{notice}</p>}{error && <p className="error-text" role="alert">{error}</p>}
-    <details className="set-card field-set-tools" data-testid="field-set-tools">
-    <summary>Copy or move fields</summary>
-    <div className="stack">
-      <p className="hint">Select fields to copy or move to another set in this tracker. Export Set always includes the whole current set. Saved chat values stay unchanged.</p>
-      <fieldset disabled={busy}>
-        <legend>Fields to reuse</legend>
-        <div className="row-line wrap"><button type="button" className="link" onClick={() => setSelected(current.fields.map((f) => f.key))}>Select all fields</button>
-          <button type="button" className="link" onClick={() => setSelected([])}>Clear selection</button><span className="hint">{keys.length} selected</span></div>
-        {current.fields.map((f) => <label className="check" key={f.key}>
-          <input type="checkbox" aria-label={`Select field ${f.label || "New field"}`} checked={keys.includes(f.key)} onChange={(e) => setSelected((old) => e.target.checked ? [...old, f.key] : old.filter((key) => key !== f.key))} />
-          <span>{f.label || "New field"}</span>
-        </label>)}
-        <label className="row-line"><span>Destination set</span><select aria-label="Destination set" value={destination} onChange={(e) => setDestination(e.target.value)}>
-          <option value="">Choose a set…</option>{sets.filter((s) => s.id !== current.id).map((s) => <option key={s.id} value={s.id}>{s.name || "(no name)"}</option>)}
-        </select></label>
-        <div className="row-line wrap">
-          <Button small disabled={!keys.length || !destination} onClick={() => transfer("copy")}>Copy fields</Button>
-          <Button small disabled={!keys.length || !destination} onClick={() => transfer("move")}>Move fields</Button>
-        </div>
-      </fieldset>
-    </div>
-    </details>
-  </div>;
+  return <span className="set-files" data-testid="field-set-files">
+    <button type="button" className="link quiet" onClick={() => input.current?.click()} title="Add field sets from a file to this tracker">Import…</button>
+    <button type="button" className="link quiet" onClick={() => void exportSet()} title="Save this set to a file, to keep or to share">Export…</button>
+    <button type="button" className="link quiet" onClick={() => void saveGuide()} title="Instructions for another AI to write field sets you can import">AI guide</button>
+    <input ref={input} type="file" accept=".json,application/json" aria-label="Import field sets JSON" hidden onChange={(e) => {
+      const file = e.target.files?.[0]; e.target.value = ""; if (file) void importFile(file);
+    }} />
+  </span>;
+}
+
+export interface SendTarget { id: string; name: string; has: boolean }
+
+/** The subtle "send to" button of a field or a group row: a menu of the other sets, each with Copy and Move. */
+export function SendToMenu({ what, targets, canMove, onSend }: {
+  what: string; targets: SendTarget[]; canMove: boolean; onSend: (to: string | "new", mode: "copy" | "move") => void;
+}) {
+  const rows = targets.length + 1;
+  const m = useFloatingMenu(rows * 40 + 40, 300, ".lore-qside");
+  const send = (to: string | "new", mode: "copy" | "move") => { m.setOpen(false); onSend(to, mode); };
+  const actions = (to: string | "new", name: string) => <>
+    <button type="button" role="menuitem" className="lore-qside" aria-label={`Copy to ${name}`} onClick={() => send(to, "copy")}>Copy</button>
+    <button type="button" role="menuitem" className="lore-qside" aria-label={`Move to ${name}`} disabled={!canMove}
+      title={canMove ? undefined : "A set keeps at least one field. Copy instead."} onClick={() => send(to, "move")}>Move</button>
+  </>;
+  return (
+    <span className={`te-send${m.open ? " open" : ""}`} ref={m.box} onKeyDown={m.onKeyDown} onBlur={m.onBlur}>
+      <button type="button" className="te-send-btn" aria-haspopup="menu" aria-expanded={m.open} aria-label={`Send ${what} to another set`}
+        title="Send to another set" onClick={() => m.setOpen((v) => !v)}><Icon name="send" size={14} /></button>
+      {m.open && m.pos && (
+        <span className="lore-menu te-send-menu" role="menu" aria-label={`Send ${what} to`} style={{ top: m.pos.top, left: m.pos.left }}>
+          <span className="te-send-title">Send {what} to</span>
+          {targets.map((t) => (
+            <span key={t.id} className="lore-qrow" role="group" aria-label={t.name}>
+              <span className="lore-qname">{t.name}</span>
+              {t.has ? <span className="hint">already there</span> : actions(t.id, t.name)}
+            </span>
+          ))}
+          <span className="lore-qrow te-send-new" role="group" aria-label="A new set">
+            <span className="lore-qname"><Icon name="plus" size={12} /> A new set</span>
+            {actions("new", "a new set")}
+          </span>
+        </span>
+      )}
+    </span>
+  );
 }

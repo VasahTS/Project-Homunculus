@@ -8,12 +8,31 @@ export async function readFileBytes(file: File): Promise<Uint8Array> {
   return new Uint8Array(await file.arrayBuffer());
 }
 
+/** The system "Save as" window (Chromium/WebView2: the Windows app and the browser preview). Not in TypeScript's DOM types. */
+type SavePicker = (options: { suggestedName: string; types?: Array<{ description: string; accept: Record<string, string[]> }> }) =>
+  Promise<{ name: string; createWritable(): Promise<{ write(data: BlobPart): Promise<void>; close(): Promise<void> }> }>;
+
 /**
- * Saves an exported file. Desktop: into the Downloads folder (never overwrites), returns the path.
- * Browser preview: a normal download.
+ * Saves an exported file and returns where it went, or null when the person cancelled.
+ * Desktop: asks where with the system "Save as" window (D-046); without one (Linux WebKitGTK) it goes to
+ * Downloads (never overwrites) and the path is returned. Browser preview: a normal download.
  */
-export async function saveExport(file: ExportedFile): Promise<string> {
+export async function saveExport(file: ExportedFile): Promise<string | null> {
   if (isDesktop) {
+    const picker = (window as unknown as { showSaveFilePicker?: SavePicker }).showSaveFilePicker;
+    if (picker) {
+      const ext = /\.[A-Za-z0-9]+$/.exec(file.fileName)?.[0];
+      try {
+        const handle = await picker({ suggestedName: file.fileName, ...(ext ? { types: [{ description: ext.slice(1).toUpperCase(), accept: { [file.mime]: [ext] } }] } : {}) });
+        const out = await handle.createWritable();
+        await out.write(file.bytes as BlobPart);
+        await out.close();
+        return handle.name;
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return null;
+        // a picker that exists but cannot write falls back to Downloads below
+      }
+    }
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke<string>("save_download", { fileName: file.fileName, base64Data: bytesToBase64(file.bytes) });
   }
@@ -24,6 +43,11 @@ export async function saveExport(file: ExportedFile): Promise<string> {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
   return `Downloads/${file.fileName}`;
+}
+
+/** A file name from a display name, keeping accents and other letters ("Viagem à praia" → "Viagem-à-praia"). */
+export function fileNameFrom(name: string, fallback: string): string {
+  return name.normalize("NFC").replace(/[^\p{L}\p{N}_ -]+/gu, "-").trim().replace(/\s+/g, "-").replace(/-{2,}/g, "-").replace(/^-|-$/g, "") || fallback;
 }
 
 /** Any image the browser can open (PNG, JPG, WebP, GIF…) becomes a PNG avatar, so cards export cleanly. */

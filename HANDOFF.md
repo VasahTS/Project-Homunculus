@@ -4,6 +4,15 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Review of CODEX's rounds + Prompt/Tracker fixes (2026-10-30) — CLAUDE — D-046
+
+- **Prompt tab:** block edits go to the **shared preset** by default; "Only this chat…" is a quiet secondary link. Text saves as you type (Undo changes instead of Apply/Cancel). Blocks overridden locally are tagged while editing the shared preset. Context size is back in the foot.
+- **Story page:** if the story still has block changes from before D-045, a line says so with "Use the preset as it is".
+- **Narrator depth/order:** saved on leaving the box or Enter.
+- **Exports ask where** (Windows "Save as"; Linux keeps Downloads). Cancel = nothing saved.
+- **Trackers:** Import… · Export… · AI guide on the set bar; a subtle **send** icon on each field/group row → menu of sets with Copy / Move (+ A new set), Undo in a quiet line. Guide for other AIs: `docs/FIELD-SET-AI-GUIDE.md`.
+- **To check on the PC** (not possible in the cloud session, no package registry): `npm run test:e2e` (prompt-control, presets, field-sets updated) and the real "Save as" window in the app.
+
 ## Quiet Story setup (2026-10-29) — CODEX — D-045
 
 Daniel requested less density on Story creation/setup. Removed the full **Prompt blocks** list from Story/Kit pages; the Setup preset picker, Library preset editor and chat Prompt editing remain. Existing stored Story block patches are preserved and still resolve normally; this is a UI removal, not a data migration.
