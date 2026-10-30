@@ -432,7 +432,7 @@ export function NewStorySheet({ characters, avatars, lorebooks, setup, initialCa
         </div>
         <div className="story-col">
           <SetupFields mode="story" layer={layer} onChange={setLayer} names={setup.namesFor(undefined)} director={role === "director"}
-            presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers}
+            presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers} agents={setup.agents}
             title="This story's setup" aside="every chat of this story starts with this"
             trackersAside="fill the Scene panel after each reply" agentsAside="helpers that run with each reply" testId="new-story-setup" />
           <p className="hint">Rows marked “Default” follow Settings → Defaults until you pick something else.</p>

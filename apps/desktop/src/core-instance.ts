@@ -11,6 +11,7 @@ import { DEFAULT_PRESET, SIMPLE_NARRATOR } from "@homunculus/core";
 import { backupBeforeMigrate, isDesktop, openDatabase } from "./db.ts";
 import { offlineAiModule } from "./offline-ai.ts";
 import { installStarterTrackers } from "./trackers.ts";
+import { installStarterAgents } from "./agents.ts";
 import { installConnectionProfiles } from "./connection.ts";
 
 export interface AppServices {
@@ -37,6 +38,7 @@ async function boot(): Promise<AppServices> {
   await core.loadModules([createOpenAICompatibleModule(), offlineAiModule, createSillyTavernCardsModule(), createSillyTavernPersonasModule(), createSillyTavernPresetsModule(), createSillyTavernLorebooksModule()]);
   const chat = new ChatService(core, store);
   await installStarterTrackers(store); // once; editable data, not code (D-017)
+  await installStarterAgents(store); // once; one small example per kind, editable data (D-047)
   await installConnectionProfiles(store); // once: the old single connection becomes a saved profile (D-020)
   // once: the built-in preset as editable data (D-021); deleting it later doesn't bring it back
   if (!(await store.getAppSetting("starterPresets"))) {

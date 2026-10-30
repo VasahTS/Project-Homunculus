@@ -12,7 +12,7 @@ import { AvatarDot } from "./Sidebar.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import type { Tracker } from "../trackers.ts";
 
-function MasterDetail({ list, detail }: { list: ReactNode; detail: ReactNode }) {
+export function MasterDetail({ list, detail }: { list: ReactNode; detail: ReactNode }) {
   return (
     <div className="master-detail">
       <div className="master" data-region="library">{list}</div>
@@ -21,7 +21,7 @@ function MasterDetail({ list, detail }: { list: ReactNode; detail: ReactNode }) 
   );
 }
 
-function SearchBox({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+export function SearchBox({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
   return (
     <label className="search-box">
       <Icon name="search" size={13} />
@@ -319,6 +319,6 @@ export function TrashPage({ lead, tabs, items, onRestore, onDeleteForever, onEmp
   );
 }
 
-function EmptyDetail({ text }: { text: string }) {
+export function EmptyDetail({ text }: { text: string }) {
   return <div className="empty-detail"><p>{text}</p></div>;
 }

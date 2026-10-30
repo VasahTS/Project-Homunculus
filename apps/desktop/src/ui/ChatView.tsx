@@ -9,7 +9,8 @@
 // 2026-10-29 (Daniel: "things stop generating when we leave the chat"): the turn lives in `turns.ts`, outside this
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
 import { useCallback, useEffect, useRef, useState, Fragment } from "react";
-import type { Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
+import type { AgentConfig, Avatar, Character, Lorebook, Message, MessageRevision, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
+import { AgentMarks, AgentsMenu, Choices, NoteChips, useAgentResults } from "./AgentResults.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
 import { applyBasicMacros, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona } from "@homunculus/core";
@@ -34,7 +35,7 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent }: {
   /** Open the chat at this message (a chat search result, round 3): its branch, scrolled to it. */
   focusMessageId?: string | null;
   svc: AppServices;
@@ -83,6 +84,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   onPickFieldSet: (trackerId: string, setId: string | null) => void;
   onEditTracker: (trackerId: string) => void;
   onNewTracker: () => void;
+  /** The Library's agents (slice 5, D-047): the ✦ menu, marks, notes and choices. */
+  agents?: AgentConfig[];
+  onToggleAgent?: (agentId: string, on: boolean) => void;
+  onOpenAgent?: (agentId: string | null) => void;
 }) {
   const loadLorebooks = useCallback(() => svc.chat.turns.lorebooksOf(session.id), [svc, session]);
   const [headId, setHeadId] = useState<string | null | undefined>(undefined);
@@ -254,6 +259,17 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn?.id, turn?.headSeq, turn?.phase]);
 
+  /** A choice button: sends its words as your message, like typing them (D-047). */
+  const sendText = (text: string) => {
+    if (busy || !text.trim()) return;
+    const parentId = headId ?? null;
+    run({ parentId, userText: text }, async (signal, streamTo) => {
+      const r = connection.forRequest();
+      const { reply } = await svc.chat.send(session.id, parentId, text, r.connection, { signal, connections: r.connections, ...streamTo });
+      return reply.id;
+    });
+  };
+
   const send = () => {
     const text = input.trim();
     if (busy) return;
@@ -415,6 +431,22 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   };
 
   const lastAi = [...visible].reverse().find((m) => m.speaker.kind !== "user");
+  // what agents did on the replies on screen (the latest 30), reloaded when a turn ends or something changes
+  const agentResults = useAgentResults(svc, visible.filter((m) => m.speaker.kind !== "user").slice(-30).map((m) => m.id), sceneKey);
+  const undoRewrite = async (m: Message, rev: MessageRevision) => {
+    await svc.chat.editMessage(m.id, rev.before);
+    scrollTarget.current = { id: m.id, block: "nearest" };
+    await showBranch(headId ?? null);
+    setSceneKey((k) => k + 1);
+  };
+  const runAgentByHand = async (agentId: string) => {
+    const target = lastAi ?? last;
+    if (!target) throw new Error("Write or get a message first: agents run on the latest message.");
+    const r = connection.forRequest();
+    await svc.chat.turns.runManual(session.id, agentId, target.id, r.connection, undefined, r.connections);
+    await showBranch(headId ?? null);
+    setSceneKey((k) => k + 1);
+  };
   /** Messages the other branches use: they are not versions here (each branch keeps its own, like a copy would). */
   const otherUsed = new Set(branches.list.filter((b) => b !== current).flatMap((b) => b.path));
   const versionsOf = (m: Message) => (siblings[m.id]?.ids ?? [m.id]).filter((id) => id === m.id || !otherUsed.has(id));
@@ -456,6 +488,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               avatars={avatars} onChange={onChangeSession} story={storyInfo} npcs={npcs} />
           </>}
           trailing={<>
+            {onToggleAgent && onOpenAgent && (
+              <AgentsMenu agents={agents} session={session} storySetup={storySetup} latest={lastAi ? agentResults.get(lastAi.id) : undefined} busy={busy}
+                onToggle={onToggleAgent} onRun={runAgentByHand} onOpen={onOpenAgent} />
+            )}
             {onOpenStory && <Button onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
             {/* an icon (29/10): the words took the room of the title, branch and "with …" in narrow windows */}
             <IconButton label="Move to Trash" className="danger-hover" onClick={onDelete} title="Move to Trash: the chat goes to Library → Trash; you can restore it."><Icon name="trash" size={16} /></IconButton>
@@ -485,6 +521,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                 <li className={`msg ${m.speaker.kind}${hidden ? " hidden-ai" : ""}${isLast ? " last" : ""}`} data-testid="message" data-region="message" data-mid={m.id}>
                   <div className="msg-body">
                   <div className="who">{speakerName(m)}
+                    {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} canWriteAgain={isLastAi && m.parentId !== null && !busy}
+                      onUndo={(rev) => void undoRewrite(m, rev)} onWriteAgain={() => regenerate(m)} />}
                     {m.meta.incomplete === true && <span className="warn"> · incomplete</span>}
                     {hidden && <span className="hidden-tag" data-testid="hidden-tag"> · hidden from the AI</span>}
                   </div>
@@ -507,6 +545,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     </div>
                   ) : (
                     <div className={user ? "text" : "text prose"}>{show(m.content, m)}</div>
+                  )}
+                  {!user && !isEditing && <NoteChips results={agentResults.get(m.id)} agents={agents} />}
+                  {isLastAi && !busy && !pending && !isEditing && (
+                    <Choices results={agentResults.get(m.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} />
                   )}
                   </div>
                   {deletingMsg === m.id ? (
@@ -654,7 +696,8 @@ function ReceiptLine({ svc, messageId, trackers, refreshKey, onDetails }: {
       if (cancelled || !rec) { if (!cancelled) setText(null); return; }
       const tokens = rec.tokensIn ?? rec.prompt.reduce((n, p) => n + approxTokens(p.content), 0);
       const name = (id: string) => trackers.find((t) => t.agent.id === id)?.agent.name ?? id;
-      const latest = new Map(runs.map((r) => [r.agentId, r]));
+      // trackers only: other agents show their own marks on the reply (D-047)
+      const latest = new Map(runs.filter((r) => trackers.some((t) => t.agent.id === r.agentId)).map((r) => [r.agentId, r]));
       const failed = [...latest.values()].filter((r) => r.status === "failed").map((r) => name(r.agentId));
       const ok = [...latest.values()].filter((r) => r.status === "ok").length;
       const parts = [`${rec.tokensIn ? "" : "about "}${fmtTokens(tokens)} tokens, ${(rec.durationMs / 1000).toFixed(1)} s.`];

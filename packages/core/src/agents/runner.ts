@@ -176,12 +176,8 @@ export class AgentRunner {
       else {
         const ctx = await this.context(entry, req, usage, tracker);
         if (entry.definition) raw = await entry.definition.run(ctx);
-        else if (a.runMode === "text") {
-          // no AI call (D-047): the agent's text is the answer; a "stable" agent rolls the same {{random}} on every swipe
-          const random = a.randomness === "stable" ? seededSequence(`${req.seed}|${a.id}|text`) : this.deps.random;
-          const state = await core.state.resolve(req.session.id, req.messageId);
-          raw = expandMacros(a.prompt, { ...req.names, state: state as Record<string, Record<string, unknown>>, lastMessage: req.text, random }).trim();
-        } else {
+        else if (a.runMode === "text") raw = await this.textAnswer(a, req);
+        else {
           const executor = a.runMode === "separate" ? separateExecutor : core.agentExecutors.get(a.runMode);
           if (!executor) throw new Error(`No way to run agents in "${a.runMode}" mode is installed`);
           raw = await executor(ctx);
@@ -284,6 +280,14 @@ export class AgentRunner {
       parts.push(lines.join("\n"));
     }
     return parts.join("\n\n");
+  }
+
+  /** A "text" agent's answer (D-047): its own text, macros expanded, no AI call and nothing recorded. A "stable" agent
+   * rolls the same {{random}} on every swipe. Also used by Preview Prompt, which must not change anything. */
+  async textAnswer(a: AgentConfig, req: Pick<RunRequest, "session" | "messageId" | "seed" | "names" | "text">): Promise<string> {
+    const random = a.randomness === "stable" ? seededSequence(`${req.seed}|${a.id}|text`) : this.deps.random;
+    const state = req.messageId ? await this.deps.core.state.resolve(req.session.id, req.messageId) : {};
+    return expandMacros(a.prompt, { ...req.names, state: state as Record<string, Record<string, unknown>>, lastMessage: req.text, random }).trim();
   }
 
   /** Puts a valid answer where it belongs. inject / check / choices / proposal / speaker are returned to the caller. */

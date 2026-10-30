@@ -58,7 +58,7 @@ test("typing saves by itself after a short pause", async ({ page }) => {
   const blocks = page.getByTestId("scoped-prompt-blocks");
   await blocks.getByRole("button", { name: "Main Prompt", exact: true }).click();
   await blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true }).fill("SAVED WHILE TYPING.");
-  await expect(blocks.getByRole("status")).toContainText("Saved to");
+  await expect(blocks.locator(".inline-prompt-foot").getByRole("status")).toContainText("Saved to");
 });
 
 test("switching scope saves the pending text in its original scope", async ({ page }) => {

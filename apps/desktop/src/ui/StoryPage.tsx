@@ -413,7 +413,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
             </SetupSection>
 
             <SetupFields mode="story" layer={draft.setup} onChange={(s) => change({ setup: s })} names={setup.namesFor(undefined)} director={draft.userRole === "director"}
-              presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers}
+              presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers} agents={setup.agents}
               aside="every chat of this story starts with this" testId="story-setup" />
             {(() => {
               // D-046: block edits saved on this story before D-045 still change its prompt, so they stay visible and removable
@@ -505,7 +505,7 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
         </SetupSection>
       ) : (
         <SetupFields mode="chat" layer={layer} onChange={setLayer} above={story.setup} names={names} director={story.userRole === "director"}
-          presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers} testId="new-chat-setup" />
+          presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers} agents={setup.agents} testId="new-chat-setup" />
       )}
       <div className="modal-foot">
         <span className="hint grow">{pick === "own" ? "Only your message starts this chat." : "The other openings become swipes of the first message."}</span>

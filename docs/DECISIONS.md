@@ -409,3 +409,16 @@ Daniel reviewed CODEX's rounds 4–5 (D-042…D-045) with CLAUDE and asked for t
 
 Blueprint §13: desktop UI only, plus the export helper; no schema, core module, turn step or stored-data change.
 Verification: CI typecheck + unit tests on `dev`. This session could not install dependencies (the package registry is blocked here), so the click tests (`npm run test:e2e`, updated for the new controls) and the native "Save as" window must be checked on Daniel's PC. Signed: **CLAUDE**.
+
+## D-047 — Agents on screen: Library → Agents, setup rows, the ✦ menu and results in the chat (2026-10-30)
+
+Slice 5. The core runner already ran every output kind (D-016…); nothing showed them. Plan and two drafts in `docs/UI-PLAN.md` → "Agents (slice 5)"; Daniel approved draft v2 with the changes listed there.
+- **Almost nothing from v1** (Daniel): eight small starter agents written for Homunculus 2, one per kind, to test each (`apps/desktop/src/agents.ts`, installed once like the starter trackers, editable, off by default). No v1 importer: compatibility only where it sacrifices nothing.
+- **Kinds in plain words**: Adds rules to the prompt (inject) · Rewrites the reply · Checks the reply · Offers choices · Writes a side note · Rewrites your message (intercept). Trackers stay in Library → Trackers.
+- **New run mode `text`** (core): no AI call; the agent's own text, macros expanded (`{{random::a::b}}` included), is the answer. Free and instant — what most v1 "rules" and randomizers were. "Same roll on every new version" uses a seeded sequence. Preview Prompt shows these agents (they cost nothing and change nothing); agents that need an AI call stay listed as "not in this preview".
+- **`display.note`** (schema, optional): a note shows under the message (closed label) or in the agents menu.
+- **Library → Agents**: Table (sortable; kinds as filters; search) and List (grouped by kind, beside the editor) views. The editor looks like the tracker editor and saves by itself (600 ms), like the lorebook editor.
+- **Setup → Agents** in story / New story / chat: rows like trackers' (layers D-031, "changed in this chat").
+- **In the chat**: the "✦ N" toolbar menu (switches for this chat, last run, Run, menu notes, "Manage"); quiet pencil / triangle marks beside the speaker's name (Undo = the original text back as a user revision; Write again = a new version); note labels under replies; choices as buttons under the latest reply (click sends, right-click puts it in the box).
+- The full "Agents" inspector tab of draft v2 is **kept for a future Settings option** (Daniel).
+Not done here: Settings → Agents (switch on for everything = the Default layer), a "Try it" dry run in the editor, tools. Signed: **CLAUDE**.

@@ -16,7 +16,7 @@ import type { LibraryArea } from "./Sidebar.tsx";
 
 const LIBRARY_TABS: Array<{ area: LibraryArea; label: string }> = [
   { area: "personas", label: "Personas" }, { area: "lorebooks", label: "Lorebooks" },
-  { area: "presets", label: "Presets" }, { area: "trackers", label: "Trackers" }, { area: "trash", label: "Trash" },
+  { area: "presets", label: "Presets" }, { area: "trackers", label: "Trackers" }, { area: "agents", label: "Agents" }, { area: "trash", label: "Trash" },
 ];
 
 /** The kinds of things in the Library, as tabs at the top of its pages. */

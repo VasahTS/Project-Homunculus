@@ -284,9 +284,13 @@ export class TurnPipeline {
     const base: RunRequest = { session, setup, generationType: "normal", mainConnection: main, connections: options.connections, names, seed: parentId ?? session.id,
       results: new Map(), trigger: "turn.after", messageId: parentId ?? "", text: "" };
     const inlineAgents = await this.runner.select(entries, base, (a) => isTurn(a, "after") && a.runMode === "inline");
+    // agents that only add their own text cost nothing: the preview shows them (D-047); the others would need an AI call
+    const textAgents = await this.runner.select(entries, { ...base, trigger: "turn.before" }, (a) => isTurn(a, "before") && a.runMode === "text" && a.output === "inject");
+    const injections: PromptInjection[] = [];
+    for (const e of textAgents) injections.push(injectionOf({ agentId: e.config.id, kind: "inject", config: e.config, output: await this.runner.textAnswer(e.config, { ...base, text: options.userText ?? "" }) }));
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: speaking.character, persona: effPersona,
-      names, injections: [], inlineAgents, type: "normal", main, seed: parentId ?? session.id });
-    const before = entries.filter((e) => isTurn(e.config, "before") && e.config.runMode !== "inline");
+      names, injections, inlineAgents, type: "normal", main, seed: parentId ?? session.id });
+    const before = entries.filter((e) => isTurn(e.config, "before") && e.config.runMode !== "inline" && !(e.config.runMode === "text" && e.config.output === "inject"));
     if (before.length) built.notes.push(`Not in this preview: what ${before.map((e) => e.config.name).join(", ")} would add (they run just before the reply).`);
     const sent = (preset.squashSystem ? squashSystem(built.parts) : built.parts).length;
     return { ...built, presetId: preset.id, presetName: preset.name, model: main.model, sent };

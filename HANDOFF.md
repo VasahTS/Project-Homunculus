@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Agents on screen (2026-10-30) — CLAUDE — D-047
+
+- **Library → Agents** (under "Around each reply", beside Trackers): Table or List view, filters by kind, search; the editor saves by itself. Eight small starter agents, one per kind, all off.
+- **Switch them on** in a story's or a chat's setup (Agents rows), or in a chat with the **✦** button in the toolbar (also Run for "only when I ask" agents and their notes).
+- **In the chat**: choices as buttons under the latest reply (click sends); notes as small labels under the reply; a grey "polished" pencil / amber triangle beside the name when an agent rewrote the reply or a check failed (Undo, Write again).
+- **Core**: run mode `text` (no AI call: the agent's own words, `{{random}}` included); Preview Prompt shows those agents.
+- Next for agents: Settings → Agents (on everywhere), the full Agents tab as a Settings option, a "Try it" button, tools.
+
 ## Review of CODEX's rounds + Prompt/Tracker fixes (2026-10-30) — CLAUDE — D-046
 
 - **Prompt tab:** block edits go to the **shared preset** by default; "Only this chat…" is a quiet secondary link. Text saves as you type (Undo changes instead of Apply/Cancel). Blocks overridden locally are tagged while editing the shared preset. Context size is back in the foot.

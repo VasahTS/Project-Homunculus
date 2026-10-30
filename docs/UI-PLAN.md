@@ -6,7 +6,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
-## Agents (slice 5) — CLAUDE, 10/30/2026 · 🟡 draft sent, waiting for Daniel
+## Agents (slice 5) — CLAUDE, 10/30/2026 · ✅ draft v2 approved, in the app (D-047)
 
 **What it is for:** the agents Daniel "can't live without" from v1 (In-Chat Agents), on the engine Homunculus 2 already has. The core
 runner already runs every output kind (inject, intercept, rewrite, check, choices, note, state, speaker), with conditions, order,
@@ -57,6 +57,13 @@ and a place for their results in the chat. Plus bringing v1's 69 templates over 
 ### States
 Empty (no agents: "Add from templates…" as the main action) · running (the message shows "Prose Polisher…" like "updating…" of trackers) ·
 failed (the receipt says why; the reply is never lost — already true in the core) · many (10+ agents on: Setup groups them by kind, folded).
+
+### Draft v2 — Daniel's decisions (10/30, 16:58)
+- **In the chat: the light option** — a "✦ N" button in the chat's toolbar opens a small menu: agents on here, last run (ran / failed / waiting), switch, **Run** for "only when I ask", the note of agents set to "in the agents menu", "+ Turn on another agent…", "Manage". **Keep the full "Agents" inspector tab for later, as a Settings option** (draft section 1, main mock).
+- **Notes:** each agent chooses "Under the message" (a closed label under the reply) or "In the agents menu".
+- **Rewrite and check:** only a small grey pencil "polished" and an amber triangle beside the speaker's name; details (See the original, Undo / reason, Write again, Ignore) on click.
+- **Library → Agents:** a table (Name, What it does, When, On in), kinds as filters, search — **plus other views** ("other view options would be good for the app"): a List view grouped by kind beside the editor. Remembered per computer.
+- **Setup per story / chat:** approved as drafted.
 
 ### Daniel's answers (10/30)
 1. **Almost nothing from v1**: only a few basic examples, one per kind, to test each one. The Prose Polisher will be redone later with another idea. → A4 shrinks to ~7 small starter agents written for Homunculus 2.

@@ -6,7 +6,8 @@
 // "from the story" for a chat) until something else is picked; a chat row that differs from its story is marked
 // "changed in this chat" with "Use the story's". The layer edited stores only what it changes.
 import type { ReactNode } from "react";
-import type { ConnectionProfile, Persona, Preset, SetupLayer } from "@homunculus/schemas";
+import type { AgentConfig, ConnectionProfile, Persona, Preset, SetupLayer } from "@homunculus/schemas";
+import { kindOf, whenText } from "../agents.ts";
 import { layerFieldSet, layerHasTracker, layerWithFieldSet, layerWithTracker, type Tracker } from "../trackers.ts";
 
 const INHERIT = "";
@@ -21,6 +22,8 @@ export interface StorySetupProps {
   profiles: ConnectionProfile[];
   personas: Persona[];
   trackers: Tracker[];
+  /** The Library's agents (slice 5, D-047). */
+  agents: AgentConfig[];
   /** What a layer under `story` inherits (undefined = what a story inherits from Settings → Defaults). */
   namesFor: (story?: SetupLayer) => SetupNames;
   /** The Author's Note a layer under `story` inherits (undefined = Settings → Defaults). */
@@ -38,7 +41,7 @@ export interface SetupNames {
   persona: string;
 }
 
-export function SetupFields({ mode, layer, onChange, above, names, presets, profiles, personas, trackers, title = "Setup", aside, trackersAside, agentsAside, testId, director = false }: {
+export function SetupFields({ mode, layer, onChange, above, names, presets, profiles, personas, trackers, agents = [], title = "Setup", aside, trackersAside, agentsAside, testId, director = false }: {
   /** story: the story's own layer (above = Defaults). chat: one chat's layer (above = its story). */
   mode: "story" | "chat";
   layer: SetupLayer;
@@ -50,6 +53,7 @@ export function SetupFields({ mode, layer, onChange, above, names, presets, prof
   profiles: ConnectionProfile[];
   personas: Persona[];
   trackers: Tracker[];
+  agents?: AgentConfig[];
   title?: string;
   aside?: ReactNode;
   trackersAside?: ReactNode;
@@ -123,12 +127,26 @@ export function SetupFields({ mode, layer, onChange, above, names, presets, prof
         {trackers.length === 0 && <div className="setup-empty">No trackers yet. Make one in Library → Trackers.</div>}
       </SetupSection>
 
-      <SetupSection title="Agents" aside={agentsAside}>
-        <div className="setup-empty">
-          <strong>No other agents yet</strong>
-          <span>When the Style Reviewer and the other agents arrive, they show up here and you turn them on {chat ? "for this chat" : "for this story"}.</span>
-        </div>
+      <SetupSection title="Agents" aside={agentsAside} testId="setup-agents">
+        {agents.map((a) => <AgentRow key={a.id} a={a} chat={chat} layer={layer} above={above} onChange={onChange} />)}
+        {agents.length === 0 && <div className="setup-empty">No agents yet. Make one in Library → Agents.</div>}
       </SetupSection>
+    </div>
+  );
+}
+
+/** An agent on or off for this story (or this chat), like a tracker row (D-047). */
+function AgentRow({ a, chat, layer, above, onChange }: { a: AgentConfig; chat: boolean; layer: SetupLayer; above?: SetupLayer; onChange: (l: SetupLayer) => void }) {
+  const inheritedOn = chat && above ? layerHasTracker(above, a.id) : false;
+  const on = layerHasTracker(layer, a.id, inheritedOn);
+  const isChanged = chat && on !== inheritedOn;
+  const what = `${kindOf(a)?.label ?? ""} · ${whenText(a).toLowerCase()}`;
+  const sub = !chat ? what : isChanged ? (on ? "on in this chat · off in the story" : "off in this chat · on in the story") : on ? `from the story · ${what}` : what;
+  return (
+    <div className={`setup-row tracker${isChanged ? " changed" : ""}`} data-testid={`setup-agent-${a.id}`}>
+      <input type="checkbox" className="setup-check" aria-label={a.name} checked={on}
+        onChange={(e) => onChange(layerWithTracker(layer, a.id, e.target.checked, inheritedOn))} />
+      <span className="setup-k grow"><span>{a.name}</span><small>{sub}</small>{isChanged && <ChangedChip onUndo={() => onChange(layerWithTracker(layer, a.id, inheritedOn, inheritedOn))} />}</span>
     </div>
   );
 }

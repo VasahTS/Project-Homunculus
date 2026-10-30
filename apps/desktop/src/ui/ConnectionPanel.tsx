@@ -107,7 +107,7 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
         <>
           <p className="follows-story" data-testid="follows-story">This chat follows <strong>{storyName}</strong>. Rows you change here count for this chat only.</p>
           <SetupFields mode="chat" layer={session.setup} above={storySetup} names={setupProps!.namesFor(storySetup)} director={director}
-            presets={setupProps!.presets} profiles={setupProps!.profiles} personas={setupProps!.personas} trackers={setupProps!.trackers}
+            presets={setupProps!.presets} profiles={setupProps!.profiles} personas={setupProps!.personas} trackers={setupProps!.trackers} agents={setupProps!.agents}
             onChange={(setup) => onChangeSession({ ...session, setup })} testId="chat-setup" />
         </>
       )}

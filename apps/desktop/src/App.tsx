@@ -3,7 +3,7 @@
 // 2026-10-28 (slice 1, D-019): versions of characters, personas, history, the Trash; (slice 1b, D-020): Settings.
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind } from "@homunculus/schemas";
+import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
 import { exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
 import { LorebookEditor } from "./ui/LorebookEditor.tsx";
@@ -27,6 +27,9 @@ import { changesIn, StoryPage, type NewChatChoice, type StoryChat } from "./ui/S
 import type { SetupNames, StorySetupProps } from "./ui/SetupFields.tsx";
 import { TrackerEditor } from "./ui/TrackerEditor.tsx";
 import { CharactersPage, LorebooksPage, PersonasPage, PresetsPage, TrackersPage, TrashPage } from "./ui/LibraryPages.tsx";
+import { AgentsPage } from "./ui/AgentsPage.tsx";
+import { AgentEditor } from "./ui/AgentEditor.tsx";
+import { blankAgent, deleteAgent, listAgents, saveAgent } from "./agents.ts";
 import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
@@ -44,6 +47,7 @@ type View =
   | { kind: "trash" }
   | { kind: "settings"; tab: SettingsTab }
   | { kind: "trackers"; draft?: TrackerDraft; isNew?: boolean; fromSession?: boolean }
+  | { kind: "agents"; id: string | null; fromSession?: boolean }
   | { kind: "vault"; tab: VaultTab; id: string | null }
   | { kind: "story"; id: string }
   | { kind: "kit"; id: string };
@@ -81,6 +85,7 @@ export function App() {
   const [defaultSetup, setDefaultSetupState] = useState<SetupLayer>({});
   const [avatars, setAvatars] = useState<Record<string, Avatar>>({});
   const [trackers, setTrackers] = useState<Tracker[]>([]);
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [narrators, setNarrators] = useState<Narrator[]>([]);
   const [npcs, setNpcs] = useState<Npc[]>([]);
@@ -161,6 +166,7 @@ export function App() {
     setTrash(tr);
     setAvatars(av);
     setTrackers(ts);
+    setAgents(await listAgents(s.store));
     await refreshVault(s);
     const lines: Record<string, string> = {};
     const counts: Record<string, number> = {};
@@ -443,6 +449,29 @@ export function App() {
     return saved;
   };
 
+  // agents (slice 5, D-047)
+  const openAgent = (id: string | null, fromSession = false) => setView({ kind: "agents", id, fromSession });
+  const onSaveAgent = async (a: AgentConfigInput): Promise<AgentConfig> => {
+    const saved = await saveAgent(svc.store, a);
+    setAgents(await listAgents(svc.store));
+    return saved;
+  };
+  const onNewAgent = async () => {
+    const saved = await saveAgent(svc.store, { ...blankAgent("inject"), name: "New agent" });
+    setAgents(await listAgents(svc.store));
+    openAgent(saved.id);
+  };
+  const onDeleteAgent = async (id: string) => {
+    await deleteAgent(svc.store, id);
+    await refresh(svc);
+    setView(view.kind === "agents" && view.fromSession ? { kind: "session" } : { kind: "agents", id: null });
+  };
+  const toggleAgent = async (id: string, on: boolean) => {
+    if (!active) return;
+    await svc.store.saveSession(withTracker(active, id, on, storyLayerOf(active)));
+    await refresh(svc);
+  };
+
   const onDeleteTracker = async (id: string) => {
     await deleteTracker(svc.store, id);
     await refresh(svc);
@@ -599,7 +628,7 @@ export function App() {
     if (!p?.listModels) throw new Error("This AI can't list its models. Type the model's ID instead.");
     return p.listModels(config, signal);
   };
-  const setupProps: StorySetupProps = { presets, profiles: connection.profiles, personas, trackers, namesFor, noteAbove,
+  const setupProps: StorySetupProps = { presets, profiles: connection.profiles, personas, trackers, agents, namesFor, noteAbove,
     setupAbove: (story) => resolveSetup({ default: defaultSetup, ...(story ? { story } : {}) }),
     onSavePreset: async (preset) => { await svc.store.savePreset(preset); await refresh(svc); },
     onOpenPreset: (id) => setView({ kind: "presets", id }),
@@ -841,9 +870,9 @@ export function App() {
       <Icon name="sidebar" size={17} />
     </IconButton>
   );
-  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : { kind: "trackers" }); };
+  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "agents" ? { kind: "agents", id: null } : { kind: "trackers" }); };
   const libraryCategory: LibraryCategory | null = view.kind === "vault" && view.tab !== "stories" ? view.tab : view.kind === "kit" ? "kits"
-    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "trash" ? view.kind : null;
+    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" ? view.kind : null;
   const pageLead = libraryCategory ? null : lead;
   // opened a lorebook from a session (Prompt tab): a button goes straight back to it (Daniel: "me senti perdido")
   const backSession = loreBack ? sessions.find((x) => x.id === loreBack) : undefined;
@@ -1007,6 +1036,14 @@ export function App() {
             onSave={onSaveTracker} onDelete={onDeleteTracker} onClose={() => setView(view.fromSession ? { kind: "session" } : { kind: "trackers" })}
             loadSample={(id) => sampleFor(svc, id)} avatars={avatars} />
         ) : null} />
+    );
+  } else if (view.kind === "agents") {
+    const editing = view.id ? agents.find((a) => a.id === view.id) : undefined;
+    const close = () => setView(view.fromSession ? { kind: "session" } : { kind: "agents", id: null });
+    content = (
+      <AgentsPage lead={pageLead} agents={agents} stories={stories} sessions={sessions} selectedId={editing?.id ?? null}
+        onSelect={(id) => openAgent(id)} onNew={() => void onNewAgent()}
+        detail={editing ? <AgentEditor key={editing.id} agent={editing} onSave={onSaveAgent} onDelete={onDeleteAgent} onClose={close} /> : null} />
     );
   } else if (view.kind === "vault") {
     const q = vaultQuery.trim().toLowerCase();
@@ -1174,6 +1211,9 @@ export function App() {
         onRename={(t) => void renameSession(t)}
         onDelete={() => void deleteSession()}
         onToggleTracker={(id, on) => void toggleTracker(id, on)}
+        agents={agents}
+        onToggleAgent={(id, on) => void toggleAgent(id, on)}
+        onOpenAgent={(id) => openAgent(id, true)}
         onPickFieldSet={(id, setId) => void pickFieldSet(id, setId)}
         onEditTracker={(id) => openTracker(id, true)}
         onNewTracker={() => openTracker("new", true)}
@@ -1209,6 +1249,7 @@ export function App() {
             ...personas.map((p) => ({ id: `persona:${p.id}`, name: p.name, kind: "Persona", onOpen: () => setView({ kind: "personas", id: p.id }) })),
             ...presets.map((p) => ({ id: `preset:${p.id}`, name: p.name, kind: "Preset", onOpen: () => setView({ kind: "presets", id: p.id }) })),
             ...trackers.map((t) => ({ id: `tracker:${t.agent.id}`, name: t.agent.name, kind: "Tracker", onOpen: () => openTracker(t.agent.id) })),
+            ...agents.map((a) => ({ id: `agent:${a.id}`, name: a.name, kind: "Agent", onOpen: () => openAgent(a.id) })),
           ]}
           onOpenStories={() => { setVaultQuery(""); setView({ kind: "vault", tab: "stories", id: null }); }}
           sessions={sessions}
@@ -1226,7 +1267,7 @@ export function App() {
           onOpenStory={(id) => setView({ kind: "story", id })}
           onNewStory={() => setNewStoryOpen({ cardId: null })}
           onOpenCharacters={() => setView({ kind: "characters", id: null })}
-          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "trash" ? view.kind : "kits")}
+          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "connections" })}
         />
@@ -1235,7 +1276,7 @@ export function App() {
         <UpdateBar u={updates} />
         {noticeBar}
         {libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
-          counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, trash: trash.length }}
+          counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, agents: agents.length, trash: trash.length }}
           onOpen={openLibrary}>{content}</LibraryWorkspace> : content}
       </div>
       {savingNpc && (() => {
