@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Story narrator hierarchy before implementation. CODEX, D-045. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Story narrator — quiet placement</title>
+<style>
+body { height:auto; padding:32px; }
+main { max-width:1100px; margin:auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr)); gap:32px; }
+h1 { font-size:var(--size-title); margin:0 0 20px; }
+.narrator-placement { width:100%; min-width:0; }
+.narrator-placement > summary { display:flex; align-items:center; gap:6px; min-height:28px; cursor:pointer; list-style:none; color:var(--label-2); font-size:var(--size-small); }
+.narrator-placement > summary::-webkit-details-marker { display:none; }
+.narrator-placement > summary::before { content:'›'; width:12px; text-align:center; }
+.narrator-placement[open] > summary::before { transform:rotate(90deg); }
+.narrator-placement .placement-value { margin-left:auto; }
+.narrator-placement .group { background:transparent; margin-top:6px; }
+</style></head><body>
+<main>
+<section><h1>Default view</h1><div class="setup-sec"><h2 class="setup-title">Cast <span>who is in this story</span></h2><div class="setup-group">
+<div class="setup-row"><span class="cast-pic letter">I</span><span class="setup-k grow"><span>Narrator · Isekai RPG</span><small>Your card, used as the narrator. The card is not changed.</small></span><button class="btn btn-bordered btn-small">Change…</button></div>
+<div class="setup-row column"><details class="narrator-placement"><summary><span>Prompt placement</span><span class="placement-value">Card</span></summary><p class="hint">Placement options appear here.</p></details></div>
+<div class="setup-row"><span class="setup-k grow">NPCs</span><button class="link">+ New NPC</button></div>
+<div class="setup-row"><span class="setup-k grow">Characters</span><button class="link">+ Add a Card</button></div>
+</div></div></section>
+<section><h1>On request</h1><div class="setup-sec"><h2 class="setup-title">Cast <span>who is in this story</span></h2><div class="setup-group">
+<div class="setup-row"><span class="cast-pic letter">I</span><span class="setup-k grow"><span>Narrator · Isekai RPG</span><small>Your card, used as the narrator. The card is not changed.</small></span><button class="btn btn-bordered btn-small">Change…</button></div>
+<div class="setup-row column"><details class="narrator-placement" open><summary><span>Prompt placement</span><span class="placement-value">Card</span></summary><div class="group">
+<div class="row"><span class="row-label">Where it goes</span><span class="row-value"><select aria-label="Draft placement"><option>In the character card's place</option><option>System prompt, after Main</option><option>Inside the chat prompt</option></select></span></div>
+<div class="row"><span class="row-label">Also in chat</span><span class="row-value"><label class="check"><input type="checkbox">Repeat in the chat prompt</label></span></div>
+</div></details></div>
+<div class="setup-row"><span class="setup-k grow">NPCs</span><button class="link">+ New NPC</button></div>
+</div></div></section>
+</main></body></html>

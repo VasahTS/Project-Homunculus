@@ -386,3 +386,11 @@ Daniel's review found that collapsing an inline block lost its unapplied text. F
 Daniel referred to the original development guide (`GUIA-FIELDS-SCENE.md` §§8–9) and implementation (`classic-scene-fields.js:portablePreset/exportPreset`). They export the selected complete preset without local IDs/builtin flags. He explicitly chose that whole-Set behavior **in the Homunculus 2 format**, rather than compatibility with the original app. Keep one visible Export Set action beside Import Sets, outside Copy or move fields. It serializes the complete current PortableFieldSet; field selection cannot filter it. Preserve file validation, fresh imported IDs, multi-set bundle import, undo and transfer safeguards. Remove the confusing partial/bulk export buttons from this workflow. No data migration or original-project edits.
 
 Signed: **CODEX**.
+
+## D-045 — Quiet Story setup: preset selection and narrator disclosure (2026-10-29)
+
+Daniel explicitly requested removing Prompt blocks from Story creation/setup and placing narrator prompt options near the narrator, subtly. Remove the Story/Kit inline block editor, retaining the preset picker and existing Library/chat editors. Preserve persisted Story overrides and core resolution; no automatic data deletion or migration.
+
+Narrator placement belongs under its narrator in Cast. Show one quiet native disclosure with a short current placement summary. Keep it closed initially; opening reveals the same placement, repeat, depth, role, order and inheritance reset controls. Use existing semantic colors, control typography and chevron; no new card/shadow/accent treatment. The reusable component's chat presentation remains unchanged. Keyboard disclosure and responsive layout remain supported.
+
+Reference draft: `docs/drafts/story-narrator/quiet.html`; direction recorded before implementation in UI-PLAN. Validation: typecheck/build, 213 unit tests (2 skipped) and 23 affected browser flows passed. Closed/open app captures compared with draft; 620 px geometry had no overflow/page errors. Signed: **CODEX**.

@@ -7,9 +7,9 @@ Implemented by **CODEX** on 2026-10-29, on `dev`, following Daniel's instruction
 1. Open a chat → **Prompt** → **Preset**. **Save changes to** starts at **Only this chat**.
 2. Open **Main Prompt**, edit text, then close the block or leave it. Pending text saves automatically on blur, collapse, scope change or leaving the view; **Apply block** still saves immediately. **Cancel** explicitly discards pending edits. **Preview Prompt** shows the saved change. Another chat keeps the shared text. The full **Edit Preset** editor remains available. This corrects Daniel's close-without-Apply report (D-044).
 3. **Use inherited blocks** restores the inherited content/switches/order for this preset. Switching presets keeps their patches separate.
-4. On a Story/Kit, **Prompt blocks** defaults to **This story and its chats**. Its chats inherit each field until they change it locally. Story setup uses the existing autosave; chat/shared-preset edits save when applied.
+4. Story/Kit setup now shows the **Preset** picker without the full block list (Daniel's cleanup request, D-045). Edit shared blocks in Library → Presets, or make local chat edits in Prompt. Existing stored Story patches remain effective and are not deleted. Story setup keeps its existing autosave.
 5. Choose **Shared preset** only when intending to edit that reusable resource for all its users. Local patches still take precedence.
-6. On a Story or narrated chat, **Narrator in the prompt** offers card/system/chat placement, depth, role and order. **Also in chat** explicitly repeats instructions. Check the narrator source labels in Preview. These settings do not add messages to the conversation. The default card setting preserves prior behavior.
+6. On a Story/Kit, find **Prompt placement** immediately under the narrator in **Cast**. It starts closed with a short current-value summary; click or focus and press Space to reveal card/system/chat placement, depth, role and order. **Also in chat** explicitly repeats instructions. The narrated chat's existing **Narrator in the prompt** controls remain. Check narrator source labels in Preview. No stored messages are added; default card placement preserves prior behavior.
 
 ## Tracker field sets
 
@@ -23,6 +23,8 @@ Implemented by **CODEX** on 2026-10-29, on `dev`, following Daniel's instruction
 [File format and instructions for an AI](FIELD-SET-FORMAT.md). This is an import format and guide, not an implemented Library Assistant. Round 6 (extracting NPCs from multi-character cards) remains dependent on that Assistant.
 
 ## Verification
+
+Latest UI correction, D-045: typecheck/build, 213 unit tests (2 skipped) and all 23 affected browser flows passed. Actual closed/open narrator captures matched the draft's hierarchy; 620 px placement had no overflow/page errors. The earlier full-suite result below belongs to D-044.
 
 - TypeScript check and production UI build passed.
 - 213 unit tests passed; 2 existing tests skipped. Includes SQLite setup round-trips, actual recorded generation, inherited/isolated prompt patches, narrator placement, atomic transfer failures and the documented JSON example.

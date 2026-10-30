@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Quiet Story setup (2026-10-29) — CODEX — D-045
+
+Daniel requested less density on Story creation/setup. Removed the full **Prompt blocks** list from Story/Kit pages; the Setup preset picker, Library preset editor and chat Prompt editing remain. Existing stored Story block patches are preserved and still resolve normally; this is a UI removal, not a data migration.
+
+Narrator placement is now a quiet **Prompt placement · Card/System/In chat** disclosure immediately beneath the narrator, inside Cast. Closed by default; depth/role/order/repetition/reset appear only on request. The same placement component retains its existing chat presentation. No new palette, fonts or theme values. Plan and closed/open draft: `docs/UI-PLAN.md`, `docs/drafts/story-narrator/quiet.html`.
+
+Validation: typecheck/build passed; 213 unit tests passed (2 skipped); all 23 affected browser flows passed, including Story/Kit creation, keyboard disclosure and narrator/preset inheritance into chats. Actual closed/open captures were compared with the draft; 620 px layout had no control overflow/page errors. Isolated seeded data only; no private database/native window inspected. Existing lockfile changes excluded. Signed: **CODEX**.
+
 ## Review corrections: closing prompt blocks and complete-set export (2026-10-29) — CODEX — D-044
 
 Daniel reported that closing an edited inline prompt block discarded text unless Apply was clicked. Pending block text and card-override settings now save on blur, collapse, scope change or leaving the view. Writes are queued and merged against the latest layer/shared preset; Apply remains available and Cancel explicitly discards pending text. Failed saves keep the draft available for retry while the editor is open.

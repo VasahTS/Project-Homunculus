@@ -92,8 +92,12 @@ test("editing the shared preset is explicit and reaches another chat", async ({ 
   await expect(await preview(page)).toContainText("SHARED PROMPT CHECK");
 });
 
-test("a Story's block and narrator placement reach its chats; local changes can be restored", async ({ page }) => {
+test("a Story inherits its preset; quiet narrator placement stays with the narrator and reaches its chats", async ({ page }) => {
   await page.goto("/");
+  await openTab(page, "prompt");
+  const shared = page.getByTestId("scoped-prompt-blocks");
+  await shared.getByLabel("Prompt edit scope").selectOption("preset");
+  await editMain(shared, "STORY PROMPT CHECK.");
   await openLibrary(page, "Stories");
   await page.getByRole("button", { name: "New Story", exact: true }).click();
   const create = page.getByTestId("new-story");
@@ -101,11 +105,19 @@ test("a Story's block and narrator placement reach its chats; local changes can 
   await create.getByRole("button", { name: /Narrated adventure/ }).click();
   await create.getByLabel("An empty story").check();
   await create.getByTestId("create-story").click();
-  await editMain(page.getByTestId("story-prompt-blocks"), "STORY PROMPT CHECK.");
-  const placement = page.getByTestId("narrator-prompt");
+  await expect(page.getByTestId("story-prompt-blocks")).toHaveCount(0);
+  await expect(page.getByTestId("scoped-prompt-blocks")).toHaveCount(0);
+  const placement = page.getByTestId("story-narrator").getByTestId("narrator-prompt");
+  await expect(placement.getByLabel("Narrator placement")).toBeHidden();
+  await expect(placement.locator("summary")).toContainText("Card");
+  await placement.locator("summary").focus();
+  await page.keyboard.press("Space");
   await placement.getByLabel("Narrator placement").selectOption("system");
   await placement.getByLabel("Also send narrator in chat").check();
   await placement.getByLabel("Narrator depth").fill("0");
+  await placement.locator("summary").click();
+  await expect(placement.locator("summary")).toContainText("System + in chat");
+  await expect(placement.getByLabel("Narrator depth")).toBeHidden();
   await page.getByTestId("play-story").click();
   await page.getByTestId("new-chat-sheet").getByTestId("start-chat").click();
   await openTab(page, "prompt");

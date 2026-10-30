@@ -6,6 +6,19 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Story setup simplification — CODEX, 2026-10-29 · D-045
+
+Daniel asked to remove Prompt blocks from the Story screen and put narrator placement near the narrator, subtly. Implement his explicit direction with the current palette, system control font, spacing and semantic tokens; no new visual theme. Reference draft: `docs/drafts/story-narrator/quiet.html`, with closed/open states using the narrator shown in Daniel's screenshot.
+
+```
+Cast
+  Narrator · Isekai RPG                         Change…
+    ▸ Prompt placement                            Card
+  NPCs                                         + New NPC
+```
+
+The narrator remains primary; one quiet disclosure row underneath shows placement and an optional repeat summary. Placement/depth/role/order/reset are hidden until requested. Keep standard keyboard focus and disclosure semantics. Remove the full block list from Story/Kit, including creation; retain the preset picker and Library preset editor. Do not delete existing setup patches or change generation. Chat Prompt editing stays available. Validate closed/open states, save/reopen/inheritance, keyboard access and narrow widths. Signed: **CODEX**.
+
 ## Functional rounds 4–5 — CODEX, 2026-10-29
 
 **Daniel's correction (D-044, CODEX):** retain the block editor but save pending text on blur, collapse, scope change and leaving the view; Cancel explicitly discards only pending text. For trackers, use one visible **Export Set** action outside the field-selection disclosure, beside **Import Sets**. Export always includes the current complete set, independent of selection. Rename the existing selection disclosure **Copy or move fields**. Daniel confirmed the Homunculus 2 format, not compatibility with the original app. Reference: the original `GUIA-FIELDS-SCENE.md` sections 8–9 and `classic-scene-fields.js:exportPreset` export the selected preset as a whole. Keep the existing appearance and transfer behavior.

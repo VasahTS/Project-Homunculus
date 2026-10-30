@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-29 · Quiet Story setup — D-045
+
+Removed Story/Kit inline Prompt blocks following Daniel's request. Kept preset selection, Library editing, chat Prompt controls and existing stored overrides. Moved narrator placement into Cast beside the narrator as a closed, token-styled disclosure with a short current-value summary. Detailed controls, inherited reset and autosave behavior remain available after opening it. The chat presentation is unchanged. Created the closed/open HTML draft before implementation and compared actual captures with it. Files: StoryPage.tsx, NarratorPromptGroup.tsx, styles.css, prompt-control.e2e.ts and the plan/review/handoff docs. Signed: **CODEX**.
+
+Validation: typecheck and production build passed; 213 unit tests passed (2 skipped); 23 affected browser flows passed (Story/Kit creation, narrator/preset inheritance, keyboard access and existing Prompt saves). Actual desktop closed/open captures inspected against the draft; 620 px placement had no overflow or page errors. Isolated seeded data; native/private data not inspected. Existing lockfile changes excluded. Signed: **CODEX**.
+
 ## 2026-10-29 · Review corrections — D-044
 
 Fixed inline prompt text disappearing on collapse/navigation without Apply. Blur, close, scope changes and unmount flush pending edits; queued writes merge against the latest layer/preset, preserving the original scope. Apply remains immediate; Cancel explicitly discards pending edits. Updated the existing tracker editor to visible Export Set / Import Sets actions independent of field selection, with transfer controls under Copy or move fields. Export always contains the complete current Homunculus 2 set. Read the original Scene Fields guide §§8–9 and exportPreset implementation as Daniel requested; Daniel chose whole-set behavior with the Homunculus 2 format. No original-app or private play files were changed. Signed: **CODEX**.

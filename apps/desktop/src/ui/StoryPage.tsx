@@ -7,14 +7,12 @@
 // and "Start a Story" instead of Play.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, UserRole } from "@homunculus/schemas";
-import { DEFAULT_PRESET, effectiveCharacter, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
+import { effectiveCharacter, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { LorebookChips } from "./LorePanels.tsx";
 import { Button, Icon, IconButton, Segmented } from "./kit.tsx";
-import { PromptBlocks } from "./PromptBlocks.tsx";
 import { NarratorPromptGroup } from "./NarratorPromptGroup.tsx";
-import { Group } from "./kit.tsx";
 import { AuthorsNoteGroup } from "./AuthorsNote.tsx";
 import { SetupFields, SetupSection, type StorySetupProps } from "./SetupFields.tsx";
 export type { StorySetupProps };
@@ -254,37 +252,43 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
         <div className="story-cols">
           <div className="story-col">
             <SetupSection title="Cast" aside="who is in this story" testId="story-people">
-              <div className="setup-row" data-testid="story-narrator">
-                {cover ? <img className="cast-pic" src={avatarUrl(cover)} alt="" /> : <span className="cast-pic letter" aria-hidden>{narratorName.slice(0, 1).toUpperCase()}</span>}
-                <span className="setup-k grow"><span>Narrator · {narratorName}</span><small className={draft.narrator.kind === "vault" && !vaultNarrator ? "error-text" : ""}>{narratorLine}</small></span>
-                <Button small onClick={() => setNarratorOpen((v) => !v)} aria-expanded={narratorOpen}>{narratorOpen ? "Done" : "Change…"}</Button>
-              </div>
-              {narratorOpen && (
-                <div className="setup-row column">
-                  <label className="row-line"><span className="field-label label-row">Who tells it <Help text="The narrator is not a character: it describes the scene and voices everyone else. Keep narrators in the Library to reuse them, use one of your cards, or write one just for this story." /></span>
-                    <select aria-label="Narrator" value={narratorValue} onChange={(e) => pickNarrator(e.target.value)}>
-                      <optgroup label="Library">{narrators.map((n) => <option key={n.id} value={`vault:${n.id}`}>{n.name}</option>)}</optgroup>
-                      <optgroup label="A card tells it">{characters.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name}</option>)}</optgroup>
-                      <option value="own">Written for this story…</option>
-                    </select>
-                  </label>
-                  {pickers && <button type="button" className="link align-start" onClick={() => pickers.narrator(vaultNarrator?.id ?? null, (id) => pickNarrator(`vault:${id}`))}>Browse the Library's narrators…</button>}
-                  {vaultNarrator && <p className="hint">{vaultNarrator.instructions.slice(0, 180)}{vaultNarrator.instructions.length > 180 ? "…" : ""} <button className="link" onClick={() => onOpenNarrator(vaultNarrator.id)}>Edit in the Library</button></p>}
-                  {narratorCard && narratorCard.variants.length > 0 && (
-                    <label className="row-line"><span className="field-label label-row">Version <Help text="Which version of the card tells this story. Main = the card as imported." /></span>
-                      <VersionSelect c={narratorCard} value={narratorVariant} label="Narrator card version"
-                        onChange={(v) => change({ narrator: { kind: "card", characterId: narratorCard.id, variantId: v } })} />
-                    </label>
-                  )}
-                  {narratorCard && <p className="hint">The card {narratorCard.name} is sent as it is (its system prompt, description and lorebooks).</p>}
-                  {draft.narrator.kind === "own" && (
-                    <>
-                      <NarratorForm value={draft.narrator.narrator} onChange={(n) => change({ narrator: { kind: "own", narrator: n } })} />
-                      <Button small onClick={() => void saveOwnToVault()}>Save to the Library</Button>
-                    </>
-                  )}
+              <div data-testid="story-narrator">
+                <div className="setup-row">
+                  {cover ? <img className="cast-pic" src={avatarUrl(cover)} alt="" /> : <span className="cast-pic letter" aria-hidden>{narratorName.slice(0, 1).toUpperCase()}</span>}
+                  <span className="setup-k grow"><span>Narrator · {narratorName}</span><small className={draft.narrator.kind === "vault" && !vaultNarrator ? "error-text" : ""}>{narratorLine}</small></span>
+                  <Button small onClick={() => setNarratorOpen((v) => !v)} aria-expanded={narratorOpen}>{narratorOpen ? "Done" : "Change…"}</Button>
                 </div>
-              )}
+                {narratorOpen && (
+                  <div className="setup-row column">
+                    <label className="row-line"><span className="field-label label-row">Who tells it <Help text="The narrator is not a character: it describes the scene and voices everyone else. Keep narrators in the Library to reuse them, use one of your cards, or write one just for this story." /></span>
+                      <select aria-label="Narrator" value={narratorValue} onChange={(e) => pickNarrator(e.target.value)}>
+                        <optgroup label="Library">{narrators.map((n) => <option key={n.id} value={`vault:${n.id}`}>{n.name}</option>)}</optgroup>
+                        <optgroup label="A card tells it">{characters.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name}</option>)}</optgroup>
+                        <option value="own">Written for this story…</option>
+                      </select>
+                    </label>
+                    {pickers && <button type="button" className="link align-start" onClick={() => pickers.narrator(vaultNarrator?.id ?? null, (id) => pickNarrator(`vault:${id}`))}>Browse the Library's narrators…</button>}
+                    {vaultNarrator && <p className="hint">{vaultNarrator.instructions.slice(0, 180)}{vaultNarrator.instructions.length > 180 ? "…" : ""} <button className="link" onClick={() => onOpenNarrator(vaultNarrator.id)}>Edit in the Library</button></p>}
+                    {narratorCard && narratorCard.variants.length > 0 && (
+                      <label className="row-line"><span className="field-label label-row">Version <Help text="Which version of the card tells this story. Main = the card as imported." /></span>
+                        <VersionSelect c={narratorCard} value={narratorVariant} label="Narrator card version"
+                          onChange={(v) => change({ narrator: { kind: "card", characterId: narratorCard.id, variantId: v } })} />
+                      </label>
+                    )}
+                    {narratorCard && <p className="hint">The card {narratorCard.name} is sent as it is (its system prompt, description and lorebooks).</p>}
+                    {draft.narrator.kind === "own" && (
+                      <>
+                        <NarratorForm value={draft.narrator.narrator} onChange={(n) => change({ narrator: { kind: "own", narrator: n } })} />
+                        <Button small onClick={() => void saveOwnToVault()}>Save to the Library</Button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <div className="setup-row column">
+                  <NarratorPromptGroup disclosure level="story" layer={draft.setup} above={setup.setupAbove().narratorPrompt} onChange={(layer) => change({ setup: layer })} />
+                </div>
+              </div>
 
               <div className="setup-row">
                 <span className="setup-k grow"><span>NPCs</span>{inStory.length === 0 && <small>None yet. The narrator can bring people in as the story goes.</small>}</span>
@@ -411,17 +415,6 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
             <SetupFields mode="story" layer={draft.setup} onChange={(s) => change({ setup: s })} names={setup.namesFor(undefined)} director={draft.userRole === "director"}
               presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers}
               aside="every chat of this story starts with this" testId="story-setup" />
-
-            {(() => {
-              const above = setup.setupAbove();
-              const selected = draft.setup.presetId !== undefined ? draft.setup.presetId : above.presetId;
-              const preset = setup.presets.find((p) => p.id === selected) ?? setup.presets.find((p) => p.id === DEFAULT_PRESET.id) ?? DEFAULT_PRESET;
-              return preset ? <Group title="Prompt blocks" testId="story-prompt-blocks">
-                <PromptBlocks key={preset.id} preset={preset} layer={draft.setup} above={above} level="story"
-                  onChange={(layer) => change({ setup: layer })} onSavePreset={setup.onSavePreset} onOpenPreset={setup.onOpenPreset} />
-              </Group> : null;
-            })()}
-            <NarratorPromptGroup level="story" layer={draft.setup} above={setup.setupAbove().narratorPrompt} onChange={(layer) => change({ setup: layer })} />
 
             <AuthorsNoteGroup level="story" layer={draft.setup} above={setup.noteAbove(undefined)} onChange={(s) => change({ setup: s })} testId="story-authors-note" />
 

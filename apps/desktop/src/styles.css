@@ -1190,6 +1190,13 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: 2px
 .setup-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border-top: 1px solid var(--separator); min-width: 0; }
 .setup-row:first-child { border-top: 0; }
 .setup-row.column { flex-direction: column; align-items: stretch; gap: 6px; }
+.narrator-placement { width: 100%; min-width: 0; }
+.narrator-placement > summary { display: flex; align-items: center; gap: 6px; min-height: 28px; cursor: pointer; list-style: none; color: var(--label-2); font-size: var(--size-small); }
+.narrator-placement > summary::-webkit-details-marker { display: none; }
+.narrator-placement > summary svg { flex: none; }
+.narrator-placement[open] > summary svg { transform: rotate(90deg); }
+.narrator-placement .placement-value { margin-left: auto; text-align: right; }
+.narrator-placement .group { background: transparent; margin-top: 6px; }
 .setup-row.sub { padding-left: 24px; }
 .setup-row.changed { background: rgba(227, 180, 92, 0.08); }
 .setup-row.choice-row { cursor: pointer; }
