@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-30 · Try it text plan for review
+
+Prepared the Step 1 UI plan after Daniel deferred agent activation/scopes and authorized Try it. Inspected the current editor, Compare sheet and pipeline, and the original prompt preview reference. Planned current-draft preview, existing chat/message context, explicit request/cost feedback, cancellation, read-only outputs, error/full states and regression criteria. Applied targeted UI/UX Pro Max guidance for loading feedback, duplicate-action prevention and contextual status announcements. No screen/draft or application code was created; the text awaits Daniel's review under HANDOFF.
+
+Validation: typecheck passed; 240 unit tests passed (2 skipped); diff check passed. Only UI-PLAN.md, HANDOFF.md and CODEX-LOG.md changed. Signed: **CODEX**.
+
 ## 2026-10-30 · Agent reliability audit — D-051
 
 Reproduced failures before implementation with browser/core regression tests, then corrected agent save ordering and retry/navigation retention, waited for active saves before deletion, rejected cross-chat manual/Compare message IDs, checked cancellation for text/code outputs and comparisons, and serialized keeper persistence per story to preserve concurrent proposals. Guarded slow Close/Delete completions so they preserve another editor opened in the meantime (both cases reproduced by new browser regressions). Kept the existing controls, visual states and appearance. Added deterministic queue tests and positive comparison/lorebook isolation coverage. Report: `docs/AGENT-RELIABILITY-AUDIT.md`.

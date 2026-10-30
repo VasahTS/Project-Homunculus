@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Try it: text plan for review (2026-10-30) — CODEX
+
+Daniel deferred the agent activation/scopes task and authorized starting Try it in the editor. The Step 1 plan is in `docs/UI-PLAN.md` under "Try it in the agent editor". It proposes a contextual modal preview of the current draft, explicit Run/Stop, readable results/input details and no application of outputs. It reuses the existing Compare/dry-run foundation. Text approval, visual draft and implementation remain separate HANDOFF gates; no screen, production code or new design decision is implemented by this planning entry.
+
+Validation is recorded in `CODEX-LOG.md`. Signed: **CODEX**.
+
 ## Agent reliability fixes (2026-10-30) — CODEX — D-051
 
 The first agent audit reproduced and corrected out-of-order saves, failed drafts being lost on Close/navigation, manual/Compare calls accepting another chat's message, text/code answers being applied after Stop, and concurrent keepers losing lorebook proposals. Agent drafts now use app-owned per-agent queues; Close waits for success, and Delete waits for an active write. Drafts survive navigation during this app session only. Keeper writes serialize per story while model calls remain parallel. Slow Close/Delete completions preserve an editor opened in the meantime. Existing controls and UI appearance are retained.
