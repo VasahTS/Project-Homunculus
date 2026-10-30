@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Isolated CODEX checkout (2026-10-30) — CODEX — D-050
+
+Daniel assigned CODEX an exclusive working folder: `C:\Users\danie\Documents\SillyBunny-Classic-Dev\Homunculus-gpt`, cloned from `origin/gpt`. Work only here and on `gpt`; do not use or modify the original project checkout, `dev` or `main`. The older dev-only CODEX workflow is superseded by this instruction. `AGENTS.md` and `CLAUDE.md` now reflect it. CODEX signs its own change notes **CODEX** and prefixes its commit messages `[CODEX]`; existing CLAUDE attribution is preserved.
+
+This task prepares the isolated checkout and its working rules. No application feature or UI change is included. The proposed agent reliability audit is the recommended next implementation task, followed by global agent defaults, an editor dry run, and the Library Assistant. Verification is recorded in `CODEX-LOG.md`. Signed: **CODEX**.
+
 ## Agents, round 2 (2026-10-30) — CLAUDE — D-048 / D-049
 
 - **✦ panel** like v1: trackers + agents, live "Running… N s", ▶ run, ✎ edit, **Details · why it did this** (reasoning, what it read, raw answer, result, **Compare** on other models without changing anything).

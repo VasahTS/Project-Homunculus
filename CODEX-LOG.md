@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-30 · Isolated gpt checkout — D-050
+
+Cloned `origin/gpt` into Daniel's authorized `Homunculus-gpt` folder. Replaced the inherited dev-only workflow in this checkout's agent instructions with the exclusive folder and `gpt` branch rule. Own notes are signed **CODEX**, commit messages use `[CODEX]`, and prior authorship is preserved. Recorded D-050 and the handoff. No application code, UI, release workflow or original checkout was changed by this setup task.
+
+Validation in this checkout: dependencies installed with `npm ci --ignore-scripts --no-audit --no-fund`; `npm run typecheck` passed; `npm test` passed (224 tests, 2 skipped; 28 suites passed, 1 skipped). `git diff --check` passed. Only the five instruction/handoff/decision/log Markdown files changed; application code and dependency lockfiles are unchanged. Signed: **CODEX**.
+
 ## 2026-10-29 · Quiet Story setup — D-045
 
 Removed Story/Kit inline Prompt blocks following Daniel's request. Kept preset selection, Library editing, chat Prompt controls and existing stored overrides. Moved narrator placement into Cast beside the narrator as a closed, token-styled disclosure with a short current-value summary. Detailed controls, inherited reset and autosave behavior remain available after opening it. The chat presentation is unchanged. Created the closed/open HTML draft before implementation and compared actual captures with it. Files: StoryPage.tsx, NarratorPromptGroup.tsx, styles.css, prompt-control.e2e.ts and the plan/review/handoff docs. Signed: **CODEX**.

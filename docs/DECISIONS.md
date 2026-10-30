@@ -445,3 +445,9 @@ Daniel: the v1 Lorebook Keeper "kept changing my lorebook… I lost the original
 - Starter examples: **Lorebook Keeper** (every 4 messages) and **Class Group Chat** (a feed view), both off.
 - Not yet: card evolution in a story's character version, branch-only lore entries, user-defined view templates.
 Signed: **CLAUDE**.
+
+## D-050 — CODEX works in its own checkout and gpt branch (2026-10-30)
+
+Daniel created `gpt` to keep CODEX work separate from `dev` and `main`, then assigned `C:\Users\danie\Documents\SillyBunny-Classic-Dev\Homunculus-gpt` as CODEX's only working folder. Clone and use `origin/gpt` there. Do not work in other project copies or change `dev`, `main` or release workflows. A later integration requires Daniel's explicit instruction.
+
+This overrides the earlier dev-only workflow for CODEX. Verify the folder and branch at the start of each session; preserve uncommitted changes. Commit and push only to `gpt`, sign own change notes **CODEX**, and prefix commit messages `[CODEX]`. Do not reattribute existing work. The application architecture and the deferred UI/Customize priority are unchanged. Signed: **CODEX**.
