@@ -451,3 +451,14 @@ Signed: **CLAUDE**.
 Daniel created `gpt` to keep CODEX work separate from `dev` and `main`, then assigned `C:\Users\danie\Documents\SillyBunny-Classic-Dev\Homunculus-gpt` as CODEX's only working folder. Clone and use `origin/gpt` there. Do not work in other project copies or change `dev`, `main` or release workflows. A later integration requires Daniel's explicit instruction.
 
 This overrides the earlier dev-only workflow for CODEX. Verify the folder and branch at the start of each session; preserve uncommitted changes. Commit and push only to `gpt`, sign own change notes **CODEX**, and prefix commit messages `[CODEX]`. Do not reattribute existing work. The application architecture and the deferred UI/Customize priority are unchanged. Signed: **CODEX**.
+
+## D-051 — Agent persistence and execution boundaries (2026-10-30)
+
+Daniel authorized the first agent reliability task in the isolated CODEX checkout (D-050). Existing behavior is corrected with no new screen, layout or controls.
+
+- Agent edits use one serialized save queue per agent, retained by the desktop app while navigating. A failed save keeps its dirty revision and error; reopening restores that draft. Close waits for a successful save. Delete waits for an in-flight write, then discards pending edits so the agent cannot be recreated by a late write. Draft retention is in memory for this app session, not crash/restart recovery. Existing error/status text and actions remain. A completed Close/Delete only navigates away if its originating agent is still selected.
+- Manual runs and comparisons reject a message whose session differs from the requested chat before calling a model or applying an output.
+- The runner checks Stop before execution and before applying a completed answer, including text and code agents. Comparisons also respect cancellation. Outputs already applied before Stop are not rolled back.
+- Lorebook keepers serialize only their read/merge/write step per story within this runner, so concurrent proposals preserve both contributions and a story without a book creates one shared destination. AI calls and different stories remain parallel. The Library original and other stories remain unchanged. Story-wide lore sharing remains the D-049 behavior; branch-specific lore is still deferred.
+
+BLUEPRINT §13: this affects the existing Library Agent editor (desktop) and the existing core Agent runner. Setup layers, triggers and turn placement are unchanged. Existing message-bound runs/revisions/state/proposal metadata are retained. There is no schema migration or new module, extra AI call or feature. Failures keep recoverable edits or recorded failed/cancelled runs; rewriting/undo retain their existing contracts. Evidence and verification: `docs/AGENT-RELIABILITY-AUDIT.md`. Signed: **CODEX**.

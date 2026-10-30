@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-30 · Agent reliability audit — D-051
+
+Reproduced failures before implementation with browser/core regression tests, then corrected agent save ordering and retry/navigation retention, waited for active saves before deletion, rejected cross-chat manual/Compare message IDs, checked cancellation for text/code outputs and comparisons, and serialized keeper persistence per story to preserve concurrent proposals. Guarded slow Close/Delete completions so they preserve another editor opened in the meantime (both cases reproduced by new browser regressions). Kept the existing controls, visual states and appearance. Added deterministic queue tests and positive comparison/lorebook isolation coverage. Report: `docs/AGENT-RELIABILITY-AUDIT.md`.
+
+Validation: final typecheck and production build passed; 240 unit tests passed (2 skipped); the full 129-scenario browser suite passed, then all 18 affected scenarios passed after the final Close/Delete guards (includes 2 new regressions; suite now 131 scenarios). Diff check passed. Browser/core validation used isolated test data and a fake AI; native Tauri, paid API and real disk/power failures were not tested. Draft retention lasts for the open app instance. All work is in `Homunculus-gpt` on `gpt`. Signed: **CODEX**.
+
 ## 2026-10-30 · Isolated gpt checkout — D-050
 
 Cloned `origin/gpt` into Daniel's authorized `Homunculus-gpt` folder. Replaced the inherited dev-only workflow in this checkout's agent instructions with the exclusive folder and `gpt` branch rule. Own notes are signed **CODEX**, commit messages use `[CODEX]`, and prior authorship is preserved. Recorded D-050 and the handoff. No application code, UI, release workflow or original checkout was changed by this setup task.

@@ -1,47 +1,35 @@
 // Homunculus 2 — the agent editor (slice 5, D-047; approved draft "Homunculus Agents Draft"). Author: CLAUDE, 2026-10-30.
+// Persistence fixes (D-051): serialized saves and recoverable drafts. CODEX, 2026-10-30.
 // Same look as the tracker editor (cards that open in place). It saves by itself, like the lorebook editor (D-028).
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { AgentDraft } from "../agent-draft.ts";
 import type { AgentConfig, AgentConfigInput, AgentOutputKind } from "@homunculus/schemas";
 import { AGENT_KINDS, WHEN_LABELS, triggersFor, whenOf, withKind, type AgentWhen } from "../agents.ts";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { Collapse, Icon, Segmented } from "./kit.tsx";
 
-const SAVE_MS = 600;
 const GEN_TYPES = [{ value: "normal", label: "New replies" }, { value: "swipe", label: "New versions" }, { value: "continue", label: "Continue" }] as const;
 
-export function AgentEditor({ agent, agents = [], onSave, onDelete, onClose }: {
+export function AgentEditor({ agent, agents = [], drafts, onSave, onDelete, onClose }: {
   agent: AgentConfig;
   /** All agents, to pick the ones whose results this one reads. */
   agents?: AgentConfig[];
+  drafts: Map<string, AgentDraft>;
   onSave: (a: AgentConfigInput) => Promise<AgentConfig>;
   onDelete: (id: string) => Promise<void>;
   onClose?: () => void;
 }) {
-  const [d, setD] = useState<AgentConfig>(agent);
-  const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
-  const [error, setError] = useState("");
+  const [draft] = useState(() => {
+    const pending = drafts.get(agent.id);
+    const draft = pending ?? new AgentDraft(agent, onSave);
+    drafts.set(agent.id, draft);
+    return draft;
+  });
+  draft.save = onSave;
+  const { value: d, status, error } = useSyncExternalStore(draft.subscribe, draft.snapshot, draft.snapshot);
   const [open, setOpen] = useState<Record<string, boolean>>({ text: true });
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef(d);
-  const dirty = useRef(false);
-  const save = useRef(onSave); save.current = onSave;
-
-  const flush = async () => {
-    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-    if (!dirty.current) return;
-    dirty.current = false;
-    setStatus("saving");
-    try { await save.current(latest.current); setStatus("saved"); setError(""); }
-    catch (e) { setStatus("error"); setError(e instanceof Error ? e.message : String(e)); }
-  };
-  const flushRef = useRef(flush); flushRef.current = flush;
-  useEffect(() => () => { void flushRef.current(); }, []);
-  const set = (patch: Partial<AgentConfig>) => {
-    const next = { ...latest.current, ...patch } as AgentConfig;
-    latest.current = next; setD(next); dirty.current = true; setStatus("saving");
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void flushRef.current(), SAVE_MS);
-  };
+  useEffect(() => () => { void draft.flush(); }, [draft]);
+  const set = (patch: Partial<AgentConfig>) => draft.update({ ...draft.snapshot().value, ...patch } as AgentConfig);
   const toggle = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const when = whenOf(d);
   const out = d.output;
@@ -62,7 +50,7 @@ export function AgentEditor({ agent, agents = [], onSave, onDelete, onClose }: {
         <span className={status === "error" ? "error-text" : "hint"} role="status" data-testid="agent-save-state">
           {status === "saving" ? "Saving…" : status === "error" ? "Not saved" : "✓ Saved"}
         </span>
-        {onClose && <button className="btn btn-bordered btn-small" onClick={() => { void flush(); onClose(); }}>Close</button>}
+        {onClose && <button className="btn btn-bordered btn-small" onClick={() => { void draft.flush().then((saved) => { if (saved) onClose(); }); }}>Close</button>}
       </div>
       <div className="editor-body ag-body">
         {error && <div className="error-bar inline" role="alert">{error}</div>}
@@ -73,7 +61,7 @@ export function AgentEditor({ agent, agents = [], onSave, onDelete, onClose }: {
           <div className="ag-kinds" role="radiogroup" aria-label="What it does">
             {AGENT_KINDS.map((k) => (
               <button key={k.output} type="button" role="radio" aria-checked={out === k.output} className={`ag-kind${out === k.output ? " on" : ""}`}
-                onClick={() => { if (out !== k.output) set(withKind(latest.current, k.output as AgentOutputKind) as AgentConfig); }}>
+                onClick={() => { if (out !== k.output) set(withKind(draft.snapshot().value, k.output as AgentOutputKind) as AgentConfig); }}>
                 <span className="kind-dot" style={{ background: k.color }} />{k.label}
               </button>
             ))}
@@ -225,7 +213,7 @@ export function AgentEditor({ agent, agents = [], onSave, onDelete, onClose }: {
         <div className="editor-actions">
           <p className="hint">Switch it on per story or chat in their setup, or from the ✦ button in a chat.</p>
           <span className="spacer" />
-          <ConfirmButton label="Delete Agent" confirmLabel="Click Again to Delete" onConfirm={() => { if (timer.current) clearTimeout(timer.current); dirty.current = false; void onDelete(d.id); }} />
+          <ConfirmButton label="Delete Agent" confirmLabel="Click Again to Delete" onConfirm={() => { void draft.remove(() => onDelete(d.id)).then((deleted) => { if (deleted) drafts.delete(d.id); }); }} />
         </div>
       </div>
     </div>

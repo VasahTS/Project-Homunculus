@@ -264,6 +264,8 @@ export class TurnPipeline {
     if (!entry) throw new Error(`Agent "${agentId}" is not installed`);
     const m = await this.store.getMessage(messageId);
     if (!m) throw new Error(`Message "${messageId}" not found`);
+    // Manual calls and comparisons must never cross chat boundaries. CODEX, D-051.
+    if (m.sessionId !== sessionId) throw new Error(`Message "${messageId}" does not belong to session "${sessionId}"`);
     const speaking = await this.pickSpeaker(session);
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const user = (persona ? effectivePersona(persona, setup.personaVariantId).name : undefined) ?? DEFAULT_USER_NAME;
@@ -288,6 +290,8 @@ export class TurnPipeline {
     if (!entry) throw new Error(`Agent "${agentId}" is not installed`);
     const m = await this.store.getMessage(messageId);
     if (!m) throw new Error(`Message "${messageId}" not found`);
+    // Manual calls and comparisons must never cross chat boundaries. CODEX, D-051.
+    if (m.sessionId !== sessionId) throw new Error(`Message "${messageId}" does not belong to session "${sessionId}"`);
     const speaking = await this.pickSpeaker(session);
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const user = (persona ? effectivePersona(persona, setup.personaVariantId).name : undefined) ?? DEFAULT_USER_NAME;

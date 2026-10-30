@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Agent reliability fixes (2026-10-30) — CODEX — D-051
+
+The first agent audit reproduced and corrected out-of-order saves, failed drafts being lost on Close/navigation, manual/Compare calls accepting another chat's message, text/code answers being applied after Stop, and concurrent keepers losing lorebook proposals. Agent drafts now use app-owned per-agent queues; Close waits for success, and Delete waits for an active write. Drafts survive navigation during this app session only. Keeper writes serialize per story while model calls remain parallel. Slow Close/Delete completions preserve an editor opened in the meantime. Existing controls and UI appearance are retained.
+
+Report: `docs/AGENT-RELIABILITY-AUDIT.md`. Typecheck/build and 240 unit tests passed (2 skipped); all 129 browser flows passed, then all 18 affected flows passed after the final navigation guards (2 new regressions; suite now 131). Details are recorded there and in `CODEX-LOG.md`. Real API/native/private-data checks are not claimed. Global defaults, Try it and the Library Assistant remain future tasks. Signed: **CODEX**.
+
 ## Isolated CODEX checkout (2026-10-30) — CODEX — D-050
 
 Daniel assigned CODEX an exclusive working folder: `C:\Users\danie\Documents\SillyBunny-Classic-Dev\Homunculus-gpt`, cloned from `origin/gpt`. Work only here and on `gpt`; do not use or modify the original project checkout, `dev` or `main`. The older dev-only CODEX workflow is superseded by this instruction. `AGENTS.md` and `CLAUDE.md` now reflect it. CODEX signs its own change notes **CODEX** and prefixes its commit messages `[CODEX]`; existing CLAUDE attribution is preserved.
