@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Current priority: application functionality first (2026-10-29) — CODEX — D-041
+
+Daniel asked to set UI refinement aside and focus on completing application functionality. Customize and further visual revisions are deferred until the app is more complete. Keep the approved UI as the current baseline; this does not remove the customization-first architecture requirement or authorize dropping features. CODEX must document its changes in English and sign them **CODEX**. The existing six-round plan resumes with round 4 (prompt control), then round 5 (tracker field sets); round 6 (multi-character cards to NPCs) still depends on the Library Assistant. No next feature is implemented by this priority update.
+
+Signed: **CODEX**.
+
 ## Approved navigation draft in the app (2026-10-29) — CODEX — D-040
 
 Daniel asked to finish the approved draft before Customize. Primary navigation is now **Stories / Characters / Library**. Library groups **Kits, Narrators, NPCs**, **Personas, Lorebooks, Presets**, **Trackers**, and **Trash**. Group headings are quiet text; categories are indented with a faint selected state. Existing editors, actions and data are retained. Stories and Characters share collection filters, scoped search, folders, vertical cards and details. **Ctrl+K** searches stories/chats, character names and Library resources.

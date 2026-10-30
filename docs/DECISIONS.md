@@ -351,3 +351,9 @@ Daniel approved implementing the latest navigation draft before building Customi
 Blueprint §13: this belongs to the desktop presentation shell; it uses viewer-level appearance/navigation defaults rather than story/session setup; it participates in no turn step or agent trigger; it is desktop UI, not a core module; nothing new is attached to a message; failures use existing inline notices/empty states, cost no model calls and do not mutate data simply by navigating.
 
 Verification: final TypeScript check and production UI build passed; 194 unit tests passed (2 skipped). All 100 browser tests passed after the affected 32-case suite passed. Browser tests use isolated seeded data and no real service credentials; native Tauri rendering and the private play installation were not inspected. Signed: **CODEX**.
+
+## D-041 — Complete functionality before further UI refinement (2026-10-29)
+
+Daniel asked to set UI refinement aside and focus on completing application functionality. Customize and further visual revisions are deferred until the app is more complete. Keep the approved UI as the current baseline; this does not remove the customization-first architecture requirement or authorize dropping features. CODEX must document its changes in English and sign them **CODEX**. The existing six-round plan resumes with round 4 (prompt control), then round 5 (tracker field sets); round 6 (multi-character cards to NPCs) still depends on the Library Assistant. No next feature is implemented by this priority update.
+
+This changes work priority, not the app architecture or existing features. Signed: **CODEX**.

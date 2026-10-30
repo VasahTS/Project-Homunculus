@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-29 · Functional work takes priority — D-041
+
+Daniel asked to set UI refinement aside and focus on completing application functionality. Customize and further visual revisions are deferred until the app is more complete. Keep the approved UI as the current baseline; this does not remove the customization-first architecture requirement or authorize dropping features. CODEX must document its changes in English and sign them **CODEX**. The existing six-round plan resumes with round 4 (prompt control), then round 5 (tracker field sets); round 6 (multi-character cards to NPCs) still depends on the Library Assistant. No next feature is implemented by this priority update.
+
+Documentation only; application code and data are unchanged. Signed: **CODEX**.
+
 ## 2026-10-29 · Approved navigation draft implementation — D-040
 
 Author: **CODEX**. Daniel approved moving the last refined draft into the app before Customize. Stories and Characters are peer collections; Library groups reusable resources using quiet headings, indented categories and subtle selection. Existing data, editors and operations are retained. Shared collection tools, global name search (Ctrl+K), data-defined navigation and an additional Quiet profile are integrated. The Graphite profile remains available in the registry; no Customize UI is added.
