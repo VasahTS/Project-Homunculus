@@ -245,6 +245,24 @@ describe("a turn with agents", () => {
     expect((await w.store.listNotes(reply.id))[0]?.content).toBe("a note");
   });
 
+  it("a text agent adds its own words without an AI call; a stable roll repeats on swipes (D-047)", async () => {
+    const w = await world(() => "ok");
+    await install(w.store, [
+      { id: "rules", name: "Rules", prompt: "Never write {{user}}'s actions.", triggers: before, output: "inject", runMode: "text" },
+      { id: "dice", name: "Dice", prompt: "Mood: {{random::calm::storm::fog::rain::snow}}", triggers: before, output: "inject", runMode: "text", randomness: "stable" },
+    ]);
+    const { session, first } = await start(w);
+    const { userMessage, reply } = await w.chat.send(session.id, first.id, "Hi", connection);
+    const swipe = await w.chat.generate(session.id, userMessage.id, connection);
+    expect(w.ai.prompts.some((p) => isAgentCall(p))).toBe(false);
+    const prompt = async (id: string) => (await w.store.getGenerationRecord(id))!.prompt;
+    const rule = (await prompt(reply.id)).find((p) => p.source === "agent:rules")!.content;
+    expect(rule).toBe("Never write User's actions.");
+    const roll = (await prompt(reply.id)).find((p) => p.source === "agent:dice")!.content;
+    expect(roll).toMatch(/^Mood: (calm|storm|fog|rain|snow)$/);
+    expect((await prompt(swipe.id)).find((p) => p.source === "agent:dice")!.content).toBe(roll);
+  });
+
   it("choices and other results are announced for the UI", async () => {
     const w = await world((m) => isAgentCall(m) ? '["Follow her", "Stay"]' : "ok");
     await install(w.store, [{ id: "cyoa", name: "CYOA", triggers: after, output: "choices" }]);

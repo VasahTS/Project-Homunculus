@@ -40,8 +40,10 @@ export type AgentOutputKind = z.infer<typeof AgentOutputKind>;
  *  - code:     a built-in agent's own function (modules only)
  *  - separate: its own AI call (can use a cheap model)
  *  - inline:   the main model writes a tagged block inside its reply; the app removes and keeps it
+ *  - text:     no AI call: the agent's own text (macros expanded, {{random}} included) is the answer — rules and
+ *              randomizers that only add instructions to the prompt (D-047)
  */
-export const AgentRunMode = z.enum(["code", "separate", "inline"]);
+export const AgentRunMode = z.enum(["code", "separate", "inline", "text"]);
 export type AgentRunMode = z.infer<typeof AgentRunMode>;
 
 export const AgentConditions = z.object({
@@ -112,6 +114,8 @@ export const AgentConfig = z.object({
   check: z
     .object({ onFail: z.enum(["warn", "fix", "regenerate"]).default("warn"), maxRetries: z.number().int().min(0).default(1) })
     .optional(),
+  /** How the app shows the result (D-047). `note`: under the message, or in the chat's agents menu. */
+  display: z.object({ note: z.enum(["message", "menu"]).default("message") }).optional(),
   /** For `inline`: the tag the main model writes, e.g. "SCENE" for [SCENE]…[/SCENE]. */
   inlineTag: z.string().optional(),
   source: z

@@ -16,7 +16,7 @@ import { readStatePath, type ResolvedState } from "../state.ts";
 import type { SqlStore } from "../storage/store.ts";
 import { OUTPUT_SHAPES, separateExecutor } from "./outputs.ts";
 import { normalizeTrackerAnswer, trackerPeople, type TrackerCastMember } from "../trackers.ts";
-import { applyBasicMacros } from "../macros.ts";
+import { applyBasicMacros, expandMacros } from "../macros.ts";
 import { effectiveCharacter } from "../variants.ts";
 
 /** An agent ready to run: its config, and its code if it is built in. */
@@ -176,7 +176,12 @@ export class AgentRunner {
       else {
         const ctx = await this.context(entry, req, usage, tracker);
         if (entry.definition) raw = await entry.definition.run(ctx);
-        else {
+        else if (a.runMode === "text") {
+          // no AI call (D-047): the agent's text is the answer; a "stable" agent rolls the same {{random}} on every swipe
+          const random = a.randomness === "stable" ? seededSequence(`${req.seed}|${a.id}|text`) : this.deps.random;
+          const state = await core.state.resolve(req.session.id, req.messageId);
+          raw = expandMacros(a.prompt, { ...req.names, state: state as Record<string, Record<string, unknown>>, lastMessage: req.text, random }).trim();
+        } else {
           const executor = a.runMode === "separate" ? separateExecutor : core.agentExecutors.get(a.runMode);
           if (!executor) throw new Error(`No way to run agents in "${a.runMode}" mode is installed`);
           raw = await executor(ctx);
@@ -403,4 +408,10 @@ export function seededUnit(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0) / 4294967296;
+}
+
+/** A repeatable sequence of numbers in [0, 1) from a text (each call gives the next one). D-047. */
+export function seededSequence(text: string): () => number {
+  let i = 0;
+  return () => seededUnit(`${text}#${i++}`);
 }
