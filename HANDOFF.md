@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Review corrections: closing prompt blocks and complete-set export (2026-10-29) — CODEX — D-044
+
+Daniel reported that closing an edited inline prompt block discarded text unless Apply was clicked. Pending block text and card-override settings now save on blur, collapse, scope change or leaving the view. Writes are queued and merged against the latest layer/shared preset; Apply remains available and Cancel explicitly discards pending text. Failed saves keep the draft available for retry while the editor is open.
+
+Daniel also corrected the export workflow. Read the original development source, `GUIA-FIELDS-SCENE.md` §§8–9 and `Homunculus/public/scripts/classic-scene-fields.js:exportPreset`: export operates on the selected complete preset, independent of selected fields. He confirmed **the Homunculus 2 format**, not original-app compatibility. The editor now exposes **Export Set / Import Sets** outside the renamed **Copy or move fields** disclosure. Export includes the whole current set (metadata, all/nested fields, instructions, sections, display/presence settings); checkboxes affect transfers only. Partial/bulk export buttons were removed from this workflow; existing multi-set bundle import remains supported. The original project was read only; private portable data/credentials were not accessed.
+
+This supersedes the earlier export-button instructions below. Updated guide: `docs/FIELD-SET-FORMAT.md`. Validation: typecheck and production build passed; 213 unit tests passed (2 skipped); all 111 browser flows passed, including close without Apply in both scopes, leaving the tab, Cancel, scope switching, direct Preview and complete-set export despite a one-field selection. Captures at 1280/620 px showed no panel overflow/page errors. Existing local lockfile changes remain excluded. Native/private play data was not used. Signed: **CODEX**.
+
 ## Functional rounds 4–5 implemented (2026-10-29) — CODEX — D-042 / D-043
 
 Daniel authorized completing these plans while away and reviewing the result on return. Review instructions: `docs/REVIEW-CODEX-2026-10-29.md`.

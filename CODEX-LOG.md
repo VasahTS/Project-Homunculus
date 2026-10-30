@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-29 · Review corrections — D-044
+
+Fixed inline prompt text disappearing on collapse/navigation without Apply. Blur, close, scope changes and unmount flush pending edits; queued writes merge against the latest layer/preset, preserving the original scope. Apply remains immediate; Cancel explicitly discards pending edits. Updated the existing tracker editor to visible Export Set / Import Sets actions independent of field selection, with transfer controls under Copy or move fields. Export always contains the complete current Homunculus 2 set. Read the original Scene Fields guide §§8–9 and exportPreset implementation as Daniel requested; Daniel chose whole-set behavior with the Homunculus 2 format. No original-app or private play files were changed. Signed: **CODEX**.
+
+Validation for D-044: typecheck/build passed; 213 unit tests passed (2 skipped); all 111 browser tests passed. New cases cover local/shared block collapse without Apply, leaving Prompt, explicit Cancel, original-scope preservation and Preview directly after typing. Export test selects one field, closes transfer tools and verifies the downloaded JSON still matches the complete documented set, including nested fields/presence/display; import/undo/refusal regressions remain green. Final 1280/620 px captures inspected without panel overflow/page errors. Existing lockfiles excluded. Signed: **CODEX**.
+
 ## 2026-10-29 · Functional rounds 4–5 — D-042 / D-043
 
 Implemented scoped prompt-block edits in the chat inspector and Story/Kit, explicit shared-preset scope, field-by-field inheritance/reset, and configurable narrator placement/repetition without adding stored messages. Added optional setup schemas and immutable core helpers; preview, recorded generation and real turn assembly share the same effective preset. Existing defaults and full editors remain available.

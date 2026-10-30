@@ -15,6 +15,55 @@ async function preview(page: Page) {
   return sheet;
 }
 
+for (const scope of ["local", "preset"]) {
+  test(`closing a ${scope} block saves its text without Apply`, async ({ page }) => {
+    await page.goto("/"); await openTab(page, "prompt");
+    const blocks = page.getByTestId("scoped-prompt-blocks");
+    await blocks.getByLabel("Prompt edit scope").selectOption(scope);
+    const name = blocks.getByRole("button", { name: "Main Prompt", exact: true });
+    const text = blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true });
+    await name.click(); await text.fill(`SAVED ON CLOSE ${scope}.`);
+    await name.click(); await expect(text).toHaveCount(0);
+    await name.click(); await expect(text).toHaveValue(`SAVED ON CLOSE ${scope}.`);
+    await expect(await preview(page)).toContainText(`SAVED ON CLOSE ${scope}.`);
+  });
+}
+
+test("leaving Prompt with an open edit saves it; Cancel explicitly discards pending text", async ({ page }) => {
+  await page.goto("/"); await openTab(page, "prompt");
+  const blocks = page.getByTestId("scoped-prompt-blocks");
+  const name = blocks.getByRole("button", { name: "Main Prompt", exact: true });
+  const text = blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true });
+  await name.click(); await text.fill("SAVED WHEN LEAVING PROMPT.");
+  await openTab(page, "scene"); await openTab(page, "prompt");
+  if (await text.count() === 0) await name.click();
+  await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
+  await text.fill("DISCARD THIS PENDING EDIT.");
+  await blocks.getByRole("button", { name: "Cancel", exact: true }).click();
+  await name.click(); await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
+});
+
+test("switching scope saves the pending text in its original scope", async ({ page }) => {
+  await page.goto("/"); await openTab(page, "prompt");
+  const blocks = page.getByTestId("scoped-prompt-blocks");
+  const name = blocks.getByRole("button", { name: "Main Prompt", exact: true });
+  const text = blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true });
+  await name.click(); await text.fill("LOCAL BEFORE SCOPE SWITCH.");
+  await blocks.getByLabel("Prompt edit scope").selectOption("preset");
+  await expect(blocks.getByLabel("Prompt edit scope")).toHaveValue("preset");
+  await name.click(); await expect(text).not.toHaveValue("LOCAL BEFORE SCOPE SWITCH.");
+  await blocks.getByLabel("Prompt edit scope").selectOption("local");
+  await name.click(); await expect(text).toHaveValue("LOCAL BEFORE SCOPE SWITCH.");
+});
+
+test("Preview Prompt directly after typing uses the pending text", async ({ page }) => {
+  await page.goto("/"); await openTab(page, "prompt");
+  const blocks = page.getByTestId("scoped-prompt-blocks");
+  await blocks.getByRole("button", { name: "Main Prompt", exact: true }).click();
+  await blocks.getByRole("textbox", { name: "Text of Main Prompt", exact: true }).fill("PENDING TEXT IN PREVIEW.");
+  await expect(await preview(page)).toContainText("PENDING TEXT IN PREVIEW.");
+});
+
 test("inline chat edits stay local and can resume inheritance", async ({ page }) => {
   await page.goto("/");
   await openTab(page, "prompt");

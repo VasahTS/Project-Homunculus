@@ -1,8 +1,10 @@
 # Field-set files — version 1
 
-CODEX, 2026-10-29 · D-043. The Library Assistant is not implemented yet. This format can already be written by a person or an AI and imported through **Library → Trackers → a tracker → Reuse fields and sets → Import sets**. Review the draft, then Save.
+CODEX, 2026-10-29 · D-043 / D-044. The Library Assistant is not implemented yet. This format can already be written by a person or an AI and imported through **Library → Trackers → a tracker → Import Sets**. Review the draft, then Save.
 
-Files contain field definitions only. They contain no tracker agent, prompt, connection, chat history or saved values. Import appends new sets with fresh IDs to the tracker being edited. Existing sets and the default selection remain intact; duplicate names receive a numeric suffix. Export this set, selected fields or all sets from the same disclosure. Export also works before Save and normalizes temporary keys as Save would.
+**Export Set** saves the current complete set: name, description, schema revision, character scope, presence rule and every field, including nested fields, instructions, sections and presentation settings. Field selection is only for copying/moving; it never limits the export. The action is visible beside **Import Sets**, outside **Copy or move fields**. This follows the original Scene Fields guide's whole-preset workflow. Daniel confirmed that the file should use the Homunculus 2 format; interoperability with the original app is not claimed.
+
+Files contain set definitions only. They contain no tracker agent, tracker-level prompt, connection, chat history or saved values. Import appends new sets with fresh IDs to the tracker being edited. Existing sets and the default selection remain intact; duplicate names receive a numeric suffix. Import still accepts multi-set bundles. Export also works before Save and normalizes temporary keys as Save would.
 
 The envelope is `{ "format": "homunculus-field-sets", "version": 1, "sets": [...] }`. Each set has a nonempty `name`, a nonempty `fields` array, optional `help`, `version` (schema revision, default 1), `characters` (`cast`, `castAndUser`, `anyone`; default `cast`), and optional `presence`. Do not include database `id` or `trackerId`.
 

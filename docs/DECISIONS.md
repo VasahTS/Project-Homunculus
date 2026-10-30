@@ -378,3 +378,11 @@ Round 5 adds a collapsed reuse tool to the existing tracker editor. Copy/Move op
 - Draft changes use the existing Save operation. No historical state/message rewriting or automatic live-value migration is introduced. The native export uses the existing Downloads helper; browser preview uses a download. `docs/FIELD-SET-FORMAT.md` documents the boundary and future Assistant instructions with a tested example. The Assistant itself and round 6 are separate future work.
 
 Verification covers pure transfer/format regressions and real editor/browser copy/move, refusal, undo, save/reopen and JSON download/import flows. Signed: **CODEX**.
+
+## D-044 — Save inline edits on close; export the complete selected Set (2026-10-29)
+
+Daniel's review found that collapsing an inline block lost its unapplied text. Flush pending text/card-override edits on blur, collapse, scope change and unmount, retaining explicit Apply and Cancel. Queue writes and merge against current layer/shared-preset references to preserve adjacent edits and the scope in which typing began. A save failure keeps pending text available for retry while mounted. Internal block controls flush through their own action, avoiding a blur-triggered layout shift swallowing the collapse click. No schema change. Verification: typecheck/build, 213 unit tests (2 skipped) and all 111 browser flows passed; final 1280/620 px captures checked.
+
+Daniel referred to the original development guide (`GUIA-FIELDS-SCENE.md` §§8–9) and implementation (`classic-scene-fields.js:portablePreset/exportPreset`). They export the selected complete preset without local IDs/builtin flags. He explicitly chose that whole-Set behavior **in the Homunculus 2 format**, rather than compatibility with the original app. Keep one visible Export Set action beside Import Sets, outside Copy or move fields. It serializes the complete current PortableFieldSet; field selection cannot filter it. Preserve file validation, fresh imported IDs, multi-set bundle import, undo and transfer safeguards. Remove the confusing partial/bulk export buttons from this workflow. No data migration or original-project edits.
+
+Signed: **CODEX**.

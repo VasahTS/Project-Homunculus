@@ -4,6 +4,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { openLibrary } from "./ui.ts";
 
 const tools = (page: Page) => page.getByTestId("field-set-tools");
+const files = (page: Page) => page.getByTestId("field-set-files");
+const reuse = (page: Page) => page.getByTestId("field-set-reuse");
 const fieldNames = (page: Page) => page.getByTestId("field-label");
 test("reuse controls fit the actual editor width with the Library sidebar open", async ({ page }) => {
   await setup(page);
@@ -32,8 +34,8 @@ async function setup(page: Page) {
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("✓ Saved", { exact: true })).toBeVisible();
   await openTools(page);
-  await tools(page).getByLabel("Import field sets JSON", { exact: true }).setInputFiles("docs/examples/travel-field-sets.json");
-  await expect(tools(page).getByRole("status")).toContainText("Imported 2 set(s)");
+  await files(page).getByLabel("Import field sets JSON", { exact: true }).setInputFiles("docs/examples/travel-field-sets.json");
+  await expect(reuse(page).getByRole("status")).toContainText("Imported 2 set(s)");
   await page.getByLabel("Field set", { exact: true }).selectOption({ label: "Travel" });
   await openTools(page);
 }
@@ -45,20 +47,20 @@ test("multiple fields copy/move together, collisions cancel everything and undo 
   await tools(page).getByLabel("Select field Place", { exact: true }).check();
   await tools(page).getByLabel("Select field Inventory", { exact: true }).check();
   await tools(page).getByRole("button", { name: "Move fields", exact: true }).click();
-  await expect(tools(page).getByRole("alert")).toContainText("already has these keys: place");
+  await expect(reuse(page).getByRole("alert")).toContainText("already has these keys: place");
   await expect(fieldNames(page)).toHaveCount(4);
   await tools(page).getByRole("button", { name: "Clear selection", exact: true }).click();
   for (const name of ["Supplies", "Inventory"]) await tools(page).getByLabel(`Select field ${name}`, { exact: true }).check();
   await tools(page).getByRole("button", { name: "Move fields", exact: true }).click();
   await expect(fieldNames(page)).toHaveText(["Place", "Presence"]);
-  await tools(page).getByRole("button", { name: "Undo last reuse action", exact: true }).click();
+  await reuse(page).getByRole("button", { name: "Undo last reuse action", exact: true }).click();
   await expect(fieldNames(page)).toHaveText(["Place", "Supplies", "Presence", "Inventory"]);
   await tools(page).getByRole("button", { name: "Select all fields", exact: true }).click();
   // A destination without collisions proves the nonempty-source guard separately.
   const standard = await page.getByLabel("Field set", { exact: true }).locator("option").filter({ hasText: /^Standard/ }).getAttribute("value");
   await tools(page).getByLabel("Destination set", { exact: true }).selectOption(standard!);
   await tools(page).getByRole("button", { name: "Move fields", exact: true }).click();
-  await expect(tools(page).getByRole("alert")).toContainText("Keep at least one field");
+  await expect(reuse(page).getByRole("alert")).toContainText("Keep at least one field");
   await tools(page).getByRole("button", { name: "Clear selection", exact: true }).click();
   for (const name of ["Supplies", "Inventory"]) await tools(page).getByLabel(`Select field ${name}`, { exact: true }).check();
   await tools(page).getByLabel("Destination set", { exact: true }).selectOption(destination!);
@@ -75,25 +77,32 @@ test("multiple fields copy/move together, collisions cancel everything and undo 
 
 test("JSON export imports as a fresh set; invalid files append nothing; later edits invalidate undo", async ({ page }) => {
   await setup(page);
+  await tools(page).getByLabel("Select field Place", { exact: true }).check();
+  await tools(page).locator("summary").click();
+  await expect(files(page).getByRole("button", { name: "Export Set", exact: true })).toBeVisible();
   const download = page.waitForEvent("download");
-  await tools(page).getByRole("button", { name: "Export this set", exact: true }).click();
+  await files(page).getByRole("button", { name: "Export Set", exact: true }).click();
   const file = await download;
   const data = JSON.parse(await readFile((await file.path())!, "utf8"));
   expect(data.format).toBe("homunculus-field-sets");
+  expect(data.sets).toHaveLength(1);
+  expect(data.sets[0].fields).toHaveLength(4); // independent of selection or the closed transfer disclosure
+  const original = JSON.parse(await readFile("docs/examples/travel-field-sets.json", "utf8"));
+  expect(data.sets[0]).toMatchObject(original.sets[0]);
   expect(data.sets[0].id).toBeUndefined(); expect(data.sets[0].trackerId).toBeUndefined();
   expect(data.sets[0].fields[3].fields[1].key).toBe("quantity");
-  await tools(page).getByLabel("Import field sets JSON", { exact: true }).setInputFiles({ name: "travel.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(data)) });
+  await files(page).getByLabel("Import field sets JSON", { exact: true }).setInputFiles({ name: "travel.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(data)) });
   const options = page.getByLabel("Field set", { exact: true }).locator("option");
   await expect(options).toHaveCount(4);
   await expect(options.last()).toHaveText("Travel (2)");
-  await tools(page).getByRole("button", { name: "Undo last reuse action", exact: true }).click();
+  await reuse(page).getByRole("button", { name: "Undo last reuse action", exact: true }).click();
   await expect(options).toHaveCount(3);
-  await tools(page).getByLabel("Import field sets JSON", { exact: true }).setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...data, version: 2 })) });
-  await expect(tools(page).getByRole("alert")).toBeVisible();
+  await files(page).getByLabel("Import field sets JSON", { exact: true }).setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...data, version: 2 })) });
+  await expect(reuse(page).getByRole("alert")).toBeVisible();
   await expect(options).toHaveCount(3);
-  await tools(page).getByLabel("Import field sets JSON", { exact: true }).setInputFiles({ name: "travel.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(data)) });
+  await files(page).getByLabel("Import field sets JSON", { exact: true }).setInputFiles({ name: "travel.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(data)) });
   await expect(options).toHaveCount(4);
-  await expect(tools(page).getByRole("button", { name: "Undo last reuse action", exact: true })).toBeVisible();
+  await expect(reuse(page).getByRole("button", { name: "Undo last reuse action", exact: true })).toBeVisible();
   await page.getByLabel("Field set description", { exact: true }).fill("A later edit");
-  await expect(tools(page).getByRole("button", { name: "Undo last reuse action", exact: true })).toHaveCount(0);
+  await expect(reuse(page).getByRole("button", { name: "Undo last reuse action", exact: true })).toHaveCount(0);
 });

@@ -25,23 +25,13 @@ export function FieldSetTools({ sets, current, onChange }: { sets: SetDraft[]; c
     const next = transferFields(sets, current.id, destination, keys, mode);
     apply(next, `${keys.length} field(s) ${mode === "copy" ? "copied" : "moved"}.`);
   });
-  const exportSets = async (kind: "current" | "selected" | "all") => {
+  const exportSet = async () => {
     setBusy(true); setError(""); setNotice("");
     try {
-      const sources = kind === "all" ? sets : [current];
-      const definitions = sources.map((s) => {
-        // Normalize before filtering so temporary keys get the same identity as a normal Save.
-        const portable = portableSetOf(s);
-        if (kind !== "selected") return portable;
-        const fields = portable.fields.filter((_, i) => keys.includes(s.fields[i]!.key));
-        const out = { ...portable, fields };
-        if (out.presence && !fields.some((f) => f.key === out.presence!.field)) delete out.presence;
-        return out;
-      });
-      const bytes = new TextEncoder().encode(serializeFieldSets(definitions));
-      const fileName = `${(kind === "all" ? "field-sets" : current.name).replace(/[^a-zA-Z0-9_-]+/g, "-") || "field-set"}.json`;
+      const bytes = new TextEncoder().encode(serializeFieldSets([portableSetOf(current)]));
+      const fileName = `${current.name.replace(/[^a-zA-Z0-9_-]+/g, "-") || "field-set"}.json`;
       const path = await saveExport({ fileName, bytes, mime: "application/json" });
-      setNotice(`Exported to ${path}. Definitions only; saved chat values are not included.`);
+      setNotice(`Exported the complete set to ${path}. Saved chat values are not included.`);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -62,10 +52,20 @@ export function FieldSetTools({ sets, current, onChange }: { sets: SetDraft[]; c
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
-  return <details className="set-card field-set-tools" data-testid="field-set-tools">
-    <summary>Reuse fields and sets</summary>
+  return <div className="stack" data-testid="field-set-reuse">
+    <div className="row-line wrap" data-testid="field-set-files">
+      <Button small disabled={busy} onClick={() => void exportSet()}>Export Set</Button>
+      <Button small disabled={busy} onClick={() => input.current?.click()}>Import Sets</Button>
+      <input ref={input} type="file" accept=".json,application/json" aria-label="Import field sets JSON" hidden disabled={busy} onChange={(e) => {
+        const file = e.target.files?.[0]; e.target.value = ""; if (file) void importFile(file);
+      }} />
+    </div>
+    {undo && sets === undo.after && <button type="button" className="link" disabled={busy} onClick={() => { onChange(undo.before); setUndo(null); setNotice("Last reuse action undone. Save to keep this draft."); setError(""); }}>Undo last reuse action</button>}
+    {notice && <p className="hint" role="status">{notice}</p>}{error && <p className="error-text" role="alert">{error}</p>}
+    <details className="set-card field-set-tools" data-testid="field-set-tools">
+    <summary>Copy or move fields</summary>
     <div className="stack">
-      <p className="hint">Copy or move definitions to another set in this tracker. Stable keys keep their meaning. Use JSON files to reuse sets in another tracker. Saved chat values stay unchanged.</p>
+      <p className="hint">Select fields to copy or move to another set in this tracker. Export Set always includes the whole current set. Saved chat values stay unchanged.</p>
       <fieldset disabled={busy}>
         <legend>Fields to reuse</legend>
         <div className="row-line wrap"><button type="button" className="link" onClick={() => setSelected(current.fields.map((f) => f.key))}>Select all fields</button>
@@ -82,17 +82,7 @@ export function FieldSetTools({ sets, current, onChange }: { sets: SetDraft[]; c
           <Button small disabled={!keys.length || !destination} onClick={() => transfer("move")}>Move fields</Button>
         </div>
       </fieldset>
-      <div className="row-line wrap">
-        <Button small disabled={busy} onClick={() => void exportSets("current")}>Export this set</Button>
-        <Button small disabled={busy || !keys.length} onClick={() => void exportSets("selected")}>Export selected fields</Button>
-        <Button small disabled={busy} onClick={() => void exportSets("all")}>Export all sets</Button>
-        <Button small disabled={busy} onClick={() => input.current?.click()}>Import sets</Button>
-      </div>
-      <input ref={input} type="file" accept=".json,application/json" aria-label="Import field sets JSON" hidden disabled={busy} onChange={(e) => {
-        const file = e.target.files?.[0]; e.target.value = ""; if (file) void importFile(file);
-      }} />
-      {undo && sets === undo.after && <button type="button" className="link" disabled={busy} onClick={() => { onChange(undo.before); setUndo(null); setNotice("Last reuse action undone. Save to keep this draft."); setError(""); }}>Undo last reuse action</button>}
-      {notice && <p className="hint" role="status">{notice}</p>}{error && <p className="error-text" role="alert">{error}</p>}
     </div>
-  </details>;
+    </details>
+  </div>;
 }

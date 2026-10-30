@@ -8,6 +8,8 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ## Functional rounds 4–5 — CODEX, 2026-10-29
 
+**Daniel's correction (D-044, CODEX):** retain the block editor but save pending text on blur, collapse, scope change and leaving the view; Cancel explicitly discards only pending text. For trackers, use one visible **Export Set** action outside the field-selection disclosure, beside **Import Sets**. Export always includes the current complete set, independent of selection. Rename the existing selection disclosure **Copy or move fields**. Daniel confirmed the Homunculus 2 format, not compatibility with the original app. Reference: the original `GUIA-FIELDS-SCENE.md` sections 8–9 and `classic-scene-fields.js:exportPreset` export the selected preset as a whole. Keep the existing appearance and transfer behavior.
+
 Daniel authorized continuing the functional plans and reviewing the result on his return (D-041). Keep the current appearance; no new visual direction or Customize work.
 
 - **Prompt:** retain the inspector's existing block list. A scope selector defaults to the current chat/Story; shared-preset edits require selecting that scope. Opening a text block reveals its editor in place. Reset resumes inheritance. Narrator placement uses the existing setup rows. Empty text and disabled blocks remain intentional values; failures are shown beside the controls.
