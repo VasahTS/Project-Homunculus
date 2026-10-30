@@ -101,10 +101,17 @@ export function AgentEditor({ agent, agents = [], onSave, onDelete, onClose }: {
           <div className="ag-field">
             <span className="ag-label">How it shows</span>
             <Segmented small label="How the note shows" value={d.display?.note ?? "message"}
-              options={[{ value: "message", label: "Label under the reply" }, { value: "card", label: "Open card under the reply" }, { value: "menu", label: "Only in the ✦ panel" }]}
+              options={[{ value: "message", label: "Label under the reply" }, { value: "card", label: "Open card" }, { value: "view", label: "A view" }, { value: "menu", label: "Only in the ✦ panel" }]}
               onChange={(v) => disp({ note: v })} />
+            {d.display?.note === "view" && <div className="row-line wrap">
+              <span className="hint">Drawn as</span>
+              <Segmented small label="View" value={d.display.view ?? "feed"} onChange={(v) => disp({ view: v })}
+                options={[{ value: "feed", label: "A feed of posts" }, { value: "phone", label: "Phone messages" }, { value: "sheet", label: "A stat sheet" }, { value: "cards", label: "Cards" }]} />
+              <Help text="The agent answers in a fixed JSON shape (the app tells it which) and the app draws it with its own parts, in your theme. The agent never sends HTML or code." />
+            </div>}
           </div>
         )}
+        {out === "proposal" && <p className="hint">New facts go into this story's own version of its lorebook (the first one it uses; a story without one gets its own). The Library's book is never changed. See them in Library → Lorebooks → the book → “{"<story>"}'s version”.</p>}
         {out === "choices" && (
           <div className="ag-field">
             <span className="ag-label">How it shows</span>

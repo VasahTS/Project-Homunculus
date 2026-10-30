@@ -1978,3 +1978,25 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .lv-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 8px; }
 .lv-item:hover { background: var(--fill); }
 .lv-item .grow { flex: 1; min-width: 0; }
+
+/* views an agent draws with (D-049) and the lorebook proposal line */
+.agent-view { display: grid; gap: 6px; margin-top: 8px; max-width: 64ch; padding: 10px 12px; border-radius: 12px; background: var(--group); border: 1px solid var(--separator); }
+.av-name { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--label-3); }
+.av-text { font-size: var(--size-small); color: var(--label-2); white-space: pre-wrap; }
+.av-feed { display: grid; gap: 8px; }
+.av-post { display: grid; grid-template-columns: 26px 1fr; gap: 8px; font-size: var(--size-small); }
+.av-post > span:last-child { display: grid; gap: 1px; color: var(--label-2); }
+.av-post b { color: var(--label); font-weight: 600; }
+.av-av { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fill-selected); font-size: 11px; font-weight: 600; color: var(--label); }
+.av-phone { display: grid; gap: 6px; padding: 8px; border-radius: 18px; background: var(--field); max-width: 300px; }
+.av-bubble { justify-self: start; max-width: 90%; padding: 6px 10px; border-radius: 14px 14px 14px 4px; background: color-mix(in srgb, var(--meter-mp) 22%, var(--fill)); font-size: var(--size-small); color: var(--label); }
+.av-bubble small { display: block; font-size: 10.5px; color: var(--label-3); }
+.av-title { font-size: var(--size-ui); }
+.av-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; }
+.av-stats > div { display: grid; padding: 6px 8px; border-radius: 8px; background: var(--fill); font-size: var(--size-small); color: var(--label-2); }
+.av-stats b { color: var(--label); font-size: 14px; font-variant-numeric: tabular-nums; }
+.av-cards { display: grid; gap: 6px; }
+.av-card { display: grid; gap: 2px; padding: 7px 10px; border-radius: 8px; background: var(--fill); font-size: var(--size-small); color: var(--label-2); }
+.av-card b { color: var(--label); }
+.proposal-line { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-top: 8px; font-size: var(--size-small); color: var(--label-3); }
+.proposal-line b { color: var(--label-2); font-weight: 600; }

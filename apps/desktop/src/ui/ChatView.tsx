@@ -10,7 +10,7 @@
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
 import { useCallback, useEffect, useRef, useState, Fragment } from "react";
 import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
-import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, useAgentResults } from "./AgentResults.tsx";
+import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
@@ -36,7 +36,7 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore }: {
   /** Open the chat at this message (a chat search result, round 3): its branch, scrolled to it. */
   focusMessageId?: string | null;
   svc: AppServices;
@@ -89,6 +89,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   agents?: AgentConfig[];
   onToggleAgent?: (agentId: string, on: boolean) => void;
   onOpenAgent?: (agentId: string | null) => void;
+  /** Opens this story's version of its lorebook (after an agent added entries, D-049). */
+  onOpenStoryLore?: (() => void) | undefined;
 }) {
   const loadLorebooks = useCallback(() => svc.chat.turns.lorebooksOf(session.id), [svc, session]);
   const [headId, setHeadId] = useState<string | null | undefined>(undefined);
@@ -555,6 +557,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                   )}
                   {!user && !isEditing && <CheckLines results={agentResults.get(m.id)} agents={agents} canWriteAgain={isLastAi && m.parentId !== null && !busy} onWriteAgain={() => regenerate(m)} />}
                   {!user && !isEditing && <NoteChips results={agentResults.get(m.id)} agents={agents} />}
+                  {!user && !isEditing && <ProposalLines results={agentResults.get(m.id)} agents={agents} onOpen={onOpenStoryLore} />}
                   {isLastAi && !busy && !pending && !isEditing && (
                     <Choices results={agentResults.get(m.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} />
                   )}

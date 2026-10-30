@@ -142,6 +142,8 @@ export interface AgentRunContext {
   persona?: string;
   scenario?: string;
   lore?: string;
+  /** For lorebook proposals: the entries the story's version already has (title and keywords), so it adds only what is new. */
+  loreIndex?: string;
 }
 
 /** A built-in agent: its data plus code. User agents are only data (AgentConfig) and run through an executor. */

@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AgentConfig, AgentNote, AgentRun, MessageRevision } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
+import { extractJson } from "@homunculus/core";
 import { diffWords, mergeParts } from "../diff.ts";
 import { useFloatingMenu } from "./FloatingMenu.ts";
 import { Segmented } from "./kit.tsx";
@@ -182,10 +183,12 @@ export function NoteChips({ results, agents }: { results: MessageAgentResults | 
     .filter((x) => x.note && x.note.content.trim() && x.how !== "menu");
   const chips = notes.filter((x) => x.how === "message");
   const cards = notes.filter((x) => x.how === "card");
+  const views = notes.filter((x) => x.how === "view");
   if (!notes.length) return null;
   const current = chips.find((x) => x.a.id === open);
   return (
     <div className="note-chips-wrap" data-testid="agent-notes">
+      {views.map(({ a, note }) => <AgentView key={a.id} name={a.name} kind={a.display?.view ?? "feed"} text={note!.content} />)}
       {cards.map(({ a, note }) => <div key={a.id} className="note-card" role="note"><b>{a.name}</b>{note!.content}</div>)}
       {chips.length > 0 && <div className="note-chips">
         {chips.map(({ a }) => (
@@ -246,4 +249,48 @@ export function ComposerChoices({ results, agents, onPick, onEdit }: {
   const sets = choiceSets(results, agents, "composer");
   if (!sets.length) return null;
   return <div className="composer-choices" data-testid="composer-choices">{sets.map(({ run, name, options }) => <ChoiceButtons key={run.id} name={name} options={options} onPick={onPick} onEdit={onEdit} />)}</div>;
+}
+
+// ---------------------------------------------------------------- views an agent draws with (D-049)
+
+type ViewKind = "feed" | "phone" | "sheet" | "cards";
+const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v) : "");
+const arr = (v: unknown): Array<Record<string, unknown>> => (Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === "object") : []);
+
+/**
+ * An agent's structured answer drawn with the app's own parts (never HTML from the agent): a feed of posts, phone
+ * messages, a sheet of stats, or cards. Anything that is not the expected JSON shows as plain text.
+ */
+export function AgentView({ name, kind, text }: { name: string; kind: ViewKind; text: string }) {
+  let data: Record<string, unknown> | null = null;
+  try { const v = extractJson(text); if (v && typeof v === "object" && !Array.isArray(v)) data = v as Record<string, unknown>; } catch { /* plain text */ }
+  const body = !data ? <div className="av-text">{text}</div>
+    : kind === "feed" ? <div className="av-feed">{arr(data.posts).map((p, i) => (
+        <div key={i} className="av-post"><span className="av-av" aria-hidden>{str(p.name).slice(0, 1).toUpperCase()}</span><span><b>{str(p.name)}</b><span>{str(p.text)}</span></span></div>))}</div>
+    : kind === "phone" ? <div className="av-phone">{arr(data.messages).map((m, i) => (
+        <div key={i} className="av-bubble"><small>{[str(m.from), str(m.time)].filter(Boolean).join(" · ")}</small>{str(m.text)}</div>))}</div>
+    : kind === "sheet" ? <div className="av-sheet">{str(data.title) && <b className="av-title">{str(data.title)}</b>}
+        <div className="av-stats">{arr(data.stats).map((s, i) => <div key={i}><b>{str(s.value)}</b><span>{str(s.label)}</span></div>)}</div>
+        {str(data.notes) && <p className="hint">{str(data.notes)}</p>}</div>
+    : <div className="av-cards">{arr(data.cards).map((c, i) => <div key={i} className="av-card"><b>{str(c.title)}</b><span>{str(c.text)}</span></div>)}</div>;
+  return <div className={`agent-view av-${kind}-wrap`} data-testid="agent-view"><span className="av-name">{name}</span>{body}</div>;
+}
+
+// ---------------------------------------------------------------- proposals that changed the story's lorebook (D-049)
+
+export function ProposalLines({ results, agents, onOpen }: {
+  results: MessageAgentResults | undefined; agents: AgentConfig[]; onOpen?: (() => void) | undefined;
+}) {
+  const runs = (results?.runs ?? []).filter((r) => r.status === "ok" && agents.find((a) => a.id === r.agentId)?.proposal?.target === "lorebook"
+    && Array.isArray((r.output as { entries?: unknown[] } | undefined)?.entries) && (r.output as { entries: unknown[] }).entries.length > 0);
+  if (!runs.length) return null;
+  return <>{runs.map((r) => {
+    const entries = (r.output as { entries: Array<{ title: string }> }).entries;
+    return (
+      <div key={r.id} className="proposal-line" role="note" data-testid="proposal-line">
+        <span><b>{agents.find((a) => a.id === r.agentId)?.name}</b> added {entries.length === 1 ? `“${entries[0]!.title}”` : `${entries.length} entries`} to this story's lorebook</span>
+        {onOpen && <button type="button" className="link" onClick={onOpen}>See</button>}
+      </div>
+    );
+  })}</>;
 }

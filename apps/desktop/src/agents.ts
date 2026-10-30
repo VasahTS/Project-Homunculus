@@ -22,6 +22,7 @@ export const AGENT_KINDS: AgentKind[] = [
   { output: "choices", label: "Offers choices", short: "Choices", color: "var(--place-chat)", when: "after" },
   { output: "note", label: "Writes a side note", short: "Notes", color: "var(--place-note)", when: "after" },
   { output: "intercept", label: "Rewrites your message", short: "Your message", color: "var(--place-outlet)", when: "before" },
+  { output: "proposal", label: "Updates the story's lorebook", short: "Lorebook", color: "var(--accent)", when: "everyN" },
 ];
 export const kindOf = (a: AgentConfig): AgentKind | undefined => AGENT_KINDS.find((k) => k.output === a.output);
 export const isAgent = (a: AgentConfig): boolean => !!kindOf(a);
@@ -55,7 +56,8 @@ export async function listAgents(store: SqlStore): Promise<AgentConfig[]> {
 export function blankAgent(output: AgentOutputKind = "inject"): AgentConfigInput {
   const kind = AGENT_KINDS.find((k) => k.output === output) ?? AGENT_KINDS[0]!;
   return {
-    id: `agent-${crypto.randomUUID()}`, name: "", help: "", triggers: triggersFor(kind.when, 10), output,
+    id: `agent-${crypto.randomUUID()}`, name: "", help: "", triggers: triggersFor(kind.when, output === "proposal" ? 4 : 10), output,
+    ...(output === "proposal" ? { proposal: { target: "lorebook" as const } } : {}),
     runMode: output === "inject" ? "text" : "separate", prompt: "",
     input: { messages: output === "inject" ? 0 : 4, lorebooks: false, cards: output !== "inject", state: false, readsAgents: [], persona: false, scenario: false },
     ...(output === "inject" ? { injection: { position: "depth" as const, depth: 1, role: "system" as const } } : {}),
@@ -67,7 +69,7 @@ export function blankAgent(output: AgentOutputKind = "inject"): AgentConfigInput
 /** Changing the kind keeps the name, text and conditions; kind-only options are reset to that kind's defaults. */
 export function withKind(a: AgentConfig, output: AgentOutputKind): AgentConfigInput {
   const fresh = blankAgent(output);
-  const { injection: _i, check: _c, display: _d, ...rest } = a;
+  const { injection: _i, check: _c, display: _d, proposal: _p, ...rest } = a;
   return { ...rest, ...fresh, id: a.id, name: a.name, help: a.help, prompt: a.prompt, conditions: a.conditions, order: a.order, limits: a.limits, randomness: a.randomness };
 }
 
@@ -147,6 +149,18 @@ export const STARTER_AGENTS: AgentConfigInput[] = [
     triggers: [{ on: "manual" }], output: "note", runMode: "separate", input: { messages: 6, lorebooks: false, cards: true, state: false, readsAgents: [] },
     display: { note: "menu" },
     prompt: "Step outside the story. As the actor who plays {{char}}, talk briefly about the latest scene: what {{char}} felt, what they hid, and what they want next. Three to five sentences, first person.",
+  }),
+  starter({
+    id: "starter-lorebook-keeper", name: "Lorebook Keeper", help: "Every 4 messages, writes new facts the story established into the story's own version of its lorebook. The Library's book is never changed.",
+    triggers: [{ on: "everyN", n: 4 }], output: "proposal", runMode: "separate", proposal: { target: "lorebook" },
+    input: { messages: 8, lorebooks: true, cards: true, state: false, readsAgents: [], persona: false, scenario: false },
+    prompt: "You keep the story's lorebook. From the latest messages, note lasting facts the story established (places, factions, abilities, people's histories, rules of the world) that the lorebook does not have yet. Skip passing details and anything only implied. Write each as a short entry with keywords that would bring it up.",
+  }),
+  starter({
+    id: "starter-class-chat", name: "Class Group Chat", help: "A view example: what classmates post in their group chat about the latest scene.",
+    triggers: [{ on: "turn", phase: "after" }], output: "note", runMode: "separate", display: { note: "view", view: "feed" },
+    input: { messages: 4, lorebooks: false, cards: true, state: false, readsAgents: [], persona: false, scenario: false },
+    prompt: "Write what people who saw or heard about the latest scene would post in a group chat: short, casual, in their own voices, reacting to what just happened.",
   }),
   starter({
     id: "starter-expand-my-action", name: "Expand My Action", help: "Turns a short message of yours into a fuller action before the AI reads it. Off by default; try it.",

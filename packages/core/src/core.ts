@@ -36,6 +36,8 @@ export interface CoreEvents extends Record<string, unknown> {
   "state.changed": { sessionId: string; messageId: string; namespaces: string[] };
   "message.created": { sessionId: string; messageId: string };
   "message.revised": { sessionId: string; messageId: string };
+  /** An agent changed a story's own version of a lorebook (D-049). */
+  "story.loreChanged": { storyId: string; lorebookId: string; agentId: string; messageId: string };
   "generation.started": { sessionId: string; parentId: string | null };
   "generation.finished": { sessionId: string; messageId: string };
   "generation.failed": { sessionId: string; parentId: string | null; reason: string };

@@ -30,6 +30,9 @@ function agentAnswer(prompt: string): string {
   if (example) {
     try { return JSON.stringify(vary(JSON.parse(example), n)); } catch { /* fall through */ }
   }
+  if (/"entries": \[\{"title"/.test(prompt)) return JSON.stringify({ entries: [{ title: "Offline fact", keys: ["offline"], content: "Something the offline test AI noticed." }] });
+  if (/"posts": \[/.test(prompt)) return JSON.stringify({ posts: [{ name: "kaito_2A", text: "did that just happen??" }, { name: "mio.sage", text: "offline test AI says hi" }] });
+  if (/"messages": \[\{"from"/.test(prompt)) return JSON.stringify({ messages: [{ from: "Ayaka", time: "21:04", text: "Where did you go?" }] });
   if (/ONLY a JSON object/.test(prompt)) return "{}";
   if (/ONLY a JSON array/.test(prompt)) return '["Look around", "Say nothing"]';
   if (/"pass"/.test(prompt)) return '{"pass": true, "reason": "Offline test AI does not judge."}';

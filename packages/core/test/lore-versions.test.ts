@@ -44,3 +44,28 @@ describe("lorebook versions", () => {
     expect(w.ai.prompts.at(-1)!.map((t) => t.content).join("\n")).not.toContain("STORY-ONLY ENTRY");
   });
 });
+
+describe("a lorebook keeper agent (D-049)", () => {
+  it("adds new facts to the story's version only, and an entry with the same title updates it", async () => {
+    let n = 0;
+    const w = await world((m) => /lorebook/.test(m.at(-1)?.content ?? "") && /Answer with ONLY JSON/.test(m.at(-1)?.content ?? "")
+      ? JSON.stringify({ entries: [{ title: "Shura Path", keys: ["shura"], content: ++n === 1 ? "Grows in long fights." : "Grows in long fights. Rank E." }] })
+      : "ok");
+    await w.store.saveLorebook({ id: "b", name: "Isekai World", entries: [{ id: "1", title: "Great Sage", content: "Old wizard." }] });
+    await w.store.saveStory({ id: "st", name: "Isekai RPG", openings: ["The bus stops."], createdAt: 1, setup: { lorebooks: { mode: "add", add: ["b"], remove: [] } } });
+    await w.store.saveAgentConfig({ id: "keeper", name: "Lorebook Keeper", triggers: [{ on: "turn", phase: "after" }], output: "proposal", proposal: { target: "lorebook" } });
+    await w.store.setDefaultSetup({ agents: { mode: "add", add: ["keeper"], remove: [] } });
+    const { session, firstMessage } = await w.chat.createSession({ storyId: "st" });
+    const { userMessage, reply } = await w.chat.send(session.id, firstMessage!.id, "I am a Shura.", connection);
+    const sent = w.ai.prompts.find((p) => /lorebook already has/.test(p.at(-1)!.content))!.at(-1)!.content;
+    expect(sent).toContain("- Great Sage");
+    let story = (await w.store.getStory("st"))!;
+    const entries = Object.values(story.lorePatches.b!.entries);
+    expect(entries.map((e) => e.title)).toEqual(["Shura Path"]);
+    expect(story.lorePatches.b!.meta[entries[0]!.id]).toMatchObject({ by: "keeper", messageId: reply.id });
+    expect((await w.store.lorebooks.get("b"))!.entries).toHaveLength(1);
+    await w.chat.generate(session.id, userMessage.id, connection);
+    story = (await w.store.getStory("st"))!;
+    expect(Object.values(story.lorePatches.b!.entries).map((e) => e.content)).toEqual(["Grows in long fights. Rank E."]);
+  });
+});

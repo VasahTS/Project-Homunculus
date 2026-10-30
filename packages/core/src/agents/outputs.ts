@@ -24,6 +24,32 @@ export const OUTPUT_SHAPES: Record<AgentOutputKind, z.ZodType<unknown>> = {
 
 const STRUCTURED = new Set<AgentOutputKind>(["state", "check", "choices", "proposal"]);
 
+/** A lorebook proposal's answer (D-049): new facts as entries; an entry with an existing title updates it. */
+export const LORE_PROPOSAL = z.object({
+  entries: z.array(z.object({ title: z.string().min(1), keys: z.array(z.string()).default([]), content: z.string().min(1) })).default([]),
+});
+export type LoreProposal = z.infer<typeof LORE_PROPOSAL>;
+
+/** The views an agent can draw with (note = "view", D-049), and the JSON each one expects. */
+export const VIEW_FORMATS = {
+  feed: 'Answer with ONLY JSON: {"posts": [{"name": "who posts", "text": "what they write"}]} — 3 to 6 short posts.',
+  phone: 'Answer with ONLY JSON: {"messages": [{"from": "sender", "time": "in-story time", "text": "message"}]}.',
+  sheet: 'Answer with ONLY JSON: {"title": "…", "stats": [{"label": "…", "value": "…"}], "notes": "…"}.',
+  cards: 'Answer with ONLY JSON: {"cards": [{"title": "…", "text": "…"}]}.',
+} as const;
+
+/** The shape an agent's answer must have (a lorebook proposal has its own). */
+export function shapeFor(a: AgentConfig): z.ZodType<unknown> {
+  return a.output === "proposal" && a.proposal?.target === "lorebook" ? LORE_PROPOSAL : OUTPUT_SHAPES[a.output];
+}
+
+/** The format line for this agent (its kind, or its view, or its proposal). */
+export function formatFor(a: AgentConfig): string {
+  if (a.output === "note" && a.display?.note === "view") return VIEW_FORMATS[a.display.view ?? "feed"];
+  if (a.output === "proposal" && a.proposal?.target === "lorebook") return 'Answer with ONLY JSON: {"entries": [{"title": "short name", "keys": ["words that call it up"], "content": "the fact, 1–3 sentences"}]}. Only facts the story established that the lorebook does not have yet; an entry with the title of an existing one replaces it. {"entries": []} when there is nothing new.';
+  return formatInstruction(a.output);
+}
+
 /** What we tell the model about the answer format. */
 export function formatInstruction(kind: AgentOutputKind): string {
   switch (kind) {
@@ -75,6 +101,7 @@ export function buildAgentMessages(ctx: AgentRunContext): ChatTurn[] {
   if (ctx.persona) parts.push(`## The user's character (persona)\n${ctx.persona}`);
   if (ctx.scenario) parts.push(`## Scenario\n${ctx.scenario}`);
   if (ctx.lore) parts.push(`## Lorebook entries active now\n${ctx.lore}`);
+  if (ctx.loreIndex !== undefined) parts.push(`## The story's lorebook already has\n${ctx.loreIndex || "(nothing yet)"}`);
   if (ctx.messages.length) parts.push(`## Recent messages\n${transcript(ctx)}`);
   if (a.input.state !== false) {
     const state = Array.isArray(a.input.state)
@@ -94,7 +121,7 @@ export function buildAgentMessages(ctx: AgentRunContext): ChatTurn[] {
   if (Object.keys(ctx.settings).length) parts.push(`## Settings\n${JSON.stringify(ctx.settings, null, 1)}`);
   if (ctx.text) parts.push(ctx.trigger === "turn.before" ? `## The user's message\n${ctx.text}` : `## The reply\n${ctx.text}`);
   if (ctx.tracker) parts.push(applyBasicMacros(trackerInstruction(ctx.tracker.schema, ctx.tracker.people), ctx.names));
-  parts.push(formatInstruction(a.output));
+  parts.push(formatFor(a));
   return [
     { role: "system", content: applyBasicMacros(a.prompt, ctx.names) },
     { role: "user", content: parts.join("\n\n") },

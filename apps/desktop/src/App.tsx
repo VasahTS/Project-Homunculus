@@ -1262,6 +1262,13 @@ export function App() {
         onDelete={() => void deleteSession()}
         onToggleTracker={(id, on) => void toggleTracker(id, on)}
         agents={agents}
+        onOpenStoryLore={active?.storyId ? () => void (async () => {
+          const st = await svc.store.getStory(active.storyId!);
+          const id = st?.setup.lorebooks && st.setup.lorebooks.mode !== "keep" ? st.setup.lorebooks.add.find((b) => st.lorePatches[b]) ?? st.setup.lorebooks.add[0] : undefined;
+          await refresh(svc);
+          if (!st || !id) return;
+          setLoreBack(activeId); setLoreVersion({ bookId: id, storyId: st.id }); setView({ kind: "lorebooks", id });
+        })() : undefined}
         onToggleAgent={(id, on) => void toggleAgent(id, on)}
         onOpenAgent={(id) => openAgent(id, true)}
         onPickFieldSet={(id, setId) => void pickFieldSet(id, setId)}

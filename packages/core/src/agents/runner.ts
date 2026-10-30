@@ -6,7 +6,7 @@
 //  - gives each one its context and connection (with limits and Stop),
 //  - validates the answer, applies it (state, notes, revisions) and records what happened.
 // One agent failing never stops the others, and never loses the reply.
-import { AgentConfig, type AgentOutputKind, type AgentRun, type Character, type GenerationType, type Message, type Session, type TrackerSchema } from "@homunculus/schemas";
+import { AgentConfig, LoreEntry, Lorebook, type AgentOutputKind, type AgentRun, type Character, type GenerationType, type Message, type Session, type Story, type TrackerSchema } from "@homunculus/schemas";
 import type { HomunculusCore } from "../core.ts";
 import { errorText } from "../core.ts";
 import { isAbort } from "../connections.ts";
@@ -14,7 +14,8 @@ import type { AgentDefinition, AgentRunContext, Completion, ConnectionConfig } f
 import type { ResolvedSetup } from "../setup.ts";
 import { readStatePath, type ResolvedState } from "../state.ts";
 import type { SqlStore } from "../storage/store.ts";
-import { OUTPUT_SHAPES, separateExecutor } from "./outputs.ts";
+import { separateExecutor, shapeFor, type LoreProposal } from "./outputs.ts";
+import { applyLorePatch, patchWithEntry } from "../lore-versions.ts";
 import { normalizeTrackerAnswer, trackerPeople, type TrackerCastMember } from "../trackers.ts";
 import { applyBasicMacros, expandMacros } from "../macros.ts";
 import { effectiveCharacter } from "../variants.ts";
@@ -203,7 +204,7 @@ export class AgentRunner {
         raw = n.values;
         if (n.ignored.length) warnings = n.ignored;
       }
-      const shape = entry.definition?.output ?? OUTPUT_SHAPES[a.output];
+      const shape = entry.definition?.output ?? shapeFor(a);
       const parsed = shape.safeParse(raw);
       if (!parsed.success) throw new Error(`Answer had the wrong shape: ${parsed.error.message}`);
       await this.apply(entry, req, parsed.data);
@@ -252,6 +253,8 @@ export class AgentRunner {
     const story = a.input.scenario && req.session.storyId ? await store.getStory(req.session.storyId) : undefined;
     const scenario = a.input.scenario ? (req.session.scenario.trim() || story?.scenario?.trim() || "") : "";
     const lore = a.input.lorebooks ? await this.loreText(path) : "";
+    const loreBook = a.output === "proposal" && a.proposal?.target === "lorebook" ? await this.storyLorebook(req.session, false) : undefined;
+    const loreIndex = loreBook ? loreBook.book.entries.map((e) => `- ${e.title || e.keys[0] || e.id}${e.keys.length ? ` (${e.keys.join(", ")})` : ""}`).join("\n") : undefined;
     return {
       agent: a,
       sessionId: req.session.id,
@@ -270,6 +273,7 @@ export class AgentRunner {
       ...(persona ? { persona } : {}),
       ...(scenario ? { scenario } : {}),
       ...(lore ? { lore } : {}),
+      ...(loreIndex !== undefined ? { loreIndex } : {}),
       complete: async (messages, options) => {
         const c = await core.connections.complete(connection, messages, { signal: req.signal, maxTokens: options?.maxTokens ?? a.limits.maxTokens });
         usage.prompt = [...(usage.prompt ?? []), ...messages.map((m) => ({ role: m.role, content: m.content }))];
@@ -345,7 +349,7 @@ export class AgentRunner {
           raw = await executor(ctx);
         }
       }
-      const shape = entry.definition?.output ?? OUTPUT_SHAPES[a.output];
+      const shape = entry.definition?.output ?? shapeFor(a);
       const parsed = shape.safeParse(raw);
       const out: DryRun = { ...usage, durationMs: this.deps.now() - started };
       if (parsed.success) out.output = parsed.data; else out.error = `Answer had the wrong shape: ${parsed.error.message}`;
@@ -396,9 +400,44 @@ export class AgentRunner {
         await core.events.emit("message.revised", { sessionId: req.session.id, messageId: m.id });
         return;
       }
+      case "proposal": {
+        if (a.proposal?.target !== "lorebook") return;
+        const found = await this.storyLorebook(req.session, true);
+        if (!found) throw new Error("Lorebook proposals need a story: this chat is not part of one");
+        let patch = found.story.lorePatches[found.book.id];
+        let book = found.book;
+        for (const p of (output as LoreProposal).entries) {
+          const same = book.entries.find((e) => (e.title || "").trim().toLowerCase() === p.title.trim().toLowerCase());
+          const next = same ? { ...same, keys: p.keys.length ? p.keys : same.keys, content: p.content }
+            : LoreEntry.parse({ id: `kp-${this.deps.newId()}`, title: p.title, keys: p.keys, content: p.content });
+          patch = patchWithEntry(patch, next, a.id, this.deps.now(), req.messageId);
+          book = { ...book, entries: same ? book.entries.map((e) => (e.id === same.id ? next : e)) : [...book.entries, next] };
+        }
+        const latest = (await store.getStory(found.story.id)) ?? found.story;
+        await store.saveStory({ ...latest, lorePatches: { ...latest.lorePatches, [found.book.id]: patch! } });
+        await core.events.emit("story.loreChanged", { storyId: found.story.id, lorebookId: found.book.id, agentId: a.id, messageId: req.messageId });
+        return;
+      }
       default:
         return;
     }
+  }
+
+  /**
+   * The lorebook a story's agents add to (D-049): the first one the story uses, as the story sees it. With `create`,
+   * a story without one gets an empty "<story> lore" book of its own (only that story uses it).
+   */
+  private async storyLorebook(session: Session, create: boolean): Promise<{ story: Story; book: Lorebook } | undefined> {
+    const story = session.storyId ? await this.deps.store.getStory(session.storyId) : undefined;
+    if (!story) return undefined;
+    const ids = story.setup.lorebooks && story.setup.lorebooks.mode !== "keep" ? story.setup.lorebooks.add : [];
+    const [first] = await this.deps.store.lorebooksForUse(ids);
+    if (first) return { story, book: applyLorePatch(first, story.lorePatches[first.id]) };
+    if (!create) return { story, book: Lorebook.parse({ id: "none", name: "none" }) };
+    const book = await this.deps.store.saveLorebook({ id: `lore-${this.deps.newId()}`, name: `${story.name} lore`, entries: [] });
+    const fresh = { ...story, setup: { ...story.setup, lorebooks: { mode: "add" as const, add: [...ids, book.id], remove: story.setup.lorebooks?.remove ?? [] } } };
+    await this.deps.store.saveStory(fresh);
+    return { story: fresh, book };
   }
 
   /** Fields of the agent's tracker schema that only the user may change. */

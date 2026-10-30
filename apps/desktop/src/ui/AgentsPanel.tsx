@@ -13,7 +13,7 @@ import { layerHasTracker, type Tracker } from "../trackers.ts";
 import { useFloatingMenu } from "./FloatingMenu.ts";
 import { Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { Modal } from "./Vault.tsx";
-import type { MessageAgentResults } from "./AgentResults.tsx";
+import { AgentView, type MessageAgentResults } from "./AgentResults.tsx";
 
 interface Item { id: string; name: string; kind: string; tracker: boolean; manual: boolean; agent?: AgentConfig }
 type Live = Record<string, { since: number } | undefined>;
@@ -119,7 +119,7 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
         </span>
         {isOpen && (
           <div className="agp-detail">
-            {n && <div className="agm-note">{n.content}</div>}
+            {n && (i.agent?.display?.note === "view" ? <AgentView name={i.name} kind={i.agent.display.view ?? "feed"} text={n.content} /> : <div className="agm-note">{n.content}</div>)}
             {r?.status === "ok" && i.agent?.output === "choices" && Array.isArray(r.output) && (
               <div className="choices-set" role="group" aria-label={i.name}>{(r.output as string[]).map((c, k) => (
                 <button key={k} type="button" className="choice" disabled={!onPick} onClick={() => { m.setOpen(false); onPick?.(c); }}>{c}</button>))}</div>

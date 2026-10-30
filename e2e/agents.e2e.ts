@@ -17,7 +17,7 @@ test("Library → Agents: the starter examples in a table, a list view, and an e
   await page.goto("/");
   await openLibrary(page, "Agents");
   const table = page.getByTestId("agent-table");
-  await expect(table.getByTestId("agent-row")).toHaveCount(8);
+  await expect(table.getByTestId("agent-row")).toHaveCount(10);
   await page.getByRole("radio", { name: "Choices" }).click();
   await expect(table.getByTestId("agent-row")).toHaveCount(1);
   await expect(table.getByTestId("agent-row")).toContainText("CYOA Choices");
@@ -163,4 +163,37 @@ test("choices can show as a numbered list or above the message box", async ({ pa
   await send(page, "Now what?");
   await expect(page.getByTestId("composer-choices").getByRole("button")).toHaveCount(2, { timeout: 15_000 });
   await expect(page.getByTestId("message").last().getByTestId("choices")).toHaveCount(0);
+});
+
+test("a view agent draws its answer with the app's parts", async ({ page }) => {
+  await page.goto("/");
+  await turnOn(page, "Class Group Chat");
+  await send(page, "I wave at everyone.");
+  const view = page.getByTestId("message").last().getByTestId("agent-view");
+  await expect(view).toBeVisible({ timeout: 15_000 });
+  await expect(view).toContainText("kaito_2A");
+});
+
+test("the Lorebook Keeper writes into the story's own version, and See opens it", async ({ page }) => {
+  await page.goto("/");
+  await openLibrary(page, "Stories");
+  await page.getByRole("button", { name: "New Story", exact: true }).click();
+  const create = page.getByTestId("new-story");
+  await create.getByLabel("Story name").fill("Keeper Story");
+  await create.getByRole("button", { name: /Narrated adventure/ }).click();
+  await create.getByLabel("An empty story").check();
+  await create.getByTestId("create-story").click();
+  await page.getByTestId("play-story").click();
+  await page.getByTestId("new-chat-sheet").getByTestId("start-chat").click();
+  await turnOn(page, "Lorebook Keeper");
+  await send(page, "I learn the Shura path.");
+  await page.getByTestId("agents-menu-button").click();
+  await page.getByTestId("agents-menu").getByRole("button", { name: "Run Lorebook Keeper" }).click();
+  await expect(page.getByTestId("agents-menu").getByText(/Ran on the last reply/)).toBeVisible({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  const line = page.getByTestId("proposal-line");
+  await expect(line).toContainText("added “Offline fact” to this story's lorebook");
+  await line.getByRole("button", { name: "See" }).click();
+  await expect(page.getByTestId("lore-version-bar")).toContainText("1 change in Keeper Story");
+  await expect(page.getByLabel("Lorebook editor").locator(".lv-tag.new")).toHaveCount(1);
 });

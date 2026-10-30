@@ -120,8 +120,10 @@ export const AgentConfig = z.object({
     .optional(),
   /** How the app shows the result (D-047, D-048). Each kind has a default; nothing here changes what the agent does. */
   display: z.object({
-    /** Notes: a closed label under the reply, an open card under it, or only in the agents panel. */
-    note: z.enum(["message", "card", "menu"]).default("message"),
+    /** Notes: a closed label under the reply, an open card under it, only in the agents panel, or a view (D-049). */
+    note: z.enum(["message", "card", "menu", "view"]).default("message"),
+    /** For note = "view": how the app draws the agent's structured answer, with its own parts (never the agent's HTML). */
+    view: z.enum(["feed", "phone", "sheet", "cards"]).default("feed"),
     /** Choices: buttons under the reply, a numbered list in the reply, above the message box, or only in the panel. */
     choices: z.enum(["buttons", "list", "composer", "menu"]).default("buttons"),
     /** Checks: a mark beside the name, a line under the reply, or nothing in the chat. */
@@ -129,6 +131,8 @@ export const AgentConfig = z.object({
     /** Rewrites: a mark beside the name, or nothing in the chat. */
     rewrite: z.enum(["mark", "silent"]).default("mark"),
   }).partial().optional(),
+  /** For `proposal`: what it proposes to change (D-049). "lorebook": new or updated entries in the story's own version. */
+  proposal: z.object({ target: z.enum(["lorebook"]) }).optional(),
   /** For `inline`: the tag the main model writes, e.g. "SCENE" for [SCENE]…[/SCENE]. */
   inlineTag: z.string().optional(),
   source: z
