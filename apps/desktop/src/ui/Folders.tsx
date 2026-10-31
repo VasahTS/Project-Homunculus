@@ -18,62 +18,157 @@ export interface FolderItem { id: string; name: string; avatar?: Avatar | undefi
 /** Where things can be dropped: `data-drop="<key>"` on an element → what to do with the dragged id. */
 const dropTargets = new Map<string, (itemId: string) => void>();
 
-function startDrag(e: ReactPointerEvent, id: string, label: string, avatar?: Avatar) {
+// ---- selection (Ctrl/⌘+click picks several cards; dragging one of them carries them all) — Daniel, 30/10
+const selected = new Set<string>();
+const elOf = (id: string) => document.querySelector<HTMLElement>(`[data-drag-id="${CSS.escape(id)}"]`);
+function paintSelection() {
+  document.querySelectorAll<HTMLElement>("[data-drag-id]").forEach((el) => el.classList.toggle("fd-selected", selected.has(el.dataset.dragId ?? "")));
+}
+function clearSelection() { if (!selected.size) return; selected.clear(); paintSelection(); }
+if (typeof window !== "undefined") {
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") clearSelection(); });
+  // a plain click somewhere else ends the selection
+  window.addEventListener("pointerdown", (e) => {
+    if (e.ctrlKey || e.metaKey || (e.target as HTMLElement | null)?.closest?.("[data-drag-id], [data-drop]")) return;
+    clearSelection();
+  }, true);
+}
+
+/** Swallows the click that follows (so a Ctrl+click or the end of a drag does not open the card). */
+function swallowClick() {
+  const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+  window.addEventListener("click", stop, { capture: true, once: true });
+  setTimeout(() => window.removeEventListener("click", stop, { capture: true }), 0);
+}
+
+/**
+ * The card itself follows the pointer on a spring: it trails a little behind and tilts with the speed (the
+ * "follow-through"), then settles. With several cards selected they gather into a small stack under the pointer.
+ * Pointer events, not HTML drag and drop (the desktop window can swallow it).
+ */
+function startDrag(e: ReactPointerEvent, id: string) {
   if (e.button !== 0 || e.pointerType === "touch") return;
+  const source = e.currentTarget as HTMLElement;
+  if (e.ctrlKey || e.metaKey) {
+    if (selected.has(id)) selected.delete(id); else selected.add(id);
+    paintSelection();
+    swallowClick();
+    return;
+  }
   const sx = e.clientX;
   const sy = e.clientY;
-  // the card itself: it "leaves" its place while it is carried (Daniel, 30/10)
-  const source = e.currentTarget as HTMLElement;
   const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  let ghost: HTMLDivElement | null = null;
+  const ids = selected.has(id) && selected.size > 1 ? [id, ...[...selected].filter((x) => x !== id)] : [id];
+  type Carried = { id: string; el: HTMLElement; clone: HTMLElement; w: number; h: number; x: number; y: number; vx: number; rot: number };
+  let carried: Carried[] | null = null;
+  let badge: HTMLElement | null = null;
   let over: HTMLElement | null = null;
+  let px = sx, py = sy, raf = 0;
+  const many = ids.length > 1;
   const setOver = (el: HTMLElement | null) => {
     if (el === over) return;
     over?.classList.remove("drop-over");
     over = el;
     over?.classList.add("drop-over");
   };
-  const move = (ev: PointerEvent) => {
-    if (!ghost) {
-      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
-      ghost = document.createElement("div");
-      ghost.className = "fd-ghost";
-      if (avatar) { const img = document.createElement("img"); img.src = avatarUrl(avatar) ?? ""; img.alt = ""; ghost.append(img); }
-      else { const l = document.createElement("span"); l.className = "fd-ghost-letter"; l.textContent = (label || "?").slice(0, 1).toUpperCase(); ghost.append(l); }
-      const t = document.createElement("span"); t.textContent = label; ghost.append(t);
-      document.body.append(ghost);
-      document.body.classList.add("h2-dragging");
-      source.classList.add("fd-carried");
+  const lift = () => {
+    carried = ids.map((x) => elOf(x) ?? (x === id ? source : null)).filter((el): el is HTMLElement => !!el).map((el) => {
+      const r = el.getBoundingClientRect();
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.removeAttribute("data-drag-id");
+      clone.classList.remove("fd-selected", "on");
+      clone.classList.add("fd-float");
+      Object.assign(clone.style, { width: `${r.width}px`, height: `${r.height}px`, transform: `translate(${r.left}px, ${r.top}px)` });
+      // beside the card, so the page's own styles still dress it (fixed: out of the layout)
+      (el.parentElement ?? document.body).append(clone);
+      el.classList.add("fd-carried");
+      return { id: el.dataset.dragId ?? id, el, clone, w: r.width, h: r.height, x: r.left, y: r.top, vx: 0, rot: 0 };
+    });
+    if (many) {
+      badge = document.createElement("span");
+      badge.className = "fd-carry-count";
+      badge.textContent = String(carried.length);
+      document.body.append(badge);
     }
-    ghost.style.transform = `translate(${ev.clientX + 14}px, ${ev.clientY + 12}px)`;
-    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    document.body.classList.add("h2-dragging");
+    if (!reduce) raf = requestAnimationFrame(tick);
+  };
+  // where each card wants to be: the grabbed one under the pointer (where it was held), the others stacked behind it
+  const grabX = (() => { const r = source.getBoundingClientRect(); return sx - r.left; })();
+  const grabY = (() => { const r = source.getBoundingClientRect(); return sy - r.top; })();
+  const scale = many ? 0.45 : 0.85;
+  const goal = (c: Carried, k: number) => many
+    ? { x: px - (c.w * scale) / 2 + k * 6 - c.w * (1 - scale) / 2, y: py - (c.h * scale) / 2 + k * 6 - c.h * (1 - scale) / 2 }
+    : { x: px - grabX * scale - c.w * (1 - scale) / 2, y: py - grabY * scale - c.h * (1 - scale) / 2 };
+  const place = (c: Carried, k: number) => {
+    const fan = many ? (k === 0 ? 0 : (k % 2 ? 1 : -1) * (3 + k)) : 0;
+    c.clone.style.transform = `translate(${c.x}px, ${c.y}px) scale(${scale}) rotate(${c.rot + fan}deg)`;
+    c.clone.style.zIndex = String(1000 + carried!.length - k);
+  };
+  function tick() {
+    if (!carried) return;
+    carried.forEach((c, k) => {
+      const g = goal(c, k);
+      // a spring: the first card follows closely, the ones behind a little later (they trail like a tail)
+      const pull = Math.max(0.12, 0.3 - k * 0.04);
+      const nx = c.x + (g.x - c.x) * pull;
+      c.vx = nx - c.x;
+      c.x = nx;
+      c.y += (g.y - c.y) * pull;
+      c.rot += (Math.max(-14, Math.min(14, c.vx * 0.9)) - c.rot) * 0.2; // tilt with the speed, back to straight when it stops
+      place(c, k);
+    });
+    if (badge) badge.style.transform = `translate(${px + 10}px, ${py - 30}px)`;
+    raf = requestAnimationFrame(tick);
+  }
+  const move = (ev: PointerEvent) => {
+    px = ev.clientX; py = ev.clientY;
+    if (!carried) {
+      if (Math.hypot(px - sx, py - sy) < 6) return;
+      lift();
+    }
+    if (reduce && carried) { carried.forEach((c, k) => { const g = goal(c, k); c.x = g.x; c.y = g.y; place(c, k); }); if (badge) badge.style.transform = `translate(${px + 10}px, ${py - 30}px)`; }
+    const el = document.elementFromPoint(px, py);
     setOver((el?.closest("[data-drop]") as HTMLElement | null) ?? null);
   };
   const end = (drop: boolean) => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     window.removeEventListener("keydown", key);
-    if (!ghost) return;
-    const g = ghost;
+    if (!carried) return;
+    cancelAnimationFrame(raf);
+    const list = carried;
+    carried = null;
     document.body.classList.remove("h2-dragging");
     const target = over;
     setOver(null);
-    // the ghost flies into the folder (and is gone), or back to where the card was (and the card comes back)
+    swallowClick();
+    badge?.remove();
     const into = drop && target;
-    const to = (into ? target : source).getBoundingClientRect();
-    const finish = () => { g.remove(); source.classList.remove("fd-carried"); };
-    if (reduce || !to.width) finish();
+    const finish = () => { for (const c of list) { c.clone.remove(); c.el.classList.remove("fd-carried"); } target?.classList.remove("drop-took"); };
+    if (reduce) finish();
     else {
-      g.classList.add(into ? "fd-ghost-in" : "fd-ghost-back");
-      g.style.transform = `translate(${to.left + to.width / 2 - g.offsetWidth / 2}px, ${to.top + to.height / 2 - g.offsetHeight / 2}px) scale(${into ? 0.3 : 1})`;
+      // into the folder (shrinking away), or each card back to its place
+      const t = target?.getBoundingClientRect();
+      list.forEach((c, k) => {
+        c.clone.classList.add("fd-settle");
+        if (into && t) {
+          c.clone.style.opacity = "0";
+          c.clone.style.transform = `translate(${t.left + t.width / 2 - c.w / 2}px, ${t.top + t.height / 2 - c.h / 2}px) scale(0.1)`;
+          c.clone.style.transitionDelay = `${k * 30}ms`;
+        } else {
+          const r = c.el.getBoundingClientRect();
+          c.clone.style.transform = `translate(${r.left}px, ${r.top}px) scale(1)`;
+        }
+      });
       if (into) target.classList.add("drop-took");
-      setTimeout(() => { finish(); target?.classList.remove("drop-took"); }, 260);
+      setTimeout(finish, 300 + list.length * 30);
     }
-    // the click that ends a drag must not open the card
-    const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
-    window.addEventListener("click", stop, { capture: true, once: true });
-    setTimeout(() => window.removeEventListener("click", stop, { capture: true }), 0);
-    if (drop && target) dropTargets.get(target.dataset.drop ?? "")?.(id);
+    if (into) {
+      const fn = dropTargets.get(target.dataset.drop ?? "");
+      for (const c of list) fn?.(c.id);
+      clearSelection();
+    }
   };
   const up = () => end(true);
   const key = (ev: KeyboardEvent) => { if (ev.key === "Escape") end(false); };
@@ -82,9 +177,10 @@ function startDrag(e: ReactPointerEvent, id: string, label: string, avatar?: Ava
   window.addEventListener("keydown", key);
 }
 
-/** Lets a card be held and dragged onto a folder. */
-export const dragItem = (id: string, label: string, avatar?: Avatar) => ({
-  onPointerDown: (e: ReactPointerEvent) => startDrag(e, id, label, avatar),
+/** Lets a card be held and dragged onto a folder (Ctrl/⌘+click selects several). */
+export const dragItem = (id: string, _label?: string, _avatar?: Avatar) => ({
+  "data-drag-id": id,
+  onPointerDown: (e: ReactPointerEvent) => startDrag(e, id),
   onDragStart: (e: { preventDefault: () => void }) => e.preventDefault(), // no browser drag of the picture
 });
 
