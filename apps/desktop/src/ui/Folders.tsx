@@ -61,6 +61,11 @@ function startDrag(e: ReactPointerEvent, id: string) {
   if (e.button !== 0 || e.pointerType === "touch") return;
   const source = e.currentTarget as HTMLElement;
   if (e.ctrlKey || e.metaKey) {
+    // like a file explorer: the card already open counts as picked when you Ctrl+click another one
+    if (!selected.size) {
+      const open = source.parentElement?.querySelector<HTMLElement>("[data-drag-id].on");
+      if (open?.dataset.dragId && open !== source) selected.add(open.dataset.dragId);
+    }
     if (selected.has(id)) selected.delete(id); else selected.add(id);
     paintSelection();
     // the click comes when the button is released (a real hand holds it ~100 ms): swallow it then, not right away
@@ -112,10 +117,10 @@ function startDrag(e: ReactPointerEvent, id: string) {
   const grabY = (() => { const r = source.getBoundingClientRect(); return sy - r.top; })();
   const scale = many ? 0.45 : 0.85;
   const goal = (c: Carried, k: number) => many
-    ? { x: px - (c.w * scale) / 2 + k * 38 - c.w * (1 - scale) / 2, y: py - (c.h * scale) / 2 - k * 4 - c.h * (1 - scale) / 2 }
+    ? { x: px - (c.w * scale) / 2 + k * 6 - c.w * (1 - scale) / 2, y: py - (c.h * scale) / 2 + k * 6 - c.h * (1 - scale) / 2 }
     : { x: px - grabX * scale - c.w * (1 - scale) / 2, y: py - grabY * scale - c.h * (1 - scale) / 2 };
   const place = (c: Carried, k: number) => {
-    const fan = many ? (k === 0 ? -4 : (6 + k * 3)) : 0; // a spread hand of cards, each one visible
+    const fan = many ? (k === 0 ? 0 : (k % 2 ? 1 : -1) * (3 + k)) : 0;
     c.clone.style.transform = `translate(${c.x}px, ${c.y}px) scale(${scale}) rotate(${c.rot + fan}deg)`;
     c.clone.style.zIndex = String(1000 + carried!.length - k);
   };

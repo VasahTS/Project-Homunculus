@@ -17,9 +17,9 @@ test("Ctrl+click picks two cards and one drag moves both into a folder", async (
   await page.getByLabel("New folder name").fill("Fantasy");
   await page.keyboard.press("Enter");
   // like a real hand: the button is held a moment before it is released
+  // Mira is open (just imported); Ctrl+click on Lyra picks both, like a file explorer. Held like a real hand.
   await list.getByRole("button", { name: "Lyra" }).click({ modifiers: ["Control"], delay: 150 });
-  await list.getByRole("button", { name: "Mira" }).click({ modifiers: ["Control"], delay: 150 });
-  await expect(page.getByTestId("character-sheet")).toContainText("Mira"); // the last plain pick stays; Ctrl+click opened nothing
+  await expect(page.getByTestId("character-sheet")).toContainText("Mira"); // Ctrl+click opened nothing
   await expect(page.locator(".fd-selected")).toHaveCount(2);
   const a = (await list.getByRole("button", { name: "Lyra" }).boundingBox())!;
   const f = (await page.getByTestId("folder-tile").filter({ hasText: "Fantasy" }).boundingBox())!;

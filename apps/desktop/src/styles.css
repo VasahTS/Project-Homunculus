@@ -1619,7 +1619,9 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .fd-float.fd-settle { transition: transform 280ms var(--ease-out), opacity 280ms; }
 .fd-carry-count { position: fixed; left: 0; top: 0; z-index: 1100; pointer-events: none; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; box-shadow: var(--shadow-pop); }
 /* Ctrl+click: picked for a group drag */
-.fd-selected { box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px var(--accent-soft) !important; }
+.fd-selected { box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px var(--accent-soft) !important; position: relative; }
+/* a check, so a picked card never looks like the card that is merely open */
+.fd-selected::after { content: "✓"; position: absolute; top: 8px; right: 8px; z-index: 2; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700; box-shadow: var(--shadow-pop); }
 .drop-took.fd-tile { animation: fd-took 260ms var(--ease-out); }
 @keyframes fd-took { 50% { transform: scale(1.07); box-shadow: inset 0 0 0 2px var(--accent); } }
 @media (prefers-reduced-motion: reduce) { .fd-carried, .fd-tile, .fd-step { transition: none; } .drop-took.fd-tile { animation: none; } }
