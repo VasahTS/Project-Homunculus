@@ -45,9 +45,10 @@ test("leaving a chat while it writes: the reply keeps going and is there when yo
   const msgs = page.getByTestId("message");
   await expect(msgs).toHaveCount(3);
   await expect(msgs.nth(2)).toContainText('You said: First chat, keep going without me."');
-  // the second finished while we were away
+  // the second finished while we were away: a notice says so and opens it
   await expect(page.getByTestId("session-list").getByTestId("side-writing")).toHaveCount(0, { timeout: 20_000 });
-  await chat(page, "Beta").click();
+  await expect(page.getByTestId("notice")).toContainText("Reply ready in “Beta”");
+  await page.getByTestId("notice").getByRole("button", { name: "Open" }).click();
   await expect(page.getByTestId("message")).toHaveCount(3);
   await expect(page.getByTestId("message").nth(2)).toContainText('You said: Second chat, at the same time."');
   // a new reply in the first chat continues the same branch (no stray branch)

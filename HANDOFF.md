@@ -4,6 +4,11 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Small round (2026-10-30, late) — CLAUDE
+
+- **Reply ready elsewhere:** when a reply finishes in a chat that is not on screen, a notice says "Reply ready in “<chat>”" with **Open** (App.tsx, from `useTurns`).
+- **Library lists side by side:** Kits, Narrators, NPCs, Personas… use a grid of cards (min 300 px) instead of one card per row.
+
 ## Memory, agent styles and Daniel's agent review (2026-10-30) — CLAUDE — D-054 / D-055
 
 - **Merged CODEX's `gpt`** into `dev` (D-051 reliability fixes, D-053 Try it); kept dev's workflow rules in CLAUDE.md/AGENTS.md (one line now says CODEX works on `gpt`), took gpt's lockfiles (dev's `package-lock.json` was out of sync: `npm ci` failed).

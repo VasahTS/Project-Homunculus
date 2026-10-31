@@ -15,7 +15,7 @@ import { useUpdates } from "./updates.ts";
 import { SettingsPage, type SettingsTab } from "./ui/SettingsPage.tsx";
 import { imageFileToPngAvatar, readFileBytes, saveExport } from "./files.ts";
 import { ChatView } from "./ui/ChatView.tsx";
-import { turns } from "./turns.ts";
+import { turns, useTurns } from "./turns.ts";
 import { FolderSelect, FolderView, folderAndBelow, folderLabel, VirtualTile, type FolderItem } from "./ui/Folders.tsx";
 import { Picker, type PickKind } from "./ui/Picker.tsx";
 import { ChatList, type ChatRow } from "./ui/ChatList.tsx";
@@ -204,6 +204,22 @@ export function App() {
     }).catch((e) => setBootError(errorText(e)));
     return () => { cancelled = true; };
   }, [refresh]);
+
+  // A reply finished in a chat that is not on screen: say so, with a way there (Daniel, 30/10).
+  const live = useTurns();
+  const phases = useRef(new Map<string, string>());
+  useEffect(() => {
+    for (const [id, t] of live) {
+      const before = phases.current.get(id);
+      phases.current.set(id, t.phase);
+      if (before !== "writing" || t.phase === "writing" || t.error) continue;
+      if (view.kind === "session" && activeId === id) continue;
+      const chat = sessions.find((x) => x.id === id);
+      setNotice({ kind: "ok", title: `Reply ready in “${chat?.title ?? "a chat"}”`, lines: [], action: { label: "Open", run: () => { setActiveId(id); setView({ kind: "session" }); } } });
+    }
+    for (const id of [...phases.current.keys()]) if (!live.has(id)) phases.current.delete(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
 
   if (bootError) return <div className="boot error">Could not start: {bootError}</div>;
   if (!svc) return <div className="boot">Waking the homunculus…</div>;
