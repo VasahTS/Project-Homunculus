@@ -45,6 +45,25 @@ if (typeof window !== "undefined") {
   }, true);
 }
 
+// ---- Ctrl+Z puts the last drop back (all the cards of a group drag at once) — Daniel, 30/10
+let dropBatch = 0;
+const undoStack: Array<{ batch: number; run: () => void }> = [];
+function pushUndo(run: () => void) {
+  undoStack.push({ batch: dropBatch, run });
+  if (undoStack.length > 200) undoStack.shift();
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return; // text keeps its own undo
+    const last = undoStack[undoStack.length - 1];
+    if (!last) return;
+    e.preventDefault();
+    while (undoStack.length && undoStack[undoStack.length - 1]!.batch === last.batch) undoStack.pop()!.run();
+  });
+}
+
 /** Swallows the click that follows (so a Ctrl+click or the end of a drag does not open the card). */
 function swallowClick() {
   const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
@@ -184,6 +203,7 @@ function startDrag(e: ReactPointerEvent, id: string) {
       setTimeout(finish, 300 + list.length * 30);
     }
     if (into) {
+      dropBatch++;
       const fn = dropTargets.get(target.dataset.drop ?? "");
       for (const c of list) fn?.(c.id);
       clearSelection();
@@ -265,7 +285,13 @@ export function FolderView({ label, folders, map, items, current, currentName, o
   const path = folderPath(folders, current);
   const kids = childrenOf(folders, current);
   const drops = useDrops();
-  const drop = (target: string | null) => drops(target ?? "top", (id) => { if (id !== `folder:${target}`) onMove(id, target); });
+  const drop = (target: string | null) => drops(target ?? "top", (id) => {
+    if (id === `folder:${target}`) return;
+    const from = id.startsWith("folder:") ? (folders.find((f) => f.id === id.slice(7))?.parentId ?? null) : (map[id] ?? null);
+    if (from === target) return;
+    onMove(id, target);
+    pushUndo(() => onMove(id, from));
+  });
   useEffect(() => {
     if (!menu) return;
     const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest?.(".fd-menu, .fd-more")) setMenu(null); };

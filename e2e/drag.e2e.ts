@@ -33,4 +33,9 @@ test("Ctrl+click picks two cards and one drag moves both into a folder", async (
   await page.mouse.up();
   await expect(page.getByTestId("folder-tile").filter({ hasText: "Fantasy" })).toContainText("2 characters");
   await expect(page.locator(".fd-float")).toHaveCount(0, { timeout: 2000 });
+  // Ctrl+Z puts both back
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("folder-tile").filter({ hasText: "Fantasy" })).toContainText("Empty");
+  await expect(list.getByRole("button", { name: "Lyra" })).toBeVisible();
+  await expect(list.getByRole("button", { name: "Mira" })).toBeVisible();
 });
