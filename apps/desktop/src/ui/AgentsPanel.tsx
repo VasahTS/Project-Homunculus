@@ -39,12 +39,13 @@ function useTick(active: boolean) {
   useEffect(() => { if (!active) return; const t = setInterval(() => setT((x) => x + 1), 1000); return () => clearInterval(t); }, [active]);
 }
 
-// The panel opens over the middle of the reading column, not against the inspector (Daniel, 30/10).
+// The panel hangs under the ✦ button, its right edge on the reading column's right edge, so it never covers the
+// inspector (Daniel, 30/10).
 const overStory = (fallback: number) => {
   const r = document.querySelector<HTMLElement>(".story-pane")?.getBoundingClientRect();
   if (!r) return fallback;
   const w = Math.min(440, window.innerWidth - 16);
-  return Math.max(8, Math.min(r.left + (r.width - w) / 2, window.innerWidth - w - 8));
+  return Math.max(8, Math.min(r.right - w - 8, window.innerWidth - w - 8));
 };
 
 const secs = (ms: number | undefined) => (ms === undefined ? "" : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`);
