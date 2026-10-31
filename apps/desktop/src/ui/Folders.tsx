@@ -22,6 +22,9 @@ function startDrag(e: ReactPointerEvent, id: string, label: string, avatar?: Ava
   if (e.button !== 0 || e.pointerType === "touch") return;
   const sx = e.clientX;
   const sy = e.clientY;
+  // the card itself: it "leaves" its place while it is carried (Daniel, 30/10)
+  const source = e.currentTarget as HTMLElement;
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   let ghost: HTMLDivElement | null = null;
   let over: HTMLElement | null = null;
   const setOver = (el: HTMLElement | null) => {
@@ -40,6 +43,7 @@ function startDrag(e: ReactPointerEvent, id: string, label: string, avatar?: Ava
       const t = document.createElement("span"); t.textContent = label; ghost.append(t);
       document.body.append(ghost);
       document.body.classList.add("h2-dragging");
+      source.classList.add("fd-carried");
     }
     ghost.style.transform = `translate(${ev.clientX + 14}px, ${ev.clientY + 12}px)`;
     const el = document.elementFromPoint(ev.clientX, ev.clientY);
@@ -50,10 +54,21 @@ function startDrag(e: ReactPointerEvent, id: string, label: string, avatar?: Ava
     window.removeEventListener("pointerup", up);
     window.removeEventListener("keydown", key);
     if (!ghost) return;
-    ghost.remove();
+    const g = ghost;
     document.body.classList.remove("h2-dragging");
     const target = over;
     setOver(null);
+    // the ghost flies into the folder (and is gone), or back to where the card was (and the card comes back)
+    const into = drop && target;
+    const to = (into ? target : source).getBoundingClientRect();
+    const finish = () => { g.remove(); source.classList.remove("fd-carried"); };
+    if (reduce || !to.width) finish();
+    else {
+      g.classList.add(into ? "fd-ghost-in" : "fd-ghost-back");
+      g.style.transform = `translate(${to.left + to.width / 2 - g.offsetWidth / 2}px, ${to.top + to.height / 2 - g.offsetHeight / 2}px) scale(${into ? 0.3 : 1})`;
+      if (into) target.classList.add("drop-took");
+      setTimeout(() => { finish(); target?.classList.remove("drop-took"); }, 260);
+    }
     // the click that ends a drag must not open the card
     const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
     window.addEventListener("click", stop, { capture: true, once: true });
