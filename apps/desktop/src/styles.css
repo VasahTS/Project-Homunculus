@@ -2119,3 +2119,5 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .side-stop:hover { color: var(--danger); background: var(--danger-soft); }
 .side-stop:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .composer-usage { color: var(--label-3); font-size: var(--size-small); margin-left: 4px; }
+.fd-back { flex: none; margin-right: 6px; padding: 3px 10px; border: 1px solid var(--separator); border-radius: var(--radius-pill); background: var(--fill); color: var(--label); font: inherit; font-size: var(--size-small); cursor: pointer; }
+.fd-back:hover { background: var(--fill-hover); }

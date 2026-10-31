@@ -36,6 +36,12 @@ test("Characters: folders you can see (nested), a search looks in all of them, t
   await page.getByTestId("folder-tile").filter({ hasText: "Rangers" }).click();
   await expect(page.getByTestId("folders")).toContainText("All›Fantasy›Rangers");
   await expect(page.getByTestId("character-list").getByRole("button", { name: "Lyra" })).toBeVisible();
+  // Back goes one folder up; the mouse's back button too
+  await page.getByTestId("folder-back").click();
+  await expect(page.getByTestId("folders")).toContainText("All›Fantasy");
+  await expect(page.getByTestId("folders")).not.toContainText("Rangers›");
+  await page.evaluate(() => window.dispatchEvent(new MouseEvent("mouseup", { button: 3 }))); // the mouse's back button
+  await expect(page.getByTestId("folder-back")).toHaveCount(0);
   // back at the top, a search finds her in any folder
   await page.getByTestId("folders").getByRole("button", { name: "All" }).click();
   await page.getByLabel("Search characters").fill("lyr");

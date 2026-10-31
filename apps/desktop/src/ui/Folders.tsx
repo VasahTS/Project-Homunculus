@@ -6,7 +6,7 @@
 // Dragging (same evening: "make it possible to hold and drag the characters"): hold a card and drag it onto a folder (or a
 // step of the path "All › Fantasy"). It is done with pointer events, not the browser's HTML drag and drop, which the
 // desktop window (WebView2) can swallow. The sheet of an item has a "Folder" pick that does the same with the keyboard.
-import { useEffect, useId, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { Avatar, Folder } from "@homunculus/schemas";
 import { avatarUrl } from "../files.ts";
 import { Icon } from "./kit.tsx";
@@ -142,10 +142,28 @@ export function FolderView({ label, folders, map, items, current, currentName, o
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [menu]);
+  // Back: one folder up. Also the mouse's back button (the side button, like in a browser) and Alt+← (Daniel, 30/10).
+  const inside = current !== null || !!currentName;
+  const up = () => onOpen(currentName ? current : (path.length > 1 ? path[path.length - 2]!.id : null));
+  const upRef = useRef(up); upRef.current = up;
+  useEffect(() => {
+    if (!inside) return;
+    const mouse = (e: MouseEvent) => { if (e.button === 3) { e.preventDefault(); upRef.current(); } };
+    const block = (e: MouseEvent) => { if (e.button === 3) e.preventDefault(); };
+    const key = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.altKey && e.key === "ArrowLeft" && !(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"))) { e.preventDefault(); upRef.current(); }
+    };
+    window.addEventListener("mouseup", mouse);
+    window.addEventListener("mousedown", block);
+    window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("mouseup", mouse); window.removeEventListener("mousedown", block); window.removeEventListener("keydown", key); };
+  }, [inside]);
   const commitNew = () => { const n = naming?.trim(); setNaming(null); if (n) onCreate(n, current); };
   return (
     <div className="folders" data-testid="folders">
       <div className="fd-crumb">
+        {inside && <button type="button" className="fd-back" onClick={up} title="Back (mouse back button or Alt+←)" aria-label="Back to the folder above" data-testid="folder-back">‹ Back</button>}
         <button type="button" className={`fd-step${current === null ? " on" : ""}`} onClick={() => onOpen(null)} {...drop(null)}>All</button>
         {path.map((f) => (
           <span key={f.id} className="fd-step-wrap"><span className="fd-sep" aria-hidden>›</span>
