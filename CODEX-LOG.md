@@ -2,6 +2,16 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-10-30 · Agent editor Try it integrated — D-053
+
+Daniel approved the visual draft. Added the editor action and native modal using the app-owned live AgentDraft, chat/message selection, agent/per-test connection, explicit Run/Stop, typed result, actual sent input/raw answer, conditional reported reasoning and usage. Matched the approved Quiet layout and retained only production controls. Kept failed/pending autosave independent; trapped/returned focus; guarded duplicate requests, loading races, context changes, cancellation and late results. Added a theme token for the approved backdrop.
+
+Added TurnPipeline.previewAgent for ephemeral definitions and shared read-only context with Compare. Local speaker/name snapshots avoid changing running-turn labels. Reused AgentRunner.dryRun/output validation without application/events/records. Explicit tests bypass automatic conditions, read only already-saved dependency results, explain missing dependencies/Story context and unsupported standalone modes/tools, and expand text mode without AI. Failed requests retain their actual prompt.
+
+Validation: `npm run typecheck` passed; `npm test` passed **261 tests** (2 skipped); production desktop UI build passed (existing large-chunk advisory); **all 143 Playwright browser flows passed** on isolated port 1427. New coverage: 21 core tests, 12 browser flows. Before/after snapshots and mutator/event spies verify read-only execution; browser checks cover failed autosave, Stop/Escape/navigation, duplicate Run, loading races, errors/retry, unsafe raw text, stale snapshots, text mode, reasoning/usage, unsupported/empty states and narrow/full content. Actual screenshots in `docs/drafts/agent-try-it/integration/` were compared with the approved draft; eight added cast cards, long names, 25 choices, reduced motion and simulated enlarged text are included. Report: `docs/AGENT-TRY-IT.md`.
+
+No private data, portable play folder, credentials or paid API was accessed; native Tauri/real-provider checks were not performed. All work stays in Homunculus-gpt on gpt. No other checkout, workflow, lockfile, release or activation/scopes feature changed. Signed: **CODEX**.
+
 ## 2026-10-30 · Try it visual draft — D-052
 
 After Daniel approved the text plan and authorized project examples, created `docs/drafts/agent-try-it/`: portable HTML, source template/styles/script, builder, verifier, validation report, font license, README and eight captures. Reused current app tokens/styles and Quiet profile; extracted four starter agent definitions directly from project source. Additional scene dialogue, results, reasoning explanation and model usage are explicitly scripted examples. Added focus cycling, stop/close cancellation, stale-result snapshots, typed result previews and full/empty/error states. Production source files and functionality are unchanged; implementation awaits visual approval. Signed: **CODEX**.

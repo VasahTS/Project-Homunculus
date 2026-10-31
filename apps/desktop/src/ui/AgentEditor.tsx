@@ -10,11 +10,12 @@ import { Collapse, Icon, Segmented } from "./kit.tsx";
 
 const GEN_TYPES = [{ value: "normal", label: "New replies" }, { value: "swipe", label: "New versions" }, { value: "continue", label: "Continue" }] as const;
 
-export function AgentEditor({ agent, agents = [], drafts, onSave, onDelete, onClose }: {
+export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelete, onClose }: {
   agent: AgentConfig;
   /** All agents, to pick the ones whose results this one reads. */
   agents?: AgentConfig[];
   drafts: Map<string, AgentDraft>;
+  onTry: (draft: AgentDraft) => void;
   onSave: (a: AgentConfigInput) => Promise<AgentConfig>;
   onDelete: (id: string) => Promise<void>;
   onClose?: () => void;
@@ -50,6 +51,7 @@ export function AgentEditor({ agent, agents = [], drafts, onSave, onDelete, onCl
         <span className={status === "error" ? "error-text" : "hint"} role="status" data-testid="agent-save-state">
           {status === "saving" ? "Saving…" : status === "error" ? "Not saved" : "✓ Saved"}
         </span>
+        <button type="button" className="btn btn-bordered btn-small" onClick={() => onTry(draft)}>Try it</button>
         {onClose && <button className="btn btn-bordered btn-small" onClick={() => { void draft.flush().then((saved) => { if (saved) onClose(); }); }}>Close</button>}
       </div>
       <div className="editor-body ag-body">

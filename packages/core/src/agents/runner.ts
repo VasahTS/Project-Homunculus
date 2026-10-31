@@ -279,8 +279,8 @@ export class AgentRunner {
       ...(lore ? { lore } : {}),
       ...(loreIndex !== undefined ? { loreIndex } : {}),
       complete: async (messages, options) => {
-        const c = await core.connections.complete(connection, messages, { signal: req.signal, maxTokens: options?.maxTokens ?? a.limits.maxTokens });
         usage.prompt = [...(usage.prompt ?? []), ...messages.map((m) => ({ role: m.role, content: m.content }))];
+        const c = await core.connections.complete(connection, messages, { signal: req.signal, maxTokens: options?.maxTokens ?? a.limits.maxTokens });
         usage.raw = usage.raw ? `${usage.raw}\n\n${c.text}` : c.text;
         if (c.reasoning) usage.reasoning = usage.reasoning ? `${usage.reasoning}\n\n${c.reasoning}` : c.reasoning;
         usage.model = c.model;

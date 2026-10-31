@@ -1,6 +1,6 @@
 # Try it — visual draft
 
-Author: **CODEX**. Date: 2026-10-30. Status: **text plan approved; visual draft awaiting Daniel's review**.
+Author: **CODEX**. Date: 2026-10-30. Status: **text and visual approved; integrated under D-053**.
 
 Daniel explicitly authorized project examples for this draft, replacing HANDOFF's real-data requirement for this review stage. No private database, play folder or credentials were accessed.
 
@@ -25,7 +25,7 @@ All model names, results, timings, usage, explanations and additional conversati
 - Four actual starter agent names, instructions, output kinds and history sizes are extracted from `apps/desktop/src/agents.ts`: Prose Polisher, Don't Write for User, CYOA Choices and Lorebook Keeper.
 - Lyra and her opening come from the project's starter example. Additional old-mill dialogue, the full-state cast, model metadata and answers are authored fixtures for review, not Daniel's personal data.
 - Literata is bundled from the project's existing font dependency; its OFL license is in `Literata-LICENSE.txt`.
-- Production app files and behavior are unchanged. The core preview API and real Try it integration are not implemented by this draft.
+- This portable draft remains a scripted review artifact. The subsequently approved production integration and its separate validation are documented in `docs/AGENT-TRY-IT.md`; actual app captures are in `integration/`.
 - Global agent activation/scopes remain deferred.
 
 ## Captures

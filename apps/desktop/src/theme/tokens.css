@@ -106,6 +106,7 @@
   --cat-agent: #e58a80;
   --cat-other: #6e7781;
   --flash: rgba(98, 182, 164, 0.32);    /* a value that just changed glows with this, then fades */
+  --preview-scrim: rgba(0, 0, 0, 0.64); /* approved Try it backdrop, D-053, CODEX */
   --scrim: rgba(8, 9, 11, 0.55);         /* behind sheets */
 
   /* Shared collection and Library hierarchy. CODEX, D-040; values remain profile-overridable. */

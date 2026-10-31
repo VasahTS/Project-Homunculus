@@ -465,6 +465,20 @@ BLUEPRINT §13: this affects the existing Library Agent editor (desktop) and the
 
 ## D-052 — Try it text scope and authorized review examples (2026-10-30)
 
-Daniel approved the Try it text plan: a direct action in the existing agent editor, selecting a chat/message and connection, explicit Run/Stop, and inspection of the current draft's result and inputs without applying outputs. Global activation/scopes remain deferred. The visual draft is a separate review gate; approval of its appearance and production implementation is still pending.
+Daniel approved the Try it text plan: a direct action in the existing agent editor, selecting a chat/message and connection, explicit Run/Stop, and inspection of the current draft's result and inputs without applying outputs. Global activation/scopes remain deferred. The visual draft was a separate review gate; its subsequent approval and integration are recorded in D-053.
 
 Daniel explicitly authorized using project examples for this draft instead of the real-data requirement in HANDOFF. Use the shipped agent definitions and clearly identified scripted conversation/results; no private play folder, credentials or automatic private database access. This exception covers the draft review stage. Reference: `docs/UI-PLAN.md` and `docs/drafts/agent-try-it/README.md`. Signed: **CODEX**.
+
+## D-053 — Read-only Try it from the current agent draft (2026-10-30)
+
+Daniel approved the visual draft following the text approval and project-example authorization in D-052. Implement that approved dialog inside the existing Library Agent editor. Global activation/scopes and Customize remain deferred.
+
+- The editor supplies its live AgentDraft; preview execution never reads an older saved definition or requires activation/successful autosave. The existing autosave queue remains independent.
+- A selected chat/message and optional per-test connection feed the existing AgentRunner.dryRun. Compare shares the read-only context builder. History, state and speaker labels follow the selected message's path, with local name snapshots that do not mutate a running turn's labels.
+- Explicit tests bypass timing/keyword/chance conditions. Existing saved dependency outputs may be read; missing dependencies are explained and never executed. Keepers need a Story context. Text expands without an AI call. Inline/code modes and tool-enabled definitions are explicitly unsupported rather than falling back to a full turn.
+- Outputs are validated and displayed without writes or domain output events. No Apply, send-choice action, saved runs/history, story/lorebook creation or branch movement is included.
+- The native dialog traps/returns focus, announces contextual status, prevents duplicate Run, aborts on Stop/Close/Escape/unmount/context change and ignores late completions. Changed context/configuration marks the captured input/output outdated.
+- The interface shows the actual sent prompt, raw response, optional provider reasoning, model/duration and reported usage. Failed provider calls retain their sent prompt. No synthetic reasoning or invented usage is displayed.
+- Reuse Quiet/theme tokens, existing prose/native view rendering and the approved 808 px layout. The backdrop opacity is a theme token; draft-only review controls are omitted. Contained scrolling supports narrow windows and long content.
+
+BLUEPRINT §13: desktop Agent editor + existing core TurnPipeline/AgentRunner; no new module, schema/storage migration or setup-layer feature. Separate-mode preview makes the existing agent request only on Run; text makes none. Missing resources/provider/validation failures remain inside the dialog with retry. Tests and actual/draft captures: `docs/AGENT-TRY-IT.md`. Validation uses isolated project fixtures, not private play data or real API calls. Signed: **CODEX**.

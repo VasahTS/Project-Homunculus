@@ -4,6 +4,16 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Try it integrated in the agent editor (2026-10-30) — CODEX — D-053
+
+Daniel approved the visual draft after the text plan and project-example authorization (D-052). Library → Agents → an agent now has **Try it**: select a chat/message and optional connection, Run/Stop, then inspect Result, What it read, Raw answer and provider Reasoning when supplied. The current editor draft is used even if autosave failed. Opening makes no request; text mode makes no AI call.
+
+Preview outputs never apply to the chat/story or create saved runs. Stop/Close/Escape/navigation abort; late answers are suppressed. Context/config changes mark the captured result outdated. Existing saved dependency results may be read, but dependencies are not run. Inline/code modes and tools explain their unsupported standalone status; keepers require a Story chat. Global activation/scopes remain deferred.
+
+Validation: typecheck/build passed; **261 unit tests passed, 2 skipped; all 143 browser flows passed**, including 21 new core tests and 12 new browser flows. Actual/draft captures compared at 1366/620/390 px; full-content checks cover eight cast cards, long names, 25 choices, reduced motion and simulated 150% text. Report: `docs/AGENT-TRY-IT.md`. Only isolated project fixtures/offline or simulated providers were used; real API and native Tauri behavior are not claimed. No private play folder, credentials, other checkout, lockfile or workflow was touched.
+
+Work is local PC editing exclusively in Homunculus-gpt, committed/pushed only to gpt under D-050. Signed: **CODEX**.
+
 ## Try it: visual draft ready (2026-10-30) — CODEX — D-052
 
 Daniel approved the text plan and explicitly chose project examples for this draft, replacing the real-data rule for this review stage. The portable interactive draft is `docs/drafts/agent-try-it/index.html`; captures and instructions are beside it. It uses the current Quiet profile and four real starter agent definitions, with scripted old-mill conversation/results and clear review controls. No model/API calls or production changes are included.

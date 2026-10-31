@@ -7,10 +7,10 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
-## Try it in the agent editor — CODEX, 2026-10-30 · text approved; visual draft awaiting review (D-052)
+## Try it in the agent editor — CODEX, 2026-10-30 · text and visual approved; integrated (D-052, D-053)
 
 ### Purpose and scope
-Test the agent currently being edited, inspect what it read and what it answered, and return to editing without applying the result to a story or chat. Daniel approved this Step 1 text and authorized project examples for the draft. The visual draft is now available at `docs/drafts/agent-try-it/index.html`; production implementation awaits visual approval.
+Test the agent currently being edited, inspect what it read and what it answered, and return to editing without applying the result to a story or chat. Daniel approved this Step 1 text and authorized project examples for the draft. The visual draft is now available at `docs/drafts/agent-try-it/index.html`; Daniel subsequently approved the visual and its production integration (D-053).
 
 Global agent activation/scopes remain deferred at Daniel's request. This task adds no Settings section or agent activation changes.
 
@@ -66,7 +66,7 @@ Browser coverage: opening without a request, choosing context, text-mode preview
 ### Review gates and data
 Daniel approved this text and selected project examples instead of real data for this draft review stage (D-052). The portable draft and validation are in `docs/drafts/agent-try-it/`. Never inspect or request the portable play folder or keys. Production implementation follows approval of the visual draft.
 
-**Open review:** approve or adjust the visual draft before production implementation.
+**Completed:** Daniel approved the visual; integration and validation are recorded in `docs/AGENT-TRY-IT.md` (D-053).
 
 Signed: **CODEX**.
 
