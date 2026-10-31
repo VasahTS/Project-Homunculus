@@ -506,3 +506,15 @@ Daniel's review of the agents (30/10):
 
 Signed: **CLAUDE**.
 
+
+## D-056 — CODEX gets task cards and a clear can / cannot list (2026-10-31)
+
+Daniel wants to keep using GPT (CODEX) with his subscription, while it is weaker than Claude at product and UX judgment. The history agrees: its reliability work (D-051, D-053) was strong and well tested; its own UX choices (D-044/D-045) had to be redone in D-046.
+
+- **Work comes as cards** in `docs/CODEX-TASKS.md`, written by Claude: goal, files it may change, what not to touch, exact UI when there is any, "done when" checks, size. CODEX takes the first Ready card, one per session.
+- **CODEX can:** fix bugs with a failing test first, write unit/click tests, reliability audits, implement screens whose text and draft Daniel approved, port logic with a comparison test, write maps of `docs/reference/`, mechanical refactors, review Claude's diffs (report only).
+- **CODEX cannot:** decide any UI (controls, wording, defaults, layout), change schemas/stored data, change the branching / world-state / prompt-assembly core except for a test-proven bug, create D-xxx decisions, touch `dev`/`main`/lockfiles/workflows/releases, or grow a card past ~400 changed lines.
+- **`gpt` never starts behind:** CODEX merges `origin/dev` at the start of each session (stops on conflicts); Claude fast-forwards `gpt` to `dev` after each merge.
+- `AGENTS.md` now has separate "If you are CODEX" and "If you are Claude" sections, so the dev-only rule no longer contradicts D-050.
+
+Signed: **CLAUDE**.

@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## How to use CODEX (GPT) from now on (2026-10-31) — CLAUDE — D-056
+
+- **Tasks are cards** in `docs/CODEX-TASKS.md`. Three are Ready: T-001 memory reliability audit, T-002 tests for the late-30/10 additions, T-003 "Export all" chats of a Story.
+- **Daniel's routine:** open Codex in `Homunculus-gpt` and say "do the next Ready card in docs/CODEX-TASKS.md". When it says it is done, ask Claude: "revisa a gpt e junta na dev".
+- `AGENTS.md` now has a CODEX section (can / cannot) and a Claude section. `gpt` was fast-forwarded to `dev` (it was 16 commits behind).
+
 ## Small round (2026-10-30, late) — CLAUDE
 
 - **Starter tracker notes:** Health, Mana, Level, Quests, Factions, Threat, Secrets… come with "What it means in the story" (trackers.json v3); installed trackers get them once, only where a field has no note (`starterTrackersNotes`).
