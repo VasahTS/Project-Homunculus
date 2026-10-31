@@ -266,7 +266,7 @@ export const folderLabel = (folders: Folder[], id: string | null | undefined) =>
 export const itemsIn = <T extends { id: string }>(items: T[], map: Record<string, string>, folderId: string | null) =>
   items.filter((it) => (map[it.id] ?? null) === folderId);
 
-export function FolderView({ label, folders, map, items, current, currentName, onOpen, onCreate, onRename, onDelete, onMove, extra }: {
+export function FolderView({ label, folders, map, items, current, currentName, onOpen, onCreate, onRename, onDelete, onMove, extra, onTrash }: {
   /** What the items are, for counts and hints ("characters", "NPCs"). */
   label: string;
   folders: Folder[];
@@ -283,6 +283,8 @@ export function FolderView({ label, folders, map, items, current, currentName, o
   onMove: (itemId: string, folderId: string | null) => void;
   /** More folder-like tiles at the top level (e.g. the stories' own NPC folders). */
   extra?: ReactNode;
+  /** Delete on picked cards sends them to the Trash (Daniel, 30/10). */
+  onTrash?: (ids: string[]) => void;
 }) {
   const [naming, setNaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
@@ -303,6 +305,32 @@ export function FolderView({ label, folders, map, items, current, currentName, o
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [menu]);
+  // Ctrl+A picks every card on screen; Delete sends the picked ones to the Trash (with Undo) — Daniel, 30/10
+  const keysRef = useRef({ items, onTrash }); keysRef.current = { items, onTrash };
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (document.querySelector("[aria-modal=true]")) return; // not behind an open window
+      const mine = new Set(keysRef.current.items.map((i) => i.id));
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        const cards = [...document.querySelectorAll<HTMLElement>("[data-drag-id]")].map((el) => el.dataset.dragId ?? "").filter((id) => mine.has(id));
+        if (!cards.length) return;
+        e.preventDefault();
+        for (const id of cards) selected.add(id);
+        paintSelection();
+      } else if (e.key === "Delete" && keysRef.current.onTrash) {
+        const ids = [...selected].filter((id) => mine.has(id));
+        if (!ids.length) return;
+        e.preventDefault();
+        for (const id of ids) selected.delete(id);
+        paintSelection();
+        keysRef.current.onTrash(ids);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
   // Back: one folder up. Also the mouse's back button (the side button, like in a browser) and Alt+← (Daniel, 30/10).
   const inside = current !== null || !!currentName;
   const up = () => onOpen(currentName ? current : (path.length > 1 ? path[path.length - 2]!.id : null));

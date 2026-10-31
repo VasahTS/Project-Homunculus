@@ -273,6 +273,20 @@ export function App() {
     setNotice({ kind: "ok", title: `“${name}” moved to the Trash`, lines: [], action: { label: "Undo", run: () => void restore({ kind, id, name, trashedAt: 0 }, true) } });
   };
 
+  /** Several picked cards at once (Delete in a folder view): one notice, one Undo for all. */
+  const trashMany = async (kind: TrashKind, list: Array<{ id: string; name: string }>) => {
+    // each one on its own: one that cannot go (e.g. still used by a chat) does not stop the others
+    const moved: typeof list = [];
+    const failed: string[] = [];
+    for (const it of list) {
+      try { await svc.store.moveToTrash(kind, it.id); moved.push(it); } catch (e) { failed.push(`${it.name}: ${errorText(e)}`); }
+    }
+    await refresh(svc);
+    const title = moved.length === 0 ? "Nothing was moved to the Trash" : moved.length === 1 ? `“${moved[0]!.name}” moved to the Trash` : `${moved.length} moved to the Trash`;
+    setNotice({ kind: failed.length ? (moved.length ? "warn" : "error") : "ok", title, lines: failed,
+      ...(moved.length ? { action: { label: "Undo", run: () => void (async () => { for (const it of moved) await svc.store.restoreFromTrash(kind, it.id); await refresh(svc); })() } } : {}) });
+  };
+
   const restore = async (it: TrashItem, reopen = false) => {
     await svc.store.restoreFromTrash(it.kind, it.id);
     await refresh(svc);
@@ -835,6 +849,7 @@ export function App() {
       onMove={(itemId, folderId) => void folderAction(() => itemId.startsWith("folder:")
         ? svc.store.moveFolder(itemId.slice(7), folderId)
         : svc.store.setFolder(kind, itemId, folderId))}
+      onTrash={(ids) => void trashMany(kind, ids.map((id) => ({ id, name: items.find((i) => i.id === id)?.name ?? "item" })))}
       extra={extra} />
   );
   /** Is the item in the folder open on that page (directly)? */

@@ -42,3 +42,23 @@ test("Ctrl+click picks two cards and one drag moves both into a folder", async (
   await expect(list.getByRole("button", { name: "Lyra" })).toBeVisible();
   await expect(list.getByRole("button", { name: "Mira" })).toBeVisible();
 });
+
+test("Ctrl+A picks every card; Delete sends what it can to the Trash, Undo brings it back", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Characters/ }).first().click();
+  await page.getByTestId("import-input").setInputFiles({ name: "Mira.png", mimeType: "image/png", buffer: png("Mira") });
+  const list = page.getByTestId("character-list");
+  await expect(list.getByRole("button", { name: "Mira" })).toBeVisible();
+  await page.getByTestId("notice").getByRole("button", { name: "Dismiss" }).click();
+  await page.locator("body").click({ position: { x: 5, y: 700 } });
+  await page.keyboard.press("Control+a");
+  await expect(page.locator(".fd-selected")).toHaveCount(2);
+  await page.keyboard.press("Delete");
+  // Lyra is still used by a chat, so only Mira goes; the notice says why
+  await expect(page.getByTestId("notice")).toContainText("“Mira” moved to the Trash");
+  await expect(page.getByTestId("notice")).toContainText("Lyra: This character is used by");
+  await expect(list.getByRole("button", { name: "Mira" })).toHaveCount(0);
+  await page.getByTestId("notice").getByRole("button", { name: "Undo" }).click();
+  await expect(list.getByRole("button", { name: "Lyra" })).toBeVisible();
+  await expect(list.getByRole("button", { name: "Mira" })).toBeVisible();
+});
