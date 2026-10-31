@@ -79,19 +79,21 @@ function swallowClick() {
 function startDrag(e: ReactPointerEvent, id: string) {
   if (e.button !== 0 || e.pointerType === "touch") return;
   const source = e.currentTarget as HTMLElement;
-  if (e.ctrlKey || e.metaKey) {
+  // Ctrl/⌘ held: a click picks or unpicks the card; moving while holding drags the picked cards (the card included)
+  const ctrl = e.ctrlKey || e.metaKey;
+  const wasPicked = selected.has(id);
+  if (ctrl) {
     // like a file explorer: the card already open counts as picked when you Ctrl+click another one
     if (!selected.size) {
       const open = source.parentElement?.querySelector<HTMLElement>("[data-drag-id].on");
       if (open?.dataset.dragId && open !== source) selected.add(open.dataset.dragId);
     }
-    if (selected.has(id)) selected.delete(id); else selected.add(id);
+    selected.add(id);
     paintSelection();
     // the click comes when the button is released (a real hand holds it ~100 ms): swallow it then, not right away
     const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
     window.addEventListener("click", stop, { capture: true, once: true });
     window.addEventListener("pointerup", () => setTimeout(() => { window.removeEventListener("click", stop, { capture: true }); paintSelection(); }, 0), { once: true });
-    return;
   }
   const sx = e.clientX;
   const sy = e.clientY;
@@ -173,7 +175,10 @@ function startDrag(e: ReactPointerEvent, id: string) {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     window.removeEventListener("keydown", key);
-    if (!carried) return;
+    if (!carried) {
+      if (ctrl && wasPicked) { selected.delete(id); paintSelection(); } // a Ctrl+click on a picked card unpicks it
+      return;
+    }
     cancelAnimationFrame(raf);
     const list = carried;
     carried = null;

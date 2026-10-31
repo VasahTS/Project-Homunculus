@@ -23,6 +23,8 @@ test("Ctrl+click picks two cards and one drag moves both into a folder", async (
   await expect(page.locator(".fd-selected")).toHaveCount(2);
   const a = (await list.getByRole("button", { name: "Lyra" }).boundingBox())!;
   const f = (await page.getByTestId("folder-tile").filter({ hasText: "Fantasy" }).boundingBox())!;
+  // Ctrl still held while dragging, as hands do after picking
+  await page.keyboard.down("Control");
   await page.mouse.move(a.x + 60, a.y + 60);
   await page.mouse.down();
   await page.mouse.move(a.x + 200, a.y + 40, { steps: 6 });
@@ -31,6 +33,7 @@ test("Ctrl+click picks two cards and one drag moves both into a folder", async (
   await page.screenshot({ path: "e2e/.results/drag-two.png" });
   await page.mouse.move(f.x + f.width / 2, f.y + f.height / 2, { steps: 10 });
   await page.mouse.up();
+  await page.keyboard.up("Control");
   await expect(page.getByTestId("folder-tile").filter({ hasText: "Fantasy" })).toContainText("2 characters");
   await expect(page.locator(".fd-float")).toHaveCount(0, { timeout: 2000 });
   // Ctrl+Z puts both back
