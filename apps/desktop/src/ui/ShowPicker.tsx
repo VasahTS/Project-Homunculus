@@ -51,7 +51,7 @@ function drawing(p: Pic): ReactNode {
     case "choices-composer":
       return <><Reply h={26} /><rect className="s-accent" x="10" y="44" width="36" height="9" rx="4.5" /><rect className="s-accent" x="50" y="44" width="30" height="9" rx="4.5" /><rect className="s-box" x="6" y="58" width="108" height="16" rx="6" /><rect className="s-dim" x="12" y="64" width="40" height="4" rx="2" /></>;
     case "panel":
-      return <><Reply /><g transform="translate(96 46)"><rect className="s-box" x="-12" y="0" width="22" height="22" rx="6" /><path className="s-accent" d="M-1 4l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" /></g><text className="s-num" x="21" y="62">result in the ✦ panel</text></>;
+      return <><Reply /><g transform="translate(60 44)"><rect className="s-box" x="-13" y="0" width="26" height="22" rx="6" /><path className="s-accent" d="M0 4l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" /></g><text className="s-num" x="60" y="76" textAnchor="middle">in the ✦ panel</text></>;
     case "note-message":
       return <><Reply /><rect className="s-chip" x="21" y="46" width="44" height="9" rx="4.5" /><rect className="s-chip" x="69" y="46" width="28" height="9" rx="4.5" /></>;
     case "note-card":
