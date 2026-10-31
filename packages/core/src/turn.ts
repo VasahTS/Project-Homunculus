@@ -6,6 +6,7 @@
 //  4. build the prompt              8. other triggers (every N messages, state change), events
 //
 // Only step 5 is fatal: an agent failing never loses the reply.
+import { AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
 import type { Character, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, Session, Story } from "@homunculus/schemas";
 import { AgentRunner, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
 import { extractInline, inlineInstruction, parseAnswer } from "./agents/outputs.ts";
@@ -16,6 +17,13 @@ import { scanLorebooks, type LoreScope } from "./lorebook.ts";
 import { applyBasicMacros, DEFAULT_USER_NAME, expandMacros, type MacroContext } from "./macros.ts";
 import { applyPresetOverride } from "./prompt-control.ts";
 import { buildPrompt, DEFAULT_PRESET, presetParams, squashSystem, toTurns, type BuiltPrompt, type PromptInjection } from "./presets.ts";
+
+/** Connection choices for one read-only editor test. CODEX, D-053. */
+export interface AgentPreviewOptions {
+  connections?: Record<string, ConnectionConfig>;
+  connectionOverride?: ConnectionConfig;
+  signal?: AbortSignal;
+}
 
 /** The prompt plus what the lorebooks did for it. */
 export type AssembledPrompt = BuiltPrompt & { lore?: LoreReport };
@@ -256,25 +264,67 @@ export class TurnPipeline {
    */
   async compareAgent(sessionId: string, agentId: string, messageId: string, connection: ConnectionConfig,
     candidates: Array<ConnectionConfig | undefined>, connections?: Record<string, ConnectionConfig>, signal?: AbortSignal): Promise<DryRun[]> {
+    const builtin = this.core.agents.get(agentId);
+    const config = builtin?.config ?? await this.store.agentConfigs.get(agentId);
+    if (!config) throw new Error('Agent "' + agentId + '" is not installed');
+    const req = await this.agentPreviewRequest(sessionId, config, messageId, connection, connections, signal);
+    return Promise.all(candidates.map((candidate) => this.runner.dryRun(builtin ?? { config }, req, candidate)));
+  }
+
+  /** Try the current editor draft without saving it, applying outputs, or running dependencies. CODEX, D-053. */
+  async previewAgent(sessionId: string, input: AgentConfigInput, messageId: string, connection: ConnectionConfig,
+    options: AgentPreviewOptions = {}): Promise<DryRun> {
+    const config = AgentConfig.parse(input);
+    if (config.runMode !== "text" && config.runMode !== "separate") {
+      throw new Error("This mode cannot be previewed on its own. Use a text or separate-call agent.");
+    }
+    if (config.tools.length) throw new Error("Standalone tests with tools are not supported yet.");
+    const req = await this.agentPreviewRequest(sessionId, config, messageId, connection, options.connections, options.signal);
+    if (config.runMode !== "text") {
+      const missing = config.input.readsAgents.filter((id) => !req.results.has(id));
+      if (missing.length) throw new Error("No saved result for these dependencies on this message: " + missing.join(", ") + ". Choose another message or run them in the chat first.");
+      if (config.output === "proposal" && config.proposal?.target === "lorebook" && !req.session.storyId) {
+        throw new Error("A lorebook keeper needs a chat inside a story for this test.");
+      }
+    }
+    return this.runner.dryRun({ config }, req, options.connectionOverride);
+  }
+
+  /** Shared read-only context for Compare and the editor preview. CODEX, D-053. */
+  private async agentPreviewRequest(sessionId: string, config: AgentConfig, messageId: string, connection: ConnectionConfig,
+    connections?: Record<string, ConnectionConfig>, signal?: AbortSignal): Promise<RunRequest> {
     const session = await this.store.getSession(sessionId);
-    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    if (!session) throw new Error('Session "' + sessionId + '" not found');
+    const message = await this.store.getMessage(messageId);
+    if (!message) throw new Error('Message "' + messageId + '" not found');
+    if (message.sessionId !== sessionId) throw new Error('Message "' + messageId + '" does not belong to session "' + sessionId + '"');
     const setup = await this.setupFor(session);
-    const entries = await this.runner.enabledAgents({ ...setup, agents: [...new Set([...setup.agents, agentId])] });
-    const entry = entries.find((e) => e.config.id === agentId);
-    if (!entry) throw new Error(`Agent "${agentId}" is not installed`);
-    const m = await this.store.getMessage(messageId);
-    if (!m) throw new Error(`Message "${messageId}" not found`);
-    const speaking = await this.pickSpeaker(session);
+    const speaking = await this.speakerFor(session);
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const user = (persona ? effectivePersona(persona, setup.personaVariantId).name : undefined) ?? DEFAULT_USER_NAME;
-    const names = { char: speaking.character?.name ?? "Narrator", user, bySpeaker: (x: Message) => this.nameOf(x, user) };
+    // Freeze names for this context; another concurrent chat must not change its speaker labels.
+    const narrator = speaking.speaker.kind === "narrator" ? speaking.character?.name ?? "Narrator" : "Narrator";
+    const path = await this.store.pathTo(messageId);
+    const ids = new Set([...session.cast.flatMap((member) => member.characterId ? [member.characterId] : []),
+      ...path.flatMap((m) => m.speaker.kind === "character" ? [m.speaker.characterId] : [])]);
+    const cards = new Map<string, Character>();
+    for (const id of ids) {
+      const raw = await this.store.getCharacter(id);
+      const member = session.cast.find((entry) => entry.characterId === id);
+      if (raw) cards.set(id, effectiveCharacter(raw, member?.variantId));
+    }
+    const namesById = new Map([...cards].map(([id, card]) => [id, card.name]));
+    const character = message.speaker.kind === "character" ? cards.get(message.speaker.characterId) ?? speaking.character : speaking.character;
+    const names = { char: character?.name ?? "Narrator", user, bySpeaker: (m: Message) =>
+      m.speaker.kind === "user" ? user : m.speaker.kind === "character" ? namesById.get(m.speaker.characterId) ?? "Character"
+        : m.speaker.kind === "narrator" ? narrator : "System" };
     const main = (setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection;
-    const trigger = entry.config.triggers.some((t) => t.on === "turn" && t.phase === "before") ? "turn.before" : "turn.after";
-    // the agent's own results from that run, so agents that read others see the same input
-    const results = new Map((await this.store.listAgentRuns(messageId)).filter((r) => r.status === "ok").map((r) => [r.agentId, r.output as unknown]));
-    const req: RunRequest = { session, setup, trigger, generationType: "normal", messageId, text: m.content, mainConnection: main,
-      connections, names, seed: m.parentId ?? sessionId, results, signal };
-    return Promise.all(candidates.map((c) => this.runner.dryRun(entry, req, c)));
+    const trigger = config.output === "inject" || config.output === "intercept"
+      || config.triggers.some((t) => t.on === "turn" && t.phase === "before") ? "turn.before" : "turn.after";
+    const runs = (await this.store.listAgentRuns(messageId)).filter((run) => run.status === "ok").sort((a, b) => a.startedAt - b.startedAt);
+    const results = new Map(runs.map((run) => [run.agentId, run.output as unknown]));
+    return { session, setup, trigger, generationType: "normal", messageId, text: message.content, mainConnection: main,
+      connections, names, seed: message.parentId ?? sessionId, results, signal };
   }
 
   /** Runs one agent by hand on a message (the "run now" button). */
@@ -288,6 +338,8 @@ export class TurnPipeline {
     if (!entry) throw new Error(`Agent "${agentId}" is not installed`);
     const m = await this.store.getMessage(messageId);
     if (!m) throw new Error(`Message "${messageId}" not found`);
+    // Manual calls and comparisons must never cross chat boundaries. CODEX, D-051.
+    if (m.sessionId !== sessionId) throw new Error(`Message "${messageId}" does not belong to session "${sessionId}"`);
     const speaking = await this.pickSpeaker(session);
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const user = (persona ? effectivePersona(persona, setup.personaVariantId).name : undefined) ?? DEFAULT_USER_NAME;
@@ -525,11 +577,16 @@ export class TurnPipeline {
    * there is one, else the first in-scene, unmuted character (natural order for now).
    */
   private async pickSpeaker(session: Session): Promise<{ character: Character | undefined; speaker: Message["speaker"] }> {
-    this.narratorName = "Narrator";
+    const result = await this.speakerFor(session);
+    this.narratorName = result.speaker.kind === "narrator" ? result.character?.name ?? "Narrator" : "Narrator";
+    return result;
+  }
+
+  /** Pure speaker resolution also used by previews, without changing a running turn's labels. CODEX. */
+  private async speakerFor(session: Session): Promise<{ character: Character | undefined; speaker: Message["speaker"] }> {
     const story = session.storyId ? await this.store.getStory(session.storyId) : undefined;
     if (story) {
       const character = await this.storyNarrator(story);
-      this.narratorName = character.name;
       return { character, speaker: { kind: "narrator" } };
     }
     const narrator = session.cast.find((c) => c.role === "narrator" && c.presence !== "off");

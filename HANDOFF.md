@@ -4,6 +4,40 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Try it integrated in the agent editor (2026-10-30) — CODEX — D-053
+
+Daniel approved the visual draft after the text plan and project-example authorization (D-052). Library → Agents → an agent now has **Try it**: select a chat/message and optional connection, Run/Stop, then inspect Result, What it read, Raw answer and provider Reasoning when supplied. The current editor draft is used even if autosave failed. Opening makes no request; text mode makes no AI call.
+
+Preview outputs never apply to the chat/story or create saved runs. Stop/Close/Escape/navigation abort; late answers are suppressed. Context/config changes mark the captured result outdated. Existing saved dependency results may be read, but dependencies are not run. Inline/code modes and tools explain their unsupported standalone status; keepers require a Story chat. Global activation/scopes remain deferred.
+
+Validation: typecheck/build passed; **261 unit tests passed, 2 skipped; all 143 browser flows passed**, including 21 new core tests and 12 new browser flows. Actual/draft captures compared at 1366/620/390 px; full-content checks cover eight cast cards, long names, 25 choices, reduced motion and simulated 150% text. Report: `docs/AGENT-TRY-IT.md`. Only isolated project fixtures/offline or simulated providers were used; real API and native Tauri behavior are not claimed. No private play folder, credentials, other checkout, lockfile or workflow was touched.
+
+Work is local PC editing exclusively in Homunculus-gpt, committed/pushed only to gpt under D-050. Signed: **CODEX**.
+
+## Try it: visual draft ready (2026-10-30) — CODEX — D-052
+
+Daniel approved the text plan and explicitly chose project examples for this draft, replacing the real-data rule for this review stage. The portable interactive draft is `docs/drafts/agent-try-it/index.html`; captures and instructions are beside it. It uses the current Quiet profile and four real starter agent definitions, with scripted old-mill conversation/results and clear review controls. No model/API calls or production changes are included.
+
+Draft validation: 54 layout checks/combinations (four window sizes, reduced motion and 150% text), six interaction groups, minimum sampled text contrast 8.32:1, no page errors or HTTP(S) requests. Final project checks are recorded in `CODEX-LOG.md`. **Visual approval is still pending before implementation.** Agent activation/scopes remain deferred. Signed: **CODEX**.
+
+## Try it: text plan for review (2026-10-30) — CODEX
+
+Daniel deferred the agent activation/scopes task and authorized starting Try it in the editor. The Step 1 plan is in `docs/UI-PLAN.md` under "Try it in the agent editor". It proposes a contextual modal preview of the current draft, explicit Run/Stop, readable results/input details and no application of outputs. It reuses the existing Compare/dry-run foundation. Text approval, visual draft and implementation remain separate HANDOFF gates; no screen, production code or new design decision is implemented by this planning entry.
+
+Validation is recorded in `CODEX-LOG.md`. Signed: **CODEX**.
+
+## Agent reliability fixes (2026-10-30) — CODEX — D-051
+
+The first agent audit reproduced and corrected out-of-order saves, failed drafts being lost on Close/navigation, manual/Compare calls accepting another chat's message, text/code answers being applied after Stop, and concurrent keepers losing lorebook proposals. Agent drafts now use app-owned per-agent queues; Close waits for success, and Delete waits for an active write. Drafts survive navigation during this app session only. Keeper writes serialize per story while model calls remain parallel. Slow Close/Delete completions preserve an editor opened in the meantime. Existing controls and UI appearance are retained.
+
+Report: `docs/AGENT-RELIABILITY-AUDIT.md`. Typecheck/build and 240 unit tests passed (2 skipped); all 129 browser flows passed, then all 18 affected flows passed after the final navigation guards (2 new regressions; suite now 131). Details are recorded there and in `CODEX-LOG.md`. Real API/native/private-data checks are not claimed. Global defaults, Try it and the Library Assistant remain future tasks. Signed: **CODEX**.
+
+## Isolated CODEX checkout (2026-10-30) — CODEX — D-050
+
+Daniel assigned CODEX an exclusive working folder: `C:\Users\danie\Documents\SillyBunny-Classic-Dev\Homunculus-gpt`, cloned from `origin/gpt`. Work only here and on `gpt`; do not use or modify the original project checkout, `dev` or `main`. The older dev-only CODEX workflow is superseded by this instruction. `AGENTS.md` and `CLAUDE.md` now reflect it. CODEX signs its own change notes **CODEX** and prefixes its commit messages `[CODEX]`; existing CLAUDE attribution is preserved.
+
+This task prepares the isolated checkout and its working rules. No application feature or UI change is included. The proposed agent reliability audit is the recommended next implementation task, followed by global agent defaults, an editor dry run, and the Library Assistant. Verification is recorded in `CODEX-LOG.md`. Signed: **CODEX**.
+
 ## Agents, round 2 (2026-10-30) — CLAUDE — D-048 / D-049
 
 - **✦ panel** like v1: trackers + agents, live "Running… N s", ▶ run, ✎ edit, **Details · why it did this** (reasoning, what it read, raw answer, result, **Compare** on other models without changing anything).

@@ -445,3 +445,40 @@ Daniel: the v1 Lorebook Keeper "kept changing my lorebook… I lost the original
 - Starter examples: **Lorebook Keeper** (every 4 messages) and **Class Group Chat** (a feed view), both off.
 - Not yet: card evolution in a story's character version, branch-only lore entries, user-defined view templates.
 Signed: **CLAUDE**.
+
+## D-050 — CODEX works in its own checkout and gpt branch (2026-10-30)
+
+Daniel created `gpt` to keep CODEX work separate from `dev` and `main`, then assigned `C:\Users\danie\Documents\SillyBunny-Classic-Dev\Homunculus-gpt` as CODEX's only working folder. Clone and use `origin/gpt` there. Do not work in other project copies or change `dev`, `main` or release workflows. A later integration requires Daniel's explicit instruction.
+
+This overrides the earlier dev-only workflow for CODEX. Verify the folder and branch at the start of each session; preserve uncommitted changes. Commit and push only to `gpt`, sign own change notes **CODEX**, and prefix commit messages `[CODEX]`. Do not reattribute existing work. The application architecture and the deferred UI/Customize priority are unchanged. Signed: **CODEX**.
+
+## D-051 — Agent persistence and execution boundaries (2026-10-30)
+
+Daniel authorized the first agent reliability task in the isolated CODEX checkout (D-050). Existing behavior is corrected with no new screen, layout or controls.
+
+- Agent edits use one serialized save queue per agent, retained by the desktop app while navigating. A failed save keeps its dirty revision and error; reopening restores that draft. Close waits for a successful save. Delete waits for an in-flight write, then discards pending edits so the agent cannot be recreated by a late write. Draft retention is in memory for this app session, not crash/restart recovery. Existing error/status text and actions remain. A completed Close/Delete only navigates away if its originating agent is still selected.
+- Manual runs and comparisons reject a message whose session differs from the requested chat before calling a model or applying an output.
+- The runner checks Stop before execution and before applying a completed answer, including text and code agents. Comparisons also respect cancellation. Outputs already applied before Stop are not rolled back.
+- Lorebook keepers serialize only their read/merge/write step per story within this runner, so concurrent proposals preserve both contributions and a story without a book creates one shared destination. AI calls and different stories remain parallel. The Library original and other stories remain unchanged. Story-wide lore sharing remains the D-049 behavior; branch-specific lore is still deferred.
+
+BLUEPRINT §13: this affects the existing Library Agent editor (desktop) and the existing core Agent runner. Setup layers, triggers and turn placement are unchanged. Existing message-bound runs/revisions/state/proposal metadata are retained. There is no schema migration or new module, extra AI call or feature. Failures keep recoverable edits or recorded failed/cancelled runs; rewriting/undo retain their existing contracts. Evidence and verification: `docs/AGENT-RELIABILITY-AUDIT.md`. Signed: **CODEX**.
+
+## D-052 — Try it text scope and authorized review examples (2026-10-30)
+
+Daniel approved the Try it text plan: a direct action in the existing agent editor, selecting a chat/message and connection, explicit Run/Stop, and inspection of the current draft's result and inputs without applying outputs. Global activation/scopes remain deferred. The visual draft was a separate review gate; its subsequent approval and integration are recorded in D-053.
+
+Daniel explicitly authorized using project examples for this draft instead of the real-data requirement in HANDOFF. Use the shipped agent definitions and clearly identified scripted conversation/results; no private play folder, credentials or automatic private database access. This exception covers the draft review stage. Reference: `docs/UI-PLAN.md` and `docs/drafts/agent-try-it/README.md`. Signed: **CODEX**.
+
+## D-053 — Read-only Try it from the current agent draft (2026-10-30)
+
+Daniel approved the visual draft following the text approval and project-example authorization in D-052. Implement that approved dialog inside the existing Library Agent editor. Global activation/scopes and Customize remain deferred.
+
+- The editor supplies its live AgentDraft; preview execution never reads an older saved definition or requires activation/successful autosave. The existing autosave queue remains independent.
+- A selected chat/message and optional per-test connection feed the existing AgentRunner.dryRun. Compare shares the read-only context builder. History, state and speaker labels follow the selected message's path, with local name snapshots that do not mutate a running turn's labels.
+- Explicit tests bypass timing/keyword/chance conditions. Existing saved dependency outputs may be read; missing dependencies are explained and never executed. Keepers need a Story context. Text expands without an AI call. Inline/code modes and tool-enabled definitions are explicitly unsupported rather than falling back to a full turn.
+- Outputs are validated and displayed without writes or domain output events. No Apply, send-choice action, saved runs/history, story/lorebook creation or branch movement is included.
+- The native dialog traps/returns focus, announces contextual status, prevents duplicate Run, aborts on Stop/Close/Escape/unmount/context change and ignores late completions. Changed context/configuration marks the captured input/output outdated.
+- The interface shows the actual sent prompt, raw response, optional provider reasoning, model/duration and reported usage. Failed provider calls retain their sent prompt. No synthetic reasoning or invented usage is displayed.
+- Reuse Quiet/theme tokens, existing prose/native view rendering and the approved 808 px layout. The backdrop opacity is a theme token; draft-only review controls are omitted. Contained scrolling supports narrow windows and long content.
+
+BLUEPRINT §13: desktop Agent editor + existing core TurnPipeline/AgentRunner; no new module, schema/storage migration or setup-layer feature. Separate-mode preview makes the existing agent request only on Run; text makes none. Missing resources/provider/validation failures remain inside the dialog with retry. Tests and actual/draft captures: `docs/AGENT-TRY-IT.md`. Validation uses isolated project fixtures, not private play data or real API calls. Signed: **CODEX**.

@@ -79,6 +79,8 @@ export interface AgentOutcome {
 const SEQUENTIAL: ReadonlySet<AgentOutputKind> = new Set(["intercept", "rewrite", "check"]);
 
 export class AgentRunner {
+  // Serialize only lorebook application; model calls and different stories stay parallel. CODEX, D-051.
+  private readonly storyWrites = new Map<string, Promise<void>>();
   constructor(private readonly deps: RunnerDeps) {}
 
   /** Every agent the setup enables, built in or from the database. Unknown ids are reported once and skipped. */
@@ -176,6 +178,7 @@ export class AgentRunner {
     const usage: Usage = {};
     await core.events.emit("agent.started", { agentId: a.id, messageId: req.messageId, trigger: req.trigger });
     try {
+      req.signal?.throwIfAborted(); // Text/code agents must honor Stop too. CODEX, D-051.
       if (a.output === "state") {
         const owner = a.state?.namespace ? owners.get(a.state.namespace) : undefined;
         if (!a.state?.namespace) throw new Error("This tracker has no state namespace set");
@@ -207,6 +210,7 @@ export class AgentRunner {
       const shape = entry.definition?.output ?? shapeFor(a);
       const parsed = shape.safeParse(raw);
       if (!parsed.success) throw new Error(`Answer had the wrong shape: ${parsed.error.message}`);
+      req.signal?.throwIfAborted(); // Discard an answer that arrived after Stop. CODEX, D-051.
       await this.apply(entry, req, parsed.data);
       req.results.set(a.id, parsed.data);
       await this.record(a, req, "ok", started, this.deps.now() - started, { output: parsed.data as never, ...usage, ...(warnings ? { warnings } : {}) });
@@ -275,8 +279,8 @@ export class AgentRunner {
       ...(lore ? { lore } : {}),
       ...(loreIndex !== undefined ? { loreIndex } : {}),
       complete: async (messages, options) => {
-        const c = await core.connections.complete(connection, messages, { signal: req.signal, maxTokens: options?.maxTokens ?? a.limits.maxTokens });
         usage.prompt = [...(usage.prompt ?? []), ...messages.map((m) => ({ role: m.role, content: m.content }))];
+        const c = await core.connections.complete(connection, messages, { signal: req.signal, maxTokens: options?.maxTokens ?? a.limits.maxTokens });
         usage.raw = usage.raw ? `${usage.raw}\n\n${c.text}` : c.text;
         if (c.reasoning) usage.reasoning = usage.reasoning ? `${usage.reasoning}\n\n${c.reasoning}` : c.reasoning;
         usage.model = c.model;
@@ -337,6 +341,7 @@ export class AgentRunner {
     const usage: Usage = {};
     const forced: RunRequest = connection ? { ...req, setup: { ...req.setup, agentConnectionId: null, agentOverrides: { ...req.setup.agentOverrides, [a.id]: { ...req.setup.agentOverrides[a.id], connectionId: null } } }, mainConnection: connection, connections: {} } : req;
     try {
+      req.signal?.throwIfAborted();
       let raw: unknown;
       if (a.runMode === "text") raw = await this.textAnswer(a, forced);
       else {
@@ -349,6 +354,7 @@ export class AgentRunner {
           raw = await executor(ctx);
         }
       }
+      req.signal?.throwIfAborted();
       const shape = entry.definition?.output ?? shapeFor(a);
       const parsed = shape.safeParse(raw);
       const out: DryRun = { ...usage, durationMs: this.deps.now() - started };
@@ -402,24 +408,45 @@ export class AgentRunner {
       }
       case "proposal": {
         if (a.proposal?.target !== "lorebook") return;
-        const found = await this.storyLorebook(req.session, true);
-        if (!found) throw new Error("Lorebook proposals need a story: this chat is not part of one");
-        let patch = found.story.lorePatches[found.book.id];
-        let book = found.book;
-        for (const p of (output as LoreProposal).entries) {
-          const same = book.entries.find((e) => (e.title || "").trim().toLowerCase() === p.title.trim().toLowerCase());
-          const next = same ? { ...same, keys: p.keys.length ? p.keys : same.keys, content: p.content }
-            : LoreEntry.parse({ id: `kp-${this.deps.newId()}`, title: p.title, keys: p.keys, content: p.content });
-          patch = patchWithEntry(patch, next, a.id, this.deps.now(), req.messageId);
-          book = { ...book, entries: same ? book.entries.map((e) => (e.id === same.id ? next : e)) : [...book.entries, next] };
-        }
-        const latest = (await store.getStory(found.story.id)) ?? found.story;
-        await store.saveStory({ ...latest, lorePatches: { ...latest.lorePatches, [found.book.id]: patch! } });
-        await core.events.emit("story.loreChanged", { storyId: found.story.id, lorebookId: found.book.id, agentId: a.id, messageId: req.messageId });
+        const changed = await this.writeStoryLore(req, async () => {
+          const found = await this.storyLorebook(req.session, true);
+          if (!found) throw new Error("Lorebook proposals need a story: this chat is not part of one");
+          let patch = found.story.lorePatches[found.book.id];
+          let book = found.book;
+          for (const p of (output as LoreProposal).entries) {
+            const same = book.entries.find((e) => (e.title || "").trim().toLowerCase() === p.title.trim().toLowerCase());
+            const next = same ? { ...same, keys: p.keys.length ? p.keys : same.keys, content: p.content }
+              : LoreEntry.parse({ id: `kp-${this.deps.newId()}`, title: p.title, keys: p.keys, content: p.content });
+            patch = patchWithEntry(patch, next, a.id, this.deps.now(), req.messageId);
+            book = { ...book, entries: same ? book.entries.map((e) => (e.id === same.id ? next : e)) : [...book.entries, next] };
+          }
+          const latest = (await store.getStory(found.story.id)) ?? found.story;
+          await store.saveStory({ ...latest, lorePatches: { ...latest.lorePatches, [found.book.id]: patch! } });
+          return { storyId: found.story.id, lorebookId: found.book.id };
+        });
+        await core.events.emit("story.loreChanged", { ...changed, agentId: a.id, messageId: req.messageId });
         return;
       }
       default:
         return;
+    }
+  }
+
+  /** Merge a keeper's result with the latest story version, including other keepers' writes. */
+  private async writeStoryLore<T>(req: RunRequest, write: () => Promise<T>): Promise<T> {
+    const id = req.session.storyId;
+    if (!id) throw new Error("Lorebook proposals need a story: this chat is not part of one");
+    const previous = this.storyWrites.get(id);
+    let release!: () => void;
+    const current = new Promise<void>((done) => { release = done; });
+    this.storyWrites.set(id, current);
+    await previous;
+    try {
+      req.signal?.throwIfAborted();
+      return await write();
+    } finally {
+      release();
+      if (this.storyWrites.get(id) === current) this.storyWrites.delete(id);
     }
   }
 

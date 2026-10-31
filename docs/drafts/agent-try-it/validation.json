@@ -1,0 +1,764 @@
+{
+  "author": "CODEX",
+  "date": "2026-10-30",
+  "scope": "Standalone scripted visual draft; no production integration",
+  "layouts": [
+    {
+      "label": "ready at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 168.734375,
+        "width": 808,
+        "height": 523.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "loading at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 169.875,
+        "width": 808,
+        "height": 521.25
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "running at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 169.875,
+        "width": 808,
+        "height": 521.25
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "result at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 73.28125,
+        "width": 808,
+        "height": 714.4375
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "error at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 139.03125,
+        "width": 808,
+        "height": 582.921875
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "stopped at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 168.734375,
+        "width": 808,
+        "height": 523.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "empty at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 169.875,
+        "width": 808,
+        "height": 521.25
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "stale at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 43.578125,
+        "width": 808,
+        "height": 773.828125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "unsupported at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 168.734375,
+        "width": 808,
+        "height": 523.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "full at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 19.5,
+        "width": 808,
+        "height": 822
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-dont-write-for-user at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 130.84375,
+        "width": 808,
+        "height": 599.3125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-cyoa-choices at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 126.625,
+        "width": 808,
+        "height": 607.75
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-lorebook-keeper at 1366",
+      "width": 1366,
+      "height": 900,
+      "box": {
+        "x": 279,
+        "y": 101.015625,
+        "width": 808,
+        "height": 658.96875
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "ready at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 102.734375,
+        "width": 808,
+        "height": 523.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "loading at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 103.875,
+        "width": 808,
+        "height": 521.25
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "running at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 103.875,
+        "width": 808,
+        "height": 521.25
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "result at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 19.5,
+        "width": 808,
+        "height": 690
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "error at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 73.03125,
+        "width": 808,
+        "height": 582.921875
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "stopped at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 102.734375,
+        "width": 808,
+        "height": 523.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "empty at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 103.875,
+        "width": 808,
+        "height": 521.25
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "stale at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 19.5,
+        "width": 808,
+        "height": 690
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "unsupported at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 102.734375,
+        "width": 808,
+        "height": 523.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "full at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 19.5,
+        "width": 808,
+        "height": 690
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-dont-write-for-user at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 64.84375,
+        "width": 808,
+        "height": 599.3125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-cyoa-choices at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 60.625,
+        "width": 808,
+        "height": 607.75
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-lorebook-keeper at 1366",
+      "width": 1366,
+      "height": 768,
+      "box": {
+        "x": 279,
+        "y": 35.015625,
+        "width": 808,
+        "height": 658.96875
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "ready at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 56.484375,
+        "width": 600,
+        "height": 627.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "loading at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 56.484375,
+        "width": 600,
+        "height": 627.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "running at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 56.484375,
+        "width": 600,
+        "height": 627.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "result at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 18.25,
+        "width": 600,
+        "height": 704
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "error at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 26.78125,
+        "width": 600,
+        "height": 686.921875
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "stopped at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 56.484375,
+        "width": 600,
+        "height": 627.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "empty at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 56.484375,
+        "width": 600,
+        "height": 627.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "stale at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 18.25,
+        "width": 600,
+        "height": 704
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "unsupported at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 56.484375,
+        "width": 600,
+        "height": 627.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "full at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 18.25,
+        "width": 600,
+        "height": 704
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-dont-write-for-user at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 22.953125,
+        "width": 600,
+        "height": 694.59375
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-cyoa-choices at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 18.734375,
+        "width": 600,
+        "height": 703.03125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-lorebook-keeper at 620",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 18.25,
+        "width": 600,
+        "height": 704
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "ready at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 51.5625,
+        "width": 370,
+        "height": 646.375
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "loading at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 51.5625,
+        "width": 370,
+        "height": 646.375
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "running at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 51.5625,
+        "width": 370,
+        "height": 646.375
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "result at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 8,
+        "width": 370,
+        "height": 733.5
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "error at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 11.671875,
+        "width": 370,
+        "height": 726.15625
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "stopped at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 51.5625,
+        "width": 370,
+        "height": 646.375
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "empty at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 51.5625,
+        "width": 370,
+        "height": 646.375
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "stale at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 8,
+        "width": 370,
+        "height": 733.5
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "unsupported at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 51.5625,
+        "width": 370,
+        "height": 646.375
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "full at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 8,
+        "width": 370,
+        "height": 733.5
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-dont-write-for-user at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 8,
+        "width": 370,
+        "height": 733.5
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-cyoa-choices at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 8,
+        "width": 370,
+        "height": 733.5
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "starter-lorebook-keeper at 390",
+      "width": 390,
+      "height": 844,
+      "box": {
+        "x": 10,
+        "y": 8,
+        "width": 370,
+        "height": 733.5
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "reduced motion",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 56.484375,
+        "width": 600,
+        "height": 627.53125
+      },
+      "overflow": [],
+      "modalOpen": true
+    },
+    {
+      "label": "150 percent text at 620 px",
+      "width": 620,
+      "height": 800,
+      "box": {
+        "x": 10,
+        "y": 14.15625,
+        "width": 600,
+        "height": 704
+      },
+      "overflow": [],
+      "modalOpen": true
+    }
+  ],
+  "interactions": [
+    "Run disables duplicates; Stop suppresses late completion",
+    "Changed context marks result outdated; previous input and output stay attached to their test",
+    "Escape cancels; focus returns to Try it; reopening clears results; keyboard focus stays within native dialog",
+    "Project text agent previews immediately with no model or reasoning tab",
+    "Choices and lore proposals are readable preview output, without apply/send actions",
+    "Error can retry; tabs support arrow-key navigation"
+  ],
+  "contrasts": [
+    {
+      "selector": ".try-head h1",
+      "color": "rgb(237, 240, 237)",
+      "background": "rgb(27, 29, 32)",
+      "ratio": 14.710223057326505
+    },
+    {
+      "selector": ".try-head p",
+      "color": "rgb(175, 184, 181)",
+      "background": "rgb(27, 29, 32)",
+      "ratio": 8.322220190744254
+    },
+    {
+      "selector": ".try-context label",
+      "color": "rgb(175, 184, 181)",
+      "background": "rgb(27, 29, 32)",
+      "ratio": 8.322220190744254
+    },
+    {
+      "selector": ".connection-meta small",
+      "color": "rgb(175, 184, 181)",
+      "background": "rgb(27, 29, 32)",
+      "ratio": 8.322220190744254
+    },
+    {
+      "selector": ".try-status",
+      "color": "rgb(175, 184, 181)",
+      "background": "rgb(27, 29, 32)",
+      "ratio": 8.322220190744254
+    },
+    {
+      "selector": ".try-foot",
+      "color": "rgb(175, 184, 181)",
+      "background": "rgb(27, 29, 32)",
+      "ratio": 8.322220190744254
+    },
+    {
+      "selector": ".result-prose",
+      "color": "rgb(237, 240, 237)",
+      "background": "rgb(27, 29, 32)",
+      "ratio": 14.710223057326505
+    }
+  ],
+  "minimumContrast": 8.322220190744254,
+  "errors": [],
+  "networkRequests": []
+}

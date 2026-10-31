@@ -9,5 +9,6 @@
   - **End of a task:** run the checks (`npm run typecheck`, `npm test`), commit with a clear English message, **push to `dev`**, and tell Daniel in Portuguese: "Pull origin no GitHub Desktop (branch dev)".
   - Daniel's copy on his PC is only updated by his **Pull origin**; if you also write files there, say so, so he commits them before the next session.
   - Do not touch `.github/workflows` unless asked; do not publish releases unless Daniel asks (he runs "Publish release" himself, or asks you to).
+- CODEX works on its own `gpt` branch (D-050); Claude reviews it and merges it into `dev` when Daniel asks.
 - One agent at a time changing the code; re-read a file from disk before writing it.
 - Never touch, read or ask for Daniel's portable play folder or his API keys.

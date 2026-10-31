@@ -29,6 +29,8 @@ import { TrackerEditor } from "./ui/TrackerEditor.tsx";
 import { CharactersPage, LorebooksPage, PersonasPage, PresetsPage, TrackersPage, TrashPage } from "./ui/LibraryPages.tsx";
 import { AgentsPage } from "./ui/AgentsPage.tsx";
 import { AgentEditor } from "./ui/AgentEditor.tsx";
+import { AgentTryIt } from "./ui/AgentTryIt.tsx";
+import type { AgentDraft } from "./agent-draft.ts";
 import { blankAgent, deleteAgent, listAgents, saveAgent } from "./agents.ts";
 import { LoreChangeTag, LoreVersionBar } from "./ui/LoreVersions.tsx";
 import { PersonaEditor } from "./ui/PersonaEditor.tsx";
@@ -113,6 +115,10 @@ export function App() {
   const [branchCounts, setBranchCounts] = useState<Record<string, number>>({});
   const [view, setViewNow] = useState<View>({ kind: "session" });
   const [notice, setNotice] = useState<Notice | null>(null);
+  // Keep failed agent drafts across editor navigation, only within this app instance. CODEX, D-051.
+  const [agentDrafts] = useState(() => new Map<string, AgentDraft>());
+  const [agentPreview, setAgentPreview] = useState<AgentDraft | null>(null);
+  useEffect(() => { setAgentPreview(null); }, [view]);
   const [loreBack, setLoreBack] = useState<string | null>(null);
   // the lorebook editor saves by itself (D-028), also when it closes; its last save must see the view as it is now
   const setView = setViewNow;
@@ -498,7 +504,8 @@ export function App() {
   const onDeleteAgent = async (id: string) => {
     await deleteAgent(svc.store, id);
     await refresh(svc);
-    setView(view.kind === "agents" && view.fromSession ? { kind: "session" } : { kind: "agents", id: null });
+    setView((current) => current.kind === "agents" && current.id === id
+      ? (current.fromSession ? { kind: "session" } : { kind: "agents", id: null }) : current);
   };
   const toggleAgent = async (id: string, on: boolean) => {
     if (!active) return;
@@ -1089,11 +1096,15 @@ export function App() {
     );
   } else if (view.kind === "agents") {
     const editing = view.id ? agents.find((a) => a.id === view.id) : undefined;
-    const close = () => setView(view.fromSession ? { kind: "session" } : { kind: "agents", id: null });
+    // A save/delete may finish after the user has opened another editor. CODEX, D-051.
+    const close = () => setView((current) => current.kind === "agents" && current.id === view.id
+      ? (current.fromSession ? { kind: "session" } : { kind: "agents", id: null }) : current);
     content = (
-      <AgentsPage lead={pageLead} agents={agents} stories={stories} sessions={sessions} selectedId={editing?.id ?? null}
+      <><AgentsPage lead={pageLead} agents={agents} stories={stories} sessions={sessions} selectedId={editing?.id ?? null}
         onSelect={(id) => openAgent(id)} onNew={() => void onNewAgent()}
-        detail={editing ? <AgentEditor key={editing.id} agent={editing} agents={agents} onSave={onSaveAgent} onDelete={onDeleteAgent} onClose={close} /> : null} />
+        detail={editing ? <AgentEditor key={editing.id} agent={editing} agents={agents} drafts={agentDrafts} onTry={setAgentPreview} onSave={onSaveAgent} onDelete={onDeleteAgent} onClose={close} /> : null} />
+      {agentPreview && editing?.id === agentPreview.snapshot().value.id && <AgentTryIt draft={agentPreview} svc={svc} sessions={sessions} stories={stories}
+        characters={characters} connection={connection} defaultSetup={defaultSetup} initialSessionId={activeId} onClose={() => setAgentPreview(null)} />}</>
     );
   } else if (view.kind === "vault") {
     const q = vaultQuery.trim().toLowerCase();

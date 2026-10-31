@@ -1,0 +1,71 @@
+<!doctype html>
+<!-- Try it visual draft. CODEX, 2026-10-30. All results are scripted examples. -->
+<html lang="en" data-theme="quiet"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Homunculus · Try it draft — CODEX</title><style>/* EMBED_STYLES */</style></head><body>
+<main class="app" data-region="app" aria-label="Example agent editor">
+  <aside class="draft-sidebar" data-region="sidebar">
+    <div class="brand">Homunculus<span>YOUR STORIES, YOUR WAY</span></div>
+    <div class="nav-main"><span>Stories</span><span>Characters</span><strong>Library</strong></div>
+    <div class="nav-group">Story pieces</div><div class="nav-items"><span>Kits</span><span>Narrators</span><span>NPCs</span></div>
+    <div class="nav-group">Writing and context</div><div class="nav-items"><span>Personas</span><span>Lorebooks</span><span>Presets</span></div>
+    <div class="nav-group">Around each reply</div><div class="nav-items"><span>Trackers</span><span class="chosen">Agents</span></div>
+    <div class="nav-bottom"><span>Settings</span><small>Local project example</small></div>
+  </aside>
+  <section class="content">
+    <header class="draft-toolbar"><span>Library <span class="muted">/</span> Agents</span><small>Rules, rewrites, checks, choices and notes</small></header>
+    <div class="agent-editor editor draft-editor" data-region="editor">
+      <div class="session-bar"><input id="editor-name" class="ag-title" aria-label="Agent name" value="Prose Polisher" readonly>
+        <span class="hint">Saved</span><button id="open-preview" class="btn btn-bordered btn-small">Try it</button><span class="hint">Close</span></div>
+      <div class="editor-body ag-body">
+        <p id="editor-help" class="hint">Rewrites each reply to remove repeated phrases and stock wording.</p>
+        <div class="ag-field"><span class="ag-label">What it does</span><div class="ag-kinds"><span class="ag-kind" data-output="inject">Adds to the prompt</span><span class="ag-kind on" data-output="rewrite">Rewrites the reply</span><span class="ag-kind" data-output="check">Checks the reply</span><span class="ag-kind" data-output="choices">Offers choices</span><span class="ag-kind" data-output="note">Writes a side note</span><span class="ag-kind" data-output="intercept">Rewrites your message</span><span class="ag-kind" data-output="proposal">Updates the story’s lorebook</span></div></div>
+        <div class="ag-field row-line"><span class="ag-label">When</span><span class="draft-field">After every reply</span></div>
+        <section class="te-card"><div class="te-card-head"><span class="grow"><b>Instructions</b><small class="hint">what the AI is told to do</small></span><span aria-hidden="true">⌃</span></div><div class="te-card-body"><textarea id="editor-prompt" aria-label="Agent instructions" readonly rows="6"></textarea><p class="hint">{{char}} and {{user}} become the names. The answer format is added by the app.</p></div></section>
+        <section class="te-card"><div class="te-card-head"><span class="grow"><b>What it reads</b><small id="editor-reads" class="hint">the selected reply</small></span><span aria-hidden="true">⌄</span></div></section>
+        <section class="te-card"><div class="te-card-head"><span class="grow"><b>When it fires</b><small class="hint">always</small></span><span aria-hidden="true">⌄</span></div></section>
+        <section class="te-card"><div class="te-card-head"><span class="grow"><b>Connection</b><small class="hint">from the story's setup</small></span><span aria-hidden="true">⌄</span></div></section>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="preview" aria-labelledby="try-title" aria-describedby="try-description" class="try-preview">
+ <section class="try-frame">
+  <header class="try-head"><div><h1 id="try-title">Try Prose Polisher</h1><p id="try-description">Preview this draft on a message. The result stays here.</p></div>
+   <button id="close-preview" class="icon-btn close-preview" aria-label="Close preview"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+  </header>
+  <div class="try-scroll">
+   <section class="try-context" aria-label="Test context">
+    <div class="context-grid">
+      <label><span>Chat</span><select id="chat" aria-label="Chat"><option value="mill">At the old mill · Chat 1</option><option value="road">The forest road · Chat 2</option></select></label>
+      <label><span>Message</span><select id="message" aria-label="Message"><option value="7">Lyra · Reply 7</option><option value="5">Lyra · Reply 5</option><option value="3">Lyra · Reply 3</option></select></label>
+    </div>
+    <details class="selected-message"><summary><span id="message-snippet"></span><span class="show-message">View message</span></summary><div id="message-text" class="message-text"></div></details>
+    <div class="connection-grid">
+     <label><span>Connection</span><select id="connection" aria-label="Connection"><option value="own">Agent's connection</option><option value="alternate">Example alternate connection</option></select></label>
+     <div class="connection-meta"><span id="model-label">Example model</span><small id="call-note">Uses this connection for a model request.</small></div>
+    </div>
+   </section>
+   <div class="try-action"><button id="run-test" class="btn btn-prominent"><svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="m4 2 8 5-8 5z"/></svg><span>Run test</span></button>
+    <button id="stop-test" class="btn btn-bordered" hidden>Stop</button><span id="status" class="try-status" role="status" aria-live="polite" aria-atomic="true">Ready to run</span></div>
+   <div id="state-notice" class="state-notice" hidden></div>
+   <section id="result-area" class="try-result" aria-label="Test preview">
+    <div id="result-tabs" class="try-tabs" role="tablist" aria-label="Preview details" hidden>
+     <button role="tab" id="tab-result" aria-controls="result-panel" aria-selected="true" tabindex="0" data-tab="result">Result</button>
+     <button role="tab" id="tab-input" aria-controls="result-panel" aria-selected="false" tabindex="-1" data-tab="input">What it read</button>
+     <button role="tab" id="tab-raw" aria-controls="result-panel" aria-selected="false" tabindex="-1" data-tab="raw">Raw answer</button>
+     <button role="tab" id="tab-reasoning" aria-controls="result-panel" aria-selected="false" tabindex="-1" data-tab="reasoning">Reasoning</button>
+    </div>
+    <div id="result-panel" role="tabpanel" tabindex="0" aria-labelledby="tab-result"></div>
+   </section>
+  </div>
+  <footer class="try-foot"><span id="preview-safety">Preview only · Your chat and story stay unchanged.</span><span id="result-meta"></span></footer>
+ </section>
+ <form method="dialog" class="review-tools" aria-label="Draft review controls">
+  <span><strong>CODEX</strong> · visual draft</span>
+  <label><span class="sr-only">Example agent</span><select id="review-agent" aria-label="Example agent"></select></label>
+  <label><span class="sr-only">Preview state</span><select id="review-state" aria-label="Preview state"><option value="ready">Ready</option><option value="loading">Loading context</option><option value="running">Running</option><option value="result">Result</option><option value="error">Connection error</option><option value="stopped">Stopped</option><option value="empty">No chat</option><option value="stale">Outdated result</option><option value="unsupported">Unsupported mode</option><option value="full">Full / long content</option></select></label>
+  <small>Scripted examples. No model calls.</small>
+ </form>
+</dialog>
+<script>/* EMBED_SCRIPT */</script></body></html>

@@ -6,6 +6,72 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+
+## Try it in the agent editor — CODEX, 2026-10-30 · text and visual approved; integrated (D-052, D-053)
+
+### Purpose and scope
+Test the agent currently being edited, inspect what it read and what it answered, and return to editing without applying the result to a story or chat. Daniel approved this Step 1 text and authorized project examples for the draft. The visual draft is now available at `docs/drafts/agent-try-it/index.html`; Daniel subsequently approved the visual and its production integration (D-053).
+
+Global agent activation/scopes remain deferred at Daniel's request. This task adds no Settings section or agent activation changes.
+
+### Entry and hierarchy
+- Add a quiet **Try it** action beside Close in the existing agent editor. It opens one modal sheet titled **Try <agent name>**; the editor remains behind it.
+- Primary: the chosen **Chat**, **Message**, **Run test**, and the resulting answer.
+- Secondary: **Connection**, its resolved model when known, and a short explanation: the test previews the result without applying it. Text agents show **No AI call**; AI agents indicate that the selected connection is used and the call may incur cost.
+- Default to the source chat when opened from a chat; otherwise suggest a recent available chat. Select a suitable existing user message for a before/intercept test, or a reply for an after/rewrite/check/note/choices/proposal test. The user can choose another message and see its speaker and text preview.
+- The selected message defines the history path. Choosing it does not change that chat's active branch or selection.
+- Results show **Result** first. **What it read**, **Raw answer** and **Reasoning**, when supplied, are secondary tabs/disclosures. Show actual model, elapsed time, and reported usage; unknown values stay unknown.
+- Context and controls remain visible after a result, so another run needs no reopening. Details are closed until requested.
+
+### Actions
+- **Try it** opens the sheet; opening it does not call a model.
+- **Run test** validates the current editor draft and context, then runs exactly this agent as a read-only preview. It does not require activating the agent or successfully saving the draft first. The editor's ordinary autosave behavior continues independently.
+- Use the agent's connection resolved for the chosen chat by default. An optional connection override affects only this test.
+- Run one preview at a time. Disable duplicate Run actions while busy, show **Running...**, and expose **Stop**.
+- **Stop** aborts the preview; late completions cannot replace a newer result or appear in another agent's editor.
+- **Close**, Escape, changing the selected agent or leaving the editor aborts the pending preview and returns focus appropriately.
+- A new context, connection, or changed agent configuration clears/marks the old preview as outdated; an old result must never look like a test of newer instructions.
+- No Apply, save-to-story, automatic rewrite, or chained execution of other agents is included.
+
+### States
+- **Empty:** no eligible chat/message; explain what is missing and keep Run disabled.
+- **Loading context:** retain the chosen chat label and announce loading; prevent a run with stale context.
+- **Ready:** context and connection are explicit; no AI call has been made.
+- **Running:** one contextual live status, Stop available, duplicate submission prevented.
+- **Success:** display the validated result first; typed results remain readable (rewrite text, check findings, choices, note, injection, or lore proposal).
+- **Cancelled:** show Stopped; preserve the chosen context for another run.
+- **Error:** show validation, missing connection/resource, provider or malformed-output errors inside the sheet; keep the draft and context for retry.
+- **Full:** test 8+ cast members, long chat/agent/model names, several paragraphs, long histories and large structured results. Use contained scrolling and wrapping; the whole window must not widen or scroll sideways.
+
+### Read-only behavior
+- Preview the current in-memory AgentConfig through the existing dry-run runner, extending the pipeline to accept an ephemeral configuration rather than silently reading an older saved definition.
+- Reuse the same context builders, output validators and connection resolution as actual agents. Show the prompt actually sent.
+- Test only the selected agent, using already available dependency results. Do not run its dependency agents, create messages, revisions, notes, state deltas, lorebooks/story patches, agent-run records or generation records.
+- Timing, keyword and probability conditions do not block an explicit test; explain that a test does not prove an automatic trigger would fire.
+- Text-mode agents expand their text/macros without an AI call. Modes/tools without a safe standalone preview show an explicit unsupported reason; do not fall back to executing a full turn.
+- Guard the chat/message session boundary and check cancellation, including responses arriving after Stop.
+- Results live only while this preview is open. This feature is not a saved test history.
+
+### From v1 and the existing v2
+- v1: `public/scripts/extensions/in-chat-agents/index.js:previewPreGenerationPrompt` (L1251 at reference commit 0884338a) previews the current editor prompt with macros in a popup. Keep the direct editor action and visible context.
+- v2: `AgentsPanel.tsx:Compare`, `TurnPipeline.compareAgent`, and `AgentRunner.dryRun` already provide model previews without applying outputs. Reuse their execution/context contracts; extend to an ephemeral editor draft and cancellation. Keep the current kit, theme tokens and modal conventions.
+- Unlike v1's prompt-only preview, this feature can ask the selected agent to produce its actual typed answer. Running remains an explicit user action.
+
+### Accessibility and validation
+Use visible labels, keyboard-operable controls, contained focus with return to Try it, a contextual live status, and text explaining errors near the action. Preserve readable result wrapping and the existing theme.
+
+Core regression coverage: current draft versus saved definition; no writes for each supported output; foreign-chat rejection; cancellation; unchanged saved activation/connections; missing dependencies/resources.
+Browser coverage: opening without a request, choosing context, text-mode preview, successful AI preview with a fake provider, double-click prevention, Stop, errors/retry, close/navigation during a delayed request, stale results, keyboard focus and full/narrow layouts.
+
+### Review gates and data
+Daniel approved this text and selected project examples instead of real data for this draft review stage (D-052). The portable draft and validation are in `docs/drafts/agent-try-it/`. Never inspect or request the portable play folder or keys. Production implementation follows approval of the visual draft.
+
+**Completed:** Daniel approved the visual; integration and validation are recorded in `docs/AGENT-TRY-IT.md` (D-053).
+
+Signed: **CODEX**.
+
+---
+
 ## Agents (slice 5) — CLAUDE, 10/30/2026 · ✅ draft v2 in the app (D-047); draft 3 approved ("do everything") and in the app (D-048, D-049)
 
 **What it is for:** the agents Daniel "can't live without" from v1 (In-Chat Agents), on the engine Homunculus 2 already has. The core
