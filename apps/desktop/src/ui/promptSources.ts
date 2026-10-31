@@ -25,6 +25,7 @@ export function sourceInfo(source: string, trackers: Tracker[]): { label: string
   }
   if (source === "session:scenario") return { label: "Session scenario", category: "character" };
   if (source === "postHistory") return { label: "Card's post-history instructions", category: "character" };
+  if (source === "agent:memory") return { label: "Memory: the story so far", category: "history" };
   if (source === "persona") return { label: "Persona", category: "persona" };
   if (source === "authorsNote") return { label: "Author's Note", category: "other" };
   if (source === "prefill") return { label: "Reply start (prefill)", category: "preset" };

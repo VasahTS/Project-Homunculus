@@ -59,7 +59,7 @@ const SAME_AS_STORY = "__story__";
 
 export type PromptPreview = BuiltPrompt & { presetName: string; model: string; sent: number };
 
-export function PromptPane({ c, providers, session, storySetup, storyName, director = false, setupProps, onChangeSession, onOpenSettings, presets, defaultPresetId, onSavePreset, onOpenPreset, preview, trackers, lore, authorsNote, character }: {
+export function PromptPane({ c, providers, session, storySetup, storyName, director = false, setupProps, onChangeSession, onOpenSettings, presets, defaultPresetId, onSavePreset, onOpenPreset, preview, trackers, lore, authorsNote, character, memory }: {
   c: ConnectionState; providers: ProviderDefinition[]; session: Session; onChangeSession: (s: Session) => void | Promise<void>; onOpenSettings: () => void;
   /** A story chat (D-031): the story's layer and name, and the setup block it shares with the story's page. */
   storySetup?: SetupLayer | undefined; storyName?: string | undefined; director?: boolean; setupProps?: StorySetupProps | undefined;
@@ -69,6 +69,8 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
   trackers: Tracker[];
   /** The session's lorebooks group (LorePanels.tsx). */
   lore?: ReactNode;
+  /** The Memory group (D-054). */
+  memory?: ReactNode;
   /** The chat's Author's Note group (AuthorsNote.tsx), at the top. */
   authorsNote?: ReactNode;
   /** The chat's character, editable in place (round 3, PromptCharacter.tsx), at the very top. */
@@ -163,6 +165,8 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
       {(inStory || session.cast.some((member) => member.role === "narrator" && member.presence !== "off")) && <NarratorPromptGroup level="chat" layer={session.setup} above={aboveSetup.narratorPrompt} onChange={(setup) => onChangeSession({ ...session, setup })} />}
 
       {lore}
+
+      {memory}
 
       {shown && (
         <PromptSheet title="Prompt Preview" testId="prompt-preview" trackers={trackers} parts={shown.parts} budget={shown.budget} notes={shown.notes} sent={shown.sent}

@@ -54,6 +54,16 @@ describe("tracker engine (schema only)", () => {
     expect(s).toBe("[Test tracker]\nPlace: Mill\nLyra — Level: 7/10; Phase: calm");
   });
 
+  it("adds what a field means, once, for fields shown with a story note (Daniel, 30/10)", () => {
+    const withNote = TrackerSchema.parse({ id: "t2", name: "Body", fields: [
+      { key: "stamina", label: "Stamina", type: "meter", min: 0, max: 10, scope: "perCharacter", note: "0 = collapses; rest restores it." },
+      { key: "gold", label: "Gold", type: "number", note: "Never shown when empty." },
+    ] });
+    const s = trackerSummary(withNote, { stamina: { lyra: 1, bram: 8 } }, cast);
+    expect(s).toBe("[Body]\nLyra — Stamina: 1/10\nBram — Stamina: 8/10\nWhat these mean:\n- Stamina: 0 = collapses; rest restores it.");
+    expect(trackerInstruction(withNote, cast)).toContain("In the story: 0 = collapses; rest restores it.");
+  });
+
   it("makes field keys from labels", () => {
     expect(fieldKeyFrom("Naïve résumé café!")).toBe("naive_resume_cafe");
     expect(fieldKeyFrom("Coins", ["coins"])).toBe("coins_2");

@@ -103,6 +103,16 @@ export function onInText(id: string, stories: Story[], sessions: Session[]): str
 
 // ---------------------------------------------------------------- starter agents (one small example per kind)
 
+/** Who posts in the Group Chat starter (Daniel, 30/10, after Marinara's Echo Chamber styles). */
+const GROUP_CHAT_STYLES = [
+  { id: "classmates", name: "Classmates", text: "classmates and people who know the characters, in a private group chat: casual, gossipy, emojis, inside jokes, someone always late to the news." },
+  { id: "redditors", name: "Redditors", text: "redditors in a thread about it: u/ usernames, armchair experts, long confident takes, an \"Edit:\" or two, a pun chain in the replies." },
+  { id: "4chan", name: "4chan", text: "anonymous imageboard posters: Anonymous, >greentext, replies to post numbers, blunt and sarcastic. Irreverent, never hateful: no slurs." },
+  { id: "twitter", name: "Twitter / X", text: "social media posts: @handles, hashtags, hot takes, quote posts, someone getting ratioed." },
+  { id: "fans", name: "Readers", text: "readers commenting on the latest chapter, like on AO3 or Wattpad: caps-lock screaming, theories, ships, \"I NEED the next chapter\"." },
+  { id: "harbingers", name: "Harbingers", text: "ominous prophets, cultists and fortune-tellers reading signs into the scene: cryptic, full of dread and foreshadowing." },
+];
+
 const STARTER_KEY = "starterAgents";
 const before = [{ on: "turn" as const, phase: "before" as const }];
 const after = [{ on: "turn" as const, phase: "after" as const }];
@@ -157,10 +167,11 @@ export const STARTER_AGENTS: AgentConfigInput[] = [
     prompt: "You keep the story's lorebook. From the latest messages, note lasting facts the story established (places, factions, abilities, people's histories, rules of the world) that the lorebook does not have yet. Skip passing details and anything only implied. Write each as a short entry with keywords that would bring it up.",
   }),
   starter({
-    id: "starter-class-chat", name: "Class Group Chat", help: "A view example: what classmates post in their group chat about the latest scene.",
+    id: "starter-class-chat", name: "Group Chat", help: "A feed of people reacting to the latest scene. Pick who posts: classmates, redditors, 4chan, fans…",
     triggers: [{ on: "turn", phase: "after" }], output: "note", runMode: "separate", display: { note: "view", view: "feed" },
     input: { messages: 4, lorebooks: false, cards: true, state: false, readsAgents: [], persona: false, scenario: false },
-    prompt: "Write what people who saw or heard about the latest scene would post in a group chat: short, casual, in their own voices, reacting to what just happened.",
+    prompt: "Write a feed of posts reacting to the latest scene. Who posts and how: {{style}}\nShort posts, each in its own voice, reacting to what just happened. Never speak for {{user}}.",
+    styles: GROUP_CHAT_STYLES, styleId: "classmates",
   }),
   starter({
     id: "starter-expand-my-action", name: "Expand My Action", help: "Turns a short message of yours into a fuller action before the AI reads it. Off by default; try it.",
@@ -168,6 +179,7 @@ export const STARTER_AGENTS: AgentConfigInput[] = [
     prompt: "Rewrite {{user}}'s message as a short, vivid paragraph in the same person and tense. Keep exactly what they do and say; add no new decisions or dialogue.",
   }),
 ];
+
 
 /** Installs the starter agents once. One the user deleted is not brought back; one that exists is not overwritten. */
 export async function installStarterAgents(store: SqlStore): Promise<void> {
@@ -180,4 +192,12 @@ export async function installStarterAgents(store: SqlStore): Promise<void> {
     changed = true;
   }
   if (changed) await store.setAppSetting(STARTER_KEY, [...installed]);
+  // 30/10: the group chat starter got styles. Add them once to an installed copy that has none (the user's own
+  // instructions stay; the style is added at their end).
+  if (!(await store.getAppSetting<boolean>(STYLES_KEY))) {
+    const chat = await store.agentConfigs.get("starter-class-chat");
+    if (chat && !chat.styles?.length) await store.saveAgentConfig({ ...chat, styles: GROUP_CHAT_STYLES, styleId: "classmates" });
+    await store.setAppSetting(STYLES_KEY, true);
+  }
 }
+const STYLES_KEY = "starterAgentStyles.v1";

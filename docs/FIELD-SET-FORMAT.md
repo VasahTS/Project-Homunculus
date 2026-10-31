@@ -14,6 +14,7 @@ Every field requires `key`, `label` and `type`. A key starts with an English let
 |---|---|
 | `type` | `text`, `number`, `meter`, `status`, `list`, `datetime`, `group` |
 | `help` | Instructions explaining what the field means; default empty |
+| `note` | Optional. What the value means in the story (e.g. `0 = exhausted; rest restores it`). Sent to the story's AI once under the tracker's values, and to the tracker's AI with the field (D-055) |
 | `options` | Nonempty strings for a status; at least one required for status |
 | `min`, `max` | Optional numbers; minimum must be below maximum when both are supplied |
 | `scope` | `global` (default), `perCharacter`, `perPair` |

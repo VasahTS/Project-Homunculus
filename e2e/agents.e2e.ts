@@ -123,9 +123,12 @@ test("a story switches an agent on for its chats", async ({ page }) => {
   await create.getByLabel("Story name").fill("Agents Story");
   await create.getByRole("button", { name: /Narrated adventure/ }).click();
   await create.getByLabel("An empty story").check();
-  await create.getByTestId("setup-agents").getByLabel("Don't Write for User").check();
+  await create.getByTestId("setup-agents").getByRole("button", { name: "Choose agents…" }).click();
+  await page.getByTestId("setup-agents-sheet").getByLabel("Don't Write for User").check();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("setup-agents-sheet")).toBeHidden();
   await create.getByTestId("create-story").click();
-  await expect(page.getByTestId("story-setup").getByTestId("setup-agents").getByLabel("Don't Write for User")).toBeChecked();
+  await expect(page.getByTestId("story-setup").getByTestId("setup-agents-summary")).toContainText("Don't Write for User");
   await page.getByTestId("play-story").click();
   await page.getByTestId("new-chat-sheet").getByTestId("start-chat").click();
   await expect(page.getByTestId("agents-menu-button")).toHaveAccessibleName("Agents: 1 on in this chat");
@@ -167,7 +170,7 @@ test("choices can show as a numbered list or above the message box", async ({ pa
 
 test("a view agent draws its answer with the app's parts", async ({ page }) => {
   await page.goto("/");
-  await turnOn(page, "Class Group Chat");
+  await turnOn(page, "Group Chat");
   await send(page, "I wave at everyone.");
   const view = page.getByTestId("message").last().getByTestId("agent-view");
   await expect(view).toBeVisible({ timeout: 15_000 });

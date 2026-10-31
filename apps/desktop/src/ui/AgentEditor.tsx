@@ -1,6 +1,7 @@
 // Homunculus 2 — the agent editor (slice 5, D-047; approved draft "Homunculus Agents Draft"). Author: CLAUDE, 2026-10-30.
 // Persistence fixes (D-051): serialized saves and recoverable drafts. CODEX, 2026-10-30.
 // Same look as the tracker editor (cards that open in place). It saves by itself, like the lorebook editor (D-028).
+import { ShowPicker } from "./ShowPicker.tsx";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AgentDraft } from "../agent-draft.ts";
 import type { AgentConfig, AgentConfigInput, AgentOutputKind } from "@homunculus/schemas";
@@ -90,13 +91,13 @@ export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelet
         {out === "note" && (
           <div className="ag-field">
             <span className="ag-label">How it shows</span>
-            <Segmented small label="How the note shows" value={d.display?.note ?? "message"}
-              options={[{ value: "message", label: "Label under the reply" }, { value: "card", label: "Open card" }, { value: "view", label: "A view" }, { value: "menu", label: "Only in the ✦ panel" }]}
+            <ShowPicker label="How the note shows" value={d.display?.note ?? "message"}
+              options={[{ value: "message", label: "Label under the reply", pic: "note-message" }, { value: "card", label: "Open card", pic: "note-card" }, { value: "view", label: "A view", pic: "note-view" }, { value: "menu", label: "Only in the ✦ panel", pic: "panel" }]}
               onChange={(v) => disp({ note: v })} />
-            {d.display?.note === "view" && <div className="row-line wrap">
+            {d.display?.note === "view" && <div className="ag-field">
               <span className="hint">Drawn as</span>
-              <Segmented small label="View" value={d.display.view ?? "feed"} onChange={(v) => disp({ view: v })}
-                options={[{ value: "feed", label: "A feed of posts" }, { value: "phone", label: "Phone messages" }, { value: "sheet", label: "A stat sheet" }, { value: "cards", label: "Cards" }]} />
+              <ShowPicker label="View" value={d.display.view ?? "feed"} onChange={(v) => disp({ view: v })}
+                options={[{ value: "feed", label: "A feed of posts", pic: "view-feed" }, { value: "phone", label: "Phone messages", pic: "view-phone" }, { value: "sheet", label: "A stat sheet", pic: "view-sheet" }, { value: "cards", label: "Cards", pic: "view-cards" }]} />
               <Help text="The agent answers in a fixed JSON shape (the app tells it which) and the app draws it with its own parts, in your theme. The agent never sends HTML or code." />
             </div>}
           </div>
@@ -105,23 +106,23 @@ export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelet
         {out === "choices" && (
           <div className="ag-field">
             <span className="ag-label">How it shows</span>
-            <Segmented small label="How the choices show" value={d.display?.choices ?? "buttons"}
-              options={[{ value: "buttons", label: "Buttons under the reply" }, { value: "list", label: "Numbered list" }, { value: "composer", label: "Above the message box" }, { value: "menu", label: "Only in the ✦ panel" }]}
+            <ShowPicker label="How the choices show" value={d.display?.choices ?? "buttons"}
+              options={[{ value: "buttons", label: "Buttons under the reply", pic: "choices-buttons" }, { value: "list", label: "Numbered list", pic: "choices-list" }, { value: "composer", label: "Above the message box", pic: "choices-composer" }, { value: "menu", label: "Only in the ✦ panel", pic: "panel" }]}
               onChange={(v) => disp({ choices: v })} />
           </div>
         )}
         {out === "rewrite" && (
           <div className="ag-field">
             <span className="ag-label">How it shows</span>
-            <Segmented small label="How the rewrite shows" value={d.display?.rewrite ?? "mark"}
-              options={[{ value: "mark", label: "A mark beside the name" }, { value: "silent", label: "Nothing in the chat" }]} onChange={(v) => disp({ rewrite: v })} />
+            <ShowPicker label="How the rewrite shows" value={d.display?.rewrite ?? "mark"}
+              options={[{ value: "mark", label: "A mark beside the name", pic: "mark-rewrite" }, { value: "silent", label: "Nothing in the chat", pic: "silent" }]} onChange={(v) => disp({ rewrite: v })} />
           </div>
         )}
         {out === "check" && (
           <div className="ag-field">
             <span className="ag-label">How it shows</span>
-            <Segmented small label="How a failed check shows" value={d.display?.check ?? "mark"}
-              options={[{ value: "mark", label: "A mark beside the name" }, { value: "line", label: "A line under the reply" }, { value: "silent", label: "Only in the ✦ panel" }]}
+            <ShowPicker label="How a failed check shows" value={d.display?.check ?? "mark"}
+              options={[{ value: "mark", label: "A mark beside the name", pic: "mark-check" }, { value: "line", label: "A line under the reply", pic: "check-line" }, { value: "silent", label: "Only in the ✦ panel", pic: "panel" }]}
               onChange={(v) => disp({ check: v })} />
           </div>
         )}
@@ -140,6 +141,10 @@ export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelet
           <textarea rows={8} aria-label="Agent instructions" value={d.prompt} onChange={(e) => set({ prompt: e.target.value })}
             placeholder={out === "inject" ? "e.g. Never write {{user}}'s actions." : "e.g. Point out contradictions with earlier messages."} />
           <p className="hint">{"{{char}}"} and {"{{user}}"} become the names. {"{{random::a::b::c}}"} picks one option. The answer format is added by the app.</p>
+        </Card>
+
+        <Card id="styles" title="Styles" sub={d.styles?.length ? `${d.styles.length} · default: ${(d.styles.find((x) => x.id === d.styleId) ?? d.styles[0])!.name}` : "one version (add styles to pick between versions)"} open={!!open.styles} onToggle={toggle}>
+          <StylesEditor styles={d.styles ?? []} styleId={d.styleId} onChange={(styles, styleId) => set({ styles: styles.length ? styles : undefined, styleId: styles.length ? styleId : undefined })} />
         </Card>
 
         {out === "inject" && (
@@ -223,6 +228,36 @@ export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelet
 }
 
 const roleName = (r: string | undefined) => r === "user" ? "User" : r === "assistant" ? "AI" : "System";
+
+/**
+ * Versions of the same agent (Daniel, 30/10): each style has a name and a text that goes where the instructions say
+ * {{style}} (or at their end). The story or the chat picks one; the starred one is the default.
+ */
+function StylesEditor({ styles, styleId, onChange }: { styles: NonNullable<AgentConfig["styles"]>; styleId: string | undefined; onChange: (s: NonNullable<AgentConfig["styles"]>, id: string | undefined) => void }) {
+  const def = (styles.find((x) => x.id === styleId) ?? styles[0])?.id;
+  const patch = (i: number, p: Partial<(typeof styles)[number]>) => onChange(styles.map((x, j) => (j === i ? { ...x, ...p } : x)), def);
+  const add = () => {
+    const id = `style-${Date.now().toString(36)}`;
+    onChange([...styles, { id, name: `Style ${styles.length + 1}`, text: "" }], def ?? id);
+  };
+  return (
+    <div className="ag-styles">
+      <p className="hint">Each style is a version of this agent: its text replaces {"{{style}}"} in the instructions (or is added at their end). Stories and chats pick one in their Agents window or in the ✦ panel.</p>
+      {styles.map((x, i) => (
+        <div key={x.id} className="ag-style">
+          <div className="row-line">
+            <button type="button" className={`ag-star${x.id === def ? " on" : ""}`} aria-pressed={x.id === def} title="Default style" aria-label={`Make ${x.name} the default`}
+              onClick={() => onChange(styles, x.id)}>{x.id === def ? "★" : "☆"}</button>
+            <input className="grow" aria-label="Style name" value={x.name} onChange={(e) => patch(i, { name: e.target.value })} />
+            <button type="button" className="link quiet" onClick={() => { const rest = styles.filter((_, j) => j !== i); onChange(rest, x.id === def ? rest[0]?.id : def); }}>Remove</button>
+          </div>
+          <textarea rows={2} aria-label={`${x.name} text`} placeholder="Who writes and how, e.g. redditors in a thread: usernames, armchair experts…" value={x.text} onChange={(e) => patch(i, { text: e.target.value })} />
+        </div>
+      ))}
+      <button type="button" className="link" onClick={add}>+ Add a style</button>
+    </div>
+  );
+}
 
 function Card({ id, title, sub, open, onToggle, children }: { id: string; title: string; sub: string; open: boolean; onToggle: (id: string) => void; children: ReactNode }) {
   return (

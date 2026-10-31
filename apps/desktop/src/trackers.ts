@@ -209,6 +209,17 @@ export function layerWithFieldSet(layer: SetupLayer, trackerId: string, setId: s
   return Object.keys(overrides).length ? { ...setup, agentOverrides: overrides } : setup;
 }
 
+/** Which style of an agent a layer picks (null = inherit). Same shape as layerWithFieldSet. Daniel, 30/10. */
+export function layerWithStyle(layer: SetupLayer, agentId: string, styleId: string | null): SetupLayer {
+  const overrides = { ...(layer.agentOverrides ?? {}) };
+  const { styleId: _old, ...rest } = overrides[agentId] ?? {};
+  if (styleId) overrides[agentId] = { ...rest, styleId };
+  else if (Object.keys(rest).length) overrides[agentId] = rest;
+  else delete overrides[agentId];
+  const { agentOverrides: _drop, ...setup } = layer;
+  return Object.keys(overrides).length ? { ...setup, agentOverrides: overrides } : setup;
+}
+
 /** Is this tracker on in the session (its own layer over its story's)? */
 export const isOnIn = (s: Session, id: string, above?: SetupLayer): boolean =>
   layerHasTracker(s.setup, id, above ? layerHasTracker(above, id) : false);

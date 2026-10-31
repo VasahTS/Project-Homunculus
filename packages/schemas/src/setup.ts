@@ -25,6 +25,8 @@ export const AgentOverride = z.object({
   connectionId: Id.nullable().optional(),
   /** For trackers: which field schema to use (e.g. "rpg-world" vs "drama-relationships"). */
   schemaId: Id.optional(),
+  /** For agents with styles: which style this story/chat uses (AgentConfig.styles). */
+  styleId: z.string().optional(),
   /** Extra prompt text or values an agent understands (e.g. a story-specific instruction). */
   settings: z.record(z.string(), Json).optional(),
 });
@@ -94,6 +96,14 @@ export const SetupLayer = z.object({
   turnOrder: TurnOrder.optional(),
   /** Run state trackers on every swipe (true) or only when the story continues (false). */
   trackersOnSwipe: z.boolean().optional(),
+  /** Simple memory (D-054): chapter summaries replace old messages. Each value inherits on its own. */
+  memory: z.object({
+    on: z.boolean().optional(),
+    /** Messages per chapter. */
+    every: z.number().int().min(4).max(500).optional(),
+    /** The newest messages that always go word for word. */
+    keep: z.number().int().min(0).max(500).optional(),
+  }).optional(),
   limits: z
     .object({
       /** Stop auto-play after this many turns. */

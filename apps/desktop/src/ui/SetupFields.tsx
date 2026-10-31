@@ -5,10 +5,12 @@
 // Override-only (as in Aventuras' story settings): a row shows what it inherits ("Default · …" for a story,
 // "from the story" for a chat) until something else is picked; a chat row that differs from its story is marked
 // "changed in this chat" with "Use the story's". The layer edited stores only what it changes.
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Button, Icon } from "./kit.tsx";
+import { Modal } from "./Vault.tsx";
 import type { AgentConfig, ConnectionProfile, Persona, Preset, SetupLayer } from "@homunculus/schemas";
 import { kindOf, whenText } from "../agents.ts";
-import { layerFieldSet, layerHasTracker, layerWithFieldSet, layerWithTracker, type Tracker } from "../trackers.ts";
+import { layerFieldSet, layerHasTracker, layerWithFieldSet, layerWithStyle, layerWithTracker, type Tracker } from "../trackers.ts";
 
 const INHERIT = "";
 const NONE = "__none__";
@@ -120,6 +122,18 @@ export function SetupFields({ mode, layer, onChange, above, names, presets, prof
             {personas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </SetupRow>}
+        {!chat && <SetupRow label="Memory" sub="old messages become chapter summaries">
+          <select className="pick-select" aria-label="Memory" value={layer.memory?.on === undefined ? INHERIT : layer.memory.on ? "on" : "off"}
+            onChange={(e) => {
+              const { on: _o, ...rest } = layer.memory ?? {};
+              const memory = e.target.value === INHERIT ? rest : { ...rest, on: e.target.value === "on" };
+              if (Object.keys(memory).length) set({ memory }); else set({}, ["memory"]);
+            }}>
+            <option value={INHERIT}>Default · Off</option>
+            <option value="on">Chapter summaries</option>
+            <option value="off">Off</option>
+          </select>
+        </SetupRow>}
       </SetupSection>
 
       <SetupSection title="Trackers" aside={trackersAside} testId="setup-trackers">
@@ -128,10 +142,48 @@ export function SetupFields({ mode, layer, onChange, above, names, presets, prof
       </SetupSection>
 
       <SetupSection title="Agents" aside={agentsAside} testId="setup-agents">
-        {agents.map((a) => <AgentRow key={a.id} a={a} chat={chat} layer={layer} above={above} onChange={onChange} />)}
-        {agents.length === 0 && <div className="setup-empty">No agents yet. Make one in Library → Agents.</div>}
+        <AgentsSummary agents={agents} chat={chat} layer={layer} above={above} onChange={onChange} />
       </SetupSection>
     </div>
+  );
+}
+
+/**
+ * Agents as one row: which are on, and "Choose…" opens a window with all of them (Daniel, 30/10: the full list made
+ * the setup busy). The window has a search and the same on/off rows as before.
+ */
+function AgentsSummary({ agents, chat, layer, above, onChange }: { agents: AgentConfig[]; chat: boolean; layer: SetupLayer; above?: SetupLayer; onChange: (l: SetupLayer) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  if (agents.length === 0) return <div className="setup-empty">No agents yet. Make one in Library → Agents.</div>;
+  const inherited = (id: string) => (chat && above ? layerHasTracker(above, id) : false);
+  const isOn = (a: AgentConfig) => layerHasTracker(layer, a.id, inherited(a.id));
+  const on = agents.filter(isOn);
+  const changedHere = chat ? agents.filter((a) => isOn(a) !== inherited(a.id)).length : 0;
+  const needle = q.trim().toLowerCase();
+  const shown = agents.filter((a) => !needle || `${a.name} ${a.help}`.toLowerCase().includes(needle));
+  // on first, then the rest, each alphabetical
+  const sorted = [...shown].sort((a, b) => Number(isOn(b)) - Number(isOn(a)) || a.name.localeCompare(b.name));
+  return (
+    <>
+      <div className={`setup-row${changedHere ? " changed" : ""}`} data-testid="setup-agents-summary">
+        <span className="setup-k grow">
+          <span>{on.length === 0 ? "None on" : `${on.length} on`}</span>
+          <small>{on.length ? on.map((a) => a.name).join(" · ") : `${agents.length} in your Library`}{changedHere ? ` · ${changedHere} changed in this chat` : ""}</small>
+        </span>
+        <span className="setup-v"><Button small onClick={() => setOpen(true)}>Choose agents…</Button></span>
+      </div>
+      {open && (
+        <Modal title={chat ? "Agents in this chat" : "Agents in this story"} onClose={() => { setOpen(false); setQ(""); }} testId="setup-agents-sheet" className="modal-small agents-pick">
+          <label className="search-box agents-pick-search"><Icon name="search" size={13} /><input autoFocus aria-label="Search agents" placeholder="Search agents" value={q} onChange={(e) => setQ(e.target.value)} /></label>
+          <div className="setup-group agents-pick-list">
+            {sorted.map((a) => <AgentRow key={a.id} a={a} chat={chat} layer={layer} above={above} onChange={onChange} />)}
+            {sorted.length === 0 && <div className="setup-empty">Nothing matches.</div>}
+          </div>
+          <p className="hint">{chat ? "Changes here only affect this chat." : "Every new chat of this story starts with these."}</p>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -141,12 +193,21 @@ function AgentRow({ a, chat, layer, above, onChange }: { a: AgentConfig; chat: b
   const on = layerHasTracker(layer, a.id, inheritedOn);
   const isChanged = chat && on !== inheritedOn;
   const what = `${kindOf(a)?.label ?? ""} · ${whenText(a).toLowerCase()}`;
+  const byId = (id: string | undefined) => a.styles?.find((x) => x.id === id);
+  const inheritedStyle = ((chat ? byId(above?.agentOverrides?.[a.id]?.styleId) : undefined) ?? byId(a.styleId) ?? a.styles?.[0])?.name ?? "";
   const sub = !chat ? what : isChanged ? (on ? "on in this chat · off in the story" : "off in this chat · on in the story") : on ? `from the story · ${what}` : what;
   return (
     <div className={`setup-row tracker${isChanged ? " changed" : ""}`} data-testid={`setup-agent-${a.id}`}>
       <input type="checkbox" className="setup-check" aria-label={a.name} checked={on}
         onChange={(e) => onChange(layerWithTracker(layer, a.id, e.target.checked, inheritedOn))} />
       <span className="setup-k grow"><span>{a.name}</span><small>{sub}</small>{isChanged && <ChangedChip onUndo={() => onChange(layerWithTracker(layer, a.id, inheritedOn, inheritedOn))} />}</span>
+      {a.styles?.length ? (
+        <select className="pick-select setup-style" aria-label={`${a.name} style`} disabled={!on} value={layer.agentOverrides?.[a.id]?.styleId ?? ""}
+          title="Which version of this agent" onChange={(e) => onChange(layerWithStyle(layer, a.id, e.target.value || null))}>
+          <option value="">{chat ? "Story's style" : "Default style"} · {inheritedStyle}</option>
+          {a.styles.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+        </select>
+      ) : null}
     </div>
   );
 }

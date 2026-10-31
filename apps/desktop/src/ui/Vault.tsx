@@ -330,14 +330,19 @@ export const npcCard = (n: Npc, storyName: string | undefined, avatar?: Avatar) 
 // story's own setup (preset, connections, persona, trackers, agents) in one sheet.
 export interface NewStoryChoice { name: string; role: UserRole; fromCardId: string | null; setup: SetupLayer }
 
+const modalStack: object[] = [];
+
 /** A small modal over the app. Esc and the scrim close it. */
 export function Modal({ title, onClose, children, testId, className = "modal-small", head }: { title: string; onClose: () => void; children: ReactNode; testId?: string; className?: string; head?: ReactNode }) {
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     panel.current?.focus();
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
+    // only the top modal answers Esc (a modal can open another one, e.g. Setup → Choose agents)
+    const me = {};
+    modalStack.push(me);
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape" && modalStack[modalStack.length - 1] === me) { e.stopPropagation(); onClose(); } };
     window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    return () => { window.removeEventListener("keydown", key); modalStack.splice(modalStack.indexOf(me), 1); };
   }, [onClose]);
   return createPortal(
     <div className="sheet-layer" data-region="sheet">

@@ -39,10 +39,18 @@ function useTick(active: boolean) {
   useEffect(() => { if (!active) return; const t = setInterval(() => setT((x) => x + 1), 1000); return () => clearInterval(t); }, [active]);
 }
 
+// The panel opens over the middle of the reading column, not against the inspector (Daniel, 30/10).
+const overStory = (fallback: number) => {
+  const r = document.querySelector<HTMLElement>(".story-pane")?.getBoundingClientRect();
+  if (!r) return fallback;
+  const w = Math.min(440, window.innerWidth - 16);
+  return Math.max(8, Math.min(r.left + (r.width - w) / 2, window.innerWidth - w - 8));
+};
+
 const secs = (ms: number | undefined) => (ms === undefined ? "" : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`);
 const shortModel = (m: string | undefined) => (m ? m.replace(/^.*\//, "").replace(/:thinking$/, "") : "");
 
-export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest, latestBefore, latestId, busy, connection, onToggle, onRun, onOpen, onEditTracker, onChanged, onPick }: {
+export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest, latestBefore, latestId, busy, connection, onToggle, onRun, onOpen, onEditTracker, onChanged, onPick, onStyle }: {
   svc: AppServices; agents: AgentConfig[]; trackers: Tracker[]; session: Session; storySetup?: SetupLayer | undefined;
   /** What agents did on the latest reply (and its id). */
   latest: MessageAgentResults | undefined; latestId: string | null;
@@ -59,6 +67,8 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
   onChanged: () => void;
   /** Sends a choice (choices agents that show "only in the panel"); undefined while a reply is being written. */
   onPick?: ((text: string) => void) | undefined;
+  /** Picks an agent's style for this chat (null = the story's / the agent's default). */
+  onStyle?: (agentId: string, styleId: string | null) => void;
 }) {
   const live = useLiveRuns(svc, onChanged);
   const anyLive = Object.values(live).some(Boolean);
@@ -98,6 +108,11 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
     const before = !latest?.runs.some((x) => x.agentId === i.id);
     return <span className="agp-status ok"><i />{before ? "Ran before the last reply" : "Ran on the last reply"}{r.durationMs ? ` · ${secs(r.durationMs)}` : ""}{what}</span>;
   };
+  // styles (versions of one agent): this chat's pick, else the story's, else the agent's default
+  const chatStyle = (a: AgentConfig) => session.setup.agentOverrides?.[a.id]?.styleId;
+  const styleById = (a: AgentConfig, id: string | undefined) => a.styles?.find((x) => x.id === id);
+  const inheritedStyle = (a: AgentConfig) => (styleById(a, storySetup?.agentOverrides?.[a.id]?.styleId) ?? styleById(a, a.styleId) ?? a.styles?.[0])?.name ?? "";
+  const styleName = (a: AgentConfig) => (a.styles?.length ? styleById(a, chatStyle(a))?.name ?? inheritedStyle(a) : "");
   const note = (i: Item) => [...(latest?.notes ?? [])].filter((n) => n.agentId === i.id).sort((a, b) => b.createdAt - a.createdAt)[0];
 
   const row = (i: Item) => {
@@ -110,7 +125,8 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
         <Switch label={`${i.name} in this chat`} checked={here} onChange={(v) => i.tracker ? onToggle(i.id, v, true) : onToggle(i.id, v, false)} />
         <button type="button" className="agp-main" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : i.id)}>
           <span className="agp-name"><b>{i.name}</b><span className="agp-chip">{i.kind}</span>{r?.model && <span className="agp-chip">{shortModel(r.model)}</span>}
-            {i.agent?.runMode === "text" && <span className="agp-chip">no AI call</span>}</span>
+            {i.agent?.runMode === "text" && <span className="agp-chip">no AI call</span>}
+            {i.agent && styleName(i.agent) && <span className="agp-chip">{styleName(i.agent)}</span>}</span>
           {status(i)}
         </button>
         <span className="agp-acts">
@@ -119,6 +135,15 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
         </span>
         {isOpen && (
           <div className="agp-detail">
+            {i.agent?.styles?.length && onStyle ? (
+              <label className="row-line agp-style-row"><span className="hint">Style</span>
+                <select className="agp-style" aria-label={`${i.name} style`} value={chatStyle(i.agent) ?? ""}
+                  onChange={(e) => onStyle(i.id, e.target.value || null)}>
+                  <option value="">{storySetup ? `From the story · ${inheritedStyle(i.agent)}` : `Default · ${inheritedStyle(i.agent)}`}</option>
+                  {i.agent.styles.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+              </label>
+            ) : null}
             {n && (i.agent?.display?.note === "view" ? <AgentView name={i.name} kind={i.agent.display.view ?? "feed"} text={n.content} /> : <div className="agm-note">{n.content}</div>)}
             {r?.status === "ok" && i.agent?.output === "choices" && Array.isArray(r.output) && (
               <div className="choices-set" role="group" aria-label={i.name}>{(r.output as string[]).map((c, k) => (
@@ -143,7 +168,7 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
         <Icon name="sparkle" size={14} />{onCount > 0 && <span className="agm-count">{onCount}</span>}{anyFailed && <span className="agm-alert" aria-label="an agent failed" />}
       </button>
       {m.open && m.pos && (
-        <div className="agp" role="dialog" aria-label="Agents in this chat" style={{ top: m.pos.top, left: m.pos.left }} data-testid="agents-menu">
+        <div className="agp" role="dialog" aria-label="Agents in this chat" style={{ top: m.pos.top, left: overStory(m.pos.left) }} data-testid="agents-menu">
           <div className="agp-head">
             <span className="agp-title"><b>Agents in this chat</b><small>{storySetup ? "Your story's agents + this chat's changes · changes only affect this chat" : "Changes only affect this chat"}</small></span>
             <IconButton label="Close" onClick={() => m.setOpen(false)}><Icon name="close" size={14} /></IconButton>

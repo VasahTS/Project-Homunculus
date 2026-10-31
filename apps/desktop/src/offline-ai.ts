@@ -59,6 +59,8 @@ export const offlineAiModule: HomunculusModule = {
           yield agentAnswer(lastTurn);
           return;
         }
+        // memory chapters (D-054)
+        if (/summarize part of an ongoing roleplay/.test(req.messages[0]?.content ?? "")) { yield "Title: Offline chapter\n\nThe offline test AI summarized these messages."; return; }
         const last = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
         const reply = `${lines[calls++ % lines.length]} "You said: ${last.slice(0, 80)}"`;
         // like a thinking model: a little "reasoning" first, which the app keeps apart from the reply

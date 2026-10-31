@@ -34,6 +34,8 @@ export interface TrackerFieldShape {
   key: string;
   label: string;
   help: string;
+  /** What the value means in the story, sent to the story AI with the values (e.g. "0 = exhausted"). */
+  note?: string | undefined;
   type: FieldType;
   options: string[];
   min?: number | undefined;
@@ -55,6 +57,11 @@ export const TrackerField: z.ZodType<TrackerFieldShape, any> = z.lazy(() =>
     key: z.string().regex(/^[A-Za-z][\w-]*$/),
     label: z.string().min(1),
     help: z.string().default(""),
+    /**
+     * What the value means in the story (Daniel, 30/10: "Stamina: 1" alone tells the story nothing). Sent to the
+     * story's AI once, under the tracker's values, and to the tracker's AI with the field. Empty = nothing sent.
+     */
+    note: z.string().optional(),
     type: FieldType,
     /** For `status`. */
     options: z.array(z.string()).default([]),

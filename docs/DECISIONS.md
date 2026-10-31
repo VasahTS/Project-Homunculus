@@ -482,3 +482,27 @@ Daniel approved the visual draft following the text approval and project-example
 - Reuse Quiet/theme tokens, existing prose/native view rendering and the approved 808 px layout. The backdrop opacity is a theme token; draft-only review controls are omitted. Contained scrolling supports narrow windows and long content.
 
 BLUEPRINT §13: desktop Agent editor + existing core TurnPipeline/AgentRunner; no new module, schema/storage migration or setup-layer feature. Separate-mode preview makes the existing agent request only on Run; text makes none. Missing resources/provider/validation failures remain inside the dialog with retry. Tests and actual/draft captures: `docs/AGENT-TRY-IT.md`. Validation uses isolated project fixtures, not private play data or real API calls. Signed: **CODEX**.
+
+## D-054 — Simple memory: chapter summaries (2026-10-30)
+
+Daniel needed long chats to stay consistent and cheaper to test now ("my credits are running out"). This is the "Simple" mode of `docs/MEMORY-PLAN.md`; smart recall stays for slice 8.
+
+- `SetupLayer.memory` `{ on, every, keep }`, each value inherited on its own (Default → Story → chat). Default: off, 20 messages per chapter, newest 10 always word for word.
+- After a turn (step 9, after the other triggers), when at least `every` readable messages wait outside the newest `keep`, the agents' connection writes one chapter (title + 120–400 words), with the previous chapter for continuity. A failure is reported as `core.error` and never fails the turn.
+- Chapters are stored per session (`appSettings["memory.chapters:<sessionId>"]`, no migration) and tied to the tree by their first and last message: a chapter counts only on paths holding both ends (proposal 1 of the plan). Messages are never changed (`visibility` untouched).
+- The prompt: chapters on the path replace the messages they cover, as "The story so far" right before what is left of the chat (`agent:memory`, labelled "Memory: the story so far"). Preview Prompt shows it; the generation note says how many messages were summarized.
+- UI: Prompt tab → **Memory** group (switch, two numbers, "N waiting", **Summarize now**, chapters with send on/off, edit title/summary, remove). An edited chapter is marked and never rewritten. Story page Setup → **Memory** row.
+
+Signed: **CLAUDE**.
+
+## D-055 — Agents round 3: lighter setup, pictures, field notes, styles (2026-10-30)
+
+Daniel's review of the agents (30/10):
+- **✦ panel** opens over the middle of the reading column instead of against the inspector.
+- **Setup → Agents** (story page, New Story, the Prompt tab of a story chat) is one row: "N on · names" + **Choose agents…**, which opens a window with search and the same on/off rows (on first). The long list made the setup busy. `Modal` now answers Esc only when it is the top one, so a window opened from another closes alone.
+- **How it shows** is a set of small drawings of a reply with the result in place (`ShowPicker.tsx`), for notes, views, choices, rewrites and checks. Theme colors only.
+- **Tracker field note** (`TrackerField.note`, "What it means in the story"): sent once under the tracker's values ("What these mean: - Stamina: …") and to the tracker's AI ("In the story: …"). Empty = nothing sent. A bare "Stamina: 1" tells the story nothing.
+- **Agent styles** (`AgentConfig.styles` + `styleId`; `AgentOverride.styleId`): versions of one agent, like Marinara's Echo Chamber styles. The picked style replaces `{{style}}` in the instructions, or is added at their end (`withStyle`, core). Picked per story/chat (Choose agents window, ✦ panel row) else the agent's default (★ in the editor's **Styles** card) else the first. The starter **Group Chat** (formerly Class Group Chat) has Classmates, Redditors, 4chan, Twitter / X, Readers, Harbingers; an installed copy without styles gets them once (`starterAgentStyles.v1`), its instructions untouched.
+
+Signed: **CLAUDE**.
+

@@ -18,6 +18,7 @@ import { separateExecutor, shapeFor, type LoreProposal } from "./outputs.ts";
 import { applyLorePatch, patchWithEntry } from "../lore-versions.ts";
 import { normalizeTrackerAnswer, trackerPeople, type TrackerCastMember } from "../trackers.ts";
 import { applyBasicMacros, expandMacros } from "../macros.ts";
+import { withStyle } from "./styles.ts";
 import { effectiveCharacter } from "../variants.ts";
 
 /** An agent ready to run: its config, and its code if it is built in. */
@@ -172,6 +173,7 @@ export class AgentRunner {
 
   /** Runs one agent and applies its answer. Returns undefined when it failed. */
   async runOne(entry: AgentEntry, req: RunRequest, owners: Map<string, string>, preset?: { answer: unknown }): Promise<AgentOutcome | undefined> {
+    entry = { ...entry, config: withStyle(entry.config, req.setup) };
     const { core, store } = this.deps;
     const a = entry.config;
     const started = this.deps.now();
@@ -336,6 +338,7 @@ export class AgentRunner {
    * notes, revisions, records or events. Returns what it answered and why.
    */
   async dryRun(entry: AgentEntry, req: RunRequest, connection?: ConnectionConfig): Promise<DryRun> {
+    entry = { ...entry, config: withStyle(entry.config, req.setup) };
     const a = entry.config;
     const started = this.deps.now();
     const usage: Usage = {};

@@ -99,7 +99,7 @@ export function trackerInstruction(schema: TrackerSchema, people: TrackerCastMem
       : f.scope === "perPair" ? ` One value per pair, keyed "A${PAIR}B" (how A stands toward B).` : "";
     // optional fields say so (29/10: Daniel needs "Mana" left out for characters who don't use magic)
     const req = f.required ? " ALWAYS FILLED (from the moment it applies, never empty)." : f.scope === "global" ? "" : " Optional: leave it out for anyone it does not apply to.";
-    lines.push(`- "${f.key}" — ${f.label}: ${describeType(f)}.${scope}${req}${f.help ? ` ${f.help}` : ""}`);
+    lines.push(`- "${f.key}" — ${f.label}: ${describeType(f)}.${scope}${req}${f.help ? ` ${f.help}` : ""}${f.note?.trim() ? ` In the story: ${f.note.trim()}` : ""}`);
   }
   const readOnly = schema.fields.filter((f) => f.lockedForAgents).map((f) => `"${f.key}" (${f.label})`);
   const example: Record<string, unknown> = {};
@@ -301,7 +301,21 @@ export function trackerSummary(schema: TrackerSchema, values: Record<string, unk
     } else lines.push(`${who} — ${parts.join("; ")}`);
   }
   if (away.length) lines.push(`Not in the scene: ${away.join("; ")}`);
-  return lines.length ? `[${schema.name}]\n${lines.join("\n")}` : "";
+  if (!lines.length) return "";
+  // what the values mean, once per field (not per character), so "Stamina: 1" makes sense to the story's AI
+  const notes = fieldNotes(shown);
+  if (notes.length) lines.push(`What these mean:\n${notes.map((n) => `- ${n}`).join("\n")}`);
+  return `[${schema.name}]\n${lines.join("\n")}`;
+}
+
+/** "Label: note" for the fields (and their sub-fields) that have a note. */
+function fieldNotes(fields: TrackerField[]): string[] {
+  const out: string[] = [];
+  for (const f of fields) {
+    if (f.note?.trim()) out.push(`${f.label}: ${f.note.trim()}`);
+    if (f.fields.length) out.push(...fieldNotes(f.fields).map((n) => `${f.label} → ${n}`));
+  }
+  return out;
 }
 
 /** A field key made from a label: "Trust in me" → "trust_in_me". */

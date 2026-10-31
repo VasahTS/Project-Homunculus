@@ -131,6 +131,12 @@ export const AgentConfig = z.object({
     /** Rewrites: a mark beside the name, or nothing in the chat. */
     rewrite: z.enum(["mark", "silent"]).default("mark"),
   }).partial().optional(),
+  /**
+   * Versions of the same agent (Daniel, 30/10): e.g. a group chat as "Classmates", "Redditors" or "4chan". The text
+   * replaces {{style}} in the instructions (or is added at the end). The story/chat picks one; `styleId` is the default.
+   */
+  styles: z.array(z.object({ id: z.string().min(1), name: z.string().min(1), text: z.string().default("") })).optional(),
+  styleId: z.string().optional(),
   /** For `proposal`: what it proposes to change (D-049). "lorebook": new or updated entries in the story's own version. */
   proposal: z.object({ target: z.enum(["lorebook"]) }).optional(),
   /** For `inline`: the tag the main model writes, e.g. "SCENE" for [SCENE]…[/SCENE]. */

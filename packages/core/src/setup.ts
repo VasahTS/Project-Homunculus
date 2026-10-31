@@ -2,6 +2,7 @@
 //
 // builtin → default → story → session. A field missing from a layer is inherited (a 1:1 chat has no story layer).
 // This is the ONLY place that reads layers; everything else uses the ResolvedSetup.
+import { MEMORY_DEFAULTS, type MemorySettings } from "./memory.ts";
 import { mergePresetOverride } from "./prompt-control.ts";
 import type { AgentOverride, ListOverride, PresetOverride, SetupLayer, SetupLevel, TurnOrder } from "@homunculus/schemas";
 
@@ -30,6 +31,8 @@ export interface ResolvedSetup {
   limits: { autoPlayMaxTurns?: number; maxSessionCost?: number };
   extra: Record<string, unknown>;
   authorsNote: ResolvedAuthorsNote;
+  /** Simple memory (D-054). */
+  memory: MemorySettings;
   /** Which layer each value came from, for the UI ("from the story"). Keys: field name, or "agents:<id>". */
   sources: Record<string, SetupLevel>;
 }
@@ -66,7 +69,7 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
     presetId: null, personaId: null, personaVariantId: null, connectionId: null, agentConnectionId: null,
     presetOverrides: Object.create(null), narratorPrompt: { ...NARRATOR_PROMPT_DEFAULTS },
     lorebooks: [], agents: [], agentOverrides: {}, storyStyle: {}, turnOrder: "natural",
-    trackersOnSwipe: true, limits: {}, extra: {}, authorsNote: { ...AUTHORS_NOTE_DEFAULTS }, sources: {},
+    trackersOnSwipe: true, limits: {}, extra: {}, authorsNote: { ...AUTHORS_NOTE_DEFAULTS }, memory: { ...MEMORY_DEFAULTS }, sources: {},
   };
   const scalars = ["presetId", "personaId", "personaVariantId", "connectionId", "agentConnectionId", "turnOrder", "trackersOnSwipe"] as const;
 
@@ -86,6 +89,11 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
         out.sources[key] = level;
         for (const id of out[key]) if (!before.has(id)) out.sources[`${key}:${id}`] = level;
       }
+    }
+    for (const [key, value] of Object.entries(layer.memory ?? {})) {
+      if (value === undefined) continue;
+      (out.memory as unknown as Record<string, unknown>)[key] = value;
+      out.sources[`memory.${key}`] = level;
     }
     for (const [agentId, ov] of Object.entries(layer.agentOverrides ?? {})) {
       const prev = out.agentOverrides[agentId] ?? {};

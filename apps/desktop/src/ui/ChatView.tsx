@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState, Fragment } from "react";
 import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
 import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
+import { MemoryGroup } from "./MemoryGroup.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
 import { applyBasicMacros, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona } from "@homunculus/core";
@@ -22,7 +23,7 @@ import type { ConnectionState } from "../connection.ts";
 import { deletableFrom, nextBranchName, type ChatBranch, type ConnectionConfig, type ModelInfo, type ProviderDefinition } from "@homunculus/core";
 import { PromptCharacter } from "./PromptCharacter.tsx";
 import { ScenePanel } from "./ScenePanel.tsx";
-import type { Tracker } from "../trackers.ts";
+import { layerWithStyle, type Tracker } from "../trackers.ts";
 import { Inspector, type InspectorTab } from "./Inspector.tsx";
 import { PromptPane } from "./ConnectionPanel.tsx";
 import { approxTokens, fmtTokens, ReplyPane } from "./ReplyPane.tsx";
@@ -499,7 +500,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               <AgentsPanel svc={svc} agents={agents} trackers={trackers} session={session} storySetup={storySetup}
                 latest={lastAi ? agentResults.get(lastAi.id) : undefined} latestBefore={latestParentId ? agentResults.get(latestParentId) : undefined} latestId={(lastAi ?? last)?.id ?? null} busy={busy} connection={connection}
                 onToggle={(id, on, tracker) => tracker ? onToggleTracker(id, on) : onToggleAgent(id, on)} onRun={runAgentByHand} onOpen={onOpenAgent}
-                onEditTracker={onEditTracker} onChanged={() => setSceneKey((k) => k + 1)} onPick={busy ? undefined : sendText} />
+                onEditTracker={onEditTracker} onChanged={() => setSceneKey((k) => k + 1)} onPick={busy ? undefined : sendText}
+                onStyle={(id, sid) => void onChangeSession({ ...session, setup: layerWithStyle(session.setup, id, sid) })} />
             )}
             {onOpenStory && <Button onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
             {/* an icon (29/10): the words took the room of the title, branch and "with …" in narrow windows */}
@@ -683,6 +685,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             presets={presets} defaultPresetId={defaultPresetId} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} trackers={trackers}
             authorsNote={noteAbove && <AuthorsNoteGroup level="chat" inStory={!!storySetup} layer={session.setup} above={noteAbove} onChange={(setup) => onChangeSession({ ...session, setup })} />}
             lore={<SessionLorebooks session={session} all={lorebooks} load={loadLorebooks} onChangeSession={onChangeSession} onOpen={onOpenLorebook} />}
+            memory={<MemoryGroup svc={svc} session={session} headId={headId ?? null} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession} refreshKey={sceneKey} />}
             character={onSaveCharacter && onOpenCharacter ? (
               <PromptCharacter cards={session.cast.filter((m) => m.characterId && characters[m.characterId]).map((m) => ({ character: characters[m.characterId!]!, variantId: m.variantId }))}
                 avatars={avatars} onSave={onSaveCharacter} onOpenEditor={onOpenCharacter} />

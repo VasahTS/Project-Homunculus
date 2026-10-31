@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Memory, agent styles and Daniel's agent review (2026-10-30) — CLAUDE — D-054 / D-055
+
+- **Merged CODEX's `gpt`** into `dev` (D-051 reliability fixes, D-053 Try it); kept dev's workflow rules in CLAUDE.md/AGENTS.md (one line now says CODEX works on `gpt`), took gpt's lockfiles (dev's `package-lock.json` was out of sync: `npm ci` failed).
+- **Memory (D-054):** Prompt tab → Memory: chapter summaries, Summarize now, editable chapters; Story page Setup → Memory. Off by default.
+- **Agents (D-055):** ✦ panel over the reading column; Setup → Agents is one row + "Choose agents…" window with search; "How it shows" as drawings; tracker fields get "What it means in the story"; agent **styles** (Group Chat: Classmates, Redditors, 4chan…), picked per story/chat.
+- Drafts were skipped for these (Daniel asked directly and is short on credits); adjust from his review.
+
 ## Try it integrated in the agent editor (2026-10-30) — CODEX — D-053
 
 Daniel approved the visual draft after the text plan and project-example authorization (D-052). Library → Agents → an agent now has **Try it**: select a chat/message and optional connection, Run/Stop, then inspect Result, What it read, Raw answer and provider Reasoning when supplied. The current editor draft is used even if autosave failed. Opening makes no request; text mode makes no AI call.

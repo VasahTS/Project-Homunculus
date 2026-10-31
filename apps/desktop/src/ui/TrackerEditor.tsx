@@ -498,6 +498,9 @@ function FieldSettings({ f, n, groups, shows, onChange, onStep, onRemove }: {
       </div>
       <div className="te-label">What the AI should write here — and when to leave it empty <Help text="Sent to the AI with this field, word for word. Say what goes here, a unit, what a high value means — and when NOT to fill it (e.g. 'Only for characters who use magic; leave it empty for everyone else'). Also shown by the field's '?' in the panel." /></div>
       <textarea rows={2} className="te-hint" placeholder={f.scope === "global" ? "e.g. In-world time, like 'dusk, day 3'." : "e.g. Only for characters who use magic. Leave it empty for anyone who doesn't."} value={f.help} aria-label={`${n} hint`} onChange={(e) => onChange({ help: e.target.value })} />
+      <div className="te-label">What it means in the story <Help text="Sent to the story's AI under the values, once (not per character), so a number like 'Stamina: 1' means something. Say what high and low values mean and what changes them, e.g. 'Spent by running and fighting; at 0 they collapse; rest brings it back.' Empty = nothing is sent." /></div>
+      <textarea rows={2} className="te-hint" placeholder="e.g. 0–10. Fighting and running spend it; at 0 they collapse. A night's rest brings it back to 10."
+        value={f.note ?? ""} aria-label={`${n} story note`} onChange={(e) => onChange({ note: e.target.value || undefined })} />
       {f.type === "list" && (
         <div className="columns-box">
           <span className="label-row muted">Columns <Help text="Leave empty for a list of short items. Add columns to make each item a row (e.g. Title, Status, Note)." /></span>

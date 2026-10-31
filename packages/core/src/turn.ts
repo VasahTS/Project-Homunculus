@@ -10,6 +10,7 @@ import { AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
 import type { Character, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, Session, Story } from "@homunculus/schemas";
 import { AgentRunner, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
 import { extractInline, inlineInstruction, parseAnswer } from "./agents/outputs.ts";
+import { withStyle } from "./agents/styles.ts";
 import { isAbort } from "./connections.ts";
 import type { HomunculusCore } from "./core.ts";
 import type { ConnectionConfig } from "./extensions.ts";
@@ -48,6 +49,7 @@ import type { SqlStore } from "./storage/store.ts";
 import { effectiveCharacter, effectivePersona } from "./variants.ts";
 import { castPart, narratorAsCharacter, SIMPLE_NARRATOR } from "./stories.ts";
 import { applyLorePatch } from "./lore-versions.ts";
+import { applyChapters, chapterRequest, chaptersOnPath, nextChapterSpan, parseChapter, type Chapter } from "./memory.ts";
 
 export interface TurnOptions {
   newId?: () => string;
@@ -253,9 +255,77 @@ export class TurnPipeline {
 
     // 8. other triggers
     if (!req.signal?.aborted) outcomes.push(...(await this.otherTriggers(entries, owners, { ...base, trigger: "", messageId: reply.id, text: reply.content }, parentId)));
+    // 9. memory (D-054): close a chapter when enough old messages piled up. A failure never fails the turn.
+    if (setup.memory.on && !req.signal?.aborted) {
+      await this.summarize(session, setup, reply.id, main, req.connections, { min: setup.memory.every, signal: req.signal }).catch((e) =>
+        void this.core.events.emit("core.error", { source: "memory", message: e instanceof Error ? e.message : String(e) }));
+    }
     await this.core.events.emit("turn.finished", { sessionId: session.id, messageId: reply.id });
     reply = (await this.store.getMessage(reply.id)) ?? reply;
     return { userMessage, reply, outcomes };
+  }
+
+  // ---------------------------------------------------------------- memory (D-054)
+
+  /** A session's chapters (all branches). */
+  async chapters(sessionId: string): Promise<Chapter[]> {
+    return (await this.store.getAppSetting<Chapter[]>(`memory.chapters:${sessionId}`)) ?? [];
+  }
+
+  async saveChapters(sessionId: string, chapters: Chapter[]): Promise<void> {
+    await this.store.setAppSetting(`memory.chapters:${sessionId}`, chapters);
+  }
+
+  /** What memory looks like at a message: the chapters on its path and how many messages wait for the next one. */
+  async memoryAt(sessionId: string, messageId: string | null): Promise<{ chapters: Chapter[]; waiting: number; every: number; keep: number; on: boolean }> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    const setup = await this.setupFor(session);
+    const path = messageId ? await this.store.pathTo(messageId) : [];
+    const all = await this.chapters(sessionId);
+    return {
+      chapters: chaptersOnPath(path, all).map((x) => x.chapter),
+      waiting: nextChapterSpan(path, all, setup.memory, 1).length,
+      ...setup.memory,
+    };
+  }
+
+  /**
+   * Writes the next chapter at this message's path when at least `min` old messages wait (Summarize now: min 2).
+   * Uses the agents' connection. Returns the new chapter, or undefined when there was not enough to summarize.
+   */
+  async summarize(session: Session, setup: ResolvedSetup, messageId: string, main: ConnectionConfig,
+    connections: Record<string, ConnectionConfig> | undefined, opts: { min: number; signal?: AbortSignal | undefined }): Promise<Chapter | undefined> {
+    const path = await this.store.pathTo(messageId);
+    const all = await this.chapters(session.id);
+    const span = nextChapterSpan(path, all, setup.memory, opts.min).slice(0, Math.max(opts.min, setup.memory.every));
+    if (!span.length) return undefined;
+    await this.loadCharNames(session);
+    const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
+    const user = persona ? effectivePersona(persona, setup.personaVariantId).name : DEFAULT_USER_NAME;
+    const on = chaptersOnPath(path, all);
+    const previous = on[on.length - 1]?.chapter;
+    const id = setup.agentConnectionId;
+    const conn = (id ? connections?.[id] ?? this.options.connectionById?.(id) : undefined) ?? main;
+    const answer = await this.core.connections.complete(conn, chapterRequest(span, previous, (m) => this.nameOf(m, user)), { signal: opts.signal, maxTokens: 1200 });
+    const parsed = parseChapter(answer.text);
+    if (!parsed.summary.trim()) throw new Error("The summary came back empty");
+    const chapter: Chapter = {
+      id: this.newId(), fromId: span[0]!.id, toId: span[span.length - 1]!.id, title: parsed.title, summary: parsed.summary,
+      messageCount: span.length, createdAt: this.now(),
+    };
+    // re-read: the user may have edited a chapter while this one was being written
+    await this.saveChapters(session.id, [...(await this.chapters(session.id)), chapter]);
+    return chapter;
+  }
+
+  /** Summarize now (the Memory group's button): a chapter from whatever waits, if at least 2 messages. */
+  async summarizeNow(sessionId: string, messageId: string, connection: ConnectionConfig, connections?: Record<string, ConnectionConfig>, signal?: AbortSignal): Promise<Chapter | undefined> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    const setup = await this.setupFor(session);
+    const main = (setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection;
+    return this.summarize(session, setup, messageId, main, connections, { min: 2, signal });
   }
 
   /**
@@ -378,7 +448,7 @@ export class TurnPipeline {
     // agents that only add their own text cost nothing: the preview shows them (D-047); the others would need an AI call
     const textAgents = await this.runner.select(entries, { ...base, trigger: "turn.before" }, (a) => isTurn(a, "before") && a.runMode === "text" && a.output === "inject");
     const injections: PromptInjection[] = [];
-    for (const e of textAgents) injections.push(injectionOf({ agentId: e.config.id, kind: "inject", config: e.config, output: await this.runner.textAnswer(e.config, { ...base, text: options.userText ?? "" }) }));
+    for (const e of textAgents) injections.push(injectionOf({ agentId: e.config.id, kind: "inject", config: e.config, output: await this.runner.textAnswer(withStyle(e.config, setup), { ...base, text: options.userText ?? "" }) }));
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: speaking.character, persona: effPersona,
       names, injections, inlineAgents, type: "normal", main, seed: parentId ?? session.id });
     const before = entries.filter((e) => isTurn(e.config, "before") && e.config.runMode !== "inline" && !(e.config.runMode === "text" && e.config.output === "inject"));
@@ -493,19 +563,23 @@ export class TurnPipeline {
       ...(this.options.random ? { random: this.options.random } : {}),
     } });
     const cast = await this.castFor(a.session);
+    // memory (D-054): chapters stand in for the messages they cover, just before what is left of the chat
+    const memory = a.setup.memory.on ? applyChapters(a.history, await this.chapters(a.session.id)) : { history: a.history, text: "", covered: 0 };
+    const injections = memory.text ? [...a.injections, { agentId: "memory", text: memory.text, position: "depth" as const, depth: 100_000, role: "system" as const }] : a.injections;
     const built = buildPrompt({
       preset: a.preset, generationType: a.type, character: a.character,
       ...(a.session.storyId || a.session.cast.some((member) => member.role === "narrator" && member.presence !== "off") ? { narrator: a.setup.narratorPrompt } : {}), ...(cast ? { cast } : {}),
       persona: a.persona ? { name: a.persona.name, description: a.persona.description, placement: a.persona.placement } : undefined,
-      sessionScenario: a.session.scenario, history: a.history, names: { char: a.names.char, user: a.names.user }, scene,
-      injections: a.injections,
+      sessionScenario: a.session.scenario, history: memory.history, names: { char: a.names.char, user: a.names.user }, scene,
+      injections,
       inline: a.inlineAgents.map((e) => ({ agentId: e.config.id, text: inlineInstruction(e.config, a.names) })),
       reserve: a.main.params?.maxTokens ?? 1024,
       ...(lore ? { worldInfo: lore.prompt } : {}),
       authorsNote: { ...a.setup.authorsNote, goes: authorsNoteGoes(a.setup.authorsNote.interval, a.history) },
       macros: { model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, custom, vars },
     });
-    return lore ? { ...built, lore: lore.report } : built;
+    const withNotes = memory.covered ? { ...built, notes: [...built.notes, `Memory: ${memory.covered} older message(s) sent as chapter summaries.`] } : built;
+    return lore ? { ...withNotes, lore: lore.report } : withNotes;
   }
 
   /**
