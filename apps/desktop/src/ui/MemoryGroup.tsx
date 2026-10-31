@@ -55,7 +55,7 @@ export function MemoryGroup({ svc, session, headId, connection, storySetup, onCh
   const on = state?.on ?? false;
   const from = own.on === undefined ? (storySetup?.memory?.on !== undefined ? " · from the story" : "") : "";
   return (
-    <Group title="Memory" testId="memory-group"
+    <Group title={state?.chapters.length ? `Memory · ${state.chapters.length} chapter${state.chapters.length === 1 ? "" : "s"}` : "Memory"} testId="memory-group"
       help="Older messages are summarized into chapters, and the AI reads the chapters instead of them. Long chats stay consistent and each reply sends fewer tokens. Uses the agents' connection (one short call per chapter). Branches keep their own chapters.">
       <Row label="Chapter summaries" help={`On: every ${state?.every ?? 20} messages, the oldest ones become a chapter.${from}`}>
         <Switch label="Chapter summaries" checked={on} onChange={(v) => setMemory({ on: v })} />

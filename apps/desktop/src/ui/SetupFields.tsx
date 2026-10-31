@@ -180,7 +180,10 @@ function AgentsSummary({ agents, chat, layer, above, onChange }: { agents: Agent
             {sorted.map((a) => <AgentRow key={a.id} a={a} chat={chat} layer={layer} above={above} onChange={onChange} />)}
             {sorted.length === 0 && <div className="setup-empty">Nothing matches.</div>}
           </div>
-          <p className="hint">{chat ? "Changes here only affect this chat." : "Every new chat of this story starts with these."}</p>
+          <span className="row-line">
+            <span className="hint grow">{chat ? "Changes here only affect this chat." : "Every new chat of this story starts with these."}</span>
+            {on.length > 0 && <Button small variant="plain" onClick={() => onChange(agents.reduce((l, a) => layerWithTracker(l, a.id, false, inherited(a.id)), layer))}>Turn all off</Button>}
+          </span>
         </Modal>
       )}
     </>

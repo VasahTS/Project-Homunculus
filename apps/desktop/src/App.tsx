@@ -221,6 +221,12 @@ export function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live]);
 
+  // "ok" notices go away by themselves; warnings and errors wait for Dismiss (30/10)
+  useEffect(() => {
+    if (!notice || notice.kind !== "ok") return;
+    const t = setTimeout(() => setNotice((n) => (n === notice ? null : n)), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
   if (bootError) return <div className="boot error">Could not start: {bootError}</div>;
   if (!svc) return <div className="boot">Waking the homunculus…</div>;
 

@@ -2113,3 +2113,8 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .memory-chapter-title small { color: var(--label-2); font-size: var(--size-small); }
 .memory-chapter-body { display: grid; gap: 6px; padding: 0 8px 8px; }
 .memory-chapter-body textarea { font-family: var(--font-prose); line-height: var(--leading-prose); }
+
+/* ■ Stop in the sidebar (30/10) */
+.side-stop { flex: none; margin-left: 4px; padding: 0 5px; border-radius: 4px; font-size: 9px; line-height: 16px; color: var(--label-2); background: var(--fill); cursor: pointer; }
+.side-stop:hover { color: var(--danger); background: var(--danger-soft); }
+.side-stop:focus-visible { outline: none; box-shadow: var(--focus-ring); }

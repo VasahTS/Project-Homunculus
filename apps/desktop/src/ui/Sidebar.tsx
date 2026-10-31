@@ -14,7 +14,7 @@ import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
 import { useSlidingPill } from "./motion.ts";
-import { useTurns, type LiveTurn } from "../turns.ts";
+import { turns, useTurns, type LiveTurn } from "../turns.ts";
 
 export interface SidebarSearchItem { id: string; name: string; kind: string; onOpen: () => void }
 
@@ -53,7 +53,11 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
   const working = (id: string) => {
     const t: LiveTurn | undefined = live.get(id);
     if (!t || t.phase === "done") return null;
-    return <span className="side-line side-writing" data-testid="side-writing"><i aria-hidden />{t.phase === "writing" ? "writing…" : "updating the scene…"}</span>;
+    // ■ stops the reply without opening the chat (inside the row's button, so a span that acts as one)
+    const stop = (e: { stopPropagation: () => void; preventDefault: () => void }) => { e.stopPropagation(); e.preventDefault(); turns.stop(id); };
+    return <span className="side-line side-writing" data-testid="side-writing"><i aria-hidden />{t.phase === "writing" ? "writing…" : "updating the scene…"}
+      {t.phase === "writing" && <span role="button" tabIndex={0} className="side-stop" aria-label="Cancel this reply" title="Stop this reply" data-testid="side-stop"
+        onClick={stop} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") stop(e); }}>■</span>}</span>;
   };
   const [q, setQ] = useState("");
   /** Stories whose chats are shown (the active story's always are). */

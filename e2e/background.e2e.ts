@@ -76,3 +76,19 @@ test("Stop works after coming back, and keeps what arrived", async ({ page }) =>
   await expect(page.getByTestId("message").nth(2)).toContainText("She tilts her head"); // what arrived stays
   await expect(page.getByTestId("message").nth(2)).not.toContainText('You said: Long one."'); // the rest never came
 });
+
+test("■ in the sidebar stops a reply without opening its chat", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("message")).toHaveCount(1);
+  await rename(page, "Gamma");
+  await newChat(page);
+  await rename(page, "Delta");
+  await chat(page, "Gamma").click();
+  await page.evaluate(() => { (globalThis as { __h2ReplyDelayMs?: number }).__h2ReplyDelayMs = 200; });
+  await write(page, "Stop me from the side.");
+  await chat(page, "Delta").click();
+  await page.getByTestId("side-stop").click();
+  await expect(page.getByTestId("session-list").getByTestId("side-writing")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByTestId("messages")).toBeVisible();
+});
+
