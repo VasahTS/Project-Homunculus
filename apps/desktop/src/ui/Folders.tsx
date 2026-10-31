@@ -24,6 +24,17 @@ const elOf = (id: string) => document.querySelector<HTMLElement>(`[data-drag-id=
 function paintSelection() {
   document.querySelectorAll<HTMLElement>("[data-drag-id]").forEach((el) => el.classList.toggle("fd-selected", selected.has(el.dataset.dragId ?? "")));
 }
+// React rewrites a card's class when it re-renders; put the mark back while something is picked
+let repaint = 0;
+if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
+  new MutationObserver(() => {
+    if (!selected.size || repaint) return;
+    repaint = requestAnimationFrame(() => { repaint = 0; document.querySelectorAll<HTMLElement>("[data-drag-id]").forEach((el) => {
+      const want = selected.has(el.dataset.dragId ?? "");
+      if (el.classList.contains("fd-selected") !== want) el.classList.toggle("fd-selected", want);
+    }); });
+  }).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+}
 function clearSelection() { if (!selected.size) return; selected.clear(); paintSelection(); }
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") clearSelection(); });
@@ -52,7 +63,10 @@ function startDrag(e: ReactPointerEvent, id: string) {
   if (e.ctrlKey || e.metaKey) {
     if (selected.has(id)) selected.delete(id); else selected.add(id);
     paintSelection();
-    swallowClick();
+    // the click comes when the button is released (a real hand holds it ~100 ms): swallow it then, not right away
+    const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+    window.addEventListener("click", stop, { capture: true, once: true });
+    window.addEventListener("pointerup", () => setTimeout(() => { window.removeEventListener("click", stop, { capture: true }); paintSelection(); }, 0), { once: true });
     return;
   }
   const sx = e.clientX;
