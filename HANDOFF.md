@@ -6,6 +6,11 @@ Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`,
 
 ## Small round (2026-10-30, late) — CLAUDE
 
+- **Starter tracker notes:** Health, Mana, Level, Quests, Factions, Threat, Secrets… come with "What it means in the story" (trackers.json v3); installed trackers get them once, only where a field has no note (`starterTrackersNotes`).
+- **Agent failed:** a warning notice names the agent/tracker and the reason, with Edit agent / Edit tracker (Stop is not a failure).
+- **Tokens per chat:** the composer footer shows "· this chat: 12.3k tokens" (replies + agents, all branches, as providers reported; cost when reported). `SqlStore.sessionUsage`.
+- Also: sidebar ■ Stop, ok notices hide after 6 s, Turn all off in Choose agents, chapter count in the Memory title.
+
 - **Reply ready elsewhere:** when a reply finishes in a chat that is not on screen, a notice says "Reply ready in “<chat>”" with **Open** (App.tsx, from `useTurns`).
 - **Library lists side by side:** Kits, Narrators, NPCs, Personas… use a grid of cards (min 300 px) instead of one card per row.
 

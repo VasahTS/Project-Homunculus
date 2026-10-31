@@ -438,6 +438,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   // what agents did on the replies on screen (the latest 30), reloaded when a turn ends or something changes
   // (+ the message before the latest reply: "before the reply" agents record their runs there)
   const latestParentId = lastAi?.parentId ?? null;
+  // what this chat has spent (D-055, Daniel short on credits): reloaded when a turn ends or the chat changes
+  const [usage, setUsage] = useState<{ tokensIn: number; tokensOut: number; cost: number; calls: number } | null>(null);
+  useEffect(() => { let off = false; void svc.store.sessionUsage(session.id).then((u) => { if (!off) setUsage(u); }).catch(() => {}); return () => { off = true; }; }, [svc, session.id, busy, sceneKey]);
   const agentResults = useAgentResults(svc, [...visible.filter((m) => m.speaker.kind !== "user").slice(-30).map((m) => m.id), ...(latestParentId ? [latestParentId] : [])], sceneKey);
   /** Undo all / the mix chosen in the rewrite comparison: the message gets that text (the old one is kept as a revision). */
   const saveText = async (m: Message, text: string) => {
@@ -666,6 +669,11 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               {params.temperature !== undefined ? `, temperature ${params.temperature}` : ""}
               {params.reasoningEffort ? `, thinking ${params.reasoningEffort}` : ""}
             </button>
+            {usage && usage.tokensIn + usage.tokensOut > 0 && (
+              <span className="composer-usage" data-testid="chat-usage" title={`This chat so far (all branches, replies and agents): ${usage.tokensIn.toLocaleString("en-US")} tokens in, ${usage.tokensOut.toLocaleString("en-US")} out, ${usage.calls} calls${usage.cost ? `, $${usage.cost.toFixed(4)}` : ""}. Only what the provider reported.`}>
+                · this chat: {shortTokens(usage.tokensIn + usage.tokensOut)} tokens{usage.cost ? ` · $${usage.cost.toFixed(2)}` : ""}
+              </span>
+            )}
           </div>
         </form>
       </div>
@@ -725,3 +733,9 @@ function ReceiptLine({ svc, messageId, trackers, refreshKey, onDetails }: {
   if (!text) return null;
   return <button className="receipt" data-testid="receipt" onClick={onDetails}>{text} <span className="receipt-link">Details</span></button>;
 }
+
+/** 12345 → "12.3k", 2500000 → "2.5M". */
+function shortTokens(n: number): string {
+  return n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n);
+}
+

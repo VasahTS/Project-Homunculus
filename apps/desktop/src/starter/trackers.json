@@ -1,5 +1,5 @@
 {
- "version": 2,
+ "version": 3,
  "trackers": [
   {
    "agent": {
@@ -164,7 +164,8 @@
         }
        ],
        "display": "auto",
-       "icon": "scroll"
+       "icon": "scroll",
+       "note": "Open goals the story set. Progress or finish them through what happens; never resolve them off-screen."
       },
       {
        "key": "inventory",
@@ -232,7 +233,8 @@
         }
        ],
        "display": "auto",
-       "icon": "flag"
+       "icon": "flag",
+       "note": "Groups and how they stand toward the user; actions toward a faction change its stance."
       }
      ]
     },
@@ -366,7 +368,8 @@
         }
        ],
        "display": "auto",
-       "icon": "scroll"
+       "icon": "scroll",
+       "note": "Open goals the story set. Progress or finish them through what happens; never resolve them off-screen."
       },
       {
        "key": "inventory",
@@ -434,7 +437,8 @@
         }
        ],
        "display": "auto",
-       "icon": "flag"
+       "icon": "flag",
+       "note": "Groups and how they stand toward the user; actions toward a faction change its stance."
       },
       {
        "key": "food",
@@ -446,7 +450,8 @@
        "section": "Survival",
        "toPrompt": true,
        "lockedForAgents": false,
-       "display": "tile"
+       "display": "tile",
+       "note": "How fed the group is. Hunger grows each day without food and weakens everyone."
       },
       {
        "key": "water",
@@ -459,7 +464,8 @@
        "toPrompt": true,
        "lockedForAgents": false,
        "display": "tile",
-       "icon": "drop"
+       "icon": "drop",
+       "note": "How much drinking water is left. Without it they weaken within a day or two."
       },
       {
        "key": "shelter",
@@ -471,7 +477,8 @@
        "section": "Survival",
        "toPrompt": true,
        "lockedForAgents": false,
-       "display": "tile"
+       "display": "tile",
+       "note": "Where they can rest safely. Without shelter, nights are cold, dangerous and tiring."
       },
       {
        "key": "threat",
@@ -485,7 +492,8 @@
        "lockedForAgents": false,
        "display": "tile",
        "icon": "alert",
-       "color": "#e58a80"
+       "color": "#e58a80",
+       "note": "The danger level right now. Higher means enemies are near or the place is hostile: act carefully."
       }
      ]
     },
@@ -723,7 +731,8 @@
        "options": [
         "here",
         "away"
-       ]
+       ],
+       "note": "Only characters marked as in the scene can act, speak or be seen now."
       },
       {
        "key": "role",
@@ -787,7 +796,8 @@
        "toPrompt": true,
        "lockedForAgents": false,
        "display": "line",
-       "icon": "ruler"
+       "icon": "ruler",
+       "note": "How far they are from the user; it limits who can be heard, touched or reached this turn."
       },
       {
        "key": "doing",
@@ -1004,7 +1014,8 @@
        "options": [
         "here",
         "away"
-       ]
+       ],
+       "note": "Only characters marked as in the scene can act, speak or be seen now."
       },
       {
        "key": "role",
@@ -1068,7 +1079,8 @@
        "toPrompt": true,
        "lockedForAgents": false,
        "display": "line",
-       "icon": "ruler"
+       "icon": "ruler",
+       "note": "How far they are from the user; it limits who can be heard, touched or reached this turn."
       },
       {
        "key": "doing",
@@ -1200,7 +1212,8 @@
        "min": 0,
        "display": "tile",
        "icon": "star",
-       "color": "#e3b45c"
+       "color": "#e3b45c",
+       "note": "How experienced and strong they are. Higher levels beat lower ones; it only rises after real victories or training."
       },
       {
        "key": "health",
@@ -1216,7 +1229,8 @@
        "max": 100,
        "display": "tile",
        "icon": "heart",
-       "color": "#e58a80"
+       "color": "#e58a80",
+       "note": "0 = unconscious or dying; low = badly hurt, slow and in pain. Wounds lower it; rest, healing and potions raise it."
       },
       {
        "key": "mana",
@@ -1232,7 +1246,8 @@
        "max": 100,
        "display": "tile",
        "icon": "drop",
-       "color": "#8ab0e6"
+       "color": "#8ab0e6",
+       "note": "Spent by casting spells; at 0 they cannot cast and feel drained. Rest, meditation or potions bring it back."
       },
       {
        "key": "affinity",
@@ -1245,7 +1260,8 @@
        "toPrompt": true,
        "lockedForAgents": false,
        "display": "tile",
-       "icon": "sparkle"
+       "icon": "sparkle",
+       "note": "Their elemental or magical leaning: spells of this kind come easier, opposite ones harder."
       },
       {
        "key": "skill_slots",
@@ -1260,7 +1276,8 @@
        "min": 0,
        "max": 20,
        "display": "tile",
-       "icon": "grid"
+       "icon": "grid",
+       "note": "How many skills they can hold at once; a new skill needs a free slot."
       },
       {
        "key": "skills",
@@ -1386,7 +1403,8 @@
        "lockedForAgents": false,
        "display": "block",
        "icon": "alert",
-       "color": "#e3b45c"
+       "color": "#e3b45c",
+       "note": "Lasting effects (poisoned, cursed, exhausted…). Each one changes what they can do until it is cured or wears off."
       }
      ],
      "presence": {
@@ -1512,7 +1530,8 @@
        "options": [
         "here",
         "away"
-       ]
+       ],
+       "note": "Only characters marked as in the scene can act, speak or be seen now."
       },
       {
        "key": "role",
@@ -1576,7 +1595,8 @@
        "toPrompt": true,
        "lockedForAgents": false,
        "display": "line",
-       "icon": "ruler"
+       "icon": "ruler",
+       "note": "How far they are from the user; it limits who can be heard, touched or reached this turn."
       },
       {
        "key": "doing",
@@ -1708,7 +1728,8 @@
        "lockedForAgents": false,
        "display": "block",
        "icon": "alert",
-       "color": "#e58a80"
+       "color": "#e58a80",
+       "note": "What reliably hurts or stops them; enemies who know it will use it."
       },
       {
        "key": "power_level",
@@ -1721,7 +1742,8 @@
        "toPrompt": true,
        "lockedForAgents": false,
        "display": "tile",
-       "icon": "bolt"
+       "icon": "bolt",
+       "note": "How their powers rank against others; a big gap means a one-sided fight."
       }
      ],
      "presence": {
@@ -1847,7 +1869,8 @@
        "options": [
         "here",
         "away"
-       ]
+       ],
+       "note": "Only characters marked as in the scene can act, speak or be seen now."
       },
       {
        "key": "role",
@@ -1911,7 +1934,8 @@
        "toPrompt": true,
        "lockedForAgents": false,
        "display": "line",
-       "icon": "ruler"
+       "icon": "ruler",
+       "note": "How far they are from the user; it limits who can be heard, touched or reached this turn."
       },
       {
        "key": "doing",
@@ -2028,7 +2052,8 @@
        "toPrompt": true,
        "lockedForAgents": false,
        "display": "block",
-       "icon": "chip"
+       "icon": "chip",
+       "note": "Implants with real effects; damage or hacking can disable them."
       },
       {
        "key": "gear",
@@ -2083,7 +2108,8 @@
        "options": [
         "here",
         "away"
-       ]
+       ],
+       "note": "Only characters marked as in the scene can act, speak or be seen now."
       },
       {
        "key": "role",
@@ -2193,7 +2219,8 @@
        "section": "Author",
        "toPrompt": true,
        "lockedForAgents": true,
-       "display": "auto"
+       "display": "auto",
+       "note": "Where the story is heading next; steer toward them gently, without forcing."
       },
       {
        "key": "beats_done",
@@ -2259,7 +2286,8 @@
         }
        ],
        "display": "auto",
-       "icon": "scroll"
+       "icon": "scroll",
+       "note": "Unresolved story lines; bring them back when it fits."
       },
       {
        "key": "goals",
@@ -2355,7 +2383,8 @@
         }
        ],
        "display": "auto",
-       "icon": "lock"
+       "icon": "lock",
+       "note": "Hidden from the user's character. Hint at them, never reveal them without a reason in the story."
       }
      ]
     }

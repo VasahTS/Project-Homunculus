@@ -227,6 +227,22 @@ export function App() {
     const t = setTimeout(() => setNotice((n) => (n === notice ? null : n)), 6000);
     return () => clearTimeout(t);
   }, [notice]);
+  // An agent or tracker failed: say which and why, with a way to its editor (D-055). Stop is not a failure.
+  const namesRef = useRef<Record<string, string>>({});
+  namesRef.current = Object.fromEntries([...agents.map((a) => [a.id, a.name] as const), ...trackers.map((t) => [t.agent.id, t.agent.name] as const)]);
+  useEffect(() => {
+    if (!svc) return;
+    return svc.core.events.on("agent.failed", (e) => {
+      if (e.reason === "Stopped") return;
+      const name = namesRef.current[e.agentId] ?? e.agentId;
+      const isTracker = trackersRef.current.has(e.agentId);
+      setNotice({ kind: "warn", title: `“${name}” failed`, lines: [e.reason.length > 240 ? `${e.reason.slice(0, 240)}…` : e.reason],
+        action: { label: isTracker ? "Edit tracker" : "Edit agent", run: () => (isTracker ? openTrackerRef.current?.(e.agentId, true) : setView({ kind: "agents", id: e.agentId, fromSession: true })) } });
+    }, "agent-failures");
+  }, [svc]);
+  const openTrackerRef = useRef<((id: string, fromSession: boolean) => void) | null>(null);
+  const trackersRef = useRef(new Set<string>());
+  trackersRef.current = new Set(trackers.map((t) => t.agent.id));
   if (bootError) return <div className="boot error">Could not start: {bootError}</div>;
   if (!svc) return <div className="boot">Waking the homunculus…</div>;
 
@@ -504,6 +520,7 @@ export function App() {
     const t = trackers.find((x) => x.agent.id === id);
     setView(t ? { kind: "trackers", draft: draftOf(t), isNew: false, fromSession } : { kind: "trackers", draft: blankTracker(), isNew: true, fromSession });
   };
+  openTrackerRef.current = openTracker;
 
   const onSaveTracker = async (d: TrackerDraft): Promise<TrackerDraft> => {
     const saved = await saveTracker(svc.store, d);

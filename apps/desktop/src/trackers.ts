@@ -261,6 +261,7 @@ export async function installStarterTrackers(store: SqlStore): Promise<void> {
   if (changed) await store.setAppSetting(STARTER_KEY, [...installed]);
   await addStarterLook(store);
   await addStarterOrder(store);
+  await addStarterNotes(store);
 }
 
 const LOOK_KEY = "starterTrackersLook";
@@ -354,4 +355,31 @@ export async function sampleFor(svc: AppServices, trackerId: string): Promise<Tr
     }
   }
   return null;
+}
+
+const NOTES_KEY = "starterTrackersNotes";
+/** Starter data version 3 carries the field notes. */
+const NOTES_VERSION = 3;
+
+/**
+ * 2026-10-30 (D-055): starter fields got "What it means in the story" notes (Health, Mana, Quests…). Installed
+ * trackers get them once, only on fields without a note, matched by set id and field key.
+ */
+async function addStarterNotes(store: SqlStore): Promise<void> {
+  if (((await store.getAppSetting<number>(NOTES_KEY)) ?? 0) >= NOTES_VERSION || starter.version < NOTES_VERSION) return;
+  for (const t of starter.trackers) {
+    for (const s of t.sets) {
+      const saved = await store.trackerSchemas.get(s.id);
+      if (!saved) continue;
+      let touched = false;
+      const fields = saved.fields.map((f) => {
+        const from = (s.fields as Array<Partial<TrackerField>>).find((x) => x.key === f.key);
+        if (!from?.note || f.note) return f;
+        touched = true;
+        return { ...f, note: from.note };
+      });
+      if (touched) await store.saveTrackerSchema({ ...saved, fields });
+    }
+  }
+  await store.setAppSetting(NOTES_KEY, NOTES_VERSION);
 }

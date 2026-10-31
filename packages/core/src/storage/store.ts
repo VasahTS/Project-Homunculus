@@ -385,6 +385,21 @@ export class SqlStore implements StateRepository, MessageTree {
     return sessions;
   }
 
+  /** What a chat has spent so far: replies plus agent/tracker runs, as the providers reported it (all branches). */
+  async sessionUsage(sessionId: string): Promise<{ tokensIn: number; tokensOut: number; cost: number; calls: number }> {
+    const out = { tokensIn: 0, tokensOut: 0, cost: 0, calls: 0 };
+    for (const table of ["generation_records", "agent_runs"]) {
+      const rows = await this.db.select<{ data: string }>(`SELECT data FROM ${table} WHERE session_id = ?`, [sessionId]);
+      for (const { data } of rows) {
+        try {
+          const d = JSON.parse(data) as { tokensIn?: number; tokensOut?: number; cost?: number };
+          out.tokensIn += d.tokensIn ?? 0; out.tokensOut += d.tokensOut ?? 0; out.cost += d.cost ?? 0; out.calls++;
+        } catch { /* a damaged row adds nothing */ }
+      }
+    }
+    return out;
+  }
+
   // ------------------------------------------------------------ app settings
   /** A small app-wide value (JSON), e.g. which starter data was installed. */
   async getAppSetting<T = unknown>(key: string): Promise<T | undefined> {
