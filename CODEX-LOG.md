@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-11-01 · DuckDuckGo web search request for Claude
+
+Recorded Daniel's explicit request for Assistant web_search/web_fetch with DuckDuckGo only, no required Exa/key or silent provider fallback, controlled concurrency and temporary-error cooldown.
+Saved his Flint settings screenshot and pinned implementation references in `docs/ASSISTANT-WEB-SEARCH-REVIEW.md`; his reported 404 recovery is user experience, not a verified error diagnosis.
+Linked total token budgets, source citations and actual request visibility. Documentation/reference only; no app, UI, schema or dependency changes. Validation: typecheck passed; 324 unit passes, 7 expected failures, 3 skips; diff check passed. Signed: **CODEX**.
+
 ## 2026-11-01 · Assistant efficiency and transparency review notes
 
 Recorded Daniel's request for Claude: consolidate the current Assistant, control total spending, reduce old argument replay, bound reads and review always-included preset context.

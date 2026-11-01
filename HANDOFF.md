@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Assistant web search requested: DuckDuckGo (2026-11-01) — CODEX
+
+Daniel wants `web_search` and `web_fetch`; he uses them often in Flint and currently chooses DuckDuckGo only because Exa is limited. DuckDuckGo must work without Exa or a key; no silent Exa fallback.
+Avoid parallel search bursts; allow bounded waiting/cooldown for transient failures. Daniel reports waiting resolves what he sees as 404; actual HTTP/error diagnosis is still unverified.
+Requirements, token/request-transparency safeguards, pinned Flint source links and Daniel's screenshot: `docs/ASSISTANT-WEB-SEARCH-REVIEW.md`.
+For Claude's implementation planning; no production/UI/schema/dependency changes or new D-number. Signed: **CODEX**.
+
 ## Assistant follow-up: token control and request transparency (2026-11-01) — CODEX
 
 Daniel asked to record this for Claude's review: keep the sound on-demand/context-summary foundation; prioritize reliability and token control before expanding capabilities.
