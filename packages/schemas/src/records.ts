@@ -40,6 +40,8 @@ export const AgentRun = z.object({
   reasoning: z.string().optional(),
   prompt: z.array(z.object({ role: z.string(), content: z.string() })).optional(),
   raw: z.string().optional(),
+  /** A direction you gave for this run only (D-057), e.g. "options that lead to the docks". */
+  direction: z.string().optional(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
 export type AgentRunInput = z.input<typeof AgentRun>;

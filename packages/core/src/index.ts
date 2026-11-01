@@ -9,6 +9,7 @@ export * from "./variants.ts";
 export * from "./agents/outputs.ts";
 export * from "./agents/runner.ts";
 export * from "./agents/styles.ts";
+export * from "./agents/feedback.ts";
 export * from "./presets.ts";
 export * from "./prompt-control.ts";
 export * from "./lorebook.ts";

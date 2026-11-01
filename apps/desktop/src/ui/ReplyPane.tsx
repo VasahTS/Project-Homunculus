@@ -37,6 +37,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
 }) {
   const [r, setR] = useState<Receipt | null>(null);
   const [running, setRunning] = useState<string | null>(null);
+  const [runError, setRunError] = useState("");
   const [tick, setTick] = useState(0);
   const [promptOpen, setPromptOpen] = useState(false);
   const paneRef = useRef<HTMLDivElement>(null);
@@ -91,7 +92,10 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
 
   const runAgain = async (agentId: string) => {
     setRunning(agentId);
-    try { await svc.chat.turns.runManual(session.id, agentId, r.message.id, connection.forRequest().connection, undefined, connection.forRequest().connections); } catch { /* the run records its own error */ }
+    setRunError("");
+    // failed runs record their reason (shown below); anything that fails before the run starts is shown here (D-057)
+    try { await svc.chat.turns.runManual(session.id, agentId, r.message.id, connection.forRequest().connection, undefined, connection.forRequest().connections); }
+    catch (e) { setRunError(e instanceof Error ? e.message : String(e)); }
     setRunning(null);
     setTick((x) => x + 1);
     onChanged();
@@ -150,6 +154,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
           </Row>
         ))}
         {r.runs.filter((x) => x.error).map((x) => <Row key={`e-${x.id}`} wide><span className="run-error">{agentName(x.agentId, trackers)}: {x.error}</span></Row>)}
+        {runError && <Row wide><span className="run-error" role="alert">{runError}</span></Row>}
       </Group>
 
       <Group title="What was sent" aside={<span data-testid="sent-total">{rec.tokensIn ? `${total.toLocaleString()} tokens` : `about ${fmtTokens(total)} tokens`}</span>}

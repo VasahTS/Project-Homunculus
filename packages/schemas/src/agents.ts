@@ -137,6 +137,17 @@ export const AgentConfig = z.object({
    */
   styles: z.array(z.object({ id: z.string().min(1), name: z.string().min(1), text: z.string().default("") })).optional(),
   styleId: z.string().optional(),
+  /**
+   * The connection profile this agent uses (Daniel, 31/10; v1's per-agent Connection Profile, Marinara's Connection
+   * Override). Unset = the setup's connection for agents, else the story's. A story/chat override still wins.
+   */
+  connectionId: Id.nullable().optional(),
+  /**
+   * Notes only (D-057): the story's AI sees this agent's latest notes on the next replies (v1 "Feed recent notes into
+   * future generations"). Unset = on for notes shown in the chat (label / card), off for views and panel-only notes.
+   * The notes go where `injection` says (default: in the chat, 1 back, as System).
+   */
+  feedback: z.object({ on: z.boolean(), notes: z.number().int().min(1).max(20).default(1) }).optional(),
   /** For `proposal`: what it proposes to change (D-049). "lorebook": new or updated entries in the story's own version. */
   proposal: z.object({ target: z.enum(["lorebook"]) }).optional(),
   /** For `inline`: the tag the main model writes, e.g. "SCENE" for [SCENE]…[/SCENE]. */

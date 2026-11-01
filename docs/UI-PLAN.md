@@ -7,6 +7,56 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
+## Agents v4 and the narrator editor — CLAUDE, 2026-10-31 · 🟡 text + draft for Daniel's review (`docs/drafts/agents-v4/index.html`)
+
+Daniel (31/10, translated): "The agents are very confusing; I'm not sure this is the best way to show them. It's hard to tell what is a companion, what is inline… Look at how Marinara and my Homunculus v1 do it, for the UI and for what they do." And: "Improve how narrators are written; I had trouble making one. Maybe the fields could come ready and I just pick: tone, tense, length… and whatever else makes a good narrator."
+The functional fixes he listed are **already in the app** (D-057): notes go back to the story's AI, Run again with a direction, the model beside a note, a connection per agent, generic Styles text. This section is only the screens.
+
+### What the two reference apps do
+- **Homunculus v1** (`in-chat-agents`, glossary): tabs All / Quick / **Pre / Post / Companions**. *Inline* agents touch the main reply (before: inject or intercept; after: rewrite, regex). *Companions* are separate calls with their own result (note card under the reply, the tracker panel, or a hidden note), can **feed notes back** into later replies, have **Play / Regenerate / Edit note** buttons, and their **own Connection Profile**.
+- **Marinara** (`AgentEditor.tsx`, `docs/agents/`): a **Pipeline Phase** (Pre-Generation / Parallel / Post-Processing), a **Result Type** list, opt-in **abilities**, **Context Sources**, **Connection Override** ("use a cheaper model for this agent"), activation keywords. Agents are switched on per chat, and the library is grouped (Writer / Tracker / Misc / Custom).
+- Both answer the user's first question the same way: **when does it act, compared with the reply?** Today our screens lead with seven equal "kinds" and hide that answer, so the v1 words (inline / companion) have no place to land.
+
+### 1. One idea on every agent screen: three families
+| Family (screen words) | v1 / Marinara | Kinds in it |
+|---|---|---|
+| **Before the reply** · shapes what the AI writes | Inline · Pre / Pre-Generation | Adds to the prompt, Rewrites your message |
+| **On the reply** · works on what the AI wrote | Inline · Post / Post-Processing | Rewrites the reply, Checks the reply, Offers choices |
+| **Beside the story** · its own result, kept apart | Companions / Parallel + Post | Writes a side note, Updates the story's lorebook |
+Trackers stay in Library → Trackers (they are "beside the story" too; the Agents page links there in one line).
+
+### 2. Library → Agents
+- **What it is for:** find an agent, see at a glance what it does and where it is on, edit it. **When Daniel looks:** setting up a story, or after an agent misbehaved.
+- **Hierarchy.** Primary: the list in three family sections, each with its one-line meaning; each row = name, one-line description, "after every reply · GLM 4.6 · on in 3 chats". Secondary: search and a family filter; the Table view (kept as the second view, with a Model column). Hidden: everything else is in the editor.
+- **Layout:** list on the left (≈340 px), editor on the right — the current List view becomes the default. Empty: "No agents yet · New agent". Full: 40 agents, long names wrap to two lines, sections fold.
+- **New agent** opens a small window **"What should it do?"**: the seven kinds as cards under the three family headings, each with one sentence and an example ("e.g. Continuity: points out contradictions"). Below: "Or start from a copy of… ▾". The kind is chosen once here; in the editor it is a compact select (changing it later is rare).
+
+### 3. The agent editor
+- **A summary sentence under the name**, always visible, written from the settings: "*After every reply* it reads *the last 12 messages and the cast*, writes *a note under the reply* with *GLM 4.6*, and *the story's AI reads its latest note*." Each underlined part opens the section that sets it. This replaces guessing from seven chips.
+- **Sections in the order people ask:** What it does (family + kind, one line of meaning) → When (+ "Only if…" chance/keywords folded inside) → **Instructions** (open, big; macros listed under it) → **Model** (agents connection or a profile; in the app now) → **Result** (how it shows, the "story's AI reads it" switch, where it goes) → What it reads → Styles → Advanced. Only Instructions is open by default.
+- **Styles** stay generic (D-057): "Optional versions of the same agent… each story or chat picks one". No example text in the app; the Group Chat starter keeps its versions as its own data.
+- **What comes from v1:** per-agent connection, feedback of notes, Run again, the companion idea (as "Beside the story"). **From Marinara:** phases as the main grouping, connection override, the example-per-kind in the new-agent window. **Not taken:** Marinara's abilities list (our kinds already limit what an agent may change), v1 bulk select (later, if asked).
+
+### 4. In the chat (done, D-057)
+Note label → open: "Continuity · glm-4.6 · ↻". ↻ opens "Direction for this run (optional)" + Run again (Enter). Choices end with ↻ "New options" (same box). The ✦ panel row has "Direction for the next run · Enter runs" and shows the last run's direction. Errors show in place (no more silent failures).
+
+### 5. The narrator editor
+- **What it is for:** write how a story is told, without knowing prompt writing. **When:** making a story or a Kit, or when replies feel off.
+- **Hierarchy.** Primary: Name, **Start from** (new narrators only: Game master · Novelist · Interactive fiction · Blank — editable text, not behaviour), **How it tells the story** as rows of choices. Secondary: the free Instructions box ("anything else"), People switches, the reminder before each reply. Hidden: **"What the AI gets"** — the exact narrator text, folded at the bottom.
+- **Choice rows** (one pick each, "Not set" first, last chip **Custom…** keeps your own words): Point of view (1st · 2nd · 3rd limited · 3rd omniscient) · Tense (Past · Present) · Length (Short ~150 · Medium ~300 · Long ~600 words) · Tone (Dark · Adventurous · Light · Literary · Horror · Romantic · Comedic — up to two) · Pacing (Slow burn · Steady · Fast) · Dialogue (Mostly dialogue · Balanced · Mostly narration) · Detail (Spare · Vivid · Lush) · Consequences (Forgiving · Fair · Harsh) · Mature scenes (Fade out · Shown when the story leads there).
+- Each chip sends one plain sentence (v1 `classic-story-style.js`: label for you, text for the AI), e.g. *Present* → "Write in present tense." The sentence shows on hover and in "What the AI gets".
+- **Data:** the style values stay text, so every existing narrator keeps working; a chip writes a standard value, Custom keeps your words. New rows are new optional keys (empty = not said).
+- **States:** a narrator used by 5 stories says so in the header (as now); a card used as narrator keeps the card editor.
+
+### Open questions for Daniel
+1. Keep the Table view as a second view, or only the list + editor?
+2. Tone: one pick, or up to two (e.g. "Comedic + Romantic")?
+3. Keep "Mature scenes" as a row?
+4. The Group Chat starter's six styles: keep them as that agent's example data, or remove them?
+5. Start-from templates for narrators: are the four enough, and should they live in the Library so you can add your own?
+
+---
+
 ## Try it in the agent editor — CODEX, 2026-10-30 · text and visual approved; integrated (D-052, D-053)
 
 ### Purpose and scope

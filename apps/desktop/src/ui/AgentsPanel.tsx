@@ -60,8 +60,8 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
   busy: boolean; connection: ConnectionState;
   /** Switches an agent or a tracker on/off for this chat. */
   onToggle: (id: string, on: boolean, tracker: boolean) => void;
-  /** Runs an agent (or tracker) by hand on the latest message. */
-  onRun: (id: string) => Promise<void>;
+  /** Runs an agent (or tracker) by hand on the latest message, with an optional direction for that run (D-057). */
+  onRun: (id: string, direction?: string) => Promise<void>;
   onOpen: (id: string | null) => void;
   onEditTracker: (id: string) => void;
   /** Something finished: reload what is shown in the chat. */
@@ -79,6 +79,8 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
   const [showOff, setShowOff] = useState(false);
   const [error, setError] = useState("");
   const [details, setDetails] = useState<Item | null>(null);
+  // a direction for the next run of the open agent (D-057; Daniel: "write 'options that lead to X' before running CYOA")
+  const [direction, setDirection] = useState("");
   const items: Item[] = useMemo(() => [
     ...trackers.map((t) => ({ id: t.agent.id, name: t.agent.name, kind: "tracker", tracker: true, manual: false })),
     ...agents.map((a) => ({ id: a.id, name: a.name, kind: kindOf(a)?.short.toLowerCase() ?? a.output, tracker: false, manual: whenOf(a).when === "manual", agent: a })),
@@ -92,9 +94,9 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
   const runOf = (id: string): AgentRun | undefined => latest?.runs.find((r) => r.agentId === id) ?? latestBefore?.runs.find((r) => r.agentId === id);
   const anyFailed = items.some((i) => isOn(i.id) && runOf(i.id)?.status === "failed");
   const m = useFloatingMenu(Math.min(560, window.innerHeight - 80), 440, ".agp-search input");
-  const run = async (id: string) => {
+  const run = async (id: string, dir = "") => {
     setError("");
-    try { await onRun(id); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    try { await onRun(id, dir); if (dir) setDirection(""); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   const status = (i: Item) => {
@@ -124,14 +126,14 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
     return (
       <div key={i.id} className={`agp-row${isOpen ? " open" : ""}${here ? "" : " off"}`} data-testid="agents-menu-item">
         <Switch label={`${i.name} in this chat`} checked={here} onChange={(v) => i.tracker ? onToggle(i.id, v, true) : onToggle(i.id, v, false)} />
-        <button type="button" className="agp-main" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : i.id)}>
+        <button type="button" className="agp-main" aria-expanded={isOpen} onClick={() => { setOpen(isOpen ? null : i.id); setDirection(""); }}>
           <span className="agp-name"><b>{i.name}</b><span className="agp-chip">{i.kind}</span>{r?.model && <span className="agp-chip">{shortModel(r.model)}</span>}
             {i.agent?.runMode === "text" && <span className="agp-chip">no AI call</span>}
             {i.agent && styleName(i.agent) && <span className="agp-chip">{styleName(i.agent)}</span>}</span>
           {status(i)}
         </button>
         <span className="agp-acts">
-          {here && <IconButton label={`Run ${i.name}`} className="agp-ib" disabled={busy || !!live[i.id] || !latestId} onClick={() => void run(i.id)}><Icon name="play" size={13} /></IconButton>}
+          {here && <IconButton label={`Run ${i.name}`} className="agp-ib" disabled={busy || !!live[i.id] || !latestId} onClick={() => void run(i.id, isOpen ? direction : "")}><Icon name="play" size={13} /></IconButton>}
           <IconButton label={`Edit ${i.name}`} className="agp-ib" onClick={() => { m.setOpen(false); i.tracker ? onEditTracker(i.id) : onOpen(i.id); }}><Icon name="pencil" size={13} /></IconButton>
         </span>
         {isOpen && (
@@ -151,6 +153,13 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
                 <button key={k} type="button" className="choice" disabled={!onPick} onClick={() => { m.setOpen(false); onPick?.(c); }}>{c}</button>))}</div>
             )}
             {r?.status === "failed" && <p className="error-text">{r.error}</p>}
+            {here && !i.tracker && i.agent?.runMode !== "text" && (
+              <label className="agp-direction"><span className="sr-only">Direction for the next run of {i.name}</span>
+                <input placeholder="Direction for the next run (optional) · Enter runs" value={direction} disabled={busy || !!live[i.id] || !latestId}
+                  onChange={(e) => setDirection(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void run(i.id, direction); } }} />
+              </label>
+            )}
+            {r?.direction && <p className="hint">Last run's direction: “{r.direction}”</p>}
             {!r && <p className="hint">Nothing on the latest reply yet.</p>}
             <span className="agp-links">
               {r && <button type="button" className="link" onClick={() => setDetails(i)}>Details · why it did this</button>}

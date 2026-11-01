@@ -450,14 +450,26 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     await showBranch(headId ?? null);
     setSceneKey((k) => k + 1);
   };
-  const runAgentByHand = async (agentId: string) => {
+  /** Runs an agent by hand on a message (D-057: with an optional direction), and says why when it failed. */
+  const runAgentOn = async (agentId: string, messageId: string, direction = "") => {
+    const r = connection.forRequest();
+    try {
+      const out = await svc.chat.turns.runManual(session.id, agentId, messageId, r.connection, undefined, r.connections, { direction });
+      if (!out) {
+        const run = (await svc.store.listAgentRuns(messageId)).filter((x) => x.agentId === agentId).sort((a, b) => a.startedAt - b.startedAt).at(-1);
+        if (run?.status === "failed") throw new Error(run.error ?? "It failed.");
+      }
+    } finally {
+      await showBranch(headId ?? null);
+      setSceneKey((k) => k + 1);
+    }
+  };
+  const runAgentByHand = async (agentId: string, direction = "") => {
     const target = lastAi ?? last;
     if (!target) throw new Error("Write or get a message first: agents run on the latest message.");
-    const r = connection.forRequest();
-    await svc.chat.turns.runManual(session.id, agentId, target.id, r.connection, undefined, r.connections);
-    await showBranch(headId ?? null);
-    setSceneKey((k) => k + 1);
+    await runAgentOn(agentId, target.id, direction);
   };
+  const againOn = (messageId: string) => busy ? undefined : (agentId: string) => (direction: string) => runAgentOn(agentId, messageId, direction);
   /** Messages the other branches use: they are not versions here (each branch keeps its own, like a copy would). */
   const otherUsed = new Set(branches.list.filter((b) => b !== current).flatMap((b) => b.path));
   const versionsOf = (m: Message) => (siblings[m.id]?.ids ?? [m.id]).filter((id) => id === m.id || !otherUsed.has(id));
@@ -561,10 +573,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     <div className={user ? "text" : "text prose"}>{show(m.content, m)}</div>
                   )}
                   {!user && !isEditing && <CheckLines results={agentResults.get(m.id)} agents={agents} canWriteAgain={isLastAi && m.parentId !== null && !busy} onWriteAgain={() => regenerate(m)} />}
-                  {!user && !isEditing && <NoteChips results={agentResults.get(m.id)} agents={agents} />}
+                  {!user && !isEditing && <NoteChips results={agentResults.get(m.id)} agents={agents} onRun={againOn(m.id)} />}
                   {!user && !isEditing && <ProposalLines results={agentResults.get(m.id)} agents={agents} onOpen={onOpenStoryLore} />}
                   {isLastAi && !busy && !pending && !isEditing && (
-                    <Choices results={agentResults.get(m.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} />
+                    <Choices results={agentResults.get(m.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(m.id)} />
                   )}
                   </div>
                   {deletingMsg === m.id ? (
@@ -649,7 +661,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         {error && <div className="error-bar" role="alert">{error}</div>}
         {busy && !pending && <div className="turn-status" data-testid="turn-status">Reply saved. Trackers are updating…</div>}
 
-        {lastAi && !busy && !pending && <ComposerChoices results={agentResults.get(lastAi.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} />}
+        {lastAi && !busy && !pending && <ComposerChoices results={agentResults.get(lastAi.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(lastAi.id)} />}
         <form className="composer" data-region="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
           <div className="composer-box">
             <QuickConnect svc={svc} c={connection} session={session} storySetup={storySetup} listModels={listModels}

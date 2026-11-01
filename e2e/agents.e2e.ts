@@ -57,7 +57,7 @@ test("choices become buttons and a click sends them; a note waits under the repl
   await send(page, "I look at the door.");
   const reply = page.getByTestId("message").last();
   const choices = reply.getByTestId("choices");
-  await expect(choices.getByRole("button")).toHaveCount(2, { timeout: 15_000 });
+  await expect(choices.locator("button.choice")).toHaveCount(2, { timeout: 15_000 });
   const notes = reply.getByTestId("agent-notes");
   await expect(notes.getByRole("button", { name: "Continuity" })).toBeVisible();
   await expect(notes.getByRole("note")).toHaveCount(0);
@@ -151,7 +151,7 @@ test("a rewrite opens a word-by-word comparison; putting one change back saves t
   await sheet.getByRole("button", { name: /^Save 1 put back/ }).click();
   await expect(sheet).toHaveCount(0);
   // a mix: part of the original is back, the rest stays rewritten
-  await expect(reply.locator(".text")).not.toHaveText("(Offline test AI: no real answer.)");
+  await expect(reply.locator(".text")).not.toHaveText(/^\(Offline test AI: no real answer/);
   await expect(reply.getByTestId("mark-rewrite")).toHaveCount(0);
 });
 
@@ -164,7 +164,7 @@ test("choices can show as a numbered list or above the message box", async ({ pa
   await openSession(page);
   await turnOn(page, "CYOA Choices");
   await send(page, "Now what?");
-  await expect(page.getByTestId("composer-choices").getByRole("button")).toHaveCount(2, { timeout: 15_000 });
+  await expect(page.getByTestId("composer-choices").locator("button.choice")).toHaveCount(2, { timeout: 15_000 });
   await expect(page.getByTestId("message").last().getByTestId("choices")).toHaveCount(0);
 });
 
@@ -199,4 +199,43 @@ test("the Lorebook Keeper writes into the story's own version, and See opens it"
   await line.getByRole("button", { name: "See" }).click();
   await expect(page.getByTestId("lore-version-bar")).toContainText("1 change in Keeper Story");
   await expect(page.getByLabel("Lorebook editor").locator(".lv-tag.new")).toHaveCount(1);
+});
+
+test("D-057: a note shows its model and runs again with a direction; choices get new options", async ({ page }) => {
+  await page.goto("/");
+  await turnOn(page, "Continuity");
+  await turnOn(page, "CYOA Choices");
+  await send(page, "I look at the door.");
+  const reply = page.getByTestId("message").last();
+  const notes = reply.getByTestId("agent-notes");
+  await notes.getByRole("button", { name: "Continuity" }).click({ timeout: 15_000 });
+  const note = notes.getByRole("note");
+  await expect(note).toContainText("Offline test AI");
+  const before = await note.innerText();
+  await note.getByTestId("run-again").click();
+  await page.getByRole("dialog", { name: "Run again: Continuity" }).getByLabel("Direction for this run").fill("look for the lantern");
+  await page.keyboard.press("Enter");
+  await expect(note).not.toHaveText(before, { timeout: 15_000 });
+  await page.getByTestId("agents-menu-button").click();
+  const menu = page.getByTestId("agents-menu");
+  await menu.getByRole("button", { name: /Continuity/ }).first().click();
+  await expect(menu).toContainText("Last run's direction: “look for the lantern”");
+  await page.keyboard.press("Escape");
+  const choices = reply.getByTestId("choices");
+  await choices.getByTestId("run-again").click();
+  await page.keyboard.press("Enter");
+  await expect(choices.locator("button.choice")).toHaveCount(2, { timeout: 15_000 });
+});
+
+test("D-057: the editor picks a connection for one agent, and a note's switch for the story's AI", async ({ page }) => {
+  await page.goto("/");
+  await openLibrary(page, "Agents");
+  await page.getByTestId("agent-table").getByTestId("agent-row").filter({ hasText: "Continuity" }).click();
+  const editor = page.getByTestId("agent-editor");
+  await expect(editor.getByLabel("Connection for this agent")).toHaveValue("");
+  const sw = editor.getByRole("switch", { name: "The story's AI reads it" });
+  await expect(sw).toHaveAttribute("aria-checked", "true");
+  await sw.click();
+  await expect(sw).toHaveAttribute("aria-checked", "false");
+  await expect(editor.getByTestId("agent-save-state")).toHaveText("✓ Saved");
 });

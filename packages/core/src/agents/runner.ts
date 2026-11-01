@@ -67,6 +67,15 @@ export interface RunRequest {
   /** Results of agents that ran earlier in this turn (shared across waves). */
   results: Map<string, unknown>;
   signal?: AbortSignal;
+  /** A direction for this run only, added to the agent's instructions (D-057; manual runs and Run again). */
+  direction?: string;
+}
+
+/** The agent with this run's direction added at the end of its instructions (D-057). */
+export function withDirection(a: AgentConfig, direction: string | undefined): AgentConfig {
+  const d = direction?.trim();
+  if (!d || a.runMode === "text") return a;
+  return { ...a, prompt: `${a.prompt.trim()}\n\nFor this run only, follow this direction from {{user}}: ${d}` };
 }
 
 export interface AgentOutcome {
@@ -173,7 +182,7 @@ export class AgentRunner {
 
   /** Runs one agent and applies its answer. Returns undefined when it failed. */
   async runOne(entry: AgentEntry, req: RunRequest, owners: Map<string, string>, preset?: { answer: unknown }): Promise<AgentOutcome | undefined> {
-    entry = { ...entry, config: withStyle(entry.config, req.setup) };
+    entry = { ...entry, config: withDirection(withStyle(entry.config, req.setup), req.direction) };
     const { core, store } = this.deps;
     const a = entry.config;
     const started = this.deps.now();
@@ -213,7 +222,7 @@ export class AgentRunner {
       const parsed = shape.safeParse(raw);
       if (!parsed.success) throw new Error(`Answer had the wrong shape: ${parsed.error.message}`);
       req.signal?.throwIfAborted(); // Discard an answer that arrived after Stop. CODEX, D-051.
-      await this.apply(entry, req, parsed.data);
+      await this.apply(entry, req, parsed.data, usage);
       req.results.set(a.id, parsed.data);
       await this.record(a, req, "ok", started, this.deps.now() - started, { output: parsed.data as never, ...usage, ...(warnings ? { warnings } : {}) });
       await core.events.emit("agent.output", { agentId: a.id, messageId: req.messageId, kind: a.output, output: parsed.data });
@@ -250,8 +259,8 @@ export class AgentRunner {
     const transcriptPath = req.trigger === "turn.after" ? visible.slice(0, -1) : visible;
     const state = await core.state.resolve(req.session.id, req.messageId);
     const override = req.setup.agentOverrides[a.id];
-    // the agent's own connection, else the setup's connection for agents, else the story's
-    const wanted = override?.connectionId ?? req.setup.agentConnectionId;
+    // this story's/chat's pick for the agent, else the agent's own (D-057), else the setup's connection for agents, else the story's
+    const wanted = override?.connectionId ?? a.connectionId ?? req.setup.agentConnectionId;
     const connection = (wanted ? req.connections?.[wanted] : undefined) ?? this.deps.resolveConnection(wanted, req.mainConnection);
     const ownValues = a.state?.namespace ? state[a.state.namespace] : undefined;
     const cards = a.input.cards ? await this.cardsText(req) : "";
@@ -338,11 +347,12 @@ export class AgentRunner {
    * notes, revisions, records or events. Returns what it answered and why.
    */
   async dryRun(entry: AgentEntry, req: RunRequest, connection?: ConnectionConfig): Promise<DryRun> {
-    entry = { ...entry, config: withStyle(entry.config, req.setup) };
+    entry = { ...entry, config: withDirection(withStyle(entry.config, req.setup), req.direction) };
     const a = entry.config;
     const started = this.deps.now();
     const usage: Usage = {};
     const forced: RunRequest = connection ? { ...req, setup: { ...req.setup, agentConnectionId: null, agentOverrides: { ...req.setup.agentOverrides, [a.id]: { ...req.setup.agentOverrides[a.id], connectionId: null } } }, mainConnection: connection, connections: {} } : req;
+    if (connection) entry = { ...entry, config: { ...entry.config, connectionId: null } };
     try {
       req.signal?.throwIfAborted();
       let raw: unknown;
@@ -377,7 +387,7 @@ export class AgentRunner {
   }
 
   /** Puts a valid answer where it belongs. inject / check / choices / proposal / speaker are returned to the caller. */
-  private async apply(entry: AgentEntry, req: RunRequest, output: unknown): Promise<void> {
+  private async apply(entry: AgentEntry, req: RunRequest, output: unknown, usage?: Usage): Promise<void> {
     const { core, store } = this.deps;
     const a = entry.config;
     switch (a.output) {
@@ -395,7 +405,9 @@ export class AgentRunner {
         return;
       }
       case "note":
-        await store.addNote({ id: this.deps.newId(), sessionId: req.session.id, messageId: req.messageId, agentId: a.id, content: String(output), createdAt: this.deps.now() });
+        // the model that wrote it shows beside the note in the chat (D-057)
+        await store.addNote({ id: this.deps.newId(), sessionId: req.session.id, messageId: req.messageId, agentId: a.id, content: String(output), createdAt: this.deps.now(),
+          ...(usage?.model ? { data: { model: usage.model } } : {}) });
         return;
       case "rewrite":
       case "intercept": {
@@ -481,7 +493,7 @@ export class AgentRunner {
   private async record(a: AgentConfig, req: RunRequest, status: AgentRun["status"], startedAt: number, durationMs: number, extra: Partial<AgentRun>) {
     await this.deps.store.saveAgentRun({
       id: this.deps.newId(), sessionId: req.session.id, messageId: req.messageId, agentId: a.id, trigger: req.trigger,
-      status, startedAt, durationMs: Math.max(0, durationMs), ...extra,
+      status, startedAt, durationMs: Math.max(0, durationMs), ...(req.direction?.trim() ? { direction: req.direction.trim() } : {}), ...extra,
     });
   }
 }

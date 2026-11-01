@@ -11,6 +11,7 @@ import type { Character, GenerationType, Lorebook, LoreReport, LoreSettings, Mes
 import { AgentRunner, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
 import { extractInline, inlineInstruction, parseAnswer } from "./agents/outputs.ts";
 import { withStyle } from "./agents/styles.ts";
+import { noteInjections } from "./agents/feedback.ts";
 import { isAbort } from "./connections.ts";
 import type { HomunculusCore } from "./core.ts";
 import type { ConnectionConfig } from "./extensions.ts";
@@ -169,6 +170,8 @@ export class TurnPipeline {
         if (o.kind === "speaker") speakerOverride = String(o.output);
       }
       if (userMessage) userMessage = (await this.store.getMessage(userMessage.id)) ?? userMessage;
+      // note agents' latest notes on this branch go back to the story's AI (D-057)
+      injections.push(...await noteInjections(this.store, entries.map((e) => e.config), await this.store.pathTo(parentId)).catch(() => []));
     }
     const chosen = speakerOverride ? (await this.speakerByName(session, speakerOverride)) ?? speaking : speaking;
     if (chosen !== speaking) names.char = chosen.character?.name ?? "Narrator";
@@ -399,7 +402,7 @@ export class TurnPipeline {
 
   /** Runs one agent by hand on a message (the "run now" button). */
   async runManual(sessionId: string, agentId: string, messageId: string, connection: ConnectionConfig, signal?: AbortSignal,
-    connections?: Record<string, ConnectionConfig>): Promise<AgentOutcome | undefined> {
+    connections?: Record<string, ConnectionConfig>, options: { direction?: string } = {}): Promise<AgentOutcome | undefined> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
@@ -417,7 +420,7 @@ export class TurnPipeline {
     const main = (setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection;
     return this.runner.runOne(entry, {
       session, setup, trigger: "manual", generationType: "normal", messageId, text: m.content, mainConnection: main, connections,
-      names, seed: m.parentId ?? sessionId, results: new Map(), signal,
+      names, seed: m.parentId ?? sessionId, results: new Map(), signal, ...(options.direction?.trim() ? { direction: options.direction } : {}),
     }, this.runner.owners(entries));
   }
 
@@ -449,6 +452,8 @@ export class TurnPipeline {
     const textAgents = await this.runner.select(entries, { ...base, trigger: "turn.before" }, (a) => isTurn(a, "before") && a.runMode === "text" && a.output === "inject");
     const injections: PromptInjection[] = [];
     for (const e of textAgents) injections.push(injectionOf({ agentId: e.config.id, kind: "inject", config: e.config, output: await this.runner.textAnswer(withStyle(e.config, setup), { ...base, text: options.userText ?? "" }) }));
+    // notes already written cost nothing either (D-057)
+    if (parentId) injections.push(...await noteInjections(this.store, entries.map((e) => e.config), await this.store.pathTo(parentId)).catch(() => []));
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: speaking.character, persona: effPersona,
       names, injections, inlineAgents, type: "normal", main, seed: parentId ?? session.id });
     const before = entries.filter((e) => isTurn(e.config, "before") && e.config.runMode !== "inline" && !(e.config.runMode === "text" && e.config.output === "inject"));

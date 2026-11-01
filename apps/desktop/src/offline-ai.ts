@@ -36,7 +36,7 @@ function agentAnswer(prompt: string): string {
   if (/ONLY a JSON object/.test(prompt)) return "{}";
   if (/ONLY a JSON array/.test(prompt)) return '["Look around", "Say nothing"]';
   if (/"pass"/.test(prompt)) return '{"pass": true, "reason": "Offline test AI does not judge."}';
-  return "(Offline test AI: no real answer.)";
+  return `(Offline test AI: no real answer, call ${n + 1}.)`;
 }
 
 export const offlineAiModule: HomunculusModule = {

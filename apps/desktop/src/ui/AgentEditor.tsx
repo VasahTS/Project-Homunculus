@@ -5,14 +5,17 @@ import { ShowPicker } from "./ShowPicker.tsx";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AgentDraft } from "../agent-draft.ts";
 import type { AgentConfig, AgentConfigInput, AgentOutputKind } from "@homunculus/schemas";
+import { noteFeedback } from "@homunculus/core";
 import { AGENT_KINDS, WHEN_LABELS, triggersFor, whenOf, withKind, type AgentWhen } from "../agents.ts";
 import { ConfirmButton, Help } from "./Help.tsx";
-import { Collapse, Icon, Segmented } from "./kit.tsx";
+import { Collapse, Icon, Segmented, Switch } from "./kit.tsx";
 
 const GEN_TYPES = [{ value: "normal", label: "New replies" }, { value: "swipe", label: "New versions" }, { value: "continue", label: "Continue" }] as const;
 
-export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelete, onClose }: {
+export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, onSave, onDelete, onClose }: {
   agent: AgentConfig;
+  /** Saved connection profiles, to pick the one this agent uses (D-057). */
+  profiles?: Array<{ id: string; name: string }>;
   /** All agents, to pick the ones whose results this one reads. */
   agents?: AgentConfig[];
   drafts: Map<string, AgentDraft>;
@@ -78,6 +81,16 @@ export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelet
           </select>
           {when.when === "everyN" && <NumberBox label="Every how many messages" value={when.n} min={1} max={500} onCommit={(n) => set({ triggers: triggersFor("everyN", n) })} />}
         </div>}
+        {!(out === "inject" && d.runMode === "text") && (
+          <div className="ag-field row-line wrap">
+            <span className="ag-label">Model <Help text="The connection this agent uses. “Agents connection” follows the story's setup (Setup → Agents connection), else the story's own. A cheaper or faster model is often enough for agents." /></span>
+            <select aria-label="Connection for this agent" value={d.connectionId ?? ""} onChange={(e) => set({ connectionId: e.target.value || undefined })}>
+              <option value="">The story's agents connection</option>
+              {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {d.connectionId && !profiles.some((p) => p.id === d.connectionId) && <option value={d.connectionId}>(a deleted connection)</option>}
+            </select>
+          </div>
+        )}
         {out === "inject" && <p className="hint">Its text goes into the prompt before each reply, like a preset block or the Author's Note — but you switch it per story or chat, it can have a chance, trigger words or a random pick, and an AI can write it from the latest messages.</p>}
 
         {out === "inject" && (
@@ -102,6 +115,16 @@ export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelet
             </div>}
           </div>
         )}
+        {out === "note" && (() => {
+          const fb = noteFeedback(d);
+          return (
+            <div className="ag-field row-line wrap">
+              <Switch label="The story's AI reads it" checked={fb.on} onChange={(v) => set({ feedback: { on: v, notes: fb.notes } })} />
+              <span className="label-row">The story's AI reads {fb.notes === 1 ? "its latest note" : "its latest notes"} <Help text="On: the next replies get this agent's latest notes on this branch, in the chat just before your message (or where “Where the notes go” says). Off: notes stay for you only. Views and panel-only notes start off." /></span>
+              {fb.on && <><NumberBox label="How many notes the story's AI reads" value={fb.notes} min={1} max={20} onCommit={(n) => set({ feedback: { on: true, notes: n } })} /><span className="hint">latest</span></>}
+            </div>
+          );
+        })()}
         {out === "proposal" && <p className="hint">New facts go into this story's own version of its lorebook (the first one it uses; a story without one gets its own). The Library's book is never changed. See them in Library → Lorebooks → the book → “{"<story>"}'s version”.</p>}
         {out === "choices" && (
           <div className="ag-field">
@@ -143,12 +166,12 @@ export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelet
           <p className="hint">{"{{char}}"} and {"{{user}}"} become the names. {"{{random::a::b::c}}"} picks one option. The answer format is added by the app.</p>
         </Card>
 
-        <Card id="styles" title="Styles" sub={d.styles?.length ? `${d.styles.length} · default: ${(d.styles.find((x) => x.id === d.styleId) ?? d.styles[0])!.name}` : "one version (add styles to pick between versions)"} open={!!open.styles} onToggle={toggle}>
+        <Card id="styles" title="Styles" sub={d.styles?.length ? `${d.styles.length} · default: ${(d.styles.find((x) => x.id === d.styleId) ?? d.styles[0])!.name}` : "none"} open={!!open.styles} onToggle={toggle}>
           <StylesEditor styles={d.styles ?? []} styleId={d.styleId} onChange={(styles, styleId) => set({ styles: styles.length ? styles : undefined, styleId: styles.length ? styleId : undefined })} />
         </Card>
 
-        {out === "inject" && (
-          <Card id="where" title="Where it goes" sub={d.injection?.position === "marker" ? "with the other agents' text" : `in the chat, ${d.injection?.depth ?? 1} back, as ${roleName(d.injection?.role)}`} open={!!open.where} onToggle={toggle}>
+        {(out === "inject" || (out === "note" && noteFeedback(d).on)) && (
+          <Card id="where" title={out === "note" ? "Where the notes go" : "Where it goes"} sub={d.injection?.position === "marker" ? "with the other agents' text" : `in the chat, ${d.injection?.depth ?? 1} back, as ${roleName(d.injection?.role)}`} open={!!open.where} onToggle={toggle}>
             <div className="row-line wrap">
               <select aria-label="Where the text goes" value={d.injection?.position ?? "depth"}
                 onChange={(e) => set({ injection: { position: e.target.value as "marker" | "depth", depth: d.injection?.depth ?? 1, role: d.injection?.role ?? "system" } })}>
@@ -214,7 +237,6 @@ export function AgentEditor({ agent, agents = [], drafts, onTry, onSave, onDelet
             <NumberBox label="Order" value={d.order} min={-9999} max={9999} onCommit={(n) => set({ order: n })} /></div>
           {!(out === "inject" && d.runMode === "text") && <div className="row-line wrap"><span>Longest answer</span>
             <NumberBox label="Longest answer in tokens" value={d.limits.maxTokens ?? 0} min={0} max={200000} onCommit={(n) => set({ limits: { ...d.limits, maxTokens: n || undefined } })} /><span className="hint">tokens (0 = no limit)</span></div>}
-          <p className="hint">It uses the connection for agents chosen in the story's setup.</p>
         </Card>
 
         <div className="editor-actions">
@@ -242,7 +264,7 @@ function StylesEditor({ styles, styleId, onChange }: { styles: NonNullable<Agent
   };
   return (
     <div className="ag-styles">
-      <p className="hint">Each style is a version of this agent: its text replaces {"{{style}}"} in the instructions (or is added at their end). Stories and chats pick one in their Agents window or in the ✦ panel.</p>
+      <p className="hint">Optional versions of the same agent, so you don't need copies of it. Each story or chat picks one (Choose agents window or the ✦ panel); the starred one is the default. The picked text replaces {"{{style}}"} in the instructions, or is added at their end.</p>
       {styles.map((x, i) => (
         <div key={x.id} className="ag-style">
           <div className="row-line">
@@ -251,7 +273,7 @@ function StylesEditor({ styles, styleId, onChange }: { styles: NonNullable<Agent
             <input className="grow" aria-label="Style name" value={x.name} onChange={(e) => patch(i, { name: e.target.value })} />
             <button type="button" className="link quiet" onClick={() => { const rest = styles.filter((_, j) => j !== i); onChange(rest, x.id === def ? rest[0]?.id : def); }}>Remove</button>
           </div>
-          <textarea rows={2} aria-label={`${x.name} text`} placeholder="Who writes and how, e.g. redditors in a thread: usernames, armchair experts…" value={x.text} onChange={(e) => patch(i, { text: e.target.value })} />
+          <textarea rows={2} aria-label={`${x.name} text`} placeholder="What this version changes in the instructions" value={x.text} onChange={(e) => patch(i, { text: e.target.value })} />
         </div>
       ))}
       <button type="button" className="link" onClick={add}>+ Add a style</button>

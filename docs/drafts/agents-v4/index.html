@@ -1,0 +1,467 @@
+<title>Agents v4 Draft</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Homunculus 2 — draft "Agents v4 + narrator editor" (CLAUDE, 2026-10-31). Not code: a picture of the plan in
+   docs/UI-PLAN.md → "Agents v4 and the narrator editor". Colors and sizes are the app's Quiet profile tokens.
+   Layout: the app window (sidebar · page) with a draft bar on top to switch between the four screens. */
+:root {
+  color-scheme: dark;
+  --window: #1b1d20; --surface: #23272a; --field: #292d30; --group: rgba(255,255,255,.055);
+  --label: #edf0ed; --label-2: #afb8b5; --label-3: #9eaaa3; --separator: #3b4244;
+  --fill: rgba(255,255,255,.07); --fill-hover: rgba(255,255,255,.12);
+  --accent: #8bc4b0; --accent-ink: #142b24; --accent-soft: rgba(139,196,176,.075); --focus-ring: #a7d9c7;
+  --glass: #222528; --glass-edge: #303639; --warn: #e3b45c;
+  --place-character: #8db4ee; --place-chat: #9bd08a; --place-examples: #e3b26b; --place-note: #c3a6ee; --place-outlet: #e59bb8;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-prose: "Literata", Georgia, serif;
+  --size-small: 12px; --radius-group: 10px; --radius-control: 7px; --radius-pill: 999px;
+}
+* { box-sizing: border-box; }
+body { background: var(--window); color: var(--label); font: 14px/1.45 var(--font-ui); padding-block: 0 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.hint { color: var(--label-3); font-size: var(--size-small); }
+small { color: var(--label-3); font-size: var(--size-small); }
+
+/* draft bar */
+.draft-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 14px 0 12px; border-bottom: 1px solid var(--glass-edge); margin-bottom: 14px; }
+.draft-bar h1 { font-size: 15px; margin: 0; font-weight: 600; }
+.draft-bar .tabs { display: flex; flex-wrap: wrap; gap: 4px; background: var(--fill); padding: 3px; border-radius: 9px; }
+.draft-bar .tabs a { color: var(--label-2); text-decoration: none; padding: 4px 11px; border-radius: 7px; font-size: 13px; }
+.draft-bar .tabs a[aria-current="page"] { background: var(--surface); color: var(--label); }
+.draft-bar .why { flex-basis: 100%; color: var(--label-3); font-size: var(--size-small); max-width: 90ch; }
+
+/* app window */
+.win { display: grid; grid-template-columns: 200px minmax(0, 1fr); border: 1px solid var(--glass-edge); border-radius: 12px; overflow: hidden; min-height: 640px; }
+.side { border-right: 1px solid var(--glass-edge); padding: 18px 12px; display: grid; align-content: start; gap: 4px; }
+.side b { font-size: 15px; margin-bottom: 12px; }
+.side .grp { margin-top: 10px; font-size: 11px; color: var(--label-3); padding-left: 8px; }
+.side a { color: var(--label-2); text-decoration: none; padding: 4px 8px 4px 18px; border-radius: 7px; font-size: 13px; }
+.side a.on { background: var(--accent-soft); color: var(--label); }
+.page { min-width: 0; display: grid; grid-template-rows: auto 1fr; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--glass-edge); }
+.toolbar h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.toolbar .sub { color: var(--label-3); font-size: var(--size-small); }
+.spacer { flex: 1; }
+.btn { border: 1px solid var(--glass-edge); background: var(--fill); border-radius: var(--radius-control); padding: 5px 11px; cursor: pointer; font-size: 13px; }
+a.btn { text-decoration: none; color: var(--label); display: inline-block; }
+.btn:hover { background: var(--fill-hover); }
+.field-label small { margin-left: 6px; font-weight: 400; }
+.btn.pro, a.btn.pro { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.seg { display: inline-flex; background: var(--fill); border-radius: 8px; padding: 2px; }
+.seg button { border: 0; background: transparent; padding: 3px 10px; border-radius: 6px; font-size: 12px; color: var(--label-2); cursor: pointer; }
+.seg button.on { background: var(--surface); color: var(--label); }
+.view { display: none; }
+.view.on { display: block; }
+
+/* agents: list + editor */
+.md { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: 0; }
+.list { border-right: 1px solid var(--glass-edge); padding: 12px; display: grid; align-content: start; gap: 10px; }
+.search { width: 100%; background: var(--field); border: 1px solid var(--glass-edge); border-radius: 8px; padding: 6px 10px; }
+.fam { display: grid; gap: 2px; }
+.fam-head { display: grid; gap: 1px; padding: 6px 8px 4px; }
+.fam-head b { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--label-2); font-weight: 600; }
+.fam-head span { font-size: 11.5px; color: var(--label-3); }
+.row { display: grid; gap: 2px; padding: 7px 8px; border-radius: var(--radius-group); cursor: pointer; border: 0; background: transparent; text-align: left; width: 100%; }
+.row:hover { background: var(--fill); }
+.row.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1px rgba(139,196,176,.25); }
+.row strong { font-weight: 600; font-size: 13.5px; }
+.row .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 11.5px; color: var(--label-3); }
+.row .meta i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; }
+.trackers-link { font-size: 12px; color: var(--label-3); padding: 4px 8px; }
+.trackers-link a { color: var(--accent); }
+
+.editor { padding: 16px 20px; display: grid; align-content: start; gap: 12px; min-width: 0; }
+.ed-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ed-head input { font-size: 18px; font-weight: 600; background: transparent; border: 0; padding: 2px 0; min-width: 0; flex: 1 1 200px; }
+.saved { color: var(--label-3); font-size: 12px; }
+.summary { font-size: 13.5px; color: var(--label-2); line-height: 1.6; max-width: 70ch; background: var(--group); border-radius: var(--radius-group); padding: 10px 12px; }
+.summary button { border: 0; background: none; padding: 0; color: var(--label); cursor: pointer; text-decoration: underline; text-decoration-color: rgba(139,196,176,.55); text-underline-offset: 3px; }
+.summary button:hover { color: var(--accent); }
+.card { border-radius: var(--radius-group); background: var(--group); }
+.card-head { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: var(--radius-group); }
+.card-head:hover { background: var(--fill); }
+.card-head .t { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.card-head b { font-weight: 600; }
+.card-head .s { color: var(--label-3); font-size: 12px; }
+.chev { color: var(--label-3); transition: transform .15s; }
+.card.open .chev { transform: rotate(180deg); }
+.card-body { display: none; padding: 2px 12px 12px; gap: 10px; }
+.card.open .card-body { display: grid; }
+.card.flash { box-shadow: 0 0 0 1.5px var(--accent); }
+textarea { width: 100%; background: var(--field); border: 1px solid var(--glass-edge); border-radius: 8px; padding: 9px 11px; resize: vertical; line-height: 1.5; }
+select, .in { background: var(--field); border: 1px solid var(--glass-edge); border-radius: 7px; padding: 5px 8px; }
+.line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.switch { width: 32px; height: 18px; border-radius: 9px; background: var(--fill-hover); border: 0; position: relative; cursor: pointer; flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--label-2); transition: left .15s; }
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 16px; background: var(--accent-ink); }
+.pics { display: flex; flex-wrap: wrap; gap: 8px; }
+.pic { width: 128px; border: 1px solid var(--glass-edge); border-radius: 9px; padding: 7px; background: transparent; cursor: pointer; display: grid; gap: 6px; text-align: left; font-size: 11.5px; color: var(--label-2); }
+.pic.on { border-color: var(--accent); color: var(--label); }
+.pic i { display: block; height: 46px; border-radius: 6px; background: var(--fill); position: relative; }
+.pic i::before { content: ""; position: absolute; left: 8px; right: 30px; top: 9px; height: 4px; border-radius: 2px; background: var(--fill-hover); box-shadow: 0 8px 0 var(--fill-hover), 0 16px 0 var(--fill-hover); }
+.pic i.note::after { content: ""; position: absolute; left: 8px; bottom: 6px; width: 40px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--place-note) 45%, transparent); }
+.pic i.card2::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 5px; height: 12px; border-radius: 3px; border: 1px solid color-mix(in srgb, var(--place-note) 50%, transparent); }
+.pic i.panel::after { content: "✦"; position: absolute; right: 8px; top: 4px; color: var(--accent); font-size: 12px; }
+.kindsel { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kindsel .mean { color: var(--label-3); font-size: 12.5px; }
+
+/* new agent window */
+.modal-bg { padding: 22px; display: grid; place-items: start center; background: rgba(0,0,0,.35); min-height: 100%; }
+.modal { width: min(880px, 100%); background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 14px; padding: 18px; display: grid; gap: 14px; }
+.modal h3 { margin: 0; font-size: 17px; }
+.fams { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.fcol { display: grid; align-content: start; gap: 8px; }
+.fcol > b { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--label-2); }
+.fcol > span { font-size: 12px; color: var(--label-3); margin-top: -4px; }
+.kcard { border: 1px solid var(--glass-edge); border-radius: 10px; padding: 10px 11px; background: var(--surface); text-align: left; cursor: pointer; display: grid; gap: 4px; }
+.kcard:hover { border-color: rgba(139,196,176,.5); }
+.kcard.on { border-color: var(--accent); background: var(--accent-soft); }
+.kcard b { display: flex; align-items: center; gap: 7px; font-weight: 600; }
+.kcard span { font-size: 12.5px; color: var(--label-2); }
+.kcard em { font-style: normal; font-size: 11.5px; color: var(--label-3); }
+.modal-foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border-top: 1px solid var(--glass-edge); padding-top: 12px; }
+
+/* chat */
+.chat { padding: 18px 22px; display: grid; align-content: start; gap: 18px; max-width: 760px; }
+.msg { display: grid; gap: 6px; }
+.msg .who { font-weight: 600; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.msg .text { font-family: var(--font-prose); font-size: 16px; line-height: 1.7; max-width: 64ch; }
+.you { justify-self: end; background: var(--surface); border-radius: 12px; padding: 8px 12px; max-width: 70%; }
+.you .who { color: var(--label-2); font-weight: 400; font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.nchip { display: inline-flex; gap: 6px; align-items: center; border: 0; border-radius: var(--radius-pill); padding: 2px 10px; background: color-mix(in srgb, var(--place-note) 22%, transparent); color: var(--label); font-size: var(--size-small); }
+.mnote { border-left: 2px solid var(--place-note); background: color-mix(in srgb, var(--place-note) 9%, transparent); border-radius: 0 8px 8px 0; padding: 7px 11px; font-size: var(--size-small); color: var(--label-2); line-height: 1.5; max-width: 64ch; }
+.nhead { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.nhead b { color: var(--label); }
+.model { color: var(--label-3); font-size: 11px; }
+.ra { margin-left: auto; border: 0; background: var(--fill); color: var(--label-2); border-radius: 6px; padding: 2px 6px; font-size: 11px; cursor: pointer; }
+.choices { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.choice { border: 1px solid var(--glass-edge); background: var(--fill); border-radius: var(--radius-pill); padding: 5px 12px; font-size: var(--size-small); }
+.pop { width: 320px; display: grid; gap: 7px; padding: 10px 12px; border-radius: 10px; background: var(--glass); border: 1px solid var(--glass-edge); font-size: var(--size-small); color: var(--label-2); box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.pop .in { width: 100%; }
+.pop .acts { display: flex; gap: 10px; align-items: center; }
+.callout { font-size: 12px; color: var(--label-3); border: 1px dashed var(--glass-edge); border-radius: 8px; padding: 8px 10px; max-width: 64ch; }
+
+/* narrator */
+.nar { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 0; }
+.nar-form { padding: 16px 20px; display: grid; align-content: start; gap: 14px; min-width: 0; }
+.nar-side { border-left: 1px solid var(--glass-edge); padding: 16px; display: grid; align-content: start; gap: 10px; }
+.field-label { font-size: 12px; color: var(--label-2); font-weight: 600; }
+.starts { display: flex; flex-wrap: wrap; gap: 6px; }
+.start { border: 1px solid var(--glass-edge); background: transparent; border-radius: 9px; padding: 7px 10px; cursor: pointer; text-align: left; display: grid; gap: 1px; max-width: 220px; }
+.start span { font-size: 11.5px; color: var(--label-3); }
+.start.on { border-color: var(--accent); background: var(--accent-soft); }
+.style-grid { display: grid; gap: 9px; }
+.srow { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 10px; align-items: start; }
+.srow > b { font-size: 12.5px; font-weight: 600; color: var(--label-2); padding-top: 4px; }
+.opts { display: flex; flex-wrap: wrap; gap: 5px; }
+.opt { border: 1px solid var(--glass-edge); background: transparent; border-radius: var(--radius-pill); padding: 3px 10px; font-size: 12.5px; color: var(--label-2); cursor: pointer; }
+.opt:hover { color: var(--label); background: var(--fill); }
+.opt.on { border-color: var(--accent); background: var(--accent-soft); color: var(--label); }
+.opt.none { border-style: dashed; }
+.custom-in { flex: 1 1 160px; min-width: 0; }
+.aigets { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; white-space: pre-wrap; background: var(--field); border-radius: 8px; padding: 10px; color: var(--label-2); line-height: 1.5; max-height: 360px; overflow: auto; }
+details > summary { cursor: pointer; color: var(--label-2); font-size: 13px; }
+
+@media (max-width: 900px) {
+  .win { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; }
+  .md, .nar { grid-template-columns: minmax(0, 1fr); }
+  .list { border-right: 0; border-bottom: 1px solid var(--glass-edge); }
+  .nar-side { border-left: 0; border-top: 1px solid var(--glass-edge); }
+  .fams { grid-template-columns: minmax(0, 1fr); }
+  .srow { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="draft-bar">
+  <h1>Draft · Agents v4 + narrator editor</h1>
+  <nav class="tabs" aria-label="Draft screens">
+    <a href="#agents" data-v="agents">Library → Agents</a>
+    <a href="#new" data-v="new">New agent</a>
+    <a href="#chat" data-v="chat">In the chat (done)</a>
+    <a href="#narrator" data-v="narrator">Narrator editor</a>
+  </nav>
+  <p class="why">Picture of the plan in docs/UI-PLAN.md, with your real agents and narrator. Everything clicks, nothing is saved. The "In the chat" screen is already in the app (D-057); the other three wait for your OK.</p>
+</header>
+
+<div class="win">
+  <aside class="side" aria-label="Sidebar">
+    <b>Homunculus</b>
+    <a href="#agents" style="padding-left:8px">Stories</a>
+    <a href="#agents" style="padding-left:8px">Characters</a>
+    <a href="#agents" style="padding-left:8px">Library</a>
+    <span class="grp">Story parts</span>
+    <a href="#agents">Kits</a><a href="#narrator" id="side-nar">Narrators</a><a href="#agents">NPCs</a>
+    <span class="grp">Around each reply</span>
+    <a href="#agents" id="side-ag">Agents</a><a href="#agents">Trackers</a>
+  </aside>
+
+  <main class="page">
+    <!-- ============================== Library → Agents ============================== -->
+    <section class="view" id="v-agents" aria-label="Library, Agents">
+      <div class="toolbar">
+        <h2>Agents</h2><span class="sub">Helpers that act before, on, or beside each reply</span>
+        <span class="spacer"></span>
+        <span class="seg" role="group" aria-label="View"><button class="on">List</button><button>Table</button></span>
+        <a class="btn" href="#new">+ New Agent</a>
+      </div>
+      <div class="md">
+        <div class="list">
+          <input class="search" id="ag-search" placeholder="Search agents" aria-label="Search agents">
+          <div id="fam-list"></div>
+          <p class="trackers-link">Scene values (who is here, time, place…) are kept by <a href="#agents">Trackers</a>.</p>
+        </div>
+        <div class="editor" id="editor"></div>
+      </div>
+    </section>
+
+    <!-- ============================== New agent ============================== -->
+    <section class="view" id="v-new" aria-label="New agent">
+      <div class="toolbar"><h2>Agents</h2><span class="sub">New agent window</span></div>
+      <div class="modal-bg">
+        <div class="modal" role="dialog" aria-label="What should it do?">
+          <div class="line"><h3>What should it do?</h3><span class="spacer"></span><a class="btn" href="#agents">Close</a></div>
+          <div class="fams" id="new-fams"></div>
+          <div class="modal-foot">
+            <span class="hint">Or start from a copy of</span>
+            <select aria-label="Start from a copy of"><option>—</option><option>Prose Polisher v2</option><option>CYOA Choices</option><option>Continuity</option></select>
+            <span class="spacer"></span>
+            <a class="btn" href="#agents">Cancel</a>
+            <a class="btn pro" href="#agents" id="new-go">Make it</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== In the chat ============================== -->
+    <section class="view" id="v-chat" aria-label="In the chat">
+      <div class="toolbar"><h2>Grizka and Alice</h2><span class="sub">Main · told by Generic Narrator</span><span class="spacer"></span><span class="btn">✦ 3</span></div>
+      <div class="chat">
+        <div class="msg you"><span class="who">You</span><span>I push the stable door open and look for the lantern.</span></div>
+        <div class="msg">
+          <span class="who">Generic Narrator</span>
+          <div class="text">The hinges complain loud enough to wake the whole yard. Inside, the air smells of wet straw and lamp oil. Grizka is already there, crouched by an overturned crate, turning a blue-glassed lantern over in her claws. "Took you long enough," she says, not looking up.</div>
+          <div class="chips"><span class="nchip">● Continuity</span></div>
+          <div class="mnote">
+            <div class="nhead"><b>Continuity</b><span class="model">glm-4.6</span><button class="ra" type="button" aria-label="Run again: Continuity">↻</button></div>
+            Two replies ago the lantern was green and hanging by the well; now it is blue and in the stable.
+          </div>
+          <div class="choices"><span class="choice">Ask Grizka where she found it</span><span class="choice">Check the crate</span><span class="choice">Light the lantern</span><button class="ra" type="button" style="margin-left:0" aria-label="New options: CYOA Choices">↻</button></div>
+          <div class="pop" role="dialog" aria-label="New options">
+            <input class="in" value="options that lead to the docks" aria-label="Direction for this run">
+            <div class="acts"><span class="hint" style="flex:1">Only this run; the agent stays as it is.</span><button class="btn pro" type="button">New options</button></div>
+          </div>
+          <p class="callout">In the app now: the model that wrote a note, ↻ Run again with an optional direction (Enter runs), "New options" for choices, the same direction box in the ✦ panel, and the story's AI reads the latest note on the next reply.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== Narrator ============================== -->
+    <section class="view" id="v-narrator" aria-label="Narrator editor">
+      <div class="toolbar"><h2>Narrators</h2><span class="sub">Generic Narrator · tells "Grizka and Alice", "Grizka and Alice2", "New Kit", "New Kit (copy)", "Ortega's"</span>
+        <span class="spacer"></span><button class="btn" type="button">Duplicate</button><button class="btn pro" type="button">Save</button></div>
+      <div class="nar">
+        <div class="nar-form">
+          <label class="line"><span class="field-label" style="width:118px">Name</span><input class="in" id="n-name" value="Generic Narrator" style="flex:1 1 200px;min-width:0"></label>
+          <div style="display:grid;gap:6px">
+            <span class="field-label">Start from <small>(new narrators; fills the instructions, you can change them)</small></span>
+            <div class="starts" id="starts"></div>
+          </div>
+          <div style="display:grid;gap:8px">
+            <span class="field-label">How it tells the story <small>pick one per row, or leave "Not set"</small></span>
+            <div class="style-grid" id="style-grid"></div>
+          </div>
+          <label style="display:grid;gap:6px"><span class="field-label">Anything else it should know <small>(free text: voice, rules, what it never does)</small></span>
+            <textarea id="n-instr" rows="5">A generic narrator and game master who manages the world, controls all characters, and keeps the story moving independently. Works with any setting, genre, or group of characters.</textarea></label>
+          <div class="line"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="May bring in new people" data-sw="npcs"></button><span>May bring in new people</span><small>Off: only the people of the story.</small></div>
+          <label style="display:grid;gap:6px"><span class="field-label">Reminder before each reply <small>(optional, sent last)</small></span>
+            <textarea id="n-turn" rows="2" placeholder="e.g. End each reply where {{user}} can act."></textarea></label>
+        </div>
+        <aside class="nar-side">
+          <details open><summary>What the AI gets</summary></details>
+          <div class="aigets" id="aigets" aria-live="polite"></div>
+          <p class="hint">Exactly what is sent where a character's description would go. Each choice is one plain sentence; hover a chip to read it.</p>
+        </aside>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data (Daniel's real agents, from his screenshots)
+const FAMS = [
+  { id: "before", name: "Before the reply", mean: "Shapes what the AI writes", kinds: ["inject", "intercept"] },
+  { id: "on", name: "On the reply", mean: "Works on what the AI wrote", kinds: ["rewrite", "check", "choices"] },
+  { id: "beside", name: "Beside the story", mean: "Its own result, kept apart (v1 companions)", kinds: ["note", "proposal"] },
+];
+const KINDS = {
+  inject: { label: "Adds to the prompt", color: "var(--place-character)", mean: "Its text goes into the prompt before each reply: a rule, a random pick, or guidance an AI writes.", ex: "e.g. Don't Write for User" },
+  intercept: { label: "Rewrites your message", color: "var(--place-outlet)", mean: "Changes your message before the AI reads it.", ex: "e.g. Expand My Action" },
+  rewrite: { label: "Rewrites the reply", color: "var(--place-examples)", mean: "Edits the finished reply; the original is kept and can come back.", ex: "e.g. Prose Polisher" },
+  check: { label: "Checks the reply", color: "var(--warn)", mean: "Passes or fails the reply; can warn you or write it again.", ex: "e.g. User Agency Check" },
+  choices: { label: "Offers choices", color: "var(--place-chat)", mean: "Options for what you could do next, as buttons.", ex: "e.g. CYOA Choices" },
+  note: { label: "Writes a side note", color: "var(--place-note)", mean: "A note, card or view under the reply or in the ✦ panel; the story's AI can read it.", ex: "e.g. Continuity, Group Chat" },
+  proposal: { label: "Updates the story's lorebook", color: "var(--accent)", mean: "Adds facts to this story's own version of its lorebook.", ex: "e.g. Lorebook Keeper" },
+};
+const AGENTS = [
+  { id: "dwfu", name: "Don't Write for User", kind: "inject", when: "Before every reply", on: "—", model: "no AI call", help: "Keeps the AI from acting or speaking for you." },
+  { id: "gc", name: "Grounded Complication", kind: "inject", when: "Before every reply · 40%", on: "—", model: "no AI call", help: "Sometimes adds one small, realistic problem." },
+  { id: "gp", name: "Grounded Prose", kind: "rewrite", when: "Before every reply", on: "—", model: "", help: "" },
+  { id: "pp", name: "Prose Polisher", kind: "rewrite", when: "After every reply", on: "2 stories, 1 chat", model: "", help: "Removes repeated phrases and stock wording." },
+  { id: "pp2", name: "Prose Polisher v2", kind: "rewrite", when: "After every reply", on: "3 chats", model: "glm-4.6", help: "Grounded prose polisher." },
+  { id: "uac", name: "User Agency Check", kind: "check", when: "After every reply", on: "—", model: "", help: "Warns when a reply decides something for you." },
+  { id: "cyoa", name: "CYOA Choices", kind: "choices", when: "After every reply", on: "2 chats", model: "deepseek-v3", help: "A few options for what you could do next." },
+  { id: "ai", name: "Actor Interview", kind: "note", when: "Only when I ask", on: "—", model: "", help: "The character steps outside the story." },
+  { id: "cgc", name: "Class Group Chat", kind: "note", when: "After every reply", on: "—", model: "", help: "A feed of people reacting to the scene." },
+  { id: "cont", name: "Continuity", kind: "note", when: "After every reply", on: "3 chats", model: "glm-4.6", help: "Points out contradictions with earlier messages." },
+  { id: "lk", name: "Lorebook Keeper", kind: "proposal", when: "Every 4 messages", on: "1 story", model: "", help: "Writes new facts into this story's lorebook." },
+];
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+// ---------------------------------------------------------------- views
+const VIEWS = ["agents", "new", "chat", "narrator"];
+function show() {
+  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "agents";
+  for (const id of VIEWS) document.getElementById(`v-${id}`).classList.toggle("on", id === v);
+  document.querySelectorAll(".draft-bar .tabs a").forEach((a) => a.toggleAttribute("aria-current", a.dataset.v === v) || a.removeAttribute("aria-current"));
+  document.querySelectorAll(".draft-bar .tabs a").forEach((a) => { if (a.dataset.v === v) a.setAttribute("aria-current", "page"); });
+  document.getElementById("side-ag").classList.toggle("on", v !== "narrator");
+  document.getElementById("side-nar").classList.toggle("on", v === "narrator");
+}
+addEventListener("hashchange", show);
+
+// ---------------------------------------------------------------- the list
+let picked = "cont";
+function renderList() {
+  const q = document.getElementById("ag-search").value.trim().toLowerCase();
+  document.getElementById("fam-list").innerHTML = FAMS.map((f) => {
+    const items = AGENTS.filter((a) => f.kinds.includes(a.kind) && (!q || a.name.toLowerCase().includes(q)));
+    if (!items.length) return "";
+    return `<div class="fam"><div class="fam-head"><b>${f.name}</b><span>${f.mean}</span></div>${items.map((a) => `
+      <button class="row${a.id === picked ? " on" : ""}" data-id="${a.id}" type="button">
+        <strong>${esc(a.name)}</strong>
+        <span class="meta"><i><span class="dot" style="background:${KINDS[a.kind].color}"></span>${KINDS[a.kind].label}</i><i>${a.when}</i>${a.model ? `<i>${a.model}</i>` : ""}<i>on in ${a.on}</i></span>
+      </button>`).join("")}</div>`;
+  }).join("") || `<p class="hint" style="padding:8px">No agent matches.</p>`;
+  document.querySelectorAll("#fam-list .row").forEach((b) => b.addEventListener("click", () => { picked = b.dataset.id; renderList(); renderEditor(); }));
+}
+document.getElementById("ag-search").addEventListener("input", renderList);
+
+// ---------------------------------------------------------------- the editor
+const state = { feedback: true, model: "glm-4.6", notes: 1 };
+function card(id, title, sub, body, open = false) {
+  return `<section class="card${open ? " open" : ""}" id="c-${id}"><button class="card-head" type="button" aria-expanded="${open}"><span class="t"><b>${title}</b><span class="s">${sub}</span></span><span class="chev">⌄</span></button><div class="card-body">${body}</div></section>`;
+}
+function renderEditor() {
+  const a = AGENTS.find((x) => x.id === picked);
+  const k = KINDS[a.kind];
+  const fam = FAMS.find((f) => f.kinds.includes(a.kind));
+  const isNote = a.kind === "note";
+  const model = a.model === "no AI call" ? "" : (a.model || "the story's agents connection");
+  const reads = isNote ? "the last 12 messages and the cast" : "the last 4 messages";
+  const result = { note: "a note under the reply", choices: "buttons under the reply", rewrite: "a rewritten reply (with a mark beside the name)", check: "a warning mark when it fails", inject: "text in the prompt", intercept: "your rewritten message", proposal: "entries in the story's lorebook" }[a.kind];
+  const sentence = a.model === "no AI call"
+    ? `<button data-go="when">${a.when.toLowerCase()}</button>, it adds <button data-go="text">its own text</button> to the prompt, <button data-go="result">in the chat 1 message back</button>. No AI call.`
+    : `<button data-go="when">${a.when}</button> it reads <button data-go="reads">${reads}</button>, gives <button data-go="result">${result}</button> with <button data-go="model">${esc(model)}</button>${isNote ? `, and <button data-go="result">${state.feedback ? "the story's AI reads its latest note" : "only you see the notes"}</button>` : ""}.`;
+  document.getElementById("editor").innerHTML = `
+    <div class="ed-head"><input value="${esc(a.name)}" aria-label="Agent name"><span class="saved">✓ Saved</span><button class="btn" type="button">Try it</button><a class="btn" href="#agents">Close</a></div>
+    <input class="in" style="width:100%" value="${esc(a.help)}" placeholder="What it is for, in one line (optional)" aria-label="Description">
+    <p class="summary">${sentence}</p>
+    ${card("kind", "What it does", `${fam.name} · ${k.label}`, `<div class="kindsel"><select aria-label="What it does">${FAMS.map((f) => `<optgroup label="${f.name}">${f.kinds.map((kk) => `<option${kk === a.kind ? " selected" : ""}>${KINDS[kk].label}</option>`).join("")}</optgroup>`).join("")}</select><span class="mean">${k.mean}</span></div>`)}
+    ${card("when", "When", a.when, `<div class="line"><select aria-label="When it runs"><option>Before every reply</option><option selected>${a.when.split(" · ")[0]}</option><option>Every N messages</option><option>Only when I ask</option></select></div>
+      <details><summary>Only if… (chance, trigger words, after N messages, new replies / new versions / continue)</summary><p class="hint">Same options as now, folded here.</p></details>`)}
+    ${card("text", "Instructions", a.model === "no AI call" ? "the text that goes into the prompt" : "what the AI is told to do", `<textarea rows="7" aria-label="Instructions">You check continuity. Compare the reply with the earlier messages and the cards. List contradictions (names, places, times, objects, what someone knows) in one or two short sentences each. If there are none, answer exactly: Nothing to note.</textarea><p class="hint">{{char}} and {{user}} become the names · {{random::a::b}} picks one · {{style}} is the picked style · the answer format is added by the app.</p>`, true)}
+    ${a.model === "no AI call" ? "" : card("model", "Model", esc(model), `<div class="line"><select aria-label="Connection for this agent"><option>The story's agents connection</option><option${a.model === "glm-4.6" ? " selected" : ""}>GLM 4.6 (NanoGPT)</option><option${a.model === "deepseek-v3" ? " selected" : ""}>DeepSeek V3</option><option>Claude Sonnet</option></select><span class="hint">A cheaper or faster model is often enough for agents.</span></div>`)}
+    ${card("result", "Result", isNote ? `${result} · ${state.feedback ? `the story's AI reads the latest ${state.notes === 1 ? "note" : state.notes + " notes"}` : "only for you"}` : result, isNote ? `
+      <div class="pics"><button class="pic on" type="button"><i class="note"></i>Label under the reply</button><button class="pic" type="button"><i class="card2"></i>Open card</button><button class="pic" type="button"><i class="card2"></i>A view</button><button class="pic" type="button"><i class="panel"></i>Only in the ✦ panel</button></div>
+      <div class="line"><button class="switch${state.feedback ? " on" : ""}" type="button" role="switch" aria-checked="${state.feedback}" aria-label="The story's AI reads it" id="fb"></button><span>The story's AI reads its latest note</span>${state.feedback ? `<input class="in" type="number" min="1" max="20" value="${state.notes}" style="width:58px" aria-label="How many notes" id="fbn"><span class="hint">latest · in the chat, just before your message</span>` : `<span class="hint">Off: the notes are only for you.</span>`}</div>`
+      : `<p class="hint">How it shows, as small drawings (same as now).</p>`)}
+    ${a.model === "no AI call" ? "" : card("reads", "What it reads", reads, `<p class="hint">Recent messages · the cast · your persona · active lore · Scene values · scenario · other agents' results (same as now).</p>`)}
+    ${card("styles", "Styles", "none", `<p class="hint">Optional versions of the same agent, so you don't need copies of it. Each story or chat picks one; the starred one is the default.</p><button class="btn" type="button" style="justify-self:start">+ Add a style</button>`)}
+    ${card("adv", "Advanced", "order 100", `<p class="hint">Order · longest answer · Delete agent.</p>`)}`;
+  document.querySelectorAll("#editor .card-head").forEach((h) => h.addEventListener("click", () => { const c = h.parentElement; c.classList.toggle("open"); h.setAttribute("aria-expanded", c.classList.contains("open")); }));
+  document.querySelectorAll("#editor .summary button").forEach((b) => b.addEventListener("click", () => {
+    const c = document.getElementById(`c-${b.dataset.go}`); if (!c) return;
+    c.classList.add("open", "flash"); c.scrollIntoView({ block: "nearest", behavior: "smooth" }); setTimeout(() => c.classList.remove("flash"), 900);
+  }));
+  const fb = document.getElementById("fb");
+  if (fb) fb.addEventListener("click", () => { state.feedback = !state.feedback; renderEditor(); document.getElementById("c-result").classList.add("open"); });
+  const fbn = document.getElementById("fbn");
+  if (fbn) fbn.addEventListener("change", () => { state.notes = Math.max(1, Math.min(20, +fbn.value || 1)); renderEditor(); document.getElementById("c-result").classList.add("open"); });
+}
+
+// ---------------------------------------------------------------- new agent window
+let newKind = "note";
+function renderNew() {
+  document.getElementById("new-fams").innerHTML = FAMS.map((f) => `<div class="fcol"><b>${f.name}</b><span>${f.mean}</span>${f.kinds.map((k) => `
+    <button class="kcard${k === newKind ? " on" : ""}" data-k="${k}" type="button" aria-pressed="${k === newKind}"><b><span class="dot" style="background:${KINDS[k].color}"></span>${KINDS[k].label}</b><span>${KINDS[k].mean}</span><em>${KINDS[k].ex}</em></button>`).join("")}</div>`).join("");
+  document.querySelectorAll(".kcard").forEach((b) => b.addEventListener("click", () => { newKind = b.dataset.k; renderNew(); }));
+  document.getElementById("new-go").textContent = `Make a “${KINDS[newKind].label}” agent`;
+}
+
+// ---------------------------------------------------------------- narrator
+const STARTS = [
+  { id: "gm", name: "Game master", sub: "Runs the world and every NPC; consequences; asks what you do", text: "You are the game master. Run the world and every character in it except {{user}}. Present situations, let choices have consequences, and end each reply on a moment where {{user}} decides." },
+  { id: "novel", name: "Novelist", sub: "Literary prose, inner life, scenes with subtext", text: "You narrate this story as a novelist. Write scenes with texture and subtext, give each character their own voice, and let the story breathe." },
+  { id: "if", name: "Interactive fiction", sub: "Short, clear, ends on what you can do", text: "You narrate interactive fiction. Describe what {{user}} sees and hears clearly and briefly, then stop so {{user}} can act." },
+  { id: "blank", name: "Blank", sub: "Write your own", text: "" },
+];
+const ROWS = [
+  { key: "pov", name: "Point of view", opts: [["1st person", "Write the narration in first person (\"I\")."], ["2nd person", "Write the narration in second person (\"you\")."], ["3rd limited", "Write in third person, close to one character at a time."], ["3rd omniscient", "Write in third person; the narrator may know every character's mind."]], pick: "2nd person" },
+  { key: "tense", name: "Tense", opts: [["Past", "Write in past tense."], ["Present", "Write in present tense."]], pick: "Present" },
+  { key: "length", name: "Length", opts: [["Short · ~150", "Keep each reply short: about 150 words."], ["Medium · ~300", "Keep each reply around 300 words."], ["Long · ~600", "Write long replies: about 600 words."]], pick: "custom", custom: "Keep narration around 400 words" },
+  { key: "tone", name: "Tone", two: true, opts: [["Dark", "Tone: dark and gritty; violence and loss have weight."], ["Adventurous", "Tone: adventurous, with momentum, danger and discovery."], ["Light", "Tone: light and warm, with humor."], ["Literary", "Tone: literary and restrained; subtext over statement."], ["Horror", "Tone: horror; dread builds slowly."], ["Romantic", "Tone: romantic; attraction and tension matter."], ["Comedic", "Tone: comedic; let scenes be funny."]], pick: ["Comedic", "Romantic"] },
+  { key: "pacing", name: "Pacing", opts: [["Slow burn", "Pacing: slow; let scenes linger before moving on."], ["Steady", "Pacing: steady; each reply moves the scene a little."], ["Fast", "Pacing: fast; keep things happening."]], pick: "" },
+  { key: "dialogue", name: "Dialogue", opts: [["Mostly dialogue", "Lean on dialogue; keep narration short."], ["Balanced", "Balance dialogue and narration."], ["Mostly narration", "Lean on narration; use dialogue sparingly."]], pick: "Balanced" },
+  { key: "detail", name: "Detail", opts: [["Spare", "Describe only what matters."], ["Vivid", "Use concrete sensory details."], ["Lush", "Describe richly: places, light, textures, sounds."]], pick: "" },
+  { key: "stakes", name: "Consequences", opts: [["Forgiving", "Mistakes rarely cost much; keep the story going."], ["Fair", "Choices have real but fair consequences."], ["Harsh", "Choices can fail and cost dearly; the world does not bend."]], pick: "" },
+  { key: "mature", name: "Mature scenes", opts: [["Fade out", "Fade out of explicit scenes."], ["Shown", "Mature scenes may be shown when the story leads there."]], pick: "Shown" },
+];
+let startPick = "";
+function renderNarrator() {
+  document.getElementById("starts").innerHTML = STARTS.map((s) => `<button class="start${s.id === startPick ? " on" : ""}" data-s="${s.id}" type="button"><b>${s.name}</b><span>${s.sub}</span></button>`).join("");
+  document.querySelectorAll(".start").forEach((b) => b.addEventListener("click", () => { startPick = b.dataset.s; const s = STARTS.find((x) => x.id === startPick); document.getElementById("n-instr").value = s.text; renderNarrator(); }));
+  document.getElementById("style-grid").innerHTML = ROWS.map((r) => {
+    const on = (label) => Array.isArray(r.pick) ? r.pick.includes(label) : r.pick === label;
+    return `<div class="srow"><b>${r.name}${r.two ? ' <small style="font-weight:400">up to 2</small>' : ""}</b><div class="opts">
+      <button class="opt none${(Array.isArray(r.pick) ? !r.pick.length : !r.pick) ? " on" : ""}" data-r="${r.key}" data-o="" type="button">Not set</button>
+      ${r.opts.map(([label, text]) => `<button class="opt${on(label) ? " on" : ""}" data-r="${r.key}" data-o="${esc(label)}" title="${esc(text)}" type="button">${label}</button>`).join("")}
+      <button class="opt${r.pick === "custom" ? " on" : ""}" data-r="${r.key}" data-o="custom" type="button">Custom…</button>
+      ${r.pick === "custom" ? `<input class="in custom-in" data-c="${r.key}" value="${esc(r.custom ?? "")}" aria-label="${r.name}, your words">` : ""}
+    </div></div>`;
+  }).join("");
+  document.querySelectorAll(".opt").forEach((b) => b.addEventListener("click", () => {
+    const r = ROWS.find((x) => x.key === b.dataset.r); const o = b.dataset.o;
+    if (r.two) { if (!o) r.pick = []; else if (o === "custom") r.pick = "custom"; else { const cur = Array.isArray(r.pick) ? r.pick : []; r.pick = cur.includes(o) ? cur.filter((x) => x !== o) : [...cur, o].slice(-2); } }
+    else r.pick = o;
+    renderNarrator();
+  }));
+  document.querySelectorAll(".custom-in").forEach((i) => i.addEventListener("input", () => { ROWS.find((x) => x.key === i.dataset.c).custom = i.value; renderAiGets(); }));
+  renderAiGets();
+}
+function renderAiGets() {
+  const lines = [];
+  for (const r of ROWS) {
+    if (r.pick === "custom") { if (r.custom?.trim()) lines.push(`- ${r.custom.trim()}`); continue; }
+    for (const p of Array.isArray(r.pick) ? r.pick : [r.pick]) { const o = r.opts.find(([l]) => l === p); if (o) lines.push(`- ${o[1]}`); }
+  }
+  const npcs = document.querySelector('[data-sw="npcs"]').classList.contains("on");
+  const parts = [document.getElementById("n-instr").value.trim(), lines.length ? `How to tell the story:\n${lines.join("\n")}` : "",
+    npcs ? "You may bring in new people when the story needs them." : "Do not bring in new named people: use only the people you were given."].filter(Boolean);
+  const turn = document.getElementById("n-turn").value.trim();
+  document.getElementById("aigets").textContent = parts.join("\n\n") + (turn ? `\n\n— sent last, before each reply —\n${turn}` : "");
+}
+document.getElementById("n-instr").addEventListener("input", renderAiGets);
+document.getElementById("n-turn").addEventListener("input", renderAiGets);
+document.querySelector('[data-sw="npcs"]').addEventListener("click", (e) => { const b = e.currentTarget; b.classList.toggle("on"); b.setAttribute("aria-checked", b.classList.contains("on")); renderAiGets(); });
+
+renderList(); renderEditor(); renderNew(); renderNarrator(); show();
+</script>

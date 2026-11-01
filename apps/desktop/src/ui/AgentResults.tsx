@@ -177,7 +177,51 @@ function MarkPop({ label, className, icon, text, testId, children }: {
 
 // ---------------------------------------------------------------- notes under the message
 
-export function NoteChips({ results, agents }: { results: MessageAgentResults | undefined; agents: AgentConfig[] }) {
+/** Runs one agent again on this message, with an optional direction for that run only (D-057). Throws with the reason when it failed. */
+export type RunAgain = (direction: string) => Promise<void>;
+
+/** The short name of the model that wrote a note (D-057): saved with the note, else from the agent's latest run. */
+const noteModel = (results: MessageAgentResults | undefined, note: AgentNote | undefined, agentId: string) => {
+  const m = (note?.data as { model?: unknown } | undefined)?.model;
+  const raw = typeof m === "string" ? m : [...(results?.runs ?? [])].reverse().find((r) => r.agentId === agentId && r.status === "ok")?.model;
+  return raw ? raw.replace(/^.*\//, "").replace(/:thinking$/, "") : "";
+};
+
+/**
+ * "↻" beside an agent's result (D-057; Daniel: "I can't regenerate an agent… and let me add a direction before it runs,
+ * like 'options that lead to the docks'"). Opens a small box: a direction for this run only (optional), Enter runs.
+ */
+export function RunAgainButton({ name, label = "Run again", onRun }: { name: string; label?: string; onRun: RunAgain }) {
+  const m = useFloatingMenu(150, 320, "input");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const go = async () => {
+    setBusy(true); setError(""); m.setOpen(false);
+    try { await onRun(text); setText(""); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <span className="run-again" ref={m.box} onKeyDown={m.onKeyDown} onBlur={m.onBlur}>
+      <button type="button" className="ra-btn" aria-haspopup="dialog" aria-expanded={m.open} disabled={busy} aria-label={`${label}: ${name}`} title={`${label} (you can add a direction)`}
+        data-testid="run-again" onClick={() => m.setOpen((v) => !v)}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5" /></svg>
+        {busy ? "Running…" : null}
+      </button>
+      {error && <span className="error-text ra-error" role="alert">{error}</span>}
+      {m.open && m.pos && (
+        <span className="mk-pop ra-pop" role="dialog" aria-label={`${label}: ${name}`} style={{ top: m.pos.top, left: Math.max(8, m.pos.left - 290) }}>
+          <input aria-label="Direction for this run" placeholder="Direction for this run (optional)" value={text}
+            onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void go(); } }} />
+          <span className="mk-acts"><span className="hint grow">Only this run; the agent stays as it is.</span>
+            <button type="button" className="btn btn-prominent btn-small" onClick={() => void go()}>{label}</button></span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function NoteChips({ results, agents, onRun }: { results: MessageAgentResults | undefined; agents: AgentConfig[]; onRun?: ((agentId: string) => RunAgain) | undefined }) {
   const [open, setOpen] = useState<string | null>(null);
   const notes = agents.filter((a) => a.output === "note").map((a) => ({ a, how: a.display?.note ?? "message", note: latestNote(results, a.id) }))
     .filter((x) => x.note && x.note.content.trim() && x.how !== "menu");
@@ -188,8 +232,15 @@ export function NoteChips({ results, agents }: { results: MessageAgentResults | 
   const current = chips.find((x) => x.a.id === open);
   return (
     <div className="note-chips-wrap" data-testid="agent-notes">
-      {views.map(({ a, note }) => <AgentView key={a.id} name={a.name} kind={a.display?.view ?? "feed"} text={note!.content} />)}
-      {cards.map(({ a, note }) => <div key={a.id} className="note-card" role="note"><b>{a.name}</b>{note!.content}</div>)}
+      {views.map(({ a, note }) => <AgentView key={a.id} name={a.name} kind={a.display?.view ?? "feed"} text={note!.content}
+        model={noteModel(results, note, a.id)} actions={onRun && <RunAgainButton name={a.name} onRun={onRun(a.id)} />} />)}
+      {cards.map(({ a, note }) => (
+        <div key={a.id} className="note-card" role="note">
+          <span className="note-head"><b>{a.name}</b>{noteModel(results, note, a.id) && <span className="note-model">{noteModel(results, note, a.id)}</span>}
+            {onRun && <RunAgainButton name={a.name} onRun={onRun(a.id)} />}</span>
+          {note!.content}
+        </div>
+      ))}
       {chips.length > 0 && <div className="note-chips">
         {chips.map(({ a }) => (
           <button key={a.id} type="button" className="note-chip" aria-pressed={open === a.id} onClick={() => setOpen(open === a.id ? null : a.id)}>
@@ -197,7 +248,13 @@ export function NoteChips({ results, agents }: { results: MessageAgentResults | 
           </button>
         ))}
       </div>}
-      {current && <div className="margin-note" role="note"><b>{current.a.name}</b> · {current.note!.content}</div>}
+      {current && (
+        <div className="margin-note" role="note">
+          <span className="note-head"><b>{current.a.name}</b>{noteModel(results, current.note, current.a.id) && <span className="note-model">{noteModel(results, current.note, current.a.id)}</span>}
+            {onRun && <RunAgainButton name={current.a.name} onRun={onRun(current.a.id)} />}</span>
+          {current.note!.content}
+        </div>
+      )}
     </div>
   );
 }
@@ -212,8 +269,9 @@ export function choiceSets(results: MessageAgentResults | undefined, agents: Age
   }).map((r) => ({ run: r, name: agents.find((x) => x.id === r.agentId)?.name ?? "Choices", options: r.output as string[] }));
 }
 
-export function Choices({ results, agents, onPick, onEdit }: {
+export function Choices({ results, agents, onPick, onEdit, onRun }: {
   results: MessageAgentResults | undefined; agents: AgentConfig[]; onPick: (text: string) => void; onEdit: (text: string) => void;
+  onRun?: ((agentId: string) => RunAgain) | undefined;
 }) {
   const buttons = choiceSets(results, agents, "buttons");
   const lists = choiceSets(results, agents, "list");
@@ -224,31 +282,36 @@ export function Choices({ results, agents, onPick, onEdit }: {
         <ol key={run.id} className="choice-list" aria-label={name}>
           {options.map((c, i) => <li key={i}><button type="button" className="choice-line" title="Click: send it · Right-click: put it in the message box"
             onClick={() => onPick(c)} onContextMenu={(e) => { e.preventDefault(); onEdit(c); }}>{c}</button></li>)}
+          {onRun && <li className="choice-again"><RunAgainButton name={name} label="New options" onRun={onRun(run.agentId)} /></li>}
         </ol>
       ))}
-      {buttons.map(({ run, name, options }) => <ChoiceButtons key={run.id} name={name} options={options} onPick={onPick} onEdit={onEdit} />)}
+      {buttons.map(({ run, name, options }) => <ChoiceButtons key={run.id} name={name} options={options} onPick={onPick} onEdit={onEdit}
+        again={onRun && <RunAgainButton name={name} label="New options" onRun={onRun(run.agentId)} />} />)}
     </div>
   );
 }
 
-export function ChoiceButtons({ name, options, onPick, onEdit }: { name: string; options: string[]; onPick: (t: string) => void; onEdit: (t: string) => void }) {
+export function ChoiceButtons({ name, options, onPick, onEdit, again }: { name: string; options: string[]; onPick: (t: string) => void; onEdit: (t: string) => void; again?: ReactNode }) {
   return (
     <div className="choices-set" role="group" aria-label={name}>
       {options.map((c, i) => (
         <button key={i} type="button" className="choice" title="Click: send it · Right-click: put it in the message box to edit"
           onClick={() => onPick(c)} onContextMenu={(e) => { e.preventDefault(); onEdit(c); }}>{c}</button>
       ))}
+      {again}
     </div>
   );
 }
 
 /** Choices that sit above the message box (display.choices = "composer"). */
-export function ComposerChoices({ results, agents, onPick, onEdit }: {
+export function ComposerChoices({ results, agents, onPick, onEdit, onRun }: {
   results: MessageAgentResults | undefined; agents: AgentConfig[]; onPick: (text: string) => void; onEdit: (text: string) => void;
+  onRun?: ((agentId: string) => RunAgain) | undefined;
 }) {
   const sets = choiceSets(results, agents, "composer");
   if (!sets.length) return null;
-  return <div className="composer-choices" data-testid="composer-choices">{sets.map(({ run, name, options }) => <ChoiceButtons key={run.id} name={name} options={options} onPick={onPick} onEdit={onEdit} />)}</div>;
+  return <div className="composer-choices" data-testid="composer-choices">{sets.map(({ run, name, options }) => <ChoiceButtons key={run.id} name={name} options={options} onPick={onPick} onEdit={onEdit}
+    again={onRun && <RunAgainButton name={name} label="New options" onRun={onRun(run.agentId)} />} />)}</div>;
 }
 
 // ---------------------------------------------------------------- views an agent draws with (D-049)
@@ -261,7 +324,7 @@ const arr = (v: unknown): Array<Record<string, unknown>> => (Array.isArray(v) ? 
  * An agent's structured answer drawn with the app's own parts (never HTML from the agent): a feed of posts, phone
  * messages, a sheet of stats, or cards. Anything that is not the expected JSON shows as plain text.
  */
-export function AgentView({ name, kind, text }: { name: string; kind: ViewKind; text: string }) {
+export function AgentView({ name, kind, text, model, actions }: { name: string; kind: ViewKind; text: string; model?: string; actions?: ReactNode }) {
   let data: Record<string, unknown> | null = null;
   try { const v = extractJson(text); if (v && typeof v === "object" && !Array.isArray(v)) data = v as Record<string, unknown>; } catch { /* plain text */ }
   const body = !data ? <div className="av-text">{text}</div>
@@ -273,7 +336,8 @@ export function AgentView({ name, kind, text }: { name: string; kind: ViewKind; 
         <div className="av-stats">{arr(data.stats).map((s, i) => <div key={i}><b>{str(s.value)}</b><span>{str(s.label)}</span></div>)}</div>
         {str(data.notes) && <p className="hint">{str(data.notes)}</p>}</div>
     : <div className="av-cards">{arr(data.cards).map((c, i) => <div key={i} className="av-card"><b>{str(c.title)}</b><span>{str(c.text)}</span></div>)}</div>;
-  return <div className={`agent-view av-${kind}-wrap`} data-testid="agent-view"><span className="av-name">{name}</span>{body}</div>;
+  return <div className={`agent-view av-${kind}-wrap`} data-testid="agent-view">
+    <span className="note-head av-name">{name}{model && <span className="note-model">{model}</span>}{actions}</span>{body}</div>;
 }
 
 // ---------------------------------------------------------------- proposals that changed the story's lorebook (D-049)

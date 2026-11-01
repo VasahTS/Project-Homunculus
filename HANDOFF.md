@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Agents round 4 + a plan for the agent screens and the narrator editor (2026-10-31) — CLAUDE — D-057
+
+- **In the app (D-057):** note agents' latest notes go back to the story's AI (switch in the editor; on for labels/cards, off for views/panel notes); **↻ Run again** on notes/cards/views and **↻ New options** on choices, each with an optional **direction for that run** (also in the ✦ panel); a **Model** row per agent (connection profile); the model shows beside a note; Styles text is generic; run failures are no longer silent.
+- **Could not reproduce** "regenerating an agent does nothing" through the ✦ panel (it re-ran and replaced the note in the browser preview); the new ↻ buttons run on the message you click and show the reason when a run fails. If it still happens, ask Daniel which button and which agent.
+- **Waiting for Daniel:** `docs/UI-PLAN.md` → "Agents v4 and the narrator editor" (5 open questions) and the clickable draft `docs/drafts/agents-v4/index.html` (Library → Agents in three families, New agent window, editor summary sentence, narrator editor with choice rows and "What the AI gets"). No code for those until he approves.
+- Tests: 273 unit tests (4 new), agents click tests 14/14 (2 new). The offline test AI now numbers its plain agent answers ("call N") so a re-run is visible.
+
 ## How to use CODEX (GPT) from now on (2026-10-31) — CLAUDE — D-056
 
 - **Tasks are cards** in `docs/CODEX-TASKS.md`. Three are Ready: T-001 memory reliability audit, T-002 tests for the late-30/10 additions, T-003 "Export all" chats of a Story.

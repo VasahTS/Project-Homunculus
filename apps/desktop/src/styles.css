@@ -2135,3 +2135,18 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .composer-usage { color: var(--label-3); font-size: var(--size-small); margin-left: 4px; }
 .fd-back { flex: none; margin-right: 6px; padding: 3px 10px; border: 1px solid var(--separator); border-radius: var(--radius-pill); background: var(--fill); color: var(--label); font: inherit; font-size: var(--size-small); cursor: pointer; }
 .fd-back:hover { background: var(--fill-hover); }
+
+/* D-057 — the model that wrote a note, "↻ Run again" with a direction, the ✦ panel's direction box. CLAUDE, 2026-10-31. */
+.note-head { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: normal; }
+.margin-note .note-head { margin-bottom: 2px; }
+.note-model { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--label-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-again { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; white-space: normal; }
+.choices-set .run-again, .choice-again .run-again { margin-left: 0; }
+.choice-again { list-style: none; }
+.ra-btn { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--label-3); font: inherit; font-size: 11px; padding: 3px 5px; border-radius: 6px; cursor: pointer; }
+.ra-btn:hover, .ra-btn[aria-expanded="true"] { color: var(--label); background: var(--fill); }
+.ra-btn:disabled { cursor: default; opacity: 0.8; }
+.ra-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.ra-error { font-size: 11px; }
+.ra-pop input, .agp-direction input { width: 100%; font: inherit; font-size: var(--size-small); }
+.agp-direction { display: block; }

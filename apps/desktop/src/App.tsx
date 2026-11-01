@@ -1156,7 +1156,7 @@ export function App() {
     content = (
       <><AgentsPage lead={pageLead} agents={agents} stories={stories} sessions={sessions} selectedId={editing?.id ?? null}
         onSelect={(id) => openAgent(id)} onNew={() => void onNewAgent()}
-        detail={editing ? <AgentEditor key={editing.id} agent={editing} agents={agents} drafts={agentDrafts} onTry={setAgentPreview} onSave={onSaveAgent} onDelete={onDeleteAgent} onClose={close} /> : null} />
+        detail={editing ? <AgentEditor key={editing.id} agent={editing} agents={agents} profiles={connection.profiles} drafts={agentDrafts} onTry={setAgentPreview} onSave={onSaveAgent} onDelete={onDeleteAgent} onClose={close} /> : null} />
       {agentPreview && editing?.id === agentPreview.snapshot().value.id && <AgentTryIt draft={agentPreview} svc={svc} sessions={sessions} stories={stories}
         characters={characters} connection={connection} defaultSetup={defaultSetup} initialSessionId={activeId} onClose={() => setAgentPreview(null)} />}</>
     );
