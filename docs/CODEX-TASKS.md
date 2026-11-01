@@ -23,6 +23,10 @@ Direct request from Daniel on 2026-11-01: refresh README/screenshots and English
 Files: README.md, CHANGELOG.md, docs/images/{app,assistant,library}.png, HANDOFF.md, CODEX-LOG.md and this card. No application or workflow changes.
 Documentation/captures complete; typecheck, 420 unit tests (3 skipped), 174 click tests and 9 native Rust tests pass. Published 0.2.0 through the unchanged release workflow (run 41308386059): Windows NSIS, Linux deb/AppImage and signed updater manifest verified. Signed: **CODEX**.
 
+### Expanded 0.2.0 release changelog · Status: Done
+Direct follow-up requested by Daniel: expand the English 0.1.0 → 0.2.0 changelog and synchronize the published release/updater notes.
+Files: CHANGELOG.md, HANDOFF.md, CODEX-LOG.md and this card. Documentation/release metadata only; preserve installers, signatures, platform entries and the version tag.
+
 ## Card template (Claude fills this in)
 
 ```

@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Expanded 0.2.0 changelog (2026-11-01) — CODEX
+
+Daniel requested fuller English notes after reviewing the release summary. Compared v0.1.0..v0.2.0 commits, shipped source, decisions and reliability reports.
+Expanded CHANGELOG.md by feature area, including prompt scopes/autosave, field-set reuse, narrators, story lorebooks, folder shortcuts, exports, connection limits and individual reliability fixes.
+Synchronized the 104-item changelog with the existing [0.2.0 release](https://github.com/VasahTS/Project-Homunculus/releases/tag/v0.2.0) and latest.json notes; verified the tag, binaries, signatures, date and updater platform entries are unchanged.
+Validation: typecheck and **420 unit passes (3 skips)**; release-note extraction, unchanged 0.1.0 section and diff checks pass. No application changes or installer rebuild. Signed: **CODEX**.
+
 ## Release 0.2.0 preparation (2026-11-01) — CODEX
 
 Daniel directly requested dev → main, current README screenshots, English changelogs and Windows/Linux installers; this explicitly authorizes the release/branch exception to D-050.
