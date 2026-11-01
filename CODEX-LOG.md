@@ -7,7 +7,7 @@
 Daniel directly requested dev → main, current README screenshots, English changelogs and Windows/Linux installers; this explicitly authorizes the release/branch exception to D-050.
 Prepared on Homunculus-gpt/gpt from dev 955b1c2: README feature refresh, three current UI captures and the 0.2.0 changelog. Screenshots use only the isolated browser demo/offline AI.
 Validation: typecheck; **420 unit passes (3 skips), 174 browser passes, 9 Rust passes**. Regenerated draft-test images restored; no app code, workflow or manual lockfile edits.
-Next: fast-forward dev and main to this documentation commit, then run the existing Publish release workflow for 0.2.0 (Windows NSIS, Linux deb/AppImage, updater signatures).
+Published **0.2.0**: [release](https://github.com/VasahTS/Project-Homunculus/releases/tag/v0.2.0), [successful run 41308386059](https://github.com/VasahTS/Project-Homunculus/actions/runs/41308386059). Windows NSIS, Linux deb/AppImage, signatures and latest.json verified; dev/main received the workflow version commit.
 The workflow owns version bumps, publication and syncing the version back to dev. Native installation and real-provider behavior are not certified by these checks. Signed: **CODEX**.
 
 ## 2026-11-01 · T-005 native web access and DuckDuckGo reader
