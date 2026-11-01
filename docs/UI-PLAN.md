@@ -7,6 +7,20 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
+## Character editor: three drafts + alternate greetings — CLAUDE, 2026-11-01 · ⏳ waiting for Daniel's pick
+
+Daniel (translated): "the character creation screen is very basic and bad to use; what can we do to improve the design? Make some drafts in HTML — functional, stylish and elegant. And alternate greetings are not showing in the current version."
+Draft: `docs/drafts/character-editor/index.html` (A · Sheet, B · Tabs, C · Writer; Lyra filled / New character; everything clickable).
+
+- **What it is for:** write and keep a character card (one or more versions). **When Daniel looks at it:** creating a card, fixing one after a chat, writing a long sheet in Description with one XML tag per character (his method, `topics/roleplay`).
+- **Problems today:** one long column of equal text boxes (optional Personality looks as important as Description); Save only at the very bottom; the empty right half of the window; a big "?" picture with a sentence; no token counts; **alternate greetings cannot be seen or edited** (only a hint "editing them comes later", under Advanced).
+- **Common to all drafts:** Description is primary, with its `<sections>` (XML tags, or `#` headings) as chips/outline that jump into the text and show tokens; **Greetings** editor (list, Main badge, Make main, ↑↓, Duplicate, Delete with a second click, Insert {{user}}, Preview with the app's message formatting); Save + Start chat + "Unsaved changes / Saved N min ago" always visible (Ctrl+S); "Sent with every reply ~N tokens" meter by field; Personality/Scenario marked optional; picture with drop; In the Scene, lorebooks, tags as chips; Regex/History/Creator notes tucked away; empty state with helpful placeholders and "Create character".
+- **A · Sheet:** identity column on the left, sections with a jump bar on the right. **B · Tabs:** compact header + tabs (Character · Greetings · Prompt · Lore & Regex · About · History); greetings as a strip of cards + editor beside a chat preview with swipe arrows. **C · Writer:** one document in the reading font, outline on the left (fields, Description sections, each greeting), settings on the right, status bar.
+- **Bug found (engine, not only UI):** a 1:1 chat only sends the first greeting (`packages/core/src/chat.ts`, `lead.firstMessages.slice(0, 1)`), so alternates never reach a chat; Stories already add every opening as a swipe. Also `save()` drops empty greetings, so an empty Greeting 1 would promote Greeting 2 to Main. Both to fix with the chosen draft.
+- **Open questions:** which draft (or a mix); whether 1:1 chats should add every greeting as swipes of the first message (like SillyTavern) — proposed yes.
+
+---
+
 ## Collections v2: search finds folders, Everything view, portrait cards with a size — CLAUDE, 2026-11-01 · ✅ approved ("everything approved") and in the app (D-068)
 
 Daniel (07:38, translated): "In Stories, Characters etc., when you search, folders are not included; have a mode that shows everything with folders ignored, for a fuller view" · "Make Character Cards rectangular to show the whole picture if there is one, with an option to choose the size; now they are too big."

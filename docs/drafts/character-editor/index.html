@@ -1,0 +1,817 @@
+<title>Character Editor Drafts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<style>
+/* Homunculus 2 — draft "Character editor" (CLAUDE, 2026-11-01). Not code: three directions for Library → Characters →
+   New / Edit. Daniel (translated): "the character creation screen is very basic and bad to use; make drafts in HTML,
+   functional, stylish and elegant. And alternate greetings are not showing in the current version."
+   Everything works: type, add/reorder greetings, switch drafts; the three drafts share one character, so edits carry over.
+   Nothing is saved anywhere. Layout: the app's dark "graphite" theme (theme/tokens.css), one look on purpose. */
+:root {
+  color-scheme: dark;
+  /* layout: one app window (list | editor) inside the page; each draft arranges the editor differently */
+  --window: #1b1c1f; --surface: #202226; --field: #24262a; --pop: #26282c;
+  --backdrop: radial-gradient(1200px 520px at 30% -10%, #23403b 0%, transparent 60%), radial-gradient(900px 600px at 110% 110%, #2a2536 0%, transparent 55%), #1b1c1f;
+  --glass: rgba(38,40,44,.72); --glass-edge: rgba(255,255,255,.1);
+  --label: rgba(255,255,255,.88); --label-2: rgba(235,235,245,.62); --label-3: rgba(235,235,245,.42);
+  --separator: rgba(255,255,255,.09); --fill: rgba(255,255,255,.07); --fill-hover: rgba(255,255,255,.12); --fill-sel: rgba(255,255,255,.16);
+  --group: rgba(255,255,255,.045);
+  --accent: #62b6a4; --accent-ink: #0d2420; --accent-soft: rgba(98,182,164,.2); --focus: rgba(98,182,164,.45);
+  --warn: #e3b45c; --danger: #ff8a80; --danger-soft: rgba(255,138,128,.14);
+  --dialogue: #e6bf7e; --narration: rgba(255,255,255,.6);
+  --place-character: #8db4ee; --place-chat: #9bd08a; --place-examples: #e3b26b; --place-note: #c3a6ee;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-prose: "Literata", "Iowan Old Style", Georgia, serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r-panel: 14px; --r-group: 10px; --r-ctl: 7px; --r-pill: 999px;
+  --stage-h: min(860px, calc(100vh - 150px));
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #141518; color: var(--label); font: 13px/1.5 var(--font-ui); -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+[disabled] { opacity: .45; cursor: default !important; }
+
+/* ── page chrome: draft switcher */
+.states { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center;
+  padding-block: 9px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: #101113; border-bottom: 1px solid var(--separator); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: #101113; }
+.states .grp { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.states b { font-size: 10.5px; color: var(--label-3); letter-spacing: .08em; text-transform: uppercase; margin-right: 4px; font-weight: 600; }
+.states button { border: 1px solid var(--separator); background: none; border-radius: var(--r-pill); padding: 3px 12px; font-size: 12px; color: var(--label-2); }
+.states button.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.states .kbd { margin-left: auto; color: var(--label-3); font-size: 11.5px; }
+main { padding-block: 18px 60px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.intro { max-width: 78ch; color: var(--label-2); margin: 0 0 14px; font-size: 13.5px; }
+.intro b { color: var(--label); font-weight: 600; }
+
+/* ── the app window */
+.win { display: flex; gap: 8px; padding: 8px; background: var(--backdrop); border-radius: 16px; height: var(--stage-h); min-height: 640px; border: 1px solid var(--separator); }
+.glass { background: var(--glass); backdrop-filter: blur(30px) saturate(1.4); box-shadow: inset 0 0 0 1px var(--glass-edge), 0 10px 30px rgba(0,0,0,.4); border-radius: var(--r-panel); }
+.side { flex: 0 0 230px; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; overflow: auto; }
+.side .search { background: var(--fill); border-radius: var(--r-ctl); padding: 5px 9px; color: var(--label-3); margin-bottom: 6px; }
+.side-item { display: flex; gap: 9px; align-items: center; padding: 6px 8px; border-radius: var(--r-ctl); border: 0; background: none; text-align: left; width: 100%; }
+.side-item:hover { background: var(--fill); }
+.side-item.on { background: var(--accent-soft); }
+.side-item .dot { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--fill-sel); overflow: hidden; }
+.side-item .dot img { width: 100%; height: 100%; object-fit: cover; }
+.side-item span { display: flex; flex-direction: column; min-width: 0; }
+.side-item strong { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-item small { color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; }
+.ed { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── shared kit */
+.bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--separator); flex-wrap: wrap; min-height: 54px; }
+.crumb { color: var(--label-2); border: 0; background: none; padding: 2px 4px; border-radius: 6px; }
+.crumb:hover { background: var(--fill); color: var(--label); }
+.title { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.title .ver { color: var(--label-2); font-weight: 500; }
+.spacer { flex: 1; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: var(--r-ctl); padding: 6px 12px; background: var(--fill); white-space: nowrap; }
+.btn:hover:not([disabled]) { background: var(--fill-hover); }
+.btn.pri { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.pri:hover:not([disabled]) { filter: brightness(1.08); background: var(--accent); }
+.btn.sm { padding: 3px 9px; font-size: 12px; }
+.btn.plain { background: none; color: var(--label-2); }
+.btn.plain:hover:not([disabled]) { background: var(--fill); color: var(--label); }
+.btn.danger { background: none; color: var(--danger); }
+.btn.danger:hover, .btn.danger.armed { background: var(--danger-soft); }
+.state-pill { font-size: 11.5px; color: var(--label-3); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.state-pill.dirty { color: var(--warn); }
+.state-pill.dirty::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.chips { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.chip { border: 0; border-radius: var(--r-pill); padding: 2px 10px; font-size: 12px; background: var(--fill); color: var(--label-2); display: inline-flex; gap: 5px; align-items: center; }
+.chip:hover { background: var(--fill-hover); color: var(--label); }
+.chip.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chip.add { background: none; color: var(--accent); }
+.chip .x { border: 0; background: none; padding: 0 0 0 2px; color: var(--label-3); line-height: 1; }
+.chip .x:hover { color: var(--danger); }
+.seg { display: inline-flex; background: var(--fill); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { border: 0; background: none; border-radius: 6px; padding: 3px 10px; font-size: 12px; color: var(--label-2); }
+.seg button.on { background: var(--fill-sel); color: var(--label); font-weight: 600; }
+.lab { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--label-2); min-height: 22px; }
+.lab .opt { font-weight: 400; color: var(--label-3); }
+.tok { margin-left: auto; color: var(--label-3); font-weight: 400; font-variant-numeric: tabular-nums; font-size: 11.5px; white-space: nowrap; }
+.hint { color: var(--label-2); font-size: 12px; margin: 0; }
+.ta { width: 100%; display: block; resize: vertical; background: var(--field); border: 1px solid var(--separator); border-radius: 9px; padding: 9px 11px; line-height: 1.55; font-size: 13px; }
+.ta:focus { border-color: rgba(98,182,164,.5); }
+.ta::placeholder, input::placeholder { color: var(--label-3); }
+.ta.prose { font-family: var(--font-prose); font-size: 14.5px; line-height: 1.65; }
+.ta.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.inp { background: var(--field); border: 1px solid var(--separator); border-radius: var(--r-ctl); padding: 5px 9px; min-width: 0; width: 100%; }
+.field { display: grid; gap: 6px; min-width: 0; }
+.outline { display: flex; gap: 5px; flex-wrap: wrap; }
+.outline button { border: 1px solid var(--separator); background: none; border-radius: 6px; padding: 1px 8px; font: 12px var(--font-mono); color: var(--place-character); }
+.outline button i { font: 11px var(--font-ui); color: var(--label-3); font-style: normal; margin-left: 4px; }
+.outline button:hover { background: var(--fill); }
+.banner { background: rgba(195,166,238,.12); color: var(--label); border-radius: var(--r-ctl); padding: 7px 10px; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+.banner b { color: var(--place-note); }
+.muted { color: var(--label-2); }
+.k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--label-3); font-weight: 600; margin: 0; }
+
+/* picture */
+.portrait { position: relative; aspect-ratio: 3 / 4; max-width: 100%; border-radius: 12px; overflow: hidden; background: radial-gradient(120% 90% at 30% 15%, #3c6e63 0%, #23383a 45%, #1d2026 100%); display: grid; place-items: center; }
+.portrait img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.portrait .ini { font: 600 64px var(--font-prose); color: rgba(255,255,255,.75); }
+.portrait.empty { background: var(--group); border: 1.5px dashed var(--separator); }
+.portrait.empty .drop { display: grid; gap: 4px; text-align: center; color: var(--label-2); font-size: 12px; padding: 10px; }
+.portrait.empty .drop strong { color: var(--accent); font-weight: 600; font-size: 13px; }
+.portrait.over { border-color: var(--accent); background: var(--accent-soft); }
+.portrait .p-act { position: absolute; inset: auto 0 0; display: flex; gap: 6px; justify-content: center; padding: 26px 8px 10px; background: linear-gradient(transparent, rgba(0,0,0,.65)); opacity: 0; transition: opacity .15s; }
+.portrait:hover .p-act, .portrait:focus-within .p-act { opacity: 1; }
+.portrait .p-act .btn { background: rgba(30,32,36,.85); }
+@media (hover: none) { .portrait .p-act { opacity: 1; } }
+
+/* token meter */
+.meter { display: grid; gap: 6px; }
+.meter .barline { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--fill); }
+.meter .barline span { display: block; height: 100%; transition: width .2s; }
+.meter .legend { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11px; color: var(--label-2); }
+.meter .legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 4px; }
+.meter .sum { display: flex; justify-content: space-between; font-size: 12px; }
+.meter .sum b { font-variant-numeric: tabular-nums; }
+
+/* greetings (shared pieces) */
+.g-tools { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.g-main { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 5px; text-transform: uppercase; }
+.msg { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; }
+.msg .av { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 30% 20%, #3c6e63, #23383a); display: grid; place-items: center; font: 600 15px var(--font-prose); }
+.msg .av img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.msg .who { font-weight: 600; font-size: 12.5px; margin-bottom: 2px; display: flex; gap: 8px; align-items: center; }
+.msg .who small { color: var(--label-3); font-weight: 400; }
+.msg .txt { font: 15px/1.72 var(--font-prose); color: var(--label); min-width: 0; overflow-wrap: anywhere; }
+.msg .txt p { margin: 0 0 .7em; }
+.msg .txt p:last-child { margin: 0; }
+.txt em { color: var(--narration); }
+.txt .dlg { color: var(--dialogue); }
+.txt .mac { background: var(--fill); border-radius: 4px; padding: 0 4px; font: 12px var(--font-ui); color: var(--accent); }
+.txt .empty { color: var(--label-3); font-style: italic; }
+
+/* ══════════ Draft A — Sheet */
+.a-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+.a-id { overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; border-right: 1px solid var(--separator); }
+.a-name { font: 600 20px var(--font-prose); background: none; border: 0; border-bottom: 1px solid var(--separator); border-radius: 0; padding: 4px 0; width: 100%; }
+.a-name:focus { outline: none; border-color: var(--accent); }
+.a-block { display: grid; gap: 7px; }
+.a-main { overflow: auto; position: relative; }
+.a-jump { position: sticky; top: 0; z-index: 2; display: flex; gap: 2px; padding: 8px 18px; background: rgba(33,35,39,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--separator); overflow-x: auto; }
+.a-jump button { border: 0; background: none; border-radius: 6px; padding: 4px 10px; color: var(--label-2); white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.a-jump button:hover { color: var(--label); background: var(--fill); }
+.a-jump button.on { color: var(--label); background: var(--fill-sel); font-weight: 600; }
+.a-jump .n { font-size: 11px; color: var(--label-3); font-variant-numeric: tabular-nums; }
+.a-sections { padding: 14px 18px 40px; display: grid; gap: 14px; }
+.a-sec { background: var(--group); border-radius: 12px; padding: 14px; display: grid; gap: 12px; scroll-margin-top: 54px; }
+.a-sec > header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.a-sec > header h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.a-sec > header p { margin: 0; color: var(--label-2); font-size: 12px; }
+.a-sec > header .tok { align-self: center; }
+.a-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.a-desc { min-height: 300px; }
+.ga { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px; min-height: 260px; }
+.ga-list { display: flex; flex-direction: column; gap: 3px; }
+.gi { border: 0; background: none; text-align: left; border-radius: 8px; padding: 7px 9px; display: grid; gap: 1px; width: 100%; }
+.gi:hover { background: var(--fill); }
+.gi.on { background: var(--accent-soft); }
+.gi b { font-size: 12px; font-weight: 600; display: flex; gap: 6px; align-items: center; }
+.gi .snip { color: var(--label-2); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gi.blank .snip { color: var(--label-3); font-style: italic; }
+.ga-ed { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ga-ed .ta { flex: 1; min-height: 210px; }
+.ga-prev { flex: 1; background: var(--surface); border-radius: 9px; padding: 14px; min-height: 210px; overflow: auto; }
+.add-g { border: 1px dashed var(--separator); background: none; border-radius: 8px; padding: 7px 9px; color: var(--accent); text-align: left; margin-top: 2px; }
+.add-g:hover { background: var(--fill); }
+.note-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px; gap: 12px; }
+.note-side { display: grid; gap: 8px; align-content: start; }
+.note-side label { display: grid; gap: 3px; font-size: 11.5px; color: var(--label-2); }
+details.more { border-top: 1px solid var(--separator); padding-top: 10px; }
+details.more summary { cursor: pointer; color: var(--label-2); font-weight: 600; font-size: 12.5px; list-style: none; display: flex; gap: 8px; align-items: center; }
+details.more summary::before { content: "›"; transition: transform .15s; display: inline-block; width: 10px; color: var(--label-3); }
+details.more[open] summary::before { transform: rotate(90deg); }
+details.more > div { padding-top: 10px; display: grid; gap: 10px; }
+.rx { display: flex; gap: 10px; align-items: center; padding: 7px 10px; background: var(--surface); border-radius: 8px; }
+.rx code { font: 11.5px var(--font-mono); color: var(--label-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rx .grow { flex: 1; min-width: 0; display: grid; }
+.sw { position: relative; width: 30px; height: 18px; border-radius: 9px; background: var(--fill-sel); border: 0; flex: none; padding: 0; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s; }
+.sw.on { background: var(--accent); }
+.sw.on::after { left: 14px; }
+.hist { display: grid; gap: 2px; }
+.hist div { display: flex; gap: 10px; padding: 6px 8px; border-radius: 6px; font-size: 12px; align-items: center; }
+.hist div:hover { background: var(--fill); }
+.hist time { color: var(--label-3); font-variant-numeric: tabular-nums; width: 92px; flex: none; }
+.hist span { flex: 1; color: var(--label-2); min-width: 0; }
+.pop { position: relative; }
+.pop-menu { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; background: var(--pop); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.55), inset 0 0 0 1px var(--glass-edge); padding: 4px; min-width: 190px; display: grid; }
+.pop-menu button { border: 0; background: none; text-align: left; padding: 6px 9px; border-radius: 6px; }
+.pop-menu button:hover { background: var(--fill-hover); }
+.pop-menu .none { padding: 6px 9px; color: var(--label-3); font-size: 12px; }
+.tag-in { border: 0; background: none; padding: 2px 4px; width: 90px; font-size: 12px; }
+.tag-in:focus { outline: none; }
+
+/* ══════════ Draft B — Tabs */
+.b-head { flex: none; display: flex; gap: 14px; align-items: center; padding: 14px 18px 0; flex-wrap: wrap; }
+.b-av { width: 64px; height: 80px; border-radius: 10px; flex: none; }
+.b-av .ini { font-size: 30px; }
+.b-av.empty .drop { font-size: 10.5px; padding: 4px; }
+.b-av.empty .drop strong { font-size: 11px; }
+.b-av .p-act { padding: 4px; }
+.b-av .p-act .btn { padding: 2px 6px; font-size: 11px; }
+.b-who { flex: 1; min-width: 200px; display: grid; gap: 6px; }
+.b-name { font: 600 22px var(--font-prose); background: none; border: 0; padding: 0; border-radius: 4px; width: 100%; }
+.b-name:hover { background: var(--fill); }
+.b-name:focus { outline: none; background: var(--fill); }
+.b-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.b-tabs { flex: none; display: flex; gap: 4px; padding: 12px 18px 0; border-bottom: 1px solid var(--separator); overflow-x: auto; }
+.b-tabs button { border: 0; background: none; padding: 7px 10px 9px; color: var(--label-2); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.b-tabs button:hover { color: var(--label); }
+.b-tabs button.on { color: var(--label); border-bottom-color: var(--accent); font-weight: 600; }
+.b-tabs .n { font-size: 11px; background: var(--fill); border-radius: 8px; padding: 0 6px; color: var(--label-2); font-weight: 500; }
+.b-pane { flex: 1; min-height: 0; overflow: auto; padding: 16px 18px 30px; }
+.b-char { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; height: 100%; min-height: 480px; }
+.b-char .desc-col { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.b-char .desc-col .ta { flex: 1; resize: none; min-height: 300px; }
+.b-char .side-col { display: flex; flex-direction: column; gap: 14px; }
+.b-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.gcard { flex: 0 0 190px; border: 1px solid var(--separator); background: var(--surface); border-radius: 10px; padding: 9px 11px; text-align: left; display: grid; gap: 4px; align-content: start; height: 104px; }
+.gcard:hover { border-color: var(--fill-sel); }
+.gcard.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.gcard b { font-size: 11.5px; display: flex; gap: 6px; align-items: center; color: var(--label-2); }
+.gcard .snip { font: 12.5px/1.45 var(--font-prose); color: var(--label); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.gcard.blank .snip { color: var(--label-3); font-style: italic; }
+.gcard.new { border-style: dashed; color: var(--accent); place-content: center; text-align: center; font-weight: 600; }
+.b-gsplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 12px; }
+.b-gsplit .ta { min-height: 320px; }
+.b-chat { background: var(--surface); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 320px; }
+.b-chat .swipe { display: flex; justify-content: center; align-items: center; gap: 10px; color: var(--label-2); font-size: 12px; margin-top: auto; }
+.b-chat .swipe button { border: 0; background: var(--fill); border-radius: 50%; width: 26px; height: 26px; }
+.b-stack { display: grid; gap: 14px; max-width: 900px; }
+
+/* ══════════ Draft C — Writer */
+.c-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr) 250px; }
+.c-out { overflow: auto; padding: 14px 8px; border-right: 1px solid var(--separator); display: flex; flex-direction: column; gap: 1px; }
+.c-out .k { padding: 6px 10px 4px; }
+.oi { border: 0; background: none; display: flex; gap: 8px; align-items: center; padding: 5px 10px; border-radius: 6px; text-align: left; color: var(--label); width: 100%; }
+.oi:hover { background: var(--fill); }
+.oi.on { background: var(--fill-sel); }
+.oi .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oi .tok { margin: 0; }
+.oi.sub { padding-left: 24px; font-size: 12px; color: var(--label-2); }
+.oi.sub .t { font-family: var(--font-mono); font-size: 11.5px; color: var(--place-character); }
+.oi.sub.g .t { font-family: var(--font-ui); color: var(--label-2); }
+.oi.emptyf .t { color: var(--label-3); }
+.oi .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+.oi.emptyf .dot { background: transparent; box-shadow: inset 0 0 0 1px var(--label-3); }
+.c-doc { position: relative; overflow: auto; padding: 0 28px; scroll-behavior: smooth; }
+.c-page { max-width: 70ch; margin: 0 auto; padding: 34px 0 120px; display: grid; gap: 30px; }
+.c-name { font: 600 32px/1.2 var(--font-prose); background: none; border: 0; padding: 0; width: 100%; letter-spacing: -.01em; }
+.c-name:focus { outline: none; }
+.c-name::placeholder { color: var(--label-3); }
+.c-f { display: grid; gap: 6px; scroll-margin-top: 20px; }
+.c-f .lab { font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--label-3); font-weight: 700; }
+.c-f .lab .help { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--label-3); font-size: 11.5px; }
+.c-ta { width: 100%; resize: none; overflow: hidden; background: none; border: 0; padding: 4px 0; font: 16px/1.72 var(--font-prose); border-radius: 0; display: block; }
+.c-ta:focus { outline: none; }
+.c-ta.mono { font: 13px/1.6 var(--font-mono); }
+.c-f:focus-within .lab { color: var(--accent); }
+.c-rule { height: 1px; background: var(--separator); }
+.c-g { position: relative; border-left: 2px solid var(--separator); padding-left: 14px; display: grid; gap: 4px; scroll-margin-top: 20px; }
+.c-g:focus-within { border-left-color: var(--accent); }
+.c-g .g-head { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--label-2); }
+.c-g .g-tools { opacity: 0; transition: opacity .15s; margin-left: auto; }
+.c-g:hover .g-tools, .c-g:focus-within .g-tools { opacity: 1; }
+@media (hover: none) { .c-g .g-tools { opacity: 1; } }
+.c-ins { overflow: auto; padding: 16px; border-left: 1px solid var(--separator); display: flex; flex-direction: column; gap: 16px; }
+.c-ins .portrait { width: 140px; }
+.c-status { flex: none; display: flex; gap: 14px; align-items: center; padding: 6px 14px; border-top: 1px solid var(--separator); font-size: 11.5px; color: var(--label-3); font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+
+/* ── notes under the window */
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+.note { background: var(--surface); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--separator); }
+.note.on { border-color: rgba(98,182,164,.5); }
+.note h4 { margin: 0 0 6px; font-size: 13.5px; }
+.note p, .note li { color: var(--label-2); font-size: 12.5px; margin: 0; }
+.note ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.note b { color: var(--label); font-weight: 600; }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); background: var(--pop); box-shadow: 0 12px 32px rgba(0,0,0,.55), inset 0 0 0 1px var(--glass-edge); padding: 8px 14px; border-radius: 9px; opacity: 0; transition: .2s; pointer-events: none; z-index: 40; font-size: 12.5px; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ── narrower windows */
+@media (max-width: 1240px) { .side { display: none; } .c-body { grid-template-columns: 190px minmax(0, 1fr) 220px; } .c-ins .portrait { width: 110px; } }
+@media (max-width: 1000px) {
+  .c-body { grid-template-columns: minmax(0, 1fr) 220px; } .c-out { display: none; }
+  .b-char, .b-gsplit { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 820px) {
+  .win { height: auto; min-height: 0; padding: 6px; }
+  .ed { overflow: visible; }
+  .a-body, .c-body { grid-template-columns: minmax(0, 1fr); }
+  .a-id { border-right: 0; border-bottom: 1px solid var(--separator); overflow: visible; }
+  .a-id .portrait { width: 150px; }
+  .a-main, .b-pane, .c-doc, .c-ins { overflow: visible; }
+  .a-jump { position: static; }
+  .a-two, .note-row { grid-template-columns: minmax(0, 1fr); }
+  .ga { grid-template-columns: minmax(0, 1fr); }
+  .ga-list { flex-direction: row; overflow-x: auto; }
+  .ga-list .gi, .ga-list .add-g { flex: 0 0 150px; }
+  .c-ins { border-left: 0; border-top: 1px solid var(--separator); }
+  .c-doc { padding: 0 14px; }
+  .c-page { padding: 20px 0 30px; }
+  .b-char { height: auto; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="states" role="toolbar" aria-label="Draft controls">
+  <div class="grp"><b>Draft</b>
+    <button data-act="draft" data-v="a" id="d-a">A · Sheet</button>
+    <button data-act="draft" data-v="b" id="d-b">B · Tabs</button>
+    <button data-act="draft" data-v="c" id="d-c">C · Writer</button>
+  </div>
+  <div class="grp"><b>Example</b>
+    <button data-act="who" data-v="lyra" id="w-lyra">Lyra (filled)</button>
+    <button data-act="who" data-v="new" id="w-new">New character</button>
+  </div>
+  <span class="kbd">Ctrl+S saves · edits carry across drafts</span>
+</div>
+
+<main>
+  <p class="intro">Three directions for <b>Library → Characters → New / Edit</b>. All three fix the same problems: the <b>alternate greetings</b> get a real editor, <b>Save</b> stays visible, every field shows its <b>tokens</b>, the Description shows its <b>&lt;sections&gt;</b>, and optional fields stop looking as important as the Description. Try typing, adding and reordering greetings, dropping a picture on the portrait.</p>
+  <div class="win" id="win">
+    <nav class="side glass" aria-label="Characters" id="side"></nav>
+    <section class="ed glass" id="stage" aria-label="Character editor"></section>
+  </div>
+  <div class="notes" id="notes">
+    <div class="note" data-note="a"><h4>A · Sheet</h4>
+      <p>Identity on the left (picture, name, tags, In the Scene, lorebooks, token meter, export). Everything you write on the right, as sections with a jump bar.</p>
+      <ul><li><b>Good for:</b> seeing the whole card at once, like the Library sheet.</li><li><b>Greetings:</b> list + editor, Edit / Preview.</li><li><b>Closest to today:</b> smallest change in code.</li></ul></div>
+    <div class="note" data-note="b"><h4>B · Tabs</h4>
+      <p>A compact header (picture, name, versions, Save) and one tab at a time: Character · Greetings · Prompt · Lore &amp; Regex · About · History.</p>
+      <ul><li><b>Good for:</b> long cards; the Description gets the full height.</li><li><b>Greetings:</b> a strip of cards, editor next to a live chat preview with swipe arrows.</li><li><b>Cost:</b> fields are hidden behind tabs.</li></ul></div>
+    <div class="note" data-note="c"><h4>C · Writer</h4>
+      <p>The card as one document in the reading font, with an outline on the left (fields, the Description's &lt;sections&gt;, each greeting) and settings on the right.</p>
+      <ul><li><b>Good for:</b> writing a whole sheet in Description with XML tags; the outline becomes a table of contents.</li><li><b>Greetings:</b> inline blocks in the document.</li><li><b>Cost:</b> three columns need a wide window.</li></ul></div>
+  </div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ── data */
+const LYRA_DESC = `<lyra>
+Name: Lyra Vael
+Age: 27
+Role: Ranger of the Thornwood border; scout for the river villages.
+Appearance: Lean and weathered. Copper hair cut short with a knife, a scar through the left eyebrow, green cloak patched at the hem. Moves without sound and always sits facing the door.
+Personality: Wary, patient, dry humor that surfaces once she trusts someone. Keeps promises to the letter. Hates waste, cruelty to animals and men who talk too much.
+Speech: Short sentences. Rarely asks questions; makes statements and waits.
+Skills: Longbow, tracking, herbs, reading weather. Can't read well and hides it.
+Secret: She let a raider band through the pass two winters ago to save her brother. Nobody knows.
+</lyra>
+
+<thornwood>
+An old border forest of black pines between the river villages and the hill clans. Paths change after storms. Rangers keep watchtowers along the ridge and light green fires when raiders cross.
+</thornwood>
+
+<relationships>
+Bram (brother): miller in Hollowford, the reason she stays.
+Captain Orsa: her commander; respects her, doesn't trust her.
+</relationships>`;
+
+const LYRA = () => ({
+  isNew: false,
+  name: "Lyra",
+  picture: null,
+  description: LYRA_DESC,
+  personality: "",
+  scenario: "{{user}} is a traveler crossing the Thornwood at the start of the raiding season.",
+  greetings: [
+    `*Lyra steps out of the shadow of the mill gate, an arrow already nocked.* "That's close enough. Who sent you?"\n\n*Her eyes go to your hands, then your boots, reading the mud on them.* "Not from the river road. Not dressed like that."`,
+    `*Rain drums on the watchtower roof. Lyra doesn't turn from the arrow slit when you climb the last step.* "You're soaked. Blanket's by the fire." *A pause.* "Don't touch the bow."`,
+    `*The tavern in Hollowford is loud tonight. Lyra sits alone with her back to the wall, a cup she hasn't touched in front of her. When {{user}} sits down across from her, she slides the cup over.* "You look like you need it more than I do."`,
+    `*You find her at the bottom of the ravine, one leg pinned under a fallen pine, knife in hand.* "If you're going to rob me, be quick about it." *Her voice cracks on the last word.* "If not... the rope's in my pack."`,
+  ],
+  examples: `<START>\n{{user}}: Are we lost?\n{{char}}: *She crouches, touches the moss on a stone.* "No. You are."`,
+  system: "",
+  post: "",
+  creatorNotes: "A slow-burn ranger. Works best with a narrator that lets silences breathe.",
+  creator: "Daniel",
+  cversion: "1.2",
+  tags: ["fantasy", "ranger", "slow burn"],
+  note: { text: "Lyra never says more than three sentences at a time unless she is angry.", depth: 4, role: "system" },
+  tracked: true,
+  lorebooks: ["Thornwood Lore"],
+  versions: ["Main", "Modern"],
+  version: 0,
+  regex: [{ name: "Trim stray asterisks", find: "/\\*{3,}/g → *", on: true }, { name: "Hide OOC notes", find: "/\\(OOC:[^)]*\\)/g → (nothing)", on: false }],
+});
+const NEW = () => ({
+  isNew: true, name: "", picture: null, description: "", personality: "", scenario: "", greetings: [""], examples: "", system: "", post: "",
+  creatorNotes: "", creator: "", cversion: "", tags: [], note: { text: "", depth: 4, role: "system" }, tracked: true, lorebooks: [], versions: ["Main"], version: 0, regex: [],
+});
+const ALL_BOOKS = ["Thornwood Lore", "Kingdom of Arn", "Rangers' Code", "Old Gods"];
+const HISTORY = [["Today 09:41", "description, 2 greetings"], ["Yesterday 23:10", "first message, tags"], ["Oct 30 18:02", "created from a SillyTavern card"]];
+
+let S = LYRA();
+const ui = { draft: "a", who: "lyra", gi: 0, gmode: "edit", tab: "character", dirty: false, savedAt: Date.now() - 6 * 60000, armed: "", pop: "", spy: "a-desc" };
+try { const d = localStorage.getItem("h2-ce-draft"); if (d && "abc".includes(d)) ui.draft = d; } catch (e) {}
+
+/* ── helpers */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const tokN = (t) => Math.ceil((t || "").length / 3.6);
+const fmtN = (n) => n.toLocaleString("en-US");
+const get = (k) => k === "note" ? S.note.text : k === "g" ? (S.greetings[ui.gi] ?? "") : S[k];
+const charName = () => S.name.trim() || "New character";
+const verLabel = () => S.version ? S.versions[S.version] : "";
+
+function fmt(t) {
+  if (!t.trim()) return `<p class="empty">Empty greeting: write how the chat opens.</p>`;
+  let h = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  h = h.replace(/\{\{(user|char)\}\}/gi, (m, w) => `<span class="mac">${w.toLowerCase() === "char" ? esc(S.name || "char") : "you"}</span>`);
+  h = h.replace(/"([^"\n]+)"/g, '<span class="dlg">"$1"</span>').replace(/“([^”\n]+)”/g, '<span class="dlg">“$1”</span>');
+  h = h.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+  return h.split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
+}
+function sections(t) {
+  const out = []; const re = /<([A-Za-z][\w.-]*)(\s[^>]*)?>/g; let m;
+  while ((m = re.exec(t))) {
+    const close = t.indexOf(`</${m[1]}>`, re.lastIndex);
+    if (close < 0) continue;
+    out.push({ name: m[1], pos: m.index, tok: tokN(t.slice(re.lastIndex, close)), tag: true });
+    re.lastIndex = close + m[1].length + 3;
+  }
+  if (!out.length) { const hr = /^#{1,3}\s+(.+)$/gm; while ((m = hr.exec(t))) out.push({ name: m[1].trim(), pos: m.index, tok: 0, tag: false }); }
+  return out;
+}
+const PARTS = [["description", "Description", "var(--place-character)"], ["personality", "Personality", "#7fb7c9"], ["scenario", "Scenario", "var(--place-chat)"],
+  ["note", "Character's Note", "var(--place-note)"], ["examples", "Examples", "var(--place-examples)"], ["system", "System prompt", "#a0a7b4"], ["post", "Post-history", "#d99a9a"]];
+const perReply = () => PARTS.reduce((s, [k]) => s + tokN(get(k)), 0);
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 2200); }
+function ago() { if (!ui.savedAt) return "Not created yet"; const m = Math.round((Date.now() - ui.savedAt) / 60000); return m < 1 ? "Saved just now" : `Saved ${m} min ago`; }
+
+/* ── shared pieces */
+const ta = (k, cls, ph, rows = 3, extra = "") => `<textarea id="f-${ui.draft}-${k}" data-k="${k}" class="${cls}" rows="${rows}" placeholder="${esc(ph)}" ${extra}>${esc(get(k))}</textarea>`;
+const tok = (k, suffix = "") => `<span class="tok" data-tok="${k}" data-suffix="${suffix}"></span>`;
+const statePill = () => `<span class="state-pill${ui.dirty ? " dirty" : ""}" data-state>${ui.dirty ? "Unsaved changes" : ago()}</span>`;
+const saveBtn = () => `<button class="btn pri" data-act="save">${S.isNew ? "Create character" : "Save"}</button>`;
+const chatBtn = () => `<button class="btn" data-act="chat" ${S.isNew ? "disabled title=\"Create the character first\"" : ""}>Start chat</button>`;
+
+function portrait(cls = "") {
+  if (S.picture) return `<div class="portrait ${cls}" data-drop><img src="${S.picture}" alt="${esc(charName())} portrait"><div class="p-act"><button class="btn sm" data-act="pick">Change</button><button class="btn sm" data-act="nopic">Remove</button></div></div>`;
+  if (S.isNew || !S.name) return `<div class="portrait empty ${cls}" data-drop><button class="drop" data-act="pick" style="border:0;background:none;cursor:pointer"><strong>Add a picture</strong><span>or drop an image here</span></button></div>`;
+  return `<div class="portrait ${cls}" data-drop><span class="ini">${esc(S.name.slice(0, 1).toUpperCase())}</span><div class="p-act"><button class="btn sm" data-act="pick">Add picture</button></div></div>`;
+}
+function versions() {
+  return `<div class="chips" role="tablist" aria-label="Versions">${S.versions.map((v, i) => `<button class="chip${S.version === i ? " on" : ""}" role="tab" aria-selected="${S.version === i}" data-act="ver" data-i="${i}">${esc(v)}</button>`).join("")}<button class="chip add" data-act="addver">+ Version</button></div>`;
+}
+const verBanner = () => S.version ? `<div class="banner"><b>${esc(verLabel())}</b> Fields you change here replace Main's; the rest follows Main.</div>` : "";
+function tracked() {
+  return `<div class="seg" role="radiogroup" aria-label="In the Scene"><button class="${S.tracked ? "on" : ""}" data-act="tracked" data-v="1">Track as a person</button><button class="${S.tracked ? "" : "on"}" data-act="tracked" data-v="0">Don't track</button></div>`;
+}
+function tags() {
+  return `<div class="chips">${S.tags.map((t, i) => `<span class="chip">${esc(t)}<button class="x" aria-label="Remove ${esc(t)}" data-act="untag" data-i="${i}">×</button></span>`).join("")}<input class="tag-in" id="tag-in-${ui.draft}" placeholder="+ tag" aria-label="Add a tag"></div>`;
+}
+function books() {
+  const left = ALL_BOOKS.filter((b) => !S.lorebooks.includes(b));
+  return `<div class="chips">${S.lorebooks.map((b, i) => `<span class="chip" style="color:var(--place-character)">${esc(b)}<button class="x" aria-label="Unlink ${esc(b)}" data-act="unbook" data-i="${i}">×</button></span>`).join("")}
+    <span class="pop"><button class="chip add" data-act="pop" data-v="books">+ Link</button>${ui.pop === "books" ? `<div class="pop-menu">${left.length ? left.map((b) => `<button data-act="book" data-v="${esc(b)}">${esc(b)}</button>`).join("") : `<span class="none">All lorebooks linked</span>`}</div>` : ""}</span></div>`;
+}
+function meter() {
+  return `<div class="meter"><div class="sum"><span class="muted">Sent with every reply</span><b data-total></b></div><div class="barline" data-bar></div><div class="legend" data-legend></div></div>`;
+}
+function exportRow() {
+  return `<div class="chips"><button class="btn sm" data-act="export" data-v="V2 card" ${S.isNew ? "disabled" : ""}>V2 card</button><button class="btn sm" data-act="export" data-v="V3 card" ${S.isNew ? "disabled" : ""}>V3 card</button><button class="btn sm" data-act="export" data-v="PNG" ${S.isNew ? "disabled" : ""}>PNG</button></div>`;
+}
+function noteBlock(compact = false) {
+  return `<div class="note-row"><div class="field"><div class="lab">Character's Note <span class="opt">put into the chat in every reply</span>${tok("note")}</div>${ta("note", "ta", "Things the AI forgets: how they talk, a rule, a secret.", compact ? 2 : 3)}</div>
+  <div class="note-side"><label>@ Depth<input class="inp" type="number" min="0" max="999" value="${S.note.depth}" data-note-depth aria-label="Character's Note depth"></label>
+  <label>Role<select class="inp" data-note-role aria-label="Character's Note role">${[["system", "System"], ["user", "User"], ["assistant", "AI"]].map(([v, l]) => `<option value="${v}" ${S.note.role === v ? "selected" : ""}>${l}</option>`).join("")}</select></label></div></div>`;
+}
+function regexList() {
+  if (!S.regex.length) return `<p class="hint">No scripts on this character. Scripts from an imported card show up here and wait for your OK.</p>`;
+  return S.regex.map((r, i) => `<div class="rx"><button class="sw${r.on ? " on" : ""}" role="switch" aria-checked="${r.on}" aria-label="${esc(r.name)}" data-act="rx" data-i="${i}"></button><div class="grow"><span>${esc(r.name)}</span><code>${esc(r.find)}</code></div></div>`).join("");
+}
+const history = () => S.isNew ? `<p class="hint">Every save is kept here, so you can compare and restore.</p>` : `<div class="hist">${HISTORY.map(([t, w]) => `<div><time>${t}</time><span>${w}</span><button class="btn sm plain" data-act="restore">Restore</button></div>`).join("")}</div>`;
+const trashBtn = () => S.isNew ? "" : `<button class="btn danger sm${ui.armed === "trash" ? " armed" : ""}" data-act="trash">${ui.armed === "trash" ? "Click again to move to Trash" : "Move to Trash"}</button>`;
+const gTitle = (i) => i === 0 ? `Greeting 1 <span class="g-main">Main</span>` : `Greeting ${i + 1}`;
+const gTools = (i, preview = false) => `<div class="g-tools">
+  ${preview ? `<div class="seg"><button class="${ui.gmode === "edit" ? "on" : ""}" data-act="gmode" data-v="edit">Edit</button><button class="${ui.gmode === "prev" ? "on" : ""}" data-act="gmode" data-v="prev">Preview</button></div><span class="spacer"></span>` : ""}
+  <button class="btn sm plain" data-act="macro" data-i="${i}" data-v="{{user}}" title="Insert {{user}}">{{user}}</button>
+  ${i > 0 ? `<button class="btn sm plain" data-act="gmain" data-i="${i}" title="Use this one when a chat starts">Make main</button>` : ""}
+  <button class="btn sm plain" data-act="gmove" data-i="${i}" data-v="-1" ${i === 0 ? "disabled" : ""} aria-label="Move up">↑</button>
+  <button class="btn sm plain" data-act="gmove" data-i="${i}" data-v="1" ${i === S.greetings.length - 1 ? "disabled" : ""} aria-label="Move down">↓</button>
+  <button class="btn sm plain" data-act="gdup" data-i="${i}">Duplicate</button>
+  ${S.greetings.length > 1 ? `<button class="btn sm danger${ui.armed === "g" + i ? " armed" : ""}" data-act="gdel" data-i="${i}">${ui.armed === "g" + i ? "Delete?" : "Delete"}</button>` : ""}
+</div>`;
+const gHint = `<p class="hint">Other ways a new chat can open. Greeting 1 is used first; swipe the first message to switch to another.</p>`;
+const msgPrev = () => `<div class="msg"><div class="av">${S.picture ? `<img src="${S.picture}" alt="">` : esc((S.name || "?").slice(0, 1).toUpperCase())}</div><div><div class="who">${esc(charName())} <small data-gpos></small></div><div class="txt" data-gprev></div></div></div>`;
+
+/* ══════════ Draft A */
+function renderA() {
+  const g = S.greetings;
+  return `<div class="bar"><button class="crumb" data-act="close">‹ Characters</button><span class="title" data-show="title"></span><span class="spacer"></span>${statePill()}${chatBtn()}${saveBtn()}</div>
+  <div class="a-body">
+    <aside class="a-id" data-scroll="a-id">
+      ${portrait()}
+      <div class="a-block"><input class="a-name" id="f-a-name" data-k="name" value="${esc(S.name)}" placeholder="Name" aria-label="Name" autocomplete="off">
+        <p class="hint">{{char}} in prompts becomes this name.</p></div>
+      <div class="a-block"><p class="k">Version</p>${versions()}</div>
+      <div class="a-block"><p class="k">In the Scene</p>${tracked()}</div>
+      <div class="a-block"><p class="k">Lorebooks</p>${books()}</div>
+      <div class="a-block"><p class="k">Tags</p>${tags()}</div>
+      <div class="a-block">${meter()}</div>
+      <div class="a-block"><p class="k">Export</p>${exportRow()}</div>
+      ${trashBtn()}
+    </aside>
+    <div class="a-main" data-scroll="a-main">
+      <nav class="a-jump" aria-label="Sections">
+        <button data-act="jump" data-to="a-desc">Description</button>
+        <button data-act="jump" data-to="a-greet">Greetings <span class="n" data-gcount></span></button>
+        <button data-act="jump" data-to="a-details">Details</button>
+        <button data-act="jump" data-to="a-prompt">Prompt</button>
+        <button data-act="jump" data-to="a-more">More</button>
+      </nav>
+      <div class="a-sections">
+        ${verBanner()}
+        <section class="a-sec" id="a-desc"><header><h3>Description</h3><p>The main thing the AI reads.</p>${tok("description")}</header>
+          <div class="outline" data-outline></div>
+          ${ta("description", "ta prose a-desc", "Who they are: looks, background, how they talk.\nTip: wrap parts in tags like <name> … </name> and they become sections you can jump to.", 14)}</section>
+        <section class="a-sec" id="a-greet"><header><h3>Greetings</h3><p>How a new chat starts.</p></header>
+          <div class="ga"><div class="ga-list" role="tablist" aria-label="Greetings">
+            ${g.map((t, i) => `<button class="gi${i === ui.gi ? " on" : ""}${t.trim() ? "" : " blank"}" role="tab" aria-selected="${i === ui.gi}" data-act="gpick" data-i="${i}"><b>${gTitle(i)}</b><span class="snip" data-snip="${i}"></span></button>`).join("")}
+            <button class="add-g" data-act="gadd">+ Add greeting</button></div>
+            <div class="ga-ed">${gTools(ui.gi, true)}
+              ${ui.gmode === "edit" ? ta("g", "ta prose", ui.gi === 0 ? "*She looks up from the fire.* \"You're late.\"" : "Another way the chat can open…", 9) : `<div class="ga-prev">${msgPrev()}</div>`}
+              <div style="display:flex;gap:8px;align-items:center">${gHint}${tok("g", " · only at the start")}</div></div></div></section>
+        <section class="a-sec" id="a-details"><header><h3>Details</h3><p>Optional. Many people keep all of this inside the Description.</p></header>
+          <div class="a-two"><div class="field"><div class="lab">Personality <span class="opt">optional</span>${tok("personality")}</div>${ta("personality", "ta", "How they think and behave, in a few lines.", 4)}</div>
+          <div class="field"><div class="lab">Scenario <span class="opt">optional</span>${tok("scenario")}</div>${ta("scenario", "ta", "Where and how the story starts.", 4)}</div></div>
+          <div class="field"><div class="lab">Example dialogue <span class="opt">blocks start with &lt;START&gt;</span>${tok("examples")}</div>${ta("examples", "ta mono", "<START>\n{{user}}: …\n{{char}}: …", 4)}</div></section>
+        <section class="a-sec" id="a-prompt"><header><h3>Prompt</h3><p>Extra instructions that travel with this character.</p></header>
+          ${noteBlock()}
+          <div class="a-two"><div class="field"><div class="lab">System prompt <span class="opt">replaces the default</span>${tok("system")}</div>${ta("system", "ta", "Leave empty to use the preset's.", 3)}</div>
+          <div class="field"><div class="lab">Post-history instructions ${tok("post")}</div>${ta("post", "ta", "Sent right before the AI answers.", 3)}</div></div></section>
+        <section class="a-sec" id="a-more"><header><h3>More</h3></header>
+          <details class="more" ${S.regex.length ? "" : ""}><summary>Regex scripts <span class="tok">${S.regex.length || ""}</span></summary><div>${regexList()}</div></details>
+          <details class="more"><summary>Creator notes</summary><div>${ta("creatorNotes", "ta", "Notes for whoever reads the card. Not sent to the AI.", 3)}${S.creator ? `<p class="hint">Card by ${esc(S.creator)}${S.cversion ? ` · version ${esc(S.cversion)}` : ""}</p>` : ""}</div></details>
+          <details class="more"><summary>History</summary><div>${history()}</div></details></section>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ══════════ Draft B */
+function renderB() {
+  const g = S.greetings; const T = ui.tab;
+  const tabs = [["character", "Character"], ["greetings", "Greetings", g.length], ["prompt", "Prompt"], ["lore", "Lore & Regex", S.lorebooks.length + S.regex.length || ""], ["about", "About"], ["history", "History"]];
+  let pane = "";
+  if (T === "character") pane = `${verBanner()}<div class="b-char" style="${S.version ? "margin-top:12px" : ""}">
+    <div class="desc-col"><div class="lab">Description <span class="opt">the main thing the AI reads</span>${tok("description")}</div><div class="outline" data-outline></div>
+      ${ta("description", "ta prose", "Who they are: looks, background, how they talk.\nTip: wrap parts in tags like <name> … </name> and they become sections.", 16)}</div>
+    <div class="side-col">
+      <div class="field"><div class="lab">Personality <span class="opt">optional</span>${tok("personality")}</div>${ta("personality", "ta", "How they think and behave.", 3)}</div>
+      <div class="field"><div class="lab">Scenario <span class="opt">optional</span>${tok("scenario")}</div>${ta("scenario", "ta", "Where the story starts.", 3)}</div>
+      <div class="field"><div class="lab">In the Scene</div>${tracked()}</div>
+      <div class="field"><div class="lab">Tags</div>${tags()}</div>
+      ${meter()}
+    </div></div>`;
+  if (T === "greetings") pane = `${gHint}<div class="b-strip" role="tablist" aria-label="Greetings" style="margin-top:10px">
+      ${g.map((t, i) => `<button class="gcard${i === ui.gi ? " on" : ""}${t.trim() ? "" : " blank"}" role="tab" aria-selected="${i === ui.gi}" data-act="gpick" data-i="${i}"><b>${gTitle(i)}</b><span class="snip" data-snip="${i}"></span></button>`).join("")}
+      <button class="gcard new" data-act="gadd">+ Add greeting</button></div>
+    <div class="b-gsplit"><div class="field">${gTools(ui.gi)}${ta("g", "ta prose", "How the chat opens…", 12)}<div class="lab">${tok("g", " · only at the start")}</div></div>
+      <div class="b-chat"><p class="k">How it looks in a chat</p>${msgPrev()}
+        <div class="swipe"><button data-act="gstep" data-v="-1" aria-label="Previous greeting">‹</button><span data-gpos2></span><button data-act="gstep" data-v="1" aria-label="Next greeting">›</button></div></div></div>`;
+  if (T === "prompt") pane = `<div class="b-stack">${noteBlock()}
+    <div class="field"><div class="lab">Example dialogue <span class="opt">blocks start with &lt;START&gt;</span>${tok("examples")}</div>${ta("examples", "ta mono", "<START>\n{{user}}: …\n{{char}}: …", 5)}</div>
+    <div class="field"><div class="lab">System prompt <span class="opt">replaces the preset's when filled</span>${tok("system")}</div>${ta("system", "ta", "Leave empty to use the preset's.", 3)}</div>
+    <div class="field"><div class="lab">Post-history instructions ${tok("post")}</div>${ta("post", "ta", "Sent right before the AI answers.", 3)}</div></div>`;
+  if (T === "lore") pane = `<div class="b-stack"><div class="field"><div class="lab">Lorebooks <span class="opt">read in every chat with this character</span></div>${books()}</div>
+    <div class="field"><div class="lab">Regex scripts <span class="opt">run after the global and preset scripts</span></div>${regexList()}</div></div>`;
+  if (T === "about") pane = `<div class="b-stack"><div class="field"><div class="lab">Creator notes <span class="opt">not sent to the AI</span></div>${ta("creatorNotes", "ta", "Notes for whoever reads the card.", 4)}</div>
+    ${S.creator ? `<p class="hint">Card by ${esc(S.creator)}${S.cversion ? ` · version ${esc(S.cversion)}` : ""}</p>` : ""}
+    <div class="field"><div class="lab">Export <span class="opt">the version you are looking at, as a SillyTavern card</span></div>${exportRow()}</div><div>${trashBtn()}</div></div>`;
+  if (T === "history") pane = `<div class="b-stack">${history()}</div>`;
+  return `<div class="b-head">${portrait("b-av")}
+    <div class="b-who"><input class="b-name" id="f-b-name" data-k="name" value="${esc(S.name)}" placeholder="Name your character" aria-label="Name" autocomplete="off">${versions()}</div>
+    <div class="b-actions">${statePill()}${chatBtn()}${saveBtn()}<button class="btn plain" data-act="close" aria-label="Close">✕</button></div></div>
+  <nav class="b-tabs" role="tablist">${tabs.map(([k, l, n]) => `<button role="tab" aria-selected="${T === k}" class="${T === k ? "on" : ""}" data-act="tab" data-v="${k}">${l}${n ? ` <span class="n">${n}</span>` : ""}</button>`).join("")}</nav>
+  <div class="b-pane" data-scroll="b-pane">${pane}</div>`;
+}
+
+/* ══════════ Draft C */
+function renderC() {
+  const g = S.greetings;
+  const f = (k, label, help, cls = "", ph = "") => `<div class="c-f" id="c-${k}"><div class="lab">${label} ${help ? `<span class="help">· ${help}</span>` : ""}${tok(k)}</div>${ta(k, "c-ta auto " + cls, ph, 1)}</div>`;
+  return `<div class="bar"><button class="crumb" data-act="close">‹ Characters</button><span class="title" data-show="title"></span><span class="spacer"></span>${statePill()}${chatBtn()}${saveBtn()}</div>
+  <div class="c-body">
+    <nav class="c-out" data-scroll="c-out" aria-label="Outline" data-coutline></nav>
+    <div class="c-doc" data-scroll="c-doc"><div class="c-page">
+      ${verBanner()}
+      <input class="c-name" id="f-c-name" data-k="name" value="${esc(S.name)}" placeholder="Untitled character" aria-label="Name" autocomplete="off">
+      ${f("description", "Description", "the main thing the AI reads", "", "Who they are: looks, background, how they talk. Wrap parts in <tags> … </tags> and they appear in the outline.")}
+      ${f("personality", "Personality", "optional", "", "How they think and behave.")}
+      ${f("scenario", "Scenario", "optional", "", "Where and how the story starts.")}
+      <div class="c-rule"></div>
+      <div class="c-f" id="c-greetings"><div class="lab">Greetings <span class="help">· how a new chat opens; the first is used first</span></div>
+        ${g.map((t, i) => `<div class="c-g" id="c-g${i}"><div class="g-head">${gTitle(i)} <span class="tok" style="margin:0" data-gtok="${i}"></span>${gTools(i)}</div>
+          <textarea id="f-c-g${i}" data-gi="${i}" class="c-ta auto" rows="1" placeholder="${i === 0 ? "*She looks up from the fire.* &quot;You're late.&quot;" : "Another way the chat can open…"}">${esc(t)}</textarea></div>`).join("")}
+        <div><button class="btn sm plain" data-act="gadd" style="color:var(--accent)">+ Add greeting</button></div></div>
+      <div class="c-rule"></div>
+      ${f("examples", "Example dialogue", "blocks start with &lt;START&gt;", "mono", "<START>\n{{user}}: …\n{{char}}: …")}
+      ${f("note", "Character's Note", `in every reply · depth <input type="number" class="inp" style="width:52px;padding:0 4px;display:inline" value="${S.note.depth}" data-note-depth aria-label="Depth"> · as <select class="inp" style="width:auto;padding:0 4px;display:inline" data-note-role aria-label="Role">${[["system", "System"], ["user", "User"], ["assistant", "AI"]].map(([v, l]) => `<option value="${v}" ${S.note.role === v ? "selected" : ""}>${l}</option>`).join("")}</select>`, "", "Things the AI forgets: how they talk, a rule, a secret.")}
+      ${f("system", "System prompt", "replaces the preset's when filled", "", "Leave empty to use the preset's.")}
+      ${f("post", "Post-history instructions", "sent right before the AI answers", "", "Optional.")}
+      ${f("creatorNotes", "Creator notes", "not sent to the AI", "", "Notes for whoever reads the card.")}
+    </div></div>
+    <aside class="c-ins" data-scroll="c-ins">
+      ${portrait()}
+      <div class="a-block"><p class="k">Version</p>${versions()}</div>
+      <div class="a-block"><p class="k">In the Scene</p>${tracked()}</div>
+      <div class="a-block"><p class="k">Lorebooks</p>${books()}</div>
+      <div class="a-block"><p class="k">Tags</p>${tags()}</div>
+      ${meter()}
+      <details class="more"><summary>Regex scripts <span class="tok">${S.regex.length || ""}</span></summary><div>${regexList()}</div></details>
+      <details class="more"><summary>History</summary><div>${history()}</div></details>
+      <div class="a-block"><p class="k">Export</p>${exportRow()}</div>
+      ${trashBtn()}
+    </aside>
+  </div>
+  <div class="c-status"><span data-cstat></span><span class="spacer"></span><span>Ctrl+S to save</span></div>`;
+}
+
+/* ── render + live refresh */
+function renderSide() {
+  const items = [["new", "New character", "Start from scratch"], ["isekai", "Isekai RPG", "STATS: Physical Status: lists {{user}}'s cur…"], ["lyra", ui.who === "lyra" ? charName() : "Lyra", "2 versions · A wary ranger who guards the…"]];
+  $("#side").innerHTML = `<div class="search">Search</div>` + items.map(([id, n, s]) => {
+    const on = ui.who === id; const nm = on && id !== "isekai" ? charName() : n;
+    return `<button class="side-item${on ? " on" : ""}" data-act="who" data-v="${id === "isekai" ? "lyra" : id}"><span class="dot">${id === "new" ? "+" : on && S.picture ? `<img src="${S.picture}" alt="">` : esc(nm.slice(0, 1))}</span><span><strong>${esc(nm)}</strong><small>${esc(s)}</small></span></button>`;
+  }).join("");
+}
+function render() {
+  const keep = {}; $$("[data-scroll]").forEach((el) => keep[el.dataset.scroll] = el.scrollTop);
+  const active = document.activeElement?.id; const sel = active && document.activeElement.selectionStart;
+  $("#stage").innerHTML = ui.draft === "a" ? renderA() : ui.draft === "b" ? renderB() : renderC();
+  $$("[data-scroll]").forEach((el) => { if (keep[el.dataset.scroll] != null) el.scrollTop = keep[el.dataset.scroll]; });
+  ["a", "b", "c"].forEach((d) => { $("#d-" + d).classList.toggle("on", ui.draft === d); $(`[data-note="${d}"]`).classList.toggle("on", ui.draft === d); });
+  ["lyra", "new"].forEach((w) => $("#w-" + w).classList.toggle("on", ui.who === w));
+  renderSide();
+  $$(".auto").forEach(grow);
+  refresh();
+  if (active) { const el = document.getElementById(active); if (el) { el.focus({ preventScroll: true }); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) {} } }
+  if (ui.draft === "a") spy();
+}
+function grow(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+function refresh() {
+  $$("[data-tok]").forEach((el) => { const n = tokN(get(el.dataset.tok)); el.textContent = n ? `~${fmtN(n)} tokens${el.dataset.suffix || ""}` : ""; });
+  $$("[data-gtok]").forEach((el) => { const n = tokN(S.greetings[+el.dataset.gtok]); el.textContent = n ? `~${fmtN(n)} tokens` : ""; });
+  $$("[data-show=title]").forEach((el) => el.innerHTML = `${S.isNew && !S.name ? "New character" : esc(charName())}${S.version ? ` <span class="ver">— ${esc(verLabel())}</span>` : ""}`);
+  $$("[data-snip]").forEach((el) => { const t = S.greetings[+el.dataset.snip] || ""; el.textContent = t.trim() ? t.replace(/\s+/g, " ") : "Empty"; el.parentElement.classList.toggle("blank", !t.trim()); });
+  $$("[data-gprev]").forEach((el) => el.innerHTML = fmt(S.greetings[ui.gi] || ""));
+  $$("[data-gpos]").forEach((el) => el.textContent = S.greetings.length > 1 ? `greeting ${ui.gi + 1} of ${S.greetings.length}` : "");
+  $$("[data-gpos2]").forEach((el) => el.textContent = `${ui.gi + 1} / ${S.greetings.length}`);
+  $$("[data-gcount]").forEach((el) => el.textContent = S.greetings.length);
+  const total = perReply();
+  $$("[data-total]").forEach((el) => el.textContent = `~${fmtN(total)} tokens`);
+  $$("[data-bar]").forEach((el) => el.innerHTML = PARTS.map(([k, , c]) => { const n = tokN(get(k)); return n ? `<span style="width:${(n / Math.max(total, 1)) * 100}%;background:${c}" title="${k}"></span>` : ""; }).join(""));
+  $$("[data-legend]").forEach((el) => el.innerHTML = PARTS.filter(([k]) => tokN(get(k))).map(([k, l, c]) => `<span><i style="background:${c}"></i>${l} ${fmtN(tokN(get(k)))}</span>`).join("") || `<span>Nothing yet</span>`);
+  $$("[data-state]").forEach((el) => { el.textContent = ui.dirty ? "Unsaved changes" : ago(); el.classList.toggle("dirty", ui.dirty); });
+  $$("[data-cstat]").forEach((el) => { const w = (S.description + " " + S.greetings.join(" ")).trim().split(/\s+/).filter(Boolean).length; el.textContent = `${fmtN(w)} words · ~${fmtN(total)} tokens every reply · ${S.greetings.filter((x) => x.trim()).length} greeting(s)`; });
+  outline();
+}
+function outline() {
+  const secs = sections(S.description);
+  $$("[data-outline]").forEach((el) => {
+    el.innerHTML = secs.length ? secs.map((s) => `<button data-act="sec" data-pos="${s.pos}">${s.tag ? "&lt;" + esc(s.name) + "&gt;" : esc(s.name)}${s.tok ? `<i>~${s.tok}</i>` : ""}</button>`).join("") : "";
+    el.hidden = !secs.length;
+  });
+  const co = $("[data-coutline]");
+  if (co) {
+    const it = (id, label, k) => { const n = k ? tokN(get(k)) : 0; return `<button class="oi${k && !get(k).trim() ? " emptyf" : ""}" data-act="cjump" data-to="${id}"><span class="dot"></span><span class="t">${label}</span>${n ? `<span class="tok">~${fmtN(n)}</span>` : ""}</button>`; };
+    co.innerHTML = `<p class="k">Card</p>${it("f-c-name", esc(charName()))}${it("c-description", "Description", "description")}
+      ${secs.map((s) => `<button class="oi sub" data-act="sec" data-pos="${s.pos}"><span class="t">${s.tag ? "&lt;" + esc(s.name) + "&gt;" : esc(s.name)}</span>${s.tok ? `<span class="tok">~${s.tok}</span>` : ""}</button>`).join("")}
+      ${it("c-personality", "Personality", "personality")}${it("c-scenario", "Scenario", "scenario")}
+      <button class="oi" data-act="cjump" data-to="c-greetings"><span class="dot"></span><span class="t">Greetings</span><span class="tok">${S.greetings.length}</span></button>
+      ${S.greetings.map((t, i) => `<button class="oi sub g${t.trim() ? "" : " emptyf"}" data-act="cjump" data-to="c-g${i}"><span class="t">${i === 0 ? "1 · Main" : i + 1} — ${esc(t.trim() ? t.replace(/[*"]/g, "").slice(0, 26) : "empty")}</span></button>`).join("")}
+      <p class="k" style="margin-top:8px">Prompt</p>${it("c-examples", "Example dialogue", "examples")}${it("c-note", "Character's Note", "note")}${it("c-system", "System prompt", "system")}${it("c-post", "Post-history", "post")}
+      <p class="k" style="margin-top:8px">About</p>${it("c-creatorNotes", "Creator notes", "creatorNotes")}`;
+  }
+}
+function dirty() { ui.dirty = true; $$("[data-state]").forEach((el) => { el.textContent = "Unsaved changes"; el.classList.add("dirty"); }); }
+function spy() {
+  const m = $(".a-main"); if (!m) return;
+  const top = m.getBoundingClientRect().top + 70; let cur = "a-desc";
+  $$(".a-sec", m).forEach((s) => { if (s.getBoundingClientRect().top <= top) cur = s.id; });
+  if (m.scrollTop + m.clientHeight >= m.scrollHeight - 4) cur = "a-more";
+  $$(".a-jump button").forEach((b) => b.classList.toggle("on", b.dataset.to === cur));
+}
+
+/* ── events */
+document.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.dataset.k) {
+    const k = t.dataset.k;
+    if (k === "note") S.note.text = t.value; else if (k === "g") S.greetings[ui.gi] = t.value; else S[k] = t.value;
+    if (k === "name") renderSide();
+  } else if (t.dataset.gi != null) { S.greetings[+t.dataset.gi] = t.value; }
+  else if (t.hasAttribute("data-note-depth")) S.note.depth = Math.max(0, Math.min(999, Math.round(+t.value || 0)));
+  else if (t.hasAttribute("data-note-role")) S.note.role = t.value;
+  else return;
+  if (t.classList.contains("auto")) grow(t);
+  dirty(); refresh();
+});
+document.addEventListener("focusin", (e) => { if (e.target.dataset?.gi != null && ui.gi !== +e.target.dataset.gi) { ui.gi = +e.target.dataset.gi; } });
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); act("save"); return; }
+  if (e.target.classList?.contains("tag-in") && (e.key === "Enter" || e.key === ",")) {
+    e.preventDefault(); const v = e.target.value.trim().replace(/,$/, "");
+    if (v && !S.tags.includes(v)) { S.tags.push(v); dirty(); render(); $(`#tag-in-${ui.draft}`)?.focus(); }
+  }
+  if (e.key === "Escape" && ui.pop) { ui.pop = ""; render(); }
+});
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]");
+  if (!b) { if (ui.pop && !e.target.closest(".pop-menu")) { ui.pop = ""; render(); } return; }
+  if (b.disabled) return;
+  act(b.dataset.act, b.dataset, b);
+});
+document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("a-main")) spy(); }, true);
+
+function act(a, d = {}, el) {
+  const i = d.i != null ? +d.i : 0;
+  if (a !== "trash" && a !== "gdel") ui.armed = "";
+  switch (a) {
+    case "draft": ui.draft = d.v; ui.pop = ""; try { localStorage.setItem("h2-ce-draft", d.v); } catch (x) {} render(); break;
+    case "who": if (ui.who === d.v) break; ui.who = d.v; S = d.v === "new" ? NEW() : LYRA(); ui.gi = 0; ui.tab = "character"; ui.dirty = false; ui.savedAt = d.v === "new" ? null : Date.now() - 6 * 60000; ui.gmode = "edit"; render(); if (d.v === "new") $(`#f-${ui.draft}-name`)?.focus(); break;
+    case "save":
+      if (!S.name.trim()) { toast("Give the character a name first."); $(`#f-${ui.draft}-name`)?.focus(); break; }
+      { const wasNew = S.isNew; S.isNew = false; ui.dirty = false; ui.savedAt = Date.now(); render(); toast(wasNew ? `${charName()} created` : "Saved"); } break;
+    case "chat": toast(`Starting a chat with ${charName()}${S.version ? ` (${verLabel()})` : ""} — greeting 1 first`); break;
+    case "close": toast("Back to the Characters page"); break;
+    case "pick": pickFile(); break;
+    case "nopic": S.picture = null; dirty(); render(); break;
+    case "ver": S.version = i; render(); break;
+    case "addver": S.versions.push(`Version ${S.versions.length + 1}`); S.version = S.versions.length - 1; dirty(); render(); toast("New version: rename it in the full app"); break;
+    case "tracked": S.tracked = d.v === "1"; dirty(); render(); break;
+    case "untag": S.tags.splice(i, 1); dirty(); render(); break;
+    case "pop": ui.pop = ui.pop === d.v ? "" : d.v; render(); break;
+    case "book": S.lorebooks.push(d.v); ui.pop = ""; dirty(); render(); break;
+    case "unbook": S.lorebooks.splice(i, 1); dirty(); render(); break;
+    case "export": toast(`Exported ${charName()} as ${d.v} (draft: no file)`); break;
+    case "rx": S.regex[i].on = !S.regex[i].on; dirty(); render(); break;
+    case "restore": toast("Restored that save (draft)"); break;
+    case "trash": if (ui.armed === "trash") { ui.armed = ""; toast(`${charName()} moved to Trash`); } else { ui.armed = "trash"; } render(); break;
+    case "tab": ui.tab = d.v; render(); break;
+    case "jump": { const s = document.getElementById(d.to); if (s) scrollToEl(s, 50); break; }
+    case "cjump": { const s = document.getElementById(d.to); if (!s) break; scrollToEl(s, 20); (s.matches("input,textarea") ? s : s.querySelector("textarea,input"))?.focus({ preventScroll: true }); break; }
+    case "sec": jumpTo(+d.pos); break;
+    case "gmode": ui.gmode = d.v; render(); break;
+    case "gpick": ui.gi = i; render(); break;
+    case "gstep": ui.gi = (ui.gi + +d.v + S.greetings.length) % S.greetings.length; render(); break;
+    case "gadd": S.greetings.push(""); ui.gi = S.greetings.length - 1; ui.gmode = "edit"; dirty(); render(); focusG(); break;
+    case "gdup": S.greetings.splice(i + 1, 0, S.greetings[i]); ui.gi = i + 1; dirty(); render(); toast(`Greeting ${i + 1} duplicated`); break;
+    case "gmain": { const [x] = S.greetings.splice(i, 1); S.greetings.unshift(x); ui.gi = 0; dirty(); render(); toast("This greeting is now the main one"); break; }
+    case "gmove": { const j = i + +d.v; if (j < 0 || j >= S.greetings.length) break; [S.greetings[i], S.greetings[j]] = [S.greetings[j], S.greetings[i]]; ui.gi = j; dirty(); render(); break; }
+    case "gdel":
+      if (ui.armed !== "g" + i) { ui.armed = "g" + i; render(); break; }
+      ui.armed = ""; S.greetings.splice(i, 1); ui.gi = Math.min(ui.gi, S.greetings.length - 1); dirty(); render(); toast(`Greeting ${i + 1} deleted`); break;
+    case "macro": {
+      const t = ui.draft === "c" ? $(`#f-c-g${i}`) : $(`#f-${ui.draft}-g`);
+      if (!t) { ui.gmode = "edit"; render(); break; }
+      const s = t.selectionStart ?? t.value.length; t.setRangeText(d.v, s, t.selectionEnd ?? s, "end"); t.dispatchEvent(new Event("input", { bubbles: true })); t.focus(); break;
+    }
+  }
+}
+/* scroll inside the editor's own panel, never the page (falls back to the page when the panel doesn't scroll, e.g. on a phone) */
+function scrollBox(el) { let p = el.parentElement; while (p && p !== document.body) { if (p.dataset.scroll && p.scrollHeight > p.clientHeight + 2) return p; p = p.parentElement; } return null; }
+function scrollToEl(el, gap = 20, extra = 0) {
+  const box = scrollBox(el);
+  if (!box) { el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  box.scrollTo({ top: el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - gap + extra, behavior: "smooth" });
+}
+function focusG() { const t = ui.draft === "c" ? $(`#f-c-g${ui.gi}`) : $(`#f-${ui.draft}-g`); if (t) { scrollToEl(t, 120); t.focus({ preventScroll: true }); } }
+function jumpTo(pos) {
+  if (ui.draft === "b" && ui.tab !== "character") { ui.tab = "character"; render(); }
+  const t = $(`#f-${ui.draft}-description`); if (!t) return;
+  t.focus({ preventScroll: true }); t.setSelectionRange(pos, pos);
+  const ratio = pos / Math.max(1, t.value.length);
+  if (ui.draft === "c") scrollToEl(t, 90, t.scrollHeight * ratio);
+  else { t.scrollTop = Math.max(0, t.scrollHeight * ratio - 30); scrollToEl(t.closest(".a-sec") || t, 50); }
+}
+function pickFile() {
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+  inp.onchange = () => inp.files[0] && readPic(inp.files[0]); inp.click();
+}
+function readPic(f) { if (!f.type.startsWith("image/")) { toast("That file isn't an image."); return; } const r = new FileReader(); r.onload = () => { S.picture = r.result; dirty(); render(); toast("Picture added"); }; r.readAsDataURL(f); }
+document.addEventListener("dragover", (e) => { const z = e.target.closest?.("[data-drop]"); if (z) { e.preventDefault(); z.classList.add("over"); } });
+document.addEventListener("dragleave", (e) => { e.target.closest?.("[data-drop]")?.classList.remove("over"); });
+document.addEventListener("drop", (e) => { const z = e.target.closest?.("[data-drop]"); if (z) { e.preventDefault(); z.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) readPic(f); } });
+setInterval(() => { if (!ui.dirty) $$("[data-state]").forEach((el) => el.textContent = ago()); }, 30000);
+
+render();
+</script>

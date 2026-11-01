@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Character editor drafts; alternate greetings diagnosed (2026-11-01) — CLAUDE
+
+Daniel: the character editor is "very basic and bad to use"; asked for HTML drafts, and said alternate greetings don't show.
+- Drafts **A · Sheet, B · Tabs, C · Writer** in `docs/drafts/character-editor/index.html` (functional; plan in `docs/UI-PLAN.md` → "Character editor"). Waiting for his pick; no app code changed.
+- **Greetings:** the editor never had an editor for alternates (only a hint), and **1:1 chats send only greeting 1** (`chat.ts` `slice(0, 1)`); Stories already use them all as swipes. Fix both with the chosen draft.
+
 ## Expanded 0.2.0 changelog (2026-11-01) — CODEX
 
 Daniel requested fuller English notes after reviewing the release summary. Compared v0.1.0..v0.2.0 commits, shipped source, decisions and reliability reports.
