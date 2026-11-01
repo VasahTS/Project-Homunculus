@@ -6,6 +6,7 @@ import { estimateTokens } from "@homunculus/core";
 import { MessageText } from "./MessageText.tsx";
 import { FieldLabel } from "./Versions.tsx";
 import { Segmented } from "./kit.tsx";
+import { slideIn } from "./motion.ts";
 
 export type GreetingsLook = "list" | "strip" | "inline";
 
@@ -39,6 +40,17 @@ export function Greetings({ value, onChange, look, name, avatarSrc, changed, onR
   const [preview, setPreview] = useState(false);
   const [armed, setArmed] = useState(-1);
   const boxes = useRef<Record<number, HTMLTextAreaElement | null>>({});
+  // Another greeting picked: its text and preview slide in from the side it came from (D-072)
+  const rootEl = useRef<HTMLDivElement>(null);
+  const shown = useRef(cur);
+  useLayoutEffect(() => {
+    const from = shown.current;
+    shown.current = cur;
+    if (from === cur || look === "inline" || !rootEl.current) return;
+    const n = list.length;
+    slideIn(rootEl.current.querySelectorAll(".ce-gedit > textarea, .ce-gpreview, .ce-gchat .ce-msg"), (cur - from + n) % n <= n / 2 ? 1 : -1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cur]);
   useEffect(() => { if (armed < 0) return; const t = setTimeout(() => setArmed(-1), 4000); return () => clearTimeout(t); }, [armed]);
 
   const put = (next: string[], pick?: number) => { onChange(next); if (pick !== undefined) setPicked(pick); setArmed(-1); };
@@ -106,7 +118,7 @@ export function Greetings({ value, onChange, look, name, avatarSrc, changed, onR
 
   if (look === "strip") {
     return (
-      <div className="ce-greetings ce-g-strip" data-testid="greetings">
+      <div className="ce-greetings ce-g-strip" data-testid="greetings" ref={rootEl}>
         <div className="ce-lab">{head}<span className="ce-sub">the first opens a new chat; the others are its swipes</span></div>
         <div className="ce-gstrip" role="group" aria-label="Pick a greeting">
           {list.map((t, k) => (
@@ -135,7 +147,7 @@ export function Greetings({ value, onChange, look, name, avatarSrc, changed, onR
   }
 
   return (
-    <div className="ce-greetings ce-g-list" data-testid="greetings">
+    <div className="ce-greetings ce-g-list" data-testid="greetings" ref={rootEl}>
       <div className="ce-lab">{head}<span className="ce-sub">the first opens a new chat; the others are its swipes</span></div>
       <div className="ce-glist" role="group" aria-label="Pick a greeting">
         {list.map((t, k) => (

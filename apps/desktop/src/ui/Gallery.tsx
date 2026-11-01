@@ -11,6 +11,7 @@ import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { Button, Icon, Segmented } from "./kit.tsx";
 import { Toolbar } from "./Toolbar.tsx";
+import { useEnter } from "./motion.ts";
 import { CollectionTools, FolderHits, type CollectionPrefs, type FolderHit } from "./CollectionTools.tsx";
 import type { LibraryArea } from "./Sidebar.tsx";
 
@@ -122,6 +123,9 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   const everything = prefs?.view === "everything";
   const fileInput = useRef<HTMLInputElement>(null);
   const [recent, setRecent] = useState(false);
+  // the cards arrive one after another when the page opens (D-072)
+  const cards = useRef<HTMLDivElement>(null);
+  useEnter(cards, "open", undefined, { y: 12, stagger: 35, duration: 600, max: 12 });
   const searching = q.trim() !== "";
   // a search looks in every folder (Daniel: "you can search in All and it will show everything")
   // D-068: the folder path counts too, and Everything ignores folders
@@ -147,7 +151,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
           {!searching && !everything && folders}
           {searching && onOpenFolder && <FolderHits hits={hits} onOpen={(id) => { setQ(""); onOpenFolder(id); }} />}
           <div className="collection-heading"><h2>{searching ? "Search results" : everything ? "Every character" : "Your characters"}</h2><span>{shown.length} characters</span></div>
-          <div className="gallery-cards" data-testid="character-list">
+          <div className="gallery-cards" data-testid="character-list" ref={cards}>
           {shown.map((c) => (
             <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={c.id}
               by={(searching || everything) && where(c) ? where(c) : chatsOf ? chatsOf(c) : c.variants.length ? `${c.variants.length + 1} versions: Main, ${c.variants.map((v) => v.label).join(", ")}` : c.creator ? `by ${c.creator}` : undefined}

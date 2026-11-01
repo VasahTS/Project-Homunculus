@@ -721,3 +721,16 @@ Daniel (screenshot with 1 · 2 · 3 drawn on it): "again that 1 2 3 problem" —
 - Tests: `e2e/character-editor.e2e.ts` (fold, stays folded after reload, unfold).
 
 Signed: **CLAUDE**.
+
+## D-072 — Motion round 1: the Coffra reference; a `ui` branch for UI work (2026-11-01)
+
+Daniel sent screen recordings (mainly the Coffra demo) as the motion he wants, approved the draft `docs/drafts/motion/` ("that is more or less what I'm looking for") and asked for titles that rise like Coffra's "Good morning". He also asked for a **`ui` branch** so UI work does not touch `dev` until he is sure.
+- **Branch:** UI work goes to `ui` (made from `dev`; `dev` is merged into it before each round). Claude merges `ui` into `dev` only when Daniel says so — the same pattern as CODEX's `gpt` (D-050). This is an exception to "work only on dev" for this kind of work.
+- **Titles rise letter by letter** (`RiseText` in `ui/kit.tsx`): every plain-text toolbar title (replays when the title changes) and the character editor's title. Words never break; it reads as normal text.
+- **Cascades** (`enter` in `ui/motion.ts`): the character editor brings its bar, head, tab bar and each field in one after another when it opens or the layout changes; a tab switch brings the new tab's blocks in the same way (the old ones leave at once). The Characters cards and the character list arrive one after another when their page opens.
+- **Tabs layout:** the underline glides to the selected tab (`useSlidingPill`, 420 ms, the glide curve).
+- **Greetings (Tabs and Sheet):** after ‹ › or picking another card, the text and the chat preview slide in from the side they came from (`slideIn` in `ui/motion.ts`).
+- Everything is skipped under reduced motion. Old content leaves at once; only arrivals move.
+- **Not in this round:** the card growing into the editor (the app opens the editor from the character sheet's Edit, on another page), the side sheet with a blurred page behind, and the circular theme switch (the app has no appearance picker yet: Quiet is fixed). The draft shows all three.
+
+Signed: **CLAUDE**.

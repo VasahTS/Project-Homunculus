@@ -3,7 +3,7 @@
 // 2026-11-01 (D-070): three layouts the user picks (Sheet · Tabs · Writer, remembered), a greetings editor (alternates
 // included), the Description's <sections>, token counts, Save and Chat Now always in sight (Ctrl+S).
 import { LorebookChips } from "./LorePanels.tsx";
-import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { characterNoteOf, estimateTokens, regexScriptsOf as regexOf } from "@homunculus/core";
 import type { RegexScript } from "@homunculus/schemas";
 import { RegexList } from "./RegexScripts.tsx";
@@ -12,7 +12,8 @@ import { effectiveCharacter, variantAvatarId, type CharacterExporter } from "@ho
 import { avatarUrl } from "../files.ts";
 import { cardSections, cleanGreetings } from "../cardSections.ts";
 import { Help } from "./Help.tsx";
-import { Button, IconButton, Icon, Segmented } from "./kit.tsx";
+import { Button, IconButton, Icon, RiseText, Segmented } from "./kit.tsx";
+import { enter, useSlidingPill } from "./motion.ts";
 import { AutoText, Greetings, tokensText } from "./Greetings.tsx";
 import { FieldLabel, HistoryList, pruneVariants, useVersionedDraft, VersionBar, type HistoryField } from "./Versions.tsx";
 
@@ -120,6 +121,9 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
   const imageInput = useRef<HTMLInputElement>(null);
   const descBox = useRef<HTMLTextAreaElement | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const tabbar = useRef<HTMLDivElement>(null);
+  const tabLine = useRef<HTMLSpanElement>(null);
   const uid = useId();
   const sid = (name: string) => `${uid}-${name}`;
   const exists = !isNew || saved;
@@ -130,6 +134,26 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
   const refreshHistory = () => { if (exists) void loadHistory(draft.id).then(setHistory); };
   useEffect(() => { if (historyOpen) refreshHistory(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [historyOpen]);
   useEffect(() => { if (layout === "tabs" && tab === "history") setHistoryOpen(true); }, [layout, tab]);
+
+  // Motion (D-072, the Coffra reference): opening the editor or switching its layout brings the bar, the head and each
+  // block of the page in one after another; switching a tab brings the new tab's blocks in the same way (the old ones
+  // leave at once). The tab underline glides to the tab. All of it is skipped under reduced motion (motion.ts).
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const body = el.querySelector(".ce-body");
+    const pane = el.querySelector<HTMLElement>(".ce-pane");
+    const firsts = [el.querySelector(".ce-bar"), ...(layout === "tabs" ? [el.querySelector(".ce-thead"), el.querySelector(".ce-tabbar")] : [...(body?.children ?? [])])];
+    const items = [...firsts, ...(pane ? blocksOf(pane) : [])].filter((x): x is Element => !!x);
+    enter(items, { y: 10, stagger: 55, duration: 620, max: 12 });
+  }, [layout]);
+  const tabMounted = useRef(false);
+  useLayoutEffect(() => {
+    if (!tabMounted.current) { tabMounted.current = true; return; }
+    const pane = root.current?.querySelector<HTMLElement>(".ce-pane");
+    if (pane) enter(blocksOf(pane), { y: 10, stagger: 50, duration: 560, max: 10 });
+  }, [tab]);
+  useSlidingPill(tabbar, tabLine, "button.on", `${layout}:${tab}`);
 
   const save = async (d: Character = draft) => {
     if (!d.name.trim()) { setError("The character needs a name."); return; }
@@ -458,7 +482,8 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
           {portrait(true)}
           <div className="ce-twho">{nameField("big")}{versions}</div>
         </div>
-        <div className="ce-tabbar" role="tablist" aria-label="Parts of the card">
+        <div className="ce-tabbar" role="tablist" aria-label="Parts of the card" ref={tabbar}>
+          <span className="ce-tabline" ref={tabLine} aria-hidden />
           {tabs.map(([k, label, n]) => (
             <button type="button" role="tab" key={k} aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{label}{n ? <span className="ce-n">{n}</span> : null}</button>
           ))}
@@ -533,9 +558,9 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
   }
 
   return (
-    <div className={`editor ce ce-l-${layout}`} aria-label="Character editor">
+    <div className={`editor ce ce-l-${layout}`} aria-label="Character editor" ref={root}>
       <div className="session-bar ce-bar">
-        <h2 className="editor-title">{title}{v.variant ? <span className="title-version"> — {v.variant.label}</span> : null}</h2>
+        <h2 className="editor-title"><RiseText text={title} />{v.variant ? <span className="title-version"> — {v.variant.label}</span> : null}</h2>
         <span className="spacer" />
         {status}
         <span className="ce-layout" title={HELP.layout}>
@@ -551,6 +576,19 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
       {body}
     </div>
   );
+}
+
+/** The blocks of a tab that arrive one after another: the fields, not the boxes that only lay them out. */
+function blocksOf(pane: HTMLElement): Element[] {
+  const out: Element[] = [];
+  const walk = (el: Element) => {
+    for (const child of el.children) {
+      if (child.matches(".ce-tchar, .ce-tside, .ce-stack, .ce-greetings, .ce-gsplit")) walk(child);
+      else out.push(child);
+    }
+  };
+  walk(pane);
+  return out;
 }
 
 /** The Character's Note (SillyTavern's "Character's Note", D-063): sent in every reply, at a depth, with a role. */

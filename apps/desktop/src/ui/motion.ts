@@ -45,6 +45,18 @@ export function flash(el: Element | null): void {
   el.animate([{ backgroundColor: "var(--flash)" }, { backgroundColor: "transparent" }], { duration: 1400, easing: EASE_OUT });
 }
 
+/**
+ * Content that replaced its neighbour slides in from the side it came from (`dir` 1 = from the right, -1 = from the
+ * left) while it fades in: a greeting after ‹ or ›. D-072.
+ */
+export function slideIn(elements: Iterable<Element>, dir: 1 | -1, distance = 16): void {
+  if (reducedMotion()) return;
+  for (const el of elements) {
+    if (!(el instanceof HTMLElement) || typeof el.animate !== "function") continue;
+    el.animate([{ opacity: 0, transform: `translateX(${dir * distance}px)` }, { opacity: 1, transform: "none" }], { duration: 420, easing: EASE_OUT });
+  }
+}
+
 /** Pop-in for menus and bubbles: a little drop and a spring. */
 export function popIn(el: Element | null, from: { x?: number; y?: number } = { y: -6 }): void {
   if (!el || reducedMotion() || !(el instanceof HTMLElement) || typeof el.animate !== "function") return;

@@ -2913,3 +2913,16 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
   .ce-doc { padding: 0 16px; }
   .ce-page { padding: 20px 0 30px; }
 }
+
+/* ───────────── motion round 1 (D-072, CLAUDE 2026-11-01): the Coffra reference. Draft: docs/drafts/motion/index.html.
+ * Titles rise in letter by letter; editor blocks arrive in a cascade (ui/motion.ts enter); the tab underline glides.
+ * The reduced-motion block above turns all of it off. */
+.rise-text { display: inline; }
+.rise-word { display: inline-block; white-space: nowrap; }
+.rise-l { display: inline-block; animation: rise-letter 560ms var(--ease-out) backwards; }
+@keyframes rise-letter { from { opacity: 0; transform: translateY(0.42em); } }
+.ce-tabbar { position: relative; }
+.ce-tabbar button.on { border-bottom-color: transparent; }
+.ce-tabline { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; border-bottom: 2px solid var(--accent); opacity: 0;
+  transition: transform 420ms cubic-bezier(0.77, 0, 0.175, 1), width 420ms cubic-bezier(0.77, 0, 0.175, 1), height 420ms cubic-bezier(0.77, 0, 0.175, 1); }
+@media (prefers-reduced-motion: reduce) { .rise-l { animation: none; } }

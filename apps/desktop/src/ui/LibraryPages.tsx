@@ -10,6 +10,7 @@ import { LorebookChips } from "./LorePanels.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
 import { AvatarDot } from "./Sidebar.tsx";
 import { Toolbar } from "./Toolbar.tsx";
+import { useEnter } from "./motion.ts";
 import type { Tracker } from "../trackers.ts";
 
 export function MasterDetail({ list, detail, collapsed = false, onExpand }: {
@@ -57,6 +58,9 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
   const setCollapsed = (v: boolean) => { setCollapsedState(v); try { localStorage.setItem(LIST_KEY, v ? "1" : "0"); } catch { /* a convenience only */ } };
   const fileInput = useRef<HTMLInputElement>(null);
   const shown = characters.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase()));
+  // the list arrives one row after another when the page opens (D-072)
+  const listEl = useRef<HTMLUListElement>(null);
+  useEnter(listEl, "open", undefined, { y: 8, stagger: 28, duration: 520, max: 12 });
   return (
     <div className="page">
       <Toolbar lead={lead} title="Characters" center={tabs} subtitle={`${characters.length} in the library`}
@@ -71,7 +75,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
         list={<>
           <div className="master-head"><SearchBox value={q} onChange={setQ} label="Search characters" />
             <IconButton label="Hide the list" onClick={() => setCollapsed(true)}><Icon name="sidebar" size={15} /></IconButton></div>
-          <ul className="master-list" data-testid="character-list">
+          <ul className="master-list" data-testid="character-list" ref={listEl}>
             {shown.map((c) => (
               <li key={c.id}>
                 <button className={`master-item${c.id === selectedId ? " on" : ""}`} onClick={() => onSelect(c.id)} aria-label={c.name}>

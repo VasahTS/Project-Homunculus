@@ -2,7 +2,9 @@
 // No bezels, three groups at most: leading (sidebar toggle + title), center (optional), trailing (actions).
 // With a center (the Library and Vault tabs), leading and trailing share the free space equally, so the center stays
 // in the same place whatever the title or the buttons are (Daniel, 2026-10-29: the tabs jumped on every tab change).
+// A plain-text title rises in letter by letter when the view opens (D-072).
 import type { ReactNode } from "react";
+import { RiseText } from "./kit.tsx";
 
 export function Toolbar({ lead, title, subtitle, center, trailing }: {
   lead?: ReactNode; title: ReactNode; subtitle?: ReactNode; center?: ReactNode; trailing?: ReactNode;
@@ -12,7 +14,7 @@ export function Toolbar({ lead, title, subtitle, center, trailing }: {
       <div className="toolbar-leading">
         {lead}
         <div className="toolbar-title">
-          <span className="toolbar-name">{title}</span>
+          <span className="toolbar-name">{typeof title === "string" ? <RiseText key={title} text={title} /> : title}</span>
           {subtitle && <span className="toolbar-sub">{subtitle}</span>}
         </div>
       </div>

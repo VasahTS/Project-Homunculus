@@ -45,6 +45,26 @@ export function Segmented<T extends string>({ options, value, onChange, label, t
   );
 }
 
+/**
+ * A title whose letters rise into place one after another, the way Coffra's "Good morning" arrives (D-072). It plays
+ * when it first shows (key it by the text to replay it when the text changes). Words stay whole (a word never breaks between letters), the
+ * text reads normally to screen readers and searches, and reduced motion shows it at once.
+ */
+export function RiseText({ text, stagger = 22 }: { text: string; stagger?: number }) {
+  // long titles keep the whole rise under about half a second
+  const step = Math.min(stagger, 480 / Math.max(text.length, 1));
+  let i = 0;
+  return (
+    <span className="rise-text">
+      {text.split(/(\s+)/).map((word, w) => /^\s+$/.test(word) ? word : (
+        <span className="rise-word" key={w}>
+          {[...word].map((ch, c) => <span className="rise-l" key={c} style={{ animationDelay: `${Math.round(i++ * step)}ms` }}>{ch}</span>)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** On/off switch. */
 export function Switch({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
