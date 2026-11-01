@@ -164,6 +164,7 @@ export function trackerInstruction(schema: TrackerSchema, people: TrackerCastMem
     ...lines,
     readOnly.length ? `Read-only (the user sets these; read them, never write them): ${readOnly.join(", ")}.` : "",
     "Write only the fields whose value changed (and REQUIRED fields that are still empty). If nothing changed, answer {}.",
+    ...(writable.some((f) => !f.required) ? [`When something no longer applies (a mode, condition or effect that ended), remove its value with null${hasPeople ? `, for one character: {"field": {"Name": null}}` : ""}. Fields you leave out keep their value.`] : []),
     `Example answer: ${JSON.stringify(example)}`,
   ].filter(Boolean).join("\n");
 }
@@ -256,6 +257,8 @@ export function normalizeTrackerAnswer(schema: TrackerSchema, answer: Record<str
       ?? schema.fields.find((x) => x.key.toLowerCase() === rawKey.toLowerCase() || x.label.toLowerCase() === rawKey.toLowerCase());
     if (!f) { ignored.push(`"${rawKey}": not a field of this tracker`); continue; }
     if (f.lockedForAgents) { ignored.push(`"${f.key}": only the user may change it`); continue; }
+    // null removes a value that no longer applies (a mode or condition that ended), D-066
+    if (v === null) { if (current?.[f.key] !== undefined) values[f.key] = null; continue; }
     if (f.scope === "global") {
       const c = coerceFieldValue(f, v, current?.[f.key]);
       if (c === undefined) ignored.push(`"${f.key}": ${JSON.stringify(v)} does not fit (${describeType(f)})`);
@@ -275,12 +278,13 @@ export function normalizeTrackerAnswer(schema: TrackerSchema, answer: Record<str
         id = ia && ib && ia !== ib ? `${ia}${PAIR}${ib}` : undefined;
       } else id = idOf(who);
       if (!id) { ignored.push(`"${f.key}": "${who}" is not in the scene`); continue; }
+      if (val === null) { if (id in merged) { delete merged[id]; changed = true; } continue; }
       const c = coerceFieldValue(f, val, merged[id]);
       if (c === undefined) { ignored.push(`"${f.key}" for ${who}: ${JSON.stringify(val)} does not fit (${describeType(f)})`); continue; }
       merged[id] = c;
       changed = true;
     }
-    if (changed) values[f.key] = merged;
+    if (changed) values[f.key] = Object.keys(merged).length ? merged : null;
   }
   // people who are still out of the scene after this answer keep their withheld values (D-065)
   const pres = schema.presence;
@@ -288,16 +292,17 @@ export function normalizeTrackerAnswer(schema: TrackerSchema, answer: Record<str
     const away = awayIds(schema, { ...current, ...values });
     const brief = new Set(briefFields(schema).map((f) => f.key));
     for (const f of schema.fields) {
-      const next = values[f.key];
-      if (f.scope === "global" || brief.has(f.key) || !isObj(next)) continue;
+      if (f.scope === "global" || brief.has(f.key) || !(f.key in values)) continue;
+      const next: Record<string, unknown> = isObj(values[f.key]) ? values[f.key] as Record<string, unknown> : {};
       const prev = isObj(current?.[f.key]) ? current![f.key] as Record<string, unknown> : {};
-      for (const k of Object.keys(next)) {
+      for (const k of new Set([...Object.keys(next), ...Object.keys(prev)])) {
         if (!(f.scope === "perPair" ? k.split(PAIR) : [k]).some((id) => away.has(id))) continue;
         if (JSON.stringify(next[k]) === JSON.stringify(prev[k])) continue;
         if (k in prev) next[k] = prev[k]; else delete next[k];
         ignored.push(`"${f.key}" for ${known.find((p) => p.id === k)?.name ?? k}: not in the scene (kept as it was)`);
       }
       if (JSON.stringify(next) === JSON.stringify(prev)) delete values[f.key];
+      else values[f.key] = Object.keys(next).length ? next : null;
     }
   }
   return { values, ignored };

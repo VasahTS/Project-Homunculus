@@ -1,0 +1,203 @@
+<title>Collections Draft v2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Homunculus 2 — draft "Collections: search with folders, Everything view, portrait cards with a size" (CLAUDE,
+   2026-11-01). Not code: the picture of docs/UI-PLAN.md → "Collections v2". Daniel (07:38, translated): when you search,
+   folders are not part of the search; have a mode that shows everything with folders ignored; make Character Cards
+   rectangular to show the whole picture and let me pick the size, because now they are too big.
+   Names are examples (no pictures from his library); the coloured panels stand in for portraits.
+   Layout: the app's dark Quiet profile; Today beside Proposed where there is a before. */
+:root {
+  color-scheme: dark;
+  --window: #1b1c1f; --surface: #202226; --field: #24262a; --group: rgba(255,255,255,.055);
+  --label: rgba(255,255,255,.88); --label-2: rgba(235,235,245,.62); --label-3: rgba(235,235,245,.42);
+  --separator: rgba(255,255,255,.09); --fill: rgba(255,255,255,.07); --fill-sel: rgba(255,255,255,.16);
+  --accent: #62b6a4; --accent-soft: rgba(98,182,164,.2);
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-prose: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --r: 10px; --r-pill: 999px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--window); color: var(--label); font: 13.5px/1.5 var(--font-ui); }
+button { font: inherit; color: inherit; }
+.states { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+  padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: #121416; border-bottom: 1px solid var(--separator); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: #121416; }
+.states b { font-size: 11px; color: var(--label-3); letter-spacing: .06em; text-transform: uppercase; margin-right: 6px; }
+.states button { border: 1px solid var(--separator); background: none; border-radius: var(--r-pill); padding: 3px 12px; font-size: 12px; color: var(--label-2); cursor: pointer; }
+.states button.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+main { padding-block: 22px 60px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.view { display: none; } .view.on { display: block; }
+.intro { max-width: 72ch; color: var(--label-2); margin: 0 0 18px; }
+.intro b { color: var(--label); }
+h3.k { margin: 22px 0 8px; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--label-3); font-weight: 600; }
+h3.k.new { color: var(--accent); }
+.why { color: var(--label-2); font-size: 12.5px; max-width: 70ch; margin: 8px 0 0; }
+
+/* toolbar */
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-bottom: 14px; border-bottom: 1px solid var(--separator); margin-bottom: 16px; }
+.pills { display: flex; gap: 6px; }
+.pills span { padding: 4px 10px; border-radius: 8px; color: var(--label-2); font-size: 13px; }
+.pills .on { background: var(--fill); color: var(--label); }
+.seg { display: inline-flex; background: var(--fill); border-radius: 9px; padding: 3px; }
+.seg span { padding: 3px 11px; border-radius: 7px; color: var(--label-2); font-size: 12.5px; cursor: pointer; }
+.seg span.on { background: rgba(255,255,255,.14); color: var(--label); font-weight: 600; }
+.grow { flex: 1; }
+.search { display: flex; align-items: center; gap: 6px; background: var(--field); border-radius: 8px; padding: 5px 10px; min-width: 0; width: 220px; color: var(--label-2); }
+.search b { color: var(--label); font-weight: 400; }
+.hl { outline: 1.5px solid var(--accent); outline-offset: 3px; border-radius: 9px; }
+
+/* folders */
+.folders { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.folder { display: flex; align-items: center; gap: 8px; background: var(--group); border-radius: 9px; padding: 7px 12px; font-size: 13px; }
+.folder i { font-style: normal; color: var(--label-3); font-size: 12px; }
+.folder .mk { width: 14px; height: 11px; border-radius: 2px 2px 3px 3px; background: var(--label-3); position: relative; }
+.folder .mk::before { content: ""; position: absolute; left: 0; top: -3px; width: 6px; height: 4px; border-radius: 2px 2px 0 0; background: var(--label-3); }
+.sec { display: flex; justify-content: space-between; color: var(--label-2); font-size: 12px; margin: 4px 2px 8px; }
+.sec b { color: var(--label); font-size: 13.5px; }
+
+/* cards */
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--w)), 1fr)); }
+.grid.s { --w: 128px; } .grid.m { --w: 168px; } .grid.l { --w: 220px; }
+.card { background: var(--surface); border-radius: var(--r); overflow: hidden; box-shadow: inset 0 0 0 1px var(--separator); display: flex; flex-direction: column; min-width: 0; }
+.pic { aspect-ratio: 2 / 3; width: 100%; max-width: 100%; display: grid; place-items: end start; padding: 8px; font: 400 34px/1 var(--font-prose); color: rgba(255,255,255,.8); }
+.body { padding: 9px 10px 11px; display: grid; gap: 2px; min-width: 0; }
+.body b { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.body small { color: var(--label-2); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.body p { margin: 4px 0 0; color: var(--label-2); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.grid.s .body p, .grid.m .body p { display: none; }
+.tag { display: inline-block; background: var(--fill); border-radius: var(--r-pill); padding: 0 7px; font-size: 11px; color: var(--label-2); margin-top: 3px; justify-self: start; }
+
+/* today's card (landscape cover + text) */
+.old { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+.old .card .pic { aspect-ratio: auto; height: 170px; }
+.old .body { padding: 16px; gap: 7px; }
+.old .body b { font-size: 16px; }
+.old .body p { display: -webkit-box; }
+.crop { position: relative; overflow: hidden; }
+.crop::after { content: "face and body cut off"; position: absolute; right: 8px; top: 8px; font: 11px var(--font-ui); background: rgba(0,0,0,.55); padding: 2px 7px; border-radius: 6px; color: #fff; }
+</style>
+
+<nav class="states" aria-label="Draft views">
+  <b>Draft</b>
+  <button type="button" class="on" data-v="cards">1 · Portrait cards + size</button>
+  <button type="button" data-v="search">2 · Search finds folders</button>
+  <button type="button" data-v="every">3 · Everything view</button>
+</nav>
+
+<main>
+<section class="view on" id="v-cards">
+  <p class="intro">Cards become <b>portraits (2 : 3)</b>, so a character’s full picture shows instead of a wide crop. A <b>size</b> control (S · M · L) sits beside the search and is remembered per place (Characters, Stories, Vault). The text under the picture is the name and one line; the two-line summary appears only at L.</p>
+
+  <h3 class="k">Today</h3>
+  <div class="old">
+    <div class="card"><div class="pic crop" style="background:linear-gradient(160deg,#5b4a6e,#2b2533)">L</div><div class="body"><b>Lyra</b><small>2 chats · today</small><p>A wary ranger of the northern woods who trusts her bow more than people…</p><span class="tag">fantasy</span></div></div>
+    <div class="card"><div class="pic crop" style="background:linear-gradient(160deg,#3f5d66,#22292c)">B</div><div class="body"><b>Brenda &amp; Jessica</b><small>1 chat · yesterday</small><p>Two sisters who run the Lantern, their late father’s tea shop…</p><span class="tag">slice of life</span></div></div>
+  </div>
+  <p class="why">Wide covers crop most portraits to a strip, and three cards fill a whole screen.</p>
+
+  <h3 class="k new">Proposed · size M (default)</h3>
+  <div class="tools">
+    <div class="pills"><span class="on">All characters</span><span>Recently played</span></div>
+    <span class="grow"></span>
+    <span class="seg hl" role="radiogroup" aria-label="Card size"><span>S</span><span class="on">M</span><span>L</span></span>
+    <span class="search">⌕ Search characters</span>
+  </div>
+  <div class="grid m">
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#5b4a6e,#2b2533)">L</div><div class="body"><b>Lyra</b><small>2 chats · today</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#3f5d66,#22292c)">B</div><div class="body"><b>Brenda &amp; Jessica</b><small>1 chat · yesterday</small><span class="tag">Not tracked</span></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6b5a3c,#2e2820)">H</div><div class="body"><b>Henry</b><small>by someone</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#4c6a4a,#232c22)">M</div><div class="body"><b>Marcus</b><small>3 versions</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6e4848,#2e2121)">A</div><div class="body"><b>Ana</b><small>no chats yet</small></div></div>
+  </div>
+
+  <h3 class="k new">Proposed · size S</h3>
+  <div class="grid s">
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#5b4a6e,#2b2533)">L</div><div class="body"><b>Lyra</b><small>2 chats · today</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#3f5d66,#22292c)">B</div><div class="body"><b>Brenda &amp; Jessica</b><small>1 chat</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6b5a3c,#2e2820)">H</div><div class="body"><b>Henry</b><small>by someone</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#4c6a4a,#232c22)">M</div><div class="body"><b>Marcus</b><small>3 versions</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6e4848,#2e2121)">A</div><div class="body"><b>Ana</b><small>no chats</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#5a5a72,#25252e)">O</div><div class="body"><b>Old Tom</b><small>1 chat</small></div></div>
+  </div>
+
+  <h3 class="k new">Proposed · size L</h3>
+  <div class="grid l">
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#5b4a6e,#2b2533)">L</div><div class="body"><b>Lyra</b><small>2 chats · today</small><p>A wary ranger of the northern woods who trusts her bow more than people.</p><span class="tag">fantasy</span></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#3f5d66,#22292c)">B</div><div class="body"><b>Brenda &amp; Jessica</b><small>1 chat · yesterday</small><p>Two sisters who run the Lantern, their late father’s tea shop.</p><span class="tag">Not tracked</span></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6b5a3c,#2e2820)">H</div><div class="body"><b>Henry</b><small>by someone</small><p>A courier who never reads what he carries.</p></div></div>
+  </div>
+  <p class="why">Stories, Kits, Narrators and NPCs use the same cards and the same size control. A card without a picture shows its letter on a soft colour, as today.</p>
+</section>
+
+<section class="view" id="v-search">
+  <p class="intro">Typing in the search now also looks at <b>folder names</b>: matching folders show first (click one to open it), then every card whose name, tags, creator <b>or folder</b> matches. Each result says where it lives.</p>
+  <div class="tools">
+    <div class="pills"><span class="on">All characters</span><span>Recently played</span></div>
+    <span class="grow"></span>
+    <span class="seg" aria-label="Card size"><span>S</span><span class="on">M</span><span>L</span></span>
+    <span class="search hl">⌕ <b>rpg</b></span>
+  </div>
+  <div class="sec"><b>Folders</b><span>2</span></div>
+  <div class="folders">
+    <div class="folder"><span class="mk"></span>RPG <i>12</i></div>
+    <div class="folder"><span class="mk"></span>RPG › Iron Party <i>4</i></div>
+  </div>
+  <div class="sec"><b>Characters</b><span>12</span></div>
+  <div class="grid m">
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#4c6a4a,#232c22)">M</div><div class="body"><b>Marcus</b><small>in RPG › Iron Party</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6e4848,#2e2121)">A</div><div class="body"><b>Ana</b><small>in RPG › Iron Party</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#5a5a72,#25252e)">O</div><div class="body"><b>Old Tom</b><small>in RPG</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#5b4a6e,#2b2533)">L</div><div class="body"><b>Lyra</b><small>tag: rpg · in Fantasy</small></div></div>
+  </div>
+  <p class="why">Today a search already looks inside every folder, but only at names, tags and creator: typing a folder’s name finds nothing.</p>
+</section>
+
+<section class="view" id="v-every">
+  <p class="intro">A <b>Folders · Everything</b> switch next to “All / Recently played”. <b>Everything</b> ignores folders: one flat list of every card, with its folder under the name, sorted like today (recently played first). <b>Folders</b> is today’s view. The choice is remembered per place.</p>
+  <h3 class="k">Folders (today)</h3>
+  <div class="tools">
+    <div class="pills"><span class="on">All characters</span><span>Recently played</span></div>
+    <span class="seg"><span class="on">Folders</span><span>Everything</span></span>
+    <span class="grow"></span>
+    <span class="seg"><span>S</span><span class="on">M</span><span>L</span></span>
+    <span class="search">⌕ Search characters</span>
+  </div>
+  <div class="folders">
+    <div class="folder"><span class="mk"></span>RPG <i>12</i></div>
+    <div class="folder"><span class="mk"></span>Fantasy <i>7</i></div>
+    <div class="folder"><span class="mk"></span>Slice of life <i>5</i></div>
+  </div>
+  <div class="grid m">
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6b5a3c,#2e2820)">H</div><div class="body"><b>Henry</b><small>by someone</small></div></div>
+  </div>
+
+  <h3 class="k new">Everything</h3>
+  <div class="tools">
+    <div class="pills"><span class="on">All characters</span><span>Recently played</span></div>
+    <span class="seg hl"><span>Folders</span><span class="on">Everything</span></span>
+    <span class="grow"></span>
+    <span class="seg"><span>S</span><span class="on">M</span><span>L</span></span>
+    <span class="search">⌕ Search characters</span>
+  </div>
+  <div class="sec"><b>Every character</b><span>25</span></div>
+  <div class="grid m">
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#5b4a6e,#2b2533)">L</div><div class="body"><b>Lyra</b><small>in Fantasy</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#3f5d66,#22292c)">B</div><div class="body"><b>Brenda &amp; Jessica</b><small>in Slice of life</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6b5a3c,#2e2820)">H</div><div class="body"><b>Henry</b><small>not in a folder</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#4c6a4a,#232c22)">M</div><div class="body"><b>Marcus</b><small>in RPG › Iron Party</small></div></div>
+    <div class="card"><div class="pic" style="background:linear-gradient(160deg,#6e4848,#2e2121)">A</div><div class="body"><b>Ana</b><small>in RPG › Iron Party</small></div></div>
+  </div>
+  <p class="why">Dragging a card onto a folder still works in Folders. In Everything there are no folders on screen; a card’s sheet keeps its “Folder” picker.</p>
+</section>
+</main>
+
+<script>
+document.querySelectorAll(".states button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".states button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + b.dataset.v));
+}));
+</script>

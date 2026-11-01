@@ -7,6 +7,17 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
+## Collections v2: search finds folders, Everything view, portrait cards with a size — CLAUDE, 2026-11-01 · 🟡 draft 1, waiting for Daniel
+
+Daniel (07:38, translated): "In Stories, Characters etc., when you search, folders are not included; have a mode that shows everything with folders ignored, for a fuller view" · "Make Character Cards rectangular to show the whole picture if there is one, with an option to choose the size; now they are too big."
+Draft: `docs/drafts/collections-v2/index.html` (example names and colour panels; no pictures from his library).
+- **Where:** every collection page with cards and folders (Characters, Stories, Vault: Kits, Narrators, NPCs).
+- **Portrait cards:** picture 2:3 (whole portrait, no wide crop), then name + one line (chats, versions, creator or folder) + first tag. Sizes **S · M · L** (about 128 / 168 / 220 px wide; default M); the two-line summary only at L. A segmented control beside the search; remembered per place.
+- **Search:** also matches folder names. Results: "Folders" (matching folders, click opens) then the cards whose name, tags, creator **or folder path** match, each with "in RPG › Iron Party".
+- **Folders · Everything:** a switch next to "All / Recently played". Everything = one flat list of every card, folder under the name, no folder tiles; Folders = today. Remembered per place. Drag onto folders only in Folders; the sheet's Folder picker works in both.
+- **States:** empty place (today's text), no results ("No character or folder matches"), cards without a picture (letter on a colour, as today), long names (one line, ellipsis).
+- **Open questions:** default size M? Should Everything also be the view while searching (it already is, plus the folders)?
+
 ## Cards with several characters; brief people in the Scene — CLAUDE, 2026-11-01 · ✅ approved ("do what you think is best") and in the app (D-065)
 
 Daniel (01/11, translated): "If I have a card that is 2+ characters together, how do I make it NOT show as one character in the trackers? The AI just takes the context and makes the cast naturally?" · "NPCs there should be a simple description; when they take information from the lorebook or a card they add all of it and things repeat for no reason. Trackers should show things simply and directly and leave complex information in its proper place. An NPC away should show only a super brief description, not the whole sheet. Look at how Aventuras does it." · After the first proposal: "it makes sense: exclude it from the cast but still send the content; we just need to show where that content is sent."

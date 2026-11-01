@@ -4,6 +4,11 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Trackers remove what no longer applies; collections draft (2026-11-01) — CLAUDE — D-066
+
+- **D-066 (done):** a tracker can remove a value with `null` (a berserk mode ends → the status is gone from that message on). Told in its instructions; engine only.
+- **Draft waiting for Daniel:** `docs/drafts/collections-v2/` + UI-PLAN "Collections v2" — portrait cards (2:3) with S · M · L, search that also finds folders, and a Folders · Everything switch. No code yet.
+
 ## Track in Scene, brief people out of the scene (2026-11-01) — CLAUDE — D-065
 
 Daniel asked (06:41) and approved the draft ("do what you think is best"; send the minimum for people out of the scene).

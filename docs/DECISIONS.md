@@ -648,3 +648,13 @@ Tests: `packages/core/test/untracked-cards.test.ts`, st-cards round trip, starte
 - **Same day, after Daniel tried it** ("you hid it too much; put it where you add the characters to a Story… a better name, since it also serves when it is not several characters and you just don't want it in the cast — but make the use clear"; "keep it in Characters too"): the flag is now **"Track in the Scene"**. `Character.tracked` (false = "Don't track") is the card's default — Characters → Edit: "In the Scene: Track as a person · Don't track" with a hint that says what it is for; grid tag "Not tracked". `CastMember.tracked` overrides it per story/chat: a **Track in Scene** switch on each card row of Story → Characters (the section line explains it) and in a chat's "Who is in this story". Only a choice different from the card is stored. A story's change reaches its chats unless a chat picked its own (like versions, D-035). `isTracked(member, card)`, `untrackedCards`; ST export keeps `extensions.homunculus.tracked`. The earlier `ensemble` name is gone (never released).
 
 Signed: **CLAUDE**.
+
+## D-066 — Trackers remove values that no longer apply (2026-11-01)
+
+Daniel: "make it possible for the world state to REMOVE fields that are no longer in use — if a character has a berserk mode, when he leaves it the status disappears completely."
+- A tracker answer may write `null` to remove a value: one character's (`{"mode": {"Lyra": null}}`), one pair's, or a whole global field (`{"weather": null}`). The last per-character value going away removes the field. Removing what is not there changes nothing. The state delta already treated `null` as "delete" (`applyInto`), so earlier messages keep their values (state is per message).
+- `trackerInstruction` says so in one line when the set has optional fields. People out of the scene (D-065) are protected the same way: their withheld values cannot be removed while they are away.
+- Engine only: no schema, panel or starter text change. An optional field with no value shows in the person's "Not used" line as before.
+Tests: `packages/core/test/tracker-removal.test.ts`.
+
+Signed: **CLAUDE**.
