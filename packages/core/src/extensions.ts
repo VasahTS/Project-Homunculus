@@ -64,6 +64,10 @@ export interface ConnectionLimits {
   maxConcurrent?: number;
   /** Wait at least this long between the start of two calls. */
   minIntervalMs?: number;
+  /** Tries again (2 s, 4 s, 8 s…) when the service is busy (429 / 5xx / "rate limit") before any text arrived. */
+  retries?: number;
+  /** Gives up when nothing arrives for this many seconds. */
+  timeoutSec?: number;
 }
 
 /** Which provider/model to use and how to reach it. The API key never goes in the database (D-011). */

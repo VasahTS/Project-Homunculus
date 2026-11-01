@@ -16,7 +16,17 @@ export type AssistantRule = z.infer<typeof AssistantRule>;
 export const AssistantMemory = z.object({ id: Id, text: z.string().min(1), from: z.string().default(""), at: z.number().int() });
 export type AssistantMemory = z.infer<typeof AssistantMemory>;
 
-export const AssistantSettings = z.object({
+/**
+ * An assistant (round 2, like Flint's assistants): a name, an emoji, what it is for, its own instructions and model.
+ * The app's tool rules are always added before its instructions, so an assistant can change its voice and focus but
+ * never break how tools are used.
+ */
+export const AssistantPersona = z.object({
+  id: Id,
+  emoji: z.string().default("✦"),
+  name: z.string().min(1),
+  description: z.string().default(""),
+  instructions: z.string().default(""),
   /** A connection profile id; null = the one stories use. */
   connectionId: Id.nullable().default(null),
   /** Empty = the connection's model. */
@@ -27,11 +37,51 @@ export const AssistantSettings = z.object({
   maxSteps: z.number().int().min(1).max(100).default(25),
   /** New items are saved right away (Undo on the card); false = they wait like changes. */
   saveNew: z.boolean().default(true),
-  /** Its main instructions; empty = the built-in ones. */
-  instructions: z.string().default(""),
+  /** Came with the app: can be edited and reset, not deleted. */
+  builtin: z.boolean().default(false),
+});
+export type AssistantPersona = z.infer<typeof AssistantPersona>;
+
+/** A note in a preset: lore, a world's facts, a style sample… sent while it is on. */
+export const PresetNote = z.object({ id: Id, title: z.string().default(""), text: z.string().default(""), on: z.boolean().default(true) });
+export type PresetNote = z.infer<typeof PresetNote>;
+
+/**
+ * A preset (Daniel: "a place to keep how I like it written, lore, things I don't want to repeat"): what the assistant
+ * should always know. One per chat (the default one for new chats); any assistant can use any preset.
+ */
+export const AssistantPreset = z.object({
+  id: Id,
+  name: z.string().min(1),
+  description: z.string().default(""),
+  /** How the user likes things written (style, length, format). */
+  style: z.string().default(""),
   rules: z.array(AssistantRule).default([]),
+  notes: z.array(PresetNote).default([]),
   memory: z.array(AssistantMemory).default([]),
   memoryOn: z.boolean().default(true),
+  /** The assistant may add to this memory by itself (with `remember`). */
+  autoMemory: z.boolean().default(true),
+});
+export type AssistantPreset = z.infer<typeof AssistantPreset>;
+
+export const AssistantSettings = z.object({
+  assistants: z.array(AssistantPersona).default([]),
+  presets: z.array(AssistantPreset).default([]),
+  defaultAssistantId: z.string().default(""),
+  /** "" = none. */
+  defaultPresetId: z.string().default(""),
+  /** Round 1 fields (read once to fill the default assistant and preset; never written again). */
+  connectionId: Id.nullable().optional(),
+  model: z.string().optional(),
+  effort: z.enum(["", "low", "medium", "high"]).optional(),
+  temperature: z.number().optional(),
+  maxSteps: z.number().optional(),
+  saveNew: z.boolean().optional(),
+  instructions: z.string().optional(),
+  rules: z.array(AssistantRule).optional(),
+  memory: z.array(AssistantMemory).optional(),
+  memoryOn: z.boolean().optional(),
 });
 export type AssistantSettings = z.infer<typeof AssistantSettings>;
 
@@ -73,7 +123,15 @@ export const AssistantMessage = z.object({
   rounds: z.array(z.object({ text: z.string(), calls: z.array(z.object({ id: z.string(), name: z.string(), arguments: z.string() })) })).default([]),
   results: z.array(AssistantResult).default([]),
   /** What it used (Flint's "what is being used"): model, rules, memory, guides, tokens. */
-  used: z.object({ model: z.string().default(""), tokensIn: z.number().optional(), tokensOut: z.number().optional(), cost: z.number().optional(), guides: z.array(z.string()).default([]) }).optional(),
+  used: z.object({
+    model: z.string().default(""), tokensIn: z.number().optional(), tokensOut: z.number().optional(), cost: z.number().optional(),
+    guides: z.array(z.string()).default([]),
+    /** The prompt of the last request of this reply (how full the context is). */
+    lastPrompt: z.number().optional(),
+    assistant: z.string().optional(), preset: z.string().optional(),
+    /** Estimated tokens by part of the request: instructions, preset, tools, chat. */
+    parts: z.record(z.string(), z.number()).optional(),
+  }).optional(),
   error: z.string().optional(),
   createdAt: z.number().int(),
 });
@@ -87,6 +145,13 @@ export const AssistantChat = z.object({
   messages: z.array(AssistantMessage).default([]),
   /** Guides already given in this chat (not sent again). */
   guides: z.array(z.string()).default([]),
+  /** Who answers and what it knows ("" = the defaults); the model can be changed per chat from the composer. */
+  assistantId: z.string().default(""),
+  presetId: z.string().default(""),
+  connectionId: Id.nullable().optional(),
+  model: z.string().optional(),
+  /** The model's context size, when known (from the model list). */
+  contextLength: z.number().int().optional(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });

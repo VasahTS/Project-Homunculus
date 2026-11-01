@@ -41,12 +41,28 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await change.getByTestId("assistant-apply").click();
   await expect(change).toContainText("Applied");
 
-  // Customize: a rule
+  // the picks under the message box: another assistant for this chat; the context meter
+  await page.getByTestId("pick-assistant").click();
+  await page.getByRole("dialog", { name: "Assistant" }).getByRole("button", { name: /Card Smith/ }).click();
+  await expect(page.getByTestId("pick-assistant")).toContainText("Card Smith");
+  await page.getByTestId("pick-context").click();
+  await expect(page.getByRole("dialog", { name: "Context and spending" })).toContainText("Card Smith");
+  await page.keyboard.press("Escape");
+
+  // Customize: a page with assistants, presets (a rule), limits and usage
   await page.getByTestId("assistant-customize").click();
+  await expect(page.getByTestId("cust-assistant")).toHaveCount(5);
+  await page.getByTestId("cust-new-assistant").click();
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("New assistant");
+  await page.getByTestId("cust-presets").click();
   await page.getByTestId("assistant-new-rule").fill("Cards in English.");
   await page.getByTestId("assistant-new-rule").press("Enter");
   await expect(page.getByRole("textbox", { name: "Rule", exact: true })).toHaveValue("Cards in English.");
-  await page.keyboard.press("Escape");
+  await page.getByTestId("cust-limits").click();
+  await expect(page.getByTestId("assistant-customize-page")).toContainText("Try again when busy");
+  await page.getByTestId("cust-usage").click();
+  await expect(page.getByTestId("assistant-customize-page")).toContainText("Tokens");
+  await page.getByRole("button", { name: "Done" }).click();
 
   // back to Play
   await page.getByTestId("mode-switch").getByRole("tab", { name: "Play" }).click();

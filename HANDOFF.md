@@ -17,6 +17,7 @@ Report and limits: `docs/REVIEW-BUGFIXES-2026-11-01.md`. No native app, real API
 - Real **tool calling** in the provider; ten general tools; write kinds: characters, lorebooks, trackers, Kits, **narrators**. Token budget rules in D-062 (library never sent; find/read light; files as summaries; old tool results trimmed).
 - Changes wait for an OK (stale check); new items save with Undo; it never deletes.
 - Tests: 306 unit (7 Assistant, 1 provider tool-call); `e2e/assistant.e2e.ts` with the offline AI's tool script. Not tried with a real model by Claude (no keys): **Daniel, try it with nano-gpt/OpenRouter and a model that supports tools.**
+- **Round 2 (same night):** Assistants as "characters" (5 built in, Flint-style), Presets (style, rules, notes/lore, memory), Assistant/Preset/Model picks and a context meter under the message box, Customize as a page with Limits (retries, timeout — for every call in the app) and Usage.
 - Next for the Assistant: "Ask the assistant" from editors; fallback for models without tools; Director's notes (OOC idea).
 
 ## Message formatting (2026-11-01) — CLAUDE — D-061

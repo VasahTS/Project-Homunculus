@@ -126,13 +126,39 @@ describe("the Assistant", () => {
     expect(turns[1]!.content).toContain("[Image i1: a.png (sent earlier)]");
   });
 
-  it("rules and memory go in; memory can be written by the model", async () => {
+  it("an assistant's instructions and a preset's style, rules, notes and memory go in; memory is written to the chat's preset", async () => {
     const { store, core, seen } = await setup((_r, i) => [[call("remember", { text: "Likes slow burn." })], ["Noted."]][i]!);
-    await saveSettings(store, { ...(await loadSettings(store)), rules: [{ id: "r", text: "Cards in English.", on: true }, { id: "r2", text: "OFF RULE", on: false }] });
-    await runAssistant({ core, store, chat: chatWith(userMsg("remember I like slow burn")), main, connections: {}, onUpdate: () => {} });
-    expect(String(seen[0]!.rich![0]!.content)).toContain("- Cards in English.");
-    expect(String(seen[0]!.rich![0]!.content)).not.toContain("OFF RULE");
-    expect((await loadSettings(store)).memory.map((m) => m.text)).toEqual(["Likes slow burn."]);
+    const s0 = await loadSettings(store);
+    expect(s0.assistants.map((a) => a.id)).toEqual(["homunculus", "card-smith", "loremaster", "story-architect", "editor"]);
+    expect(s0.defaultPresetId).toBe("my-preferences");
+    await saveSettings(store, { ...s0, presets: [...s0.presets, {
+      id: "dark", name: "Dark fantasy", description: "", style: "Prose, 800 tokens.", memory: [], memoryOn: true, autoMemory: true,
+      rules: [{ id: "r", text: "Cards in English.", on: true }, { id: "r2", text: "OFF RULE", on: false }, { id: "r3", text: "  ", on: true }],
+      notes: [{ id: "n", title: "The Grey Order", text: "Rangers of the north.", on: true }],
+    }] });
+    const chat = { ...chatWith(userMsg("remember I like slow burn")), assistantId: "card-smith", presetId: "dark" };
+    await runAssistant({ core, store, chat, main, connections: {}, onUpdate: () => {} });
+    const sys = String(seen[0]!.rich![0]!.content);
+    expect(sys).toContain("Your role — Card Smith");
+    expect(sys).toContain("How the user likes things written:\nProse, 800 tokens.");
+    expect(sys).toContain("- Cards in English.");
+    expect(sys).not.toContain("OFF RULE");
+    expect(sys).toContain("The Grey Order:\nRangers of the north.");
+    const after = await loadSettings(store);
+    expect(after.presets.find((p) => p.id === "dark")!.memory.map((m) => m.text)).toEqual(["Likes slow burn."]);
+    expect(after.presets.find((p) => p.id === "dark")!.rules).toHaveLength(2); // the empty rule was dropped
+    const reply = (await loadChat(store, "c1"))!.messages.at(-1)!;
+    expect(reply.used).toMatchObject({ assistant: "Card Smith", preset: "Dark fantasy" });
+    expect(reply.used!.parts!.preset).toBeGreaterThan(0);
+  });
+
+  it("round-1 settings move into the default assistant and a “My preferences” preset", async () => {
+    const { store } = await setup(() => []);
+    await store.setAppSetting("assistant.settings", { instructions: "Be terse.", model: "glm-5", rules: [{ id: "r", text: "No W++.", on: true }], memory: [{ id: "m", text: "Likes noir.", from: "", at: 1 }] });
+    const s = await loadSettings(store);
+    expect(s.assistants.find((a) => a.id === "homunculus")).toMatchObject({ instructions: "Be terse.", model: "glm-5" });
+    expect(s.presets[0]).toMatchObject({ name: "My preferences", rules: [{ text: "No W++." }], memory: [{ text: "Likes noir." }] });
+    expect(((await store.getAppSetting("assistant.settings")) as Record<string, unknown>).instructions).toBeUndefined();
   });
 
   it("each guide only names fields the app really has", () => {

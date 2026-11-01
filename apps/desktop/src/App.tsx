@@ -37,7 +37,7 @@ import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
 import { LibraryWorkspace } from "./ui/LibraryWorkspace.tsx";
-import { AssistantCustomize, AssistantSidebar, AssistantView, useAssistant, type AppMode, type LibraryEntry } from "./ui/Assistant.tsx";
+import { AssistantSidebar, AssistantView, useAssistant, type AppMode, type LibraryEntry } from "./ui/Assistant.tsx";
 import { RegexPage } from "./ui/RegexScripts.tsx";
 import { loadMessageLook } from "./messageLook.ts";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
@@ -140,7 +140,6 @@ export function App() {
   const [mode, setModeState] = useState<AppMode>(() => { try { return localStorage.getItem("homunculus.mode") === "assistant" ? "assistant" : "play"; } catch { return "play"; } });
   const setMode = (m: AppMode) => { setModeState(m); try { localStorage.setItem("homunculus.mode", m); } catch { /* private window */ } };
   const asst = useAssistant(svc);
-  const [customizing, setCustomizing] = useState(false);
   // a newer version on GitHub (D-037): a quiet bar on top + Settings → About
   const updates = useUpdates();
 
@@ -1436,7 +1435,7 @@ export function App() {
   return (
     <div className="app" data-region="app">
       {sidebarOpen && mode === "assistant" && (
-        <AssistantSidebar st={asst} onMode={setMode} onCustomize={() => setCustomizing(true)} status={svc.isDesktop ? "saved on this PC" : "preview · not saved"} />
+        <AssistantSidebar st={asst} onMode={setMode} status={svc.isDesktop ? "saved on this PC" : "preview · not saved"} />
       )}
       {sidebarOpen && mode === "play" && (
         <Sidebar
@@ -1486,7 +1485,6 @@ export function App() {
         ) : libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
           counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, agents: agents.length, trash: trash.length }}
           onOpen={openLibrary}>{content}</LibraryWorkspace> : content}
-        {customizing && <AssistantCustomize svc={svc} connection={connection} onClose={() => setCustomizing(false)} />}
       </div>
       {savingNpc && (() => {
         const chat = sessions.find((x) => x.id === savingNpc.sessionId);

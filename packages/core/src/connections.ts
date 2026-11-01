@@ -79,21 +79,42 @@ export class ConnectionService {
     let lastError: unknown;
     while (current) {
       const provider = this.provider(current);
-      const release = await this.gateFor(current).acquire(signal);
-      let sentText = false;
-      try {
-        for await (const chunk of provider.stream({ connection: current, messages, signal, ...extra })) {
-          if ((typeof chunk === "string" && chunk) || (typeof chunk === "object" && "toolCalls" in chunk)) sentText = true;
-          yield chunk;
+      const retries = Math.max(0, current.limits?.retries ?? 0);
+      for (let attempt = 0; ; attempt++) {
+        const release = await this.gateFor(current).acquire(signal);
+        let sentText = false;
+        // "nothing arrived for N seconds" ends the call (each chunk restarts the clock)
+        const timeoutMs = (current.limits?.timeoutSec ?? 0) * 1000;
+        const own = timeoutMs ? new AbortController() : undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const arm = () => { if (own) { clearTimeout(timer); timer = setTimeout(() => own.abort(new Error(`No answer for ${current!.limits!.timeoutSec} s (timeout).`)), timeoutMs); } };
+        const onOuter = () => own?.abort(signal?.reason);
+        signal?.addEventListener("abort", onOuter);
+        try {
+          arm();
+          for await (const chunk of provider.stream({ connection: current, messages, signal: own?.signal ?? signal, ...extra })) {
+            arm();
+            if ((typeof chunk === "string" && chunk) || (typeof chunk === "object" && "toolCalls" in chunk)) sentText = true;
+            yield chunk;
+          }
+          return;
+        } catch (e) {
+          const err = own?.signal.aborted && !signal?.aborted && own.signal.reason instanceof Error ? own.signal.reason : e;
+          if (sentText || isAbort(err, signal)) throw err;
+          lastError = err;
+          if (attempt < retries && isBusy(err)) {
+            release();
+            await sleep(2000 * 2 ** attempt, signal);
+            continue;
+          }
+          break;
+        } finally {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", onOuter);
+          release();
         }
-        return;
-      } catch (e) {
-        if (sentText || isAbort(e, signal)) throw e;
-        lastError = e;
-        current = current.fallback;
-      } finally {
-        release();
       }
+      current = current.fallback;
     }
     throw lastError;
   }
@@ -143,3 +164,10 @@ export function profileToConfig(
   if (next && !seen.has(next.id) && seen.size < 4) config.fallback = profileToConfig(next, all, keyFor, seen);
   return config;
 }
+
+/** The service said it is busy or rate-limited (worth trying again later). */
+export function isBusy(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e);
+  return /\b(429|500|502|503|504|529)\b|rate.?limit|too many requests|overloaded|timeout/i.test(m);
+}
+

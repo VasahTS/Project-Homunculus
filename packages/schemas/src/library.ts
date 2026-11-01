@@ -154,6 +154,10 @@ export const ConnectionProfile = z.object({
     maxConcurrent: z.number().int().min(1).max(32).optional(),
     /** Wait at least this long between two calls. */
     minIntervalMs: z.number().int().min(0).max(600_000).optional(),
+    /** When the service refuses for being busy (429, 5xx, "rate limit") before writing anything: try again this many times. */
+    retries: z.number().int().min(0).max(8).optional(),
+    /** Give up when nothing arrives for this long (seconds). Missing = wait as long as it takes. */
+    timeoutSec: z.number().int().min(5).max(3600).optional(),
   }).default({}),
   /** Tried when this connection fails before writing anything. */
   fallbackId: Id.nullable().default(null),

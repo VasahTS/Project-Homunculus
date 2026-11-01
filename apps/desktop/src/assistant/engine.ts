@@ -6,9 +6,9 @@
 // - picked items and files go as one line each (the model reads what it needs);
 // - pictures are sent only with the newest two user messages (older ones become "[image … sent earlier]");
 // - tool results of earlier replies are cut to their first lines (Flint's "microcompaction"): the model can read again.
-import { AssistantChat, AssistantSettings, type AssistantMessage, type AssistantResult } from "@homunculus/schemas";
+import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
-import { DEFAULT_INSTRUCTIONS } from "./guides.ts";
+import { BUILTIN_ASSISTANTS, CORE_RULES } from "./guides.ts";
 import { libraryCounts, runTool, TOOL_SPECS, type ToolContext } from "./tools.ts";
 
 const SETTINGS_KEY = "assistant.settings";
@@ -20,11 +20,60 @@ export interface ChatRow { id: string; title: string; summary: string; updatedAt
 
 // ------------------------------------------------------------------ storage (app settings: no new tables)
 
+export const builtinAssistant = (id: string): AssistantPersona | undefined => {
+  const b = BUILTIN_ASSISTANTS.find((x) => x.id === id);
+  return b ? AssistantPersona.parse({ ...b, builtin: true }) : undefined;
+};
+
+/**
+ * The settings, with the built-in assistants always there and a default preset. Round-1 settings (one set of
+ * instructions, rules and memory) are moved once into the default assistant and a "My preferences" preset.
+ */
 export async function loadSettings(store: SqlStore): Promise<AssistantSettings> {
-  return AssistantSettings.parse((await store.getAppSetting(SETTINGS_KEY)) ?? {});
+  const raw = AssistantSettings.parse((await store.getAppSetting(SETTINGS_KEY)) ?? {});
+  let changed = false;
+  const assistants = [...raw.assistants];
+  for (const b of BUILTIN_ASSISTANTS) if (!assistants.some((a) => a.id === b.id)) { assistants.push(builtinAssistant(b.id)!); changed = true; }
+  const presets = [...raw.presets];
+  if (!presets.length) {
+    presets.push(AssistantPreset.parse({ id: "my-preferences", name: "My preferences", description: "How I like things written, and what to always know.", rules: raw.rules ?? [], memory: raw.memory ?? [], memoryOn: raw.memoryOn ?? true }));
+    changed = true;
+  }
+  if (raw.instructions !== undefined || raw.model !== undefined || raw.connectionId !== undefined) {
+    const i = assistants.findIndex((a) => a.id === "homunculus");
+    if (i >= 0) assistants[i] = { ...assistants[i]!, ...(raw.instructions ? { instructions: raw.instructions } : {}), ...(raw.model ? { model: raw.model } : {}),
+      ...(raw.connectionId !== undefined ? { connectionId: raw.connectionId } : {}), ...(raw.effort !== undefined ? { effort: raw.effort } : {}),
+      ...(raw.temperature !== undefined ? { temperature: raw.temperature } : {}), ...(raw.maxSteps !== undefined ? { maxSteps: raw.maxSteps } : {}), ...(raw.saveNew !== undefined ? { saveNew: raw.saveNew } : {}) };
+    changed = true;
+  }
+  const out = AssistantSettings.parse({
+    assistants, presets,
+    defaultAssistantId: assistants.some((a) => a.id === raw.defaultAssistantId) ? raw.defaultAssistantId : "homunculus",
+    defaultPresetId: raw.defaultPresetId === "" && raw.presets.length ? "" : presets.some((p) => p.id === raw.defaultPresetId) ? raw.defaultPresetId : presets[0]!.id,
+  });
+  if (changed) await saveSettings(store, out);
+  return out;
 }
 export async function saveSettings(store: SqlStore, s: AssistantSettings): Promise<void> {
-  await store.setAppSetting(SETTINGS_KEY, AssistantSettings.parse(s));
+  const { connectionId: _c, model: _m, effort: _e, temperature: _t, maxSteps: _x, saveNew: _s, instructions: _i, rules: _r, memory: _y, memoryOn: _o, ...clean } = s;
+  // empty rules and notes are dropped (an empty rule row was saved by mistake in round 1)
+  clean.presets = clean.presets.map((p) => ({ ...p, rules: p.rules.filter((r) => r.text.trim()), memory: p.memory.filter((m) => m.text.trim()) }));
+  await store.setAppSetting(SETTINGS_KEY, AssistantSettings.parse(clean));
+}
+
+/** Who answers a chat and what it knows. */
+export function resolveFor(chat: Pick<AssistantChat, "assistantId" | "presetId"> | null, s: AssistantSettings): { assistant: AssistantPersona; preset: AssistantPreset | undefined } {
+  const assistant = s.assistants.find((a) => a.id === (chat?.assistantId || s.defaultAssistantId)) ?? s.assistants[0] ?? builtinAssistant("homunculus")!;
+  const pid = chat?.presetId === "none" ? "" : chat?.presetId || s.defaultPresetId;
+  return { assistant, preset: s.presets.find((p) => p.id === pid) };
+}
+
+/** The connection a chat uses: the chat's own pick, else its assistant's, else the stories' one. */
+export function connectionFor(chat: Pick<AssistantChat, "connectionId" | "model"> | null, assistant: AssistantPersona, main: ConnectionConfig, connections: Record<string, ConnectionConfig>): ConnectionConfig {
+  const id = chat?.connectionId ?? assistant.connectionId;
+  const base = (id ? connections[id] : undefined) ?? main;
+  const model = chat?.model || (chat?.connectionId ? "" : assistant.model);
+  return { ...base, ...(model ? { model } : {}), params: { ...base.params, temperature: assistant.temperature, ...(assistant.effort ? { reasoningEffort: assistant.effort } : {}) } };
 }
 export async function listChats(store: SqlStore): Promise<ChatRow[]> {
   const v = await store.getAppSetting<ChatRow[]>(INDEX_KEY);
@@ -46,13 +95,21 @@ export async function deleteChat(store: SqlStore, id: string): Promise<void> {
 
 // ------------------------------------------------------------------ the request
 
-function systemText(s: AssistantSettings, counts: string): string {
-  const parts = [s.instructions.trim() || DEFAULT_INSTRUCTIONS, `The user's library: ${counts}.`];
-  const rules = s.rules.filter((r) => r.on).map((r) => `- ${r.text}`);
-  if (rules.length) parts.push(`The user's rules (always follow them):\n${rules.join("\n")}`);
-  if (s.memoryOn && s.memory.length) parts.push(`What you remember about the user:\n${s.memory.map((m) => `- ${m.text}`).join("\n")}`);
-  return parts.join("\n\n");
+/** The system message, in parts (so the composer can show what takes room). */
+export function systemParts(assistant: AssistantPersona, preset: AssistantPreset | undefined, counts: string): Record<string, string> {
+  const parts: Record<string, string> = { app: CORE_RULES, assistant: assistant.instructions.trim() ? `Your role — ${assistant.name}:\n${assistant.instructions.trim()}` : "", library: `The user's library: ${counts}.` };
+  if (preset) {
+    const p: string[] = [];
+    if (preset.style.trim()) p.push(`How the user likes things written:\n${preset.style.trim()}`);
+    const rules = preset.rules.filter((r) => r.on && r.text.trim()).map((r) => `- ${r.text.trim()}`);
+    if (rules.length) p.push(`The user's rules (always follow them):\n${rules.join("\n")}`);
+    for (const n of preset.notes.filter((x) => x.on && x.text.trim())) p.push(`${n.title.trim() || "Note"}:\n${n.text.trim()}`);
+    if (preset.memoryOn && preset.memory.length) p.push(`What you remember about the user:\n${preset.memory.map((m) => `- ${m.text}`).join("\n")}`);
+    parts.preset = p.join("\n\n");
+  }
+  return parts;
 }
+const systemText = (parts: Record<string, string>) => Object.values(parts).filter(Boolean).join("\n\n");
 
 function userContent(m: AssistantMessage, withImages: boolean): string | ContentPart[] {
   const lines: string[] = [];
@@ -70,7 +127,8 @@ function userContent(m: AssistantMessage, withImages: boolean): string | Content
 
 /** The saved chat as model turns (exact rounds of tool calls; older tool results shortened). */
 export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts: string): RichTurn[] {
-  const out: RichTurn[] = [{ role: "system", content: systemText(settings, counts) }];
+  const { assistant, preset } = resolveFor(chat, settings);
+  const out: RichTurn[] = [{ role: "system", content: systemText(systemParts(assistant, preset, counts)) }];
   const users = chat.messages.filter((m) => m.role === "user");
   const recentImages = new Set(users.slice(-2).map((m) => m.id));
   const lastUser = users.at(-1)?.id;
@@ -107,12 +165,12 @@ export async function runAssistant(o: {
   const newId = o.newId ?? (() => crypto.randomUUID());
   const now = o.now ?? (() => Date.now());
   const settings = await loadSettings(o.store);
-  const base = (settings.connectionId ? o.connections[settings.connectionId] : undefined) ?? o.main;
-  const conn: ConnectionConfig = {
-    ...base, ...(settings.model ? { model: settings.model } : {}),
-    params: { ...base.params, temperature: settings.temperature, ...(settings.effort ? { reasoningEffort: settings.effort } : {}) },
-  };
+  const { assistant, preset } = resolveFor(o.chat, settings);
+  const conn = connectionFor(o.chat, assistant, o.main, o.connections);
   const counts = await libraryCounts(o.store);
+  const est = (t: string) => Math.ceil(t.length / 3.6);
+  const sys = systemParts(assistant, preset, counts);
+  const parts: Record<string, number> = { app: est(sys.app ?? ""), assistant: est(sys.assistant ?? ""), preset: est(sys.preset ?? ""), tools: est(JSON.stringify(TOOL_SPECS)) };
   const reply: AssistantMessage = { id: newId(), role: "assistant", text: "", reasoning: "", attachments: [], steps: [], rounds: [], results: [], used: { model: conn.model, guides: [] }, createdAt: now() };
   let chat: AssistantChat = { ...o.chat, messages: [...o.chat.messages, reply] };
   const guides = new Set(o.chat.guides);
@@ -123,14 +181,16 @@ export async function runAssistant(o: {
     if (a.type === "image") images.set(a.id, { name: a.name, mime: a.mime, base64: a.base64 });
   }
   const ctx: ToolContext = {
-    store: o.store, saveNew: settings.saveNew, newId, files, images, results: reply.results, guides,
+    store: o.store, saveNew: assistant.saveNew, newId, files, images, results: reply.results, guides,
     remember: async (text) => {
       const s = await loadSettings(o.store);
-      await saveSettings(o.store, { ...s, memory: [...s.memory, { id: newId(), text, from: chat.title, at: now() }] });
+      const target = preset ? s.presets.find((p) => p.id === preset.id) : undefined;
+      if (!target || !target.autoMemory) throw new Error(target ? `Memory is off for the preset “${target.name}”; tell the user to add it there.` : "No preset is in use, so there is nowhere to remember it.");
+      await saveSettings(o.store, { ...s, presets: s.presets.map((p) => (p.id === target.id ? { ...p, memory: [...p.memory, { id: newId(), text, from: o.chat.title, at: now() }] } : p)) });
     },
   };
   const push = () => o.onUpdate({ ...reply, steps: [...reply.steps], rounds: [...reply.rounds], results: [...reply.results] });
-  const usage = { tokensIn: 0, tokensOut: 0, cost: 0 };
+  const usage = { tokensIn: 0, tokensOut: 0, cost: 0, last: 0 };
 
   try {
     for (let step = 0; ; step++) {
@@ -141,10 +201,10 @@ export async function runAssistant(o: {
         if (typeof chunk === "string") { text += chunk; reply.text = text; push(); }
         else if ("reasoning" in chunk) { reply.reasoning += chunk.reasoning; push(); }
         else if ("toolCalls" in chunk) calls = calls.concat(chunk.toolCalls);
-        else if ("usage" in chunk) { usage.tokensIn += chunk.usage.tokensIn ?? 0; usage.tokensOut += chunk.usage.tokensOut ?? 0; usage.cost += chunk.usage.cost ?? 0; }
+        else if ("usage" in chunk) { usage.last = chunk.usage.tokensIn ?? usage.last; usage.tokensIn += chunk.usage.tokensIn ?? 0; usage.tokensOut += chunk.usage.tokensOut ?? 0; usage.cost += chunk.usage.cost ?? 0; }
       }
       if (!calls.length) { reply.text = text; break; }
-      if (step >= settings.maxSteps) { reply.text = `${text}\n\n(Stopped after ${settings.maxSteps} steps — say “go on” to continue.)`.trim(); break; }
+      if (step >= assistant.maxSteps) { reply.text = `${text}\n\n(Stopped after ${assistant.maxSteps} steps — say “go on” to continue.)`.trim(); break; }
       reply.rounds.push({ text, calls: calls.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments })) });
       reply.text = "";
       for (const c of calls) {
@@ -159,7 +219,10 @@ export async function runAssistant(o: {
   } catch (e) {
     reply.error = e instanceof Error ? e.message : String(e);
   }
-  reply.used = { model: conn.model, guides: [...guides], ...(usage.tokensIn ? { tokensIn: usage.tokensIn } : {}), ...(usage.tokensOut ? { tokensOut: usage.tokensOut } : {}), ...(usage.cost ? { cost: usage.cost } : {}) };
+  // the chat's share: from the service's count when it gave one, else estimated from the turns themselves
+  const sysTotal = parts.app! + parts.assistant! + parts.preset! + parts.tools!;
+  parts.chat = usage.last ? Math.max(0, usage.last - sysTotal) : est(JSON.stringify(toTurns({ ...chat, messages: [...o.chat.messages, reply] }, settings, counts).slice(1)));
+  reply.used = { model: conn.model, guides: [...guides], assistant: assistant.name, ...(preset ? { preset: preset.name } : {}), parts, ...(usage.last ? { lastPrompt: usage.last } : {}), ...(usage.tokensIn ? { tokensIn: usage.tokensIn } : {}), ...(usage.tokensOut ? { tokensOut: usage.tokensOut } : {}), ...(usage.cost ? { cost: usage.cost } : {}) };
   push();
   const made = reply.results.filter((r) => r.type === "created" || r.type === "change").map((r) => (r as { name: string }).name);
   const first = o.chat.messages.find((m) => m.role === "user");

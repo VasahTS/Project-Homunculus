@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
-import { deleteChat, listChats, loadChat, loadSettings, runAssistant, saveChat, saveSettings, updateResult, type ChatRow } from "../assistant/engine.ts";
+import { connectionFor, deleteChat, listChats, loadChat, loadSettings, resolveFor, runAssistant, saveChat, updateResult, type ChatRow } from "../assistant/engine.ts";
 import { applyChange, applyTrash, createItem, undoCreate } from "../assistant/tools.ts";
 import { parseFile } from "../assistant/files.ts";
-import { DEFAULT_INSTRUCTIONS } from "../assistant/guides.ts";
 import { diffWords } from "../diff.ts";
 import { readFileBytes } from "../files.ts";
 import { bytesToBase64 } from "@homunculus/st-cards";
-import { Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
+import { Button, Icon, IconButton } from "./kit.tsx";
+import { AssistantCustomizePage, ModelRow } from "./AssistantCustomize.tsx";
 import { Modal } from "./Vault.tsx";
 import { MessageText } from "./MessageText.tsx";
 
@@ -29,10 +29,12 @@ const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "narrator", "np
 
 export function useAssistant(svc: AppServices | null) {
   const [chats, setChats] = useState<ChatRow[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveIdRaw] = useState<string | null>(null);
+  const [page, setPage] = useState<"chat" | "customize">("chat");
+  const setActiveId = useCallback((id: string | null) => { setActiveIdRaw(id); setPage("chat"); }, []);
   const reload = useCallback(async () => { if (svc) setChats(await listChats(svc.store)); }, [svc]);
   useEffect(() => { void reload(); }, [reload]);
-  return { chats, activeId, setActiveId, reload };
+  return { chats, activeId, setActiveId, reload, page, setPage };
 }
 export type AssistantState = ReturnType<typeof useAssistant>;
 
@@ -48,7 +50,7 @@ export function ModeSwitch({ mode, onMode }: { mode: AppMode; onMode: (m: AppMod
   );
 }
 
-export function AssistantSidebar({ st, onMode, onCustomize, status }: { st: AssistantState; onMode: (m: AppMode) => void; onCustomize: () => void; status: string }) {
+export function AssistantSidebar({ st, onMode, status }: { st: AssistantState; onMode: (m: AppMode) => void; status: string }) {
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
   const shown = q.trim() ? st.chats.filter((c) => `${c.title} ${c.summary}`.toLowerCase().includes(q.trim().toLowerCase())) : st.chats;
@@ -57,17 +59,17 @@ export function AssistantSidebar({ st, onMode, onCustomize, status }: { st: Assi
       <div className="sidebar-brand"><span className="brand">Homunculus</span><span className="status-chip">{status}</span></div>
       <ModeSwitch mode="assistant" onMode={onMode} />
       <ul className="side-list">
-        <li><button className="side-item" onClick={() => st.setActiveId(null)} data-testid="assistant-new"><span className="side-icon acc"><Icon name="plus" /></span><span className="side-text"><strong>New chat</strong></span></button></li>
+        <li><button className={`side-item${st.page === "chat" && !st.activeId ? " on" : ""}`} onClick={() => st.setActiveId(null)} data-testid="assistant-new"><span className="side-icon acc"><Icon name="plus" /></span><span className="side-text"><strong>New chat</strong></span></button></li>
         <li>{searching
           ? <label className="search-box side-search"><Icon name="search" size={13} /><input autoFocus aria-label="Search chats" placeholder="Search chats" value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => { if (!q) setSearching(false); }} /></label>
           : <button className="side-item" onClick={() => setSearching(true)}><span className="side-icon"><Icon name="search" /></span><span className="side-text"><strong>Search</strong></span></button>}</li>
-        <li><button className="side-item" onClick={onCustomize} data-testid="assistant-customize"><span className="side-icon"><Icon name="gear" /></span><span className="side-text"><strong>Customize</strong></span></button></li>
+        <li><button className={`side-item${st.page === "customize" ? " on" : ""}`} onClick={() => st.setPage("customize")} data-testid="assistant-customize"><span className="side-icon"><Icon name="gear" /></span><span className="side-text"><strong>Customize</strong></span></button></li>
       </ul>
       <div className="side-head"><span>Recents</span></div>
       <ul className="side-list" data-testid="assistant-chats">
         {shown.length === 0 && <li className="hint side-empty">{q ? "No chat matches." : "Your chats will show here."}</li>}
         {shown.map((c) => (
-          <li key={c.id}><button className={`side-item${st.activeId === c.id ? " on" : ""}`} onClick={() => st.setActiveId(c.id)}>
+          <li key={c.id}><button className={`side-item${st.page === "chat" && st.activeId === c.id ? " on" : ""}`} onClick={() => st.setActiveId(c.id)}>
             <span className="side-text"><strong>{c.title}</strong><span>{c.summary || new Date(c.updatedAt).toLocaleDateString()}</span></span>
           </button></li>
         ))}
@@ -114,8 +116,22 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   }, [svc, st.activeId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [chat, live]);
 
-  const profileName = settings?.connectionId ? connection.byId.get(settings.connectionId)?.name : connection.byId.get(connection.defaultId ?? "")?.name;
-  const modelName = settings?.model || profileName || "No connection";
+  // who answers, what it knows, which model: the chat's own picks (before the first message, kept here)
+  const [draft, setDraft] = useState<Picks>({ assistantId: "", presetId: "" });
+  const picks: Picks = chat ? { assistantId: chat.assistantId, presetId: chat.presetId, connectionId: chat.connectionId, model: chat.model, contextLength: chat.contextLength } : draft;
+  const setPicks = (p: Partial<Picks>) => {
+    if (chat) { const next = { ...chat, ...p }; setChat(next); void saveChat(svc.store, next); }
+    else setDraft((d) => ({ ...d, ...p }));
+  };
+  const resolved = settings ? resolveFor(picks, settings) : null;
+  const r0 = connection.forRequest();
+  const effective = resolved && r0.connection ? connectionFor(picks, resolved.assistant, r0.connection, r0.connections) : null;
+  const lastUsed = [...(chat?.messages ?? [])].reverse().find((m) => m.role === "assistant" && m.used)?.used;
+  const picksBar = settings && resolved ? (
+    <PicksBar settings={settings} picks={picks} setPicks={setPicks} svc={svc} connection={connection}
+      model={effective?.model || (() => { const id = picks.connectionId ?? resolved.assistant.connectionId ?? connection.defaultId; return (id ? connection.byId.get(id)?.name : undefined) ?? "No connection"; })()}
+      used={lastUsed} chat={chat} onCustomize={() => st.setPage("customize")} />
+  ) : null;
 
   const addFiles = async (files: File[]) => {
     const out: AssistantAttachment[] = [];
@@ -142,7 +158,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     if (!r.connection) { setError("Set up a connection first (Settings → Connections)."); return; }
     const now = Date.now();
     const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: body, reasoning: "", attachments: atts, steps: [], rounds: [], results: [], createdAt: now };
-    const base = chat ?? AssistantChat.parse({ id: crypto.randomUUID(), createdAt: now, updatedAt: now });
+    const base = chat ?? AssistantChat.parse({ id: crypto.randomUUID(), createdAt: now, updatedAt: now, ...draft });
     const withUser = { ...base, messages: [...base.messages, user], updatedAt: now };
     setChat(withUser); setText(""); setAtts([]); setError("");
     await saveChat(svc.store, withUser);
@@ -198,6 +214,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
 
   const messages = chat?.messages ?? [];
   const empty = messages.length === 0 && !live;
+  if (st.page === "customize") return <AssistantCustomizePage svc={svc} connection={connection} lead={lead} onClose={() => { st.setPage("chat"); void loadSettings(svc.store).then(setSettings); }} />;
 
   return (
     <section className="asst" data-testid="assistant">
@@ -209,7 +226,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
           <div className="asst-col asst-hello">
             <span className="asst-pill">Knows <b>your library</b> · {library.length} items</span>
             <h1>{greeting()}{userName ? `, ${userName}` : ""}</h1>
-            <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), modelName, autoFocus: true }} />
+            <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: true }} />
             {error && <p className="asst-error" role="alert">{error}</p>}
             <div className="asst-qs-h">Quick start</div>
             <div className="asst-qs">
@@ -232,7 +249,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       {!empty && (
         <div className="asst-bottom"><div className="asst-col">
           {error && <p className="asst-error" role="alert">{error}</p>}
-          <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), modelName }} />
+          <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar }} />
         </div></div>
       )}
       <input ref={fileInput} type="file" multiple hidden accept=".json,.jsonl,.md,.markdown,.txt,.csv,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" data-testid="assistant-file"
@@ -244,9 +261,9 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   );
 }
 
-function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, modelName, autoFocus = false }: {
+function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false }: {
   text: string; setText: (t: string) => void; atts: AssistantAttachment[]; setAtts: (f: (a: AssistantAttachment[]) => AssistantAttachment[]) => void;
-  busy: boolean; onSend: () => void; onStop: () => void; onPick: () => void; onFiles: () => void; onDropFiles: (f: File[]) => void; modelName: string; autoFocus?: boolean;
+  busy: boolean; onSend: () => void; onStop: () => void; onPick: () => void; onFiles: () => void; onDropFiles: (f: File[]) => void; picksBar: ReactNode; autoFocus?: boolean;
 }) {
   return (
     <div className="asst-comp" data-testid="assistant-composer"
@@ -271,7 +288,7 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
         <button type="button" className="asst-tool" onClick={onPick} data-testid="assistant-add-context"><span aria-hidden>＠</span> Add context</button>
         <button type="button" className="asst-tool" onClick={onFiles} title="Attach a file or an image (.json, .jsonl, .md, .txt, PNG cards, pictures)" aria-label="Attach"><Icon name="link" size={14} /></button>
         <span className="grow" />
-        <span className="asst-model" title="Change in Customize → Model">{modelName}</span>
+        {picksBar}
         {busy ? <button type="button" className="asst-send stop" aria-label="Stop" onClick={onStop}>■</button>
           : <button type="button" className="asst-send" aria-label="Send" onClick={onSend} disabled={!text.trim() && !atts.length} data-testid="assistant-send">↑</button>}
       </div>
@@ -425,73 +442,91 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
   );
 }
 
-// ------------------------------------------------------------------ Customize
 
-export function AssistantCustomize({ svc, connection, onClose }: { svc: AppServices; connection: ConnectionState; onClose: () => void }) {
-  const [s, setS] = useState<AssistantSettings | null>(null);
-  const [tab, setTab] = useState<"rules" | "memory" | "instructions" | "model">("rules");
-  const [newRule, setNewRule] = useState("");
-  const [newMem, setNewMem] = useState("");
-  useEffect(() => { void loadSettings(svc.store).then(setS); }, [svc]);
-  const put = (patch: Partial<AssistantSettings>) => { if (!s) return; const n = { ...s, ...patch }; setS(n); void saveSettings(svc.store, n); };
-  if (!s) return null;
+// ------------------------------------------------------------------ picks under the message box
+
+interface Picks { assistantId: string; presetId: string; connectionId?: string | null | undefined; model?: string | undefined; contextLength?: number | undefined }
+const fmtK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n));
+const shortModel = (m: string) => m.split("/").pop() ?? m;
+
+/** A small menu that opens above its button and closes on a click outside or Esc. */
+function Pop({ label, title, children, testId, className = "" }: { label: ReactNode; title: string; children: (close: () => void) => ReactNode; testId?: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", off); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", off); document.removeEventListener("keydown", esc); };
+  }, [open]);
   return (
-    <Modal title="Customize the Assistant" onClose={onClose} className="modal-wide asst-cust" testId="assistant-customize-sheet">
-      <Segmented tabs label="Customize" value={tab} onChange={setTab}
-        options={[{ value: "rules", label: "Rules" }, { value: "memory", label: "Memory" }, { value: "instructions", label: "Instructions" }, { value: "model", label: "Model" }]} />
-      {tab === "rules" && <div className="asst-pane">
-        <p className="hint">Always followed, in every chat. Switch one off to pause it.</p>
-        {s.rules.map((r) => (
-          <div key={r.id} className="asst-lrow">
-            <input value={r.text} aria-label="Rule" onChange={(e) => put({ rules: s.rules.map((x) => (x.id === r.id ? { ...x, text: e.target.value } : x)) })} />
-            <Switch label="Rule on" checked={r.on} onChange={(on) => put({ rules: s.rules.map((x) => (x.id === r.id ? { ...x, on } : x)) })} />
-            <IconButton label="Delete rule" onClick={() => put({ rules: s.rules.filter((x) => x.id !== r.id) })}><Icon name="trash" size={14} /></IconButton>
-          </div>
-        ))}
-        <form className="asst-lrow add" onSubmit={(e) => { e.preventDefault(); if (newRule.trim()) { put({ rules: [...s.rules, { id: crypto.randomUUID(), text: newRule.trim(), on: true }] }); setNewRule(""); } }}>
-          <input value={newRule} placeholder="Add a rule — e.g. “Cards in English, descriptions in prose”" aria-label="New rule" onChange={(e) => setNewRule(e.target.value)} data-testid="assistant-new-rule" />
-          <Button small type="submit" disabled={!newRule.trim()}>Add</Button>
-        </form>
-      </div>}
-      {tab === "memory" && <div className="asst-pane">
-        <div className="asst-lrow plain"><span className="grow hint">What it remembers about you and your worlds, across chats. It adds things when you say “remember…”.</span><span className="hint">Memory</span><Switch label="Memory on" checked={s.memoryOn} onChange={(memoryOn) => put({ memoryOn })} /></div>
-        {s.memory.length === 0 && <p className="hint">Nothing yet.</p>}
-        {s.memory.map((m) => (
-          <div key={m.id} className="asst-lrow">
-            <span className="grow"><input value={m.text} aria-label="Memory" onChange={(e) => put({ memory: s.memory.map((x) => (x.id === m.id ? { ...x, text: e.target.value } : x)) })} />
-              <small className="hint">{m.from ? `from “${m.from}” · ` : ""}{new Date(m.at).toLocaleDateString()}</small></span>
-            <IconButton label="Forget" onClick={() => put({ memory: s.memory.filter((x) => x.id !== m.id) })}><Icon name="trash" size={14} /></IconButton>
-          </div>
-        ))}
-        <form className="asst-lrow add" onSubmit={(e) => { e.preventDefault(); if (newMem.trim()) { put({ memory: [...s.memory, { id: crypto.randomUUID(), text: newMem.trim(), from: "", at: Date.now() }] }); setNewMem(""); } }}>
-          <input value={newMem} placeholder="Add something it should know" aria-label="New memory" onChange={(e) => setNewMem(e.target.value)} />
-          <Button small type="submit" disabled={!newMem.trim()}>Add</Button>
-        </form>
-      </div>}
-      {tab === "instructions" && <div className="asst-pane">
-        <p className="hint">Its main instructions. The app adds the tools, the guides, your rules and memory around this text.</p>
-        <textarea className="asst-instr" rows={16} value={s.instructions || DEFAULT_INSTRUCTIONS} onChange={(e) => put({ instructions: e.target.value === DEFAULT_INSTRUCTIONS ? "" : e.target.value })} aria-label="Instructions" />
-        <div className="asst-lrow plain"><Button small onClick={() => put({ instructions: "" })} disabled={!s.instructions}>Reset to default</Button><span className="grow" /><span className="hint">~{Math.round((s.instructions || DEFAULT_INSTRUCTIONS).length / 3.6)} tokens</span></div>
-      </div>}
-      {tab === "model" && <div className="asst-pane asst-model-pane">
-        <label><span className="asst-lbl">Connection</span>
-          <select value={s.connectionId ?? ""} onChange={(e) => put({ connectionId: e.target.value || null })}>
-            <option value="">The one your stories use</option>
-            {connection.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <span className="hint">A strong model is worth it here. It needs a model that can use tools; for pictures, one that sees images.</span></label>
-        <label><span className="asst-lbl">Model</span><input value={s.model} placeholder="The connection's model" onChange={(e) => put({ model: e.target.value.trim() })} /></label>
-        <div className="asst-two">
-          <label><span className="asst-lbl">Thinking</span>
-            <select value={s.effort} onChange={(e) => put({ effort: e.target.value as AssistantSettings["effort"] })}><option value="">Model's default</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-          <label><span className="asst-lbl">Temperature</span><input type="number" min={0} max={2} step={0.1} value={s.temperature} onChange={(e) => put({ temperature: Math.min(2, Math.max(0, Number(e.target.value) || 0)) })} /></label>
-        </div>
-        <div className="asst-two">
-          <label><span className="asst-lbl">Steps per message</span><input type="number" min={1} max={100} value={s.maxSteps} onChange={(e) => put({ maxSteps: Math.min(100, Math.max(1, Math.round(Number(e.target.value) || 1))) })} /></label>
-          <label><span className="asst-lbl">New items</span>
-            <select value={s.saveNew ? "now" : "ask"} onChange={(e) => put({ saveNew: e.target.value === "now" })}><option value="now">Save right away (Undo on the card)</option><option value="ask">Ask me first</option></select></label>
-        </div>
-      </div>}
-    </Modal>
+    <span className={`asst-pop-wrap ${className}`.trim()} ref={box}>
+      <button type="button" className={`asst-pick${open ? " on" : ""}`} title={title} aria-expanded={open} onClick={() => setOpen(!open)} data-testid={testId}>{label}</button>
+      {open && <div className="asst-pop" role="dialog" aria-label={title}>{children(() => setOpen(false))}</div>}
+    </span>
+  );
+}
+
+function PicksBar({ settings, picks, setPicks, svc, connection, model, used, chat, onCustomize }: {
+  settings: AssistantSettings; picks: Picks; setPicks: (p: Partial<Picks>) => void; svc: AppServices; connection: ConnectionState; model: string;
+  used: AssistantMessage["used"] | undefined; chat: AssistantChat | null; onCustomize: () => void;
+}) {
+  const { assistant, preset } = resolveFor(picks, settings);
+  const replies = chat?.messages.filter((m) => m.role === "assistant") ?? [];
+  const spent = replies.reduce((a, m) => ({ tokens: a.tokens + (m.used?.tokensIn ?? 0) + (m.used?.tokensOut ?? 0), cost: a.cost + (m.used?.cost ?? 0) }), { tokens: 0, cost: 0 });
+  const estimated = !used?.lastPrompt && !!used?.parts;
+  const full = used?.lastPrompt ?? (used?.parts ? Object.values(used.parts).reduce((a, b) => a + b, 0) : 0);
+  const ctx = picks.contextLength;
+  const pct = ctx && full ? Math.min(100, Math.round((full / ctx) * 100)) : null;
+  const PART: Record<string, string> = { app: "App rules", assistant: "Assistant", preset: "Preset", tools: "Tools", chat: "This chat (messages, results)" };
+  return (
+    <span className="asst-picks">
+      <Pop title="Assistant" testId="pick-assistant" label={<><span aria-hidden>{assistant.emoji}</span> {assistant.name} <span className="caret">▾</span></>}>
+        {(close) => <>
+          <div className="asst-pop-h">Who answers</div>
+          {settings.assistants.map((a) => (
+            <button key={a.id} type="button" className={`asst-pop-item${a.id === assistant.id ? " on" : ""}`} onClick={() => { setPicks({ assistantId: a.id }); close(); }}>
+              <span className="asst-pop-emoji">{a.emoji}</span><span><b>{a.name}</b><small>{a.description}</small></span>
+            </button>
+          ))}
+          <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit assistants…</button>
+        </>}
+      </Pop>
+      <Pop title="Preset" testId="pick-preset" label={<><span aria-hidden>📘</span> {preset?.name ?? "No preset"} <span className="caret">▾</span></>}>
+        {(close) => <>
+          <div className="asst-pop-h">What it always knows</div>
+          {settings.presets.map((p) => (
+            <button key={p.id} type="button" className={`asst-pop-item${p.id === preset?.id ? " on" : ""}`} onClick={() => { setPicks({ presetId: p.id }); close(); }}>
+              <span className="asst-pop-emoji">📘</span><span><b>{p.name}</b><small>{p.description || `${p.rules.length} rules · ${p.notes.length} notes · ${p.memory.length} memories`}</small></span>
+            </button>
+          ))}
+          <button type="button" className={`asst-pop-item${!preset ? " on" : ""}`} onClick={() => { setPicks({ presetId: "none" }); close(); }}><span className="asst-pop-emoji">∅</span><span><b>No preset</b><small>Only the assistant's own instructions.</small></span></button>
+          <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit presets…</button>
+        </>}
+      </Pop>
+      <Pop title="Model" testId="pick-model" className="wide" label={<>{shortModel(model)} <span className="caret">▾</span></>}>
+        {() => <>
+          <div className="asst-pop-h">Model for this chat</div>
+          <ModelRow svc={svc} connection={connection} connectionId={picks.connectionId ?? null} model={picks.model ?? ""}
+            onChange={(connectionId, m) => setPicks({ connectionId, model: m })} onInfo={(m) => setPicks({ contextLength: m.contextLength })} />
+          {(picks.connectionId !== undefined || picks.model) && <button type="button" className="asst-pop-foot" onClick={() => setPicks({ connectionId: undefined, model: undefined, contextLength: undefined })}>Use {assistant.name}'s model</button>}
+        </>}
+      </Pop>
+      <Pop title="Context and spending" testId="pick-context" label={<span className="asst-meter">{pct !== null && <span className="asst-ring" style={{ ["--p" as string]: `${pct}%` }} aria-hidden />}{full ? `${estimated ? "~" : ""}${fmtK(full)}` : "—"}{ctx ? ` / ${fmtK(ctx)}` : ""}</span>}>
+        {() => <div className="asst-ctxpop">
+          <div className="asst-pop-h">What it is using</div>
+          <div className="asst-kv"><span>Assistant</span><b>{assistant.emoji} {assistant.name}</b><span>Preset</span><b>{preset?.name ?? "none"}</b><span>Model</span><b>{model}</b></div>
+          <div className="asst-pop-h">Last request{full ? ` · ${estimated ? "about " : ""}${fmtK(full)} tokens` : ""}{ctx ? ` · ${pct ?? 0}% of ${fmtK(ctx)}` : ""}</div>
+          {used?.parts ? <div className="asst-bars">{Object.entries(used.parts).filter(([, n]) => n > 0).map(([k, n]) => (
+            <div key={k} className="asst-bar"><span>{PART[k] ?? k}</span><i style={{ width: `${Math.max(2, Math.round((n / Math.max(1, Object.values(used.parts!).reduce((a, b) => a + b, 0))) * 100))}%` }} /><b>{fmtK(n)}</b></div>
+          ))}</div> : <p className="hint">Send a message to see it.</p>}
+          {!ctx && <p className="hint">Pick the model with “Browse…” in the model menu to see how full the context is.</p>}
+          <div className="asst-pop-h">This chat</div>
+          <div className="asst-kv"><span>Replies</span><b>{replies.length}</b><span>Tokens</span><b>{spent.tokens ? fmtK(spent.tokens) : "not reported"}</b><span>Cost</span><b>{spent.cost ? `$${spent.cost.toFixed(3)}` : "not reported"}</b></div>
+          <button type="button" className="asst-pop-foot" onClick={onCustomize}>Limits and usage…</button>
+        </div>}
+      </Pop>
+    </span>
   );
 }
