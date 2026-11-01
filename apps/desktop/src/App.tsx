@@ -38,6 +38,7 @@ import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
 import { LibraryWorkspace } from "./ui/LibraryWorkspace.tsx";
 import { RegexPage } from "./ui/RegexScripts.tsx";
+import { loadMessageLook } from "./messageLook.ts";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
 import { applyProfile, BUILTIN_PROFILES, DEFAULT_PROFILE_ID } from "./theme/themes.ts";
@@ -170,6 +171,7 @@ export function App() {
     setPresets(pr);
     setLorebooks(await s.store.lorebooks.list());
     setLoreSettings(await s.store.getLoreSettings());
+    void loadMessageLook(s.store);
     setGlobalRegex(await s.store.getGlobalRegex());
     setApprovedRegex(await s.store.getApprovedRegex());
     const av: Record<string, Avatar> = {};

@@ -21,7 +21,7 @@ test("Library → Regex: make a script and try it", async ({ page }) => {
   await expect(page.getByTestId("regex-script")).toContainText("Actions");
 });
 
-test("a card's scripts wait for an OK; HTML from display scripts is drawn in a safe box", async ({ page }) => {
+test("a card's scripts wait for an OK; HTML from display scripts is drawn (filtered)", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(async () => {
     const svc = await (await import("/src/core-instance.ts" as string)).servicesReady;
@@ -30,17 +30,16 @@ test("a card's scripts wait for an OK; HTML from display scripts is drawn in a s
   });
   await newChatWith(page);
   await expect(page.getByTestId("regex-waiting")).toContainText("1 new regex script");
-  await expect(page.getByTestId("safe-html")).toHaveCount(0);
+  await expect(page.getByTestId("msg-format").first().locator("b")).toHaveCount(0);
   await page.getByTestId("regex-review-open").click();
   await expect(page.getByTestId("regex-review")).toContainText("Bold names");
   await page.getByTestId("regex-review-allow").click();
   await expect(page.getByTestId("regex-waiting")).toHaveCount(0);
-  const box = page.getByTestId("safe-html").first();
-  await expect(box).toBeVisible();
-  await expect(box.contentFrame().locator("b.n").first()).toHaveText("Lyra");
+  // class names are not kept (a message cannot restyle the app), the bold is
+  await expect(page.getByTestId("msg-format").first().locator("b").first()).toHaveText("Lyra");
   // the Prompt tab lists it, with a switch for this chat
   await openTab(page, "prompt");
   await expect(page.getByTestId("session-regex")).toContainText("Bold names");
   await page.getByTestId("session-regex").getByRole("switch").click();
-  await expect(page.getByTestId("safe-html")).toHaveCount(0);
+  await expect(page.getByTestId("msg-format").first().locator("b")).toHaveCount(0);
 });

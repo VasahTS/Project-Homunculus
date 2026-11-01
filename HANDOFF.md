@@ -11,6 +11,12 @@ Affected chapters stay saved (including hand edits) but are switched off; correc
 Validation: typecheck/build passed; **295 unit tests passed, 3 skipped; 37 affected browser flows passed** on isolated port 1427 (12 new unit cases, 2 new browser flows).
 Report and limits: `docs/REVIEW-BUGFIXES-2026-11-01.md`. No native app, real API, private play data, workflow or lockfile changes. Work only in Homunculus-gpt, pushed only to gpt. Signed: **CODEX**.
 
+## Message formatting (2026-11-01) — CLAUDE — D-061
+
+- Daniel thought regex did *narration*/"dialogue": in SillyTavern the app does it. Now ours too: Markdown (`marked`), dialogue color, the AI's `<font>`/`<span style>` colors, all filtered by DOMPurify (text styles only; no scripts, links, outside images or app restyling). **Settings → Messages**: switches and the two colors, with a preview.
+- Merged CODEX's `gpt` (five review bugfixes: memory after edits, summary queue, regex Original on edits, before/parallel notes feedback, test model in Try it/Compare) after typecheck, 298 unit and 42 affected click tests.
+- Tests: 298 unit; click tests incl. new `e2e/message-format.e2e.ts`.
+
 ## Regex scripts — done, tailored to the app (2026-11-01) — CLAUDE — D-060
 
 - **Engine:** SillyTavern's, ported and checked against its own code (3,000 random cases). Runs global → preset → character, where SillyTavern runs them (saved user/AI text, reasoning, first messages, edits, prompt history and lore, display).

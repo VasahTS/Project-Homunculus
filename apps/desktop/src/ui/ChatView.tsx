@@ -28,7 +28,8 @@ import { Inspector, type InspectorTab } from "./Inspector.tsx";
 import { PromptPane } from "./ConnectionPanel.tsx";
 import { approxTokens, fmtTokens, ReplyPane } from "./ReplyPane.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
-import { RegexReview, SafeHtml, SessionRegex } from "./RegexScripts.tsx";
+import { RegexReview, SessionRegex } from "./RegexScripts.tsx";
+import { MessageText } from "./MessageText.tsx";
 import { AuthorsNoteGroup, noteMarkAt } from "./AuthorsNote.tsx";
 import { QuickConnect } from "./QuickConnect.tsx";
 import { Toolbar } from "./Toolbar.tsx";
@@ -459,13 +460,12 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     return applyBasicMacros(shown, { char: char ?? leadChar?.name ?? "Narrator", user: userName });
   };
 
-  /** A message's text on screen: HTML made by display scripts goes in a safe box (D-060). */
+  /** A message's text on screen: Markdown, dialogue color and filtered HTML (D-061); regex-made HTML is always drawn. */
   const body = (m: Message, depth: number): ReactNode => {
     const text = show(m.content, m, depth);
-    // HTML that regex scripts made (on screen, or when the message was saved) — never HTML the AI wrote by itself
     const before = typeof m.meta.beforeRegex === "string" ? m.meta.beforeRegex : null;
-    const madeByRegex = (regex.scripts.length > 0 && !REGEX_HTML.test(m.content)) || (before !== null && !REGEX_HTML.test(before));
-    return REGEX_HTML.test(text) && madeByRegex ? <SafeHtml html={text} /> : text;
+    const fromRegex = REGEX_HTML.test(text) && ((regex.scripts.length > 0 && !REGEX_HTML.test(m.content)) || (before !== null && !REGEX_HTML.test(before)));
+    return <MessageText text={text} htmlFromRegex={fromRegex} />;
   };
 
   const lastAi = [...visible].reverse().find((m) => m.speaker.kind !== "user");
@@ -707,7 +707,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     <div className="reasoning-text">{pending.reasoning}</div>
                   </details>
                 )}
-                <div className="text prose">{pending.text ? show(pending.text) : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
+                <div className="text prose">{pending.text ? <MessageText text={show(pending.text)} /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
               </li>
             )}
           </ol>

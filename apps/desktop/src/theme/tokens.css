@@ -57,6 +57,9 @@
   --place-examples: #e3b26b;
   --place-note: #c3a6ee;
   --place-outlet: #e59bb8;
+  /* message text (D-061): "dialogue" and *narration* (Settings → Messages can change both) */
+  --dialogue: #e6bf7e;
+  --narration: color-mix(in srgb, var(--label) 68%, transparent);
 
   /* functional layer (glass) */
   --glass: rgba(38, 40, 44, 0.72);

@@ -565,3 +565,13 @@ Daniel (31/10): "finish the app first, then go back to details; the regex is sti
 - **Screens** (draft skipped with Daniel's OK): Library → Regex (list in order, drag, search past 8, import/export for SillyTavern), a script opens in place (Name, Find with the error named live, Replace with, Applies to, It changes, More, Try it), the same list in the preset editor ("Regex scripts" group) and the character editor (fold "Regex scripts"), the chat's "N new regex scripts … Review / Later" bar and the review window (each script, what it does, what it does to the last reply). Exporting a preset or a card writes its edited scripts back.
 
 Signed: **CLAUDE**.
+
+## D-061 — Message formatting: Markdown, dialogue color, filtered HTML (2026-11-01)
+
+Daniel: "*narration* and "dialogue" don't work even with the regex; SillyTavern, Marinara and Aventuras have italics, bold… ST even has fonts. I thought regex did that." It does not: in SillyTavern the app itself draws Markdown (Showdown), colors quoted speech (`<q>` before Markdown) and keeps formatting HTML (DOMPurify). Our messages were plain text, so asterisks and quotes showed as typed.
+- **`messageFormat.ts`** (`formatMessage`): like SillyTavern's messageFormatting — quotes (`"…"`, `“…”`, `«…»`, `「…」`, `『…』`) marked as dialogue (never inside tags or code), Markdown with `marked` (GFM, line breaks), then **DOMPurify** with a short list of tags (text styles, lists, quotes, code, tables, details; `<font color/face/size>`, `<span style>`) and a list of CSS properties for text (no positions, no `url()`, no `!important`, no `var()`, font size ≤ 48px). No links, no scripts, no forms, no classes except our own dialogue mark, images only as `data:` (anything from the internet is dropped). A message can color and style its own text but never run code, load anything or restyle the app.
+- **`MessageText`** draws it (chat messages, the reply being written, the Settings preview). Regex output that brings its own `<style>` block still goes in the sandboxed box (D-060).
+- **Settings → Messages** (`messageLook.ts`, app setting `messages.look`): Formatting (Markdown) on/off, Dialogue color (switch + color), Narration color, "Colors and styles from the AI" (HTML from the AI; regex scripts' formatting is always drawn). Theme tokens `--dialogue`, `--narration`.
+- Libraries: `marked`, `dompurify` (desktop app only). Nothing changes what is saved or what the AI is sent.
+
+Signed: **CLAUDE**.

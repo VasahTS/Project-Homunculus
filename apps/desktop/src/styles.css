@@ -2290,3 +2290,32 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .rx-undo { font-size: var(--size-small); color: var(--label-3); }
 .safe-html { display: block; width: 100%; border: 0; background: transparent; color-scheme: normal; }
 @media (max-width: 620px) { .rx-try-grid { grid-template-columns: 1fr; } .rx-where { display: none; } }
+
+/* ---- Message text: Markdown, dialogue, filtered HTML (D-061) ---- */
+.msg .text:has(> .msg-format) { white-space: normal; }
+.msg-format { overflow-wrap: anywhere; min-width: 0; }
+.msg-format * { max-width: 100%; }
+.msg-format > :first-child { margin-top: 0; }
+.msg-format > :last-child { margin-bottom: 0; }
+.msg-format p { margin: 0 0 0.8em; }
+.msg-format em, .msg-format i { color: var(--narration); }
+.msg-format em .dlg, .msg-format i .dlg { font-style: normal; }
+.msg-format q.dlg { color: var(--dialogue); quotes: none; }
+.msg-format q.dlg::before, .msg-format q.dlg::after { content: none; }
+.msg-format strong, .msg-format b { font-weight: 650; }
+.msg-format blockquote { margin: 0.4em 0 0.8em; padding: 2px 0 2px 12px; border-left: 3px solid var(--separator); color: var(--label-2); }
+.msg-format code { font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace); font-size: 0.88em; background: var(--fill); padding: 1px 5px; border-radius: 5px; }
+.msg-format pre { background: var(--fill); padding: 10px 12px; border-radius: var(--radius-control); overflow-x: auto; white-space: pre; }
+.msg-format pre code { background: none; padding: 0; }
+.msg-format ul, .msg-format ol { margin: 0.2em 0 0.8em; padding-left: 1.4em; }
+.msg-format hr { border: 0; border-top: 1px solid var(--separator); margin: 1em 0; }
+.msg-format h1, .msg-format h2, .msg-format h3, .msg-format h4 { margin: 0.6em 0 0.4em; line-height: 1.3; font-size: 1.1em; }
+.msg-format h1 { font-size: 1.3em; }
+.msg-format img { max-width: 100%; height: auto; border-radius: 6px; }
+.msg-format table { border-collapse: collapse; margin: 0.4em 0 0.8em; }
+.msg-format th, .msg-format td { border: 1px solid var(--separator); padding: 4px 8px; }
+.msg-format details { margin: 0.4em 0; }
+.msg-format summary { cursor: pointer; color: var(--label-2); }
+.look-preview { list-style: none; padding: 4px 2px; width: 100%; }
+.look-color { display: inline-flex; align-items: center; gap: 8px; margin-right: 10px; }
+.look-color input[type=color] { width: 30px; height: 22px; padding: 0; border: 1px solid var(--separator); border-radius: 6px; background: none; cursor: pointer; }
