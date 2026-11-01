@@ -1,239 +1,309 @@
-<title>Assistant Draft v2</title>
+<title>Assistant Draft v3</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-/* Homunculus 2 — draft "Assistant", round 2 (CLAUDE, 2026-11-01). Not code: the picture of docs/UI-PLAN.md →
-   "Library Assistant". Round 1 had four columns at once (sidebar, Library categories, editor, panel) — Daniel: "very
-   busy". Now the Assistant is its own place in the sidebar: two columns only, one calm centered conversation like a
-   virtual assistant, compact result cards that open on demand, settings in a sheet. Colors: the app's Quiet profile. */
+/* Homunculus 2 — draft "Assistant", round 3 (CLAUDE, 2026-11-01). Not code: the picture of docs/UI-PLAN.md →
+   "Library Assistant". Round 2 → Daniel: own chats, customize its prompt, memory and rules, and a big window to pick
+   many app items as context ("a Kit with characters X and Y, an opening, a scenario… that fits together"). Layout after
+   his reference (a chat app: New chat / Search / Customize + Recents; a big greeting with the composer under it and a
+   Quick start grid). The app's Quiet profile, with a soft accent glow. */
 :root {
   color-scheme: dark;
-  --window: #1b1d20; --surface: #212427; --field: #292d30; --group: rgba(255,255,255,.045);
-  --label: #edf0ed; --label-2: #afb8b5; --label-3: #8d9893; --separator: #33393b;
-  --fill: rgba(255,255,255,.065); --fill-hover: rgba(255,255,255,.11);
-  --accent: #8bc4b0; --accent-ink: #142b24; --accent-soft: rgba(139,196,176,.10);
+  --window: #1b1d20; --side: #17191b; --surface: #222528; --field: #2a2e31; --group: rgba(255,255,255,.04);
+  --label: #edf0ed; --label-2: #afb8b5; --label-3: #8a948f; --separator: #30363a;
+  --fill: rgba(255,255,255,.06); --fill-hover: rgba(255,255,255,.1);
+  --accent: #8bc4b0; --accent-ink: #142b24; --accent-soft: rgba(139,196,176,.11);
   --ok: #8fcf9a; --warn: #e3b45c; --add: rgba(143,207,154,.16); --del: rgba(236,138,128,.16);
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --font-prose: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-  --small: 12px; --r: 12px; --r-control: 8px; --r-pill: 999px;
+  --r: 14px; --r-control: 9px; --r-pill: 999px;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--window); color: var(--label); font: 14px/1.5 var(--font-ui); display: flex; flex-direction: column; }
 button { font: inherit; color: inherit; }
+input { font: inherit; color: inherit; }
 .hidden { display: none !important; }
-.states { display: flex; gap: 6px; align-items: center; padding: 7px 14px; border-bottom: 1px solid var(--separator); background: #15171a; flex-wrap: wrap; }
+.states { display: flex; gap: 6px; align-items: center; padding: 7px 14px; border-bottom: 1px solid var(--separator); background: #121416; flex-wrap: wrap; }
 .states b { font-size: 11px; color: var(--label-3); font-weight: 600; margin-right: 6px; letter-spacing: .05em; }
-.states button { border: 1px solid var(--separator); background: none; border-radius: var(--r-pill); padding: 3px 11px; font-size: var(--small); color: var(--label-2); cursor: pointer; }
+.states button { border: 1px solid var(--separator); background: none; border-radius: var(--r-pill); padding: 3px 11px; font-size: 12px; color: var(--label-2); cursor: pointer; }
 .states button.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
 
-.app { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); }
-/* sidebar: the app's own, with the Assistant as a fourth place; its Recent list shows conversations here */
-.side { padding: 18px 12px; border-right: 1px solid var(--separator); display: flex; flex-direction: column; gap: 4px; }
-.side h1 { font-size: 15px; margin: 0 8px 14px; }
-.place { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; color: var(--label-2); cursor: default; }
-.place.on { background: var(--fill); color: var(--label); }
-.place .i { width: 18px; text-align: center; }
-.place.asst .i { color: var(--accent); }
-.recent { margin-top: 18px; display: grid; gap: 2px; }
-.recent h5 { margin: 0 10px 6px; font-size: 11px; color: var(--label-3); font-weight: 600; letter-spacing: .03em; display: flex; justify-content: space-between; }
-.recent h5 button { border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; }
-.conv { padding: 6px 10px; border-radius: 8px; cursor: pointer; }
-.conv:hover { background: var(--fill); }
-.conv.on { background: var(--fill); }
-.conv b { display: block; font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.conv small { color: var(--label-3); font-size: 11.5px; }
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+/* ---- sidebar: the Assistant's own ---- */
+.side { background: var(--side); border-right: 1px solid var(--separator); display: flex; flex-direction: column; padding: 12px 10px; gap: 2px; }
+.mode { display: flex; background: var(--fill); border-radius: var(--r-pill); padding: 3px; margin: 2px 4px 14px; }
+.mode span { flex: 1; text-align: center; padding: 4px 0; border-radius: var(--r-pill); font-size: 12.5px; color: var(--label-2); cursor: pointer; }
+.mode .on { background: var(--surface); color: var(--label); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.it { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; color: var(--label); cursor: pointer; font-size: 13.5px; }
+.it:hover { background: var(--fill); }
+.it.on { background: var(--fill); }
+.it .i { width: 18px; text-align: center; color: var(--label-2); }
+.it .i.acc { color: var(--accent); }
+.sep { height: 1px; background: var(--separator); margin: 10px 6px; }
+.rec-h { font-size: 11px; color: var(--label-3); letter-spacing: .06em; text-transform: uppercase; margin: 2px 10px 6px; }
+.rec { padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+.rec:hover, .rec.on { background: var(--fill); }
+.rec b { display: block; font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec small { display: block; color: var(--label-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .side .grow { flex: 1; }
+.me-row { display: flex; align-items: center; gap: 10px; padding: 10px 8px 2px; border-top: 1px solid var(--separator); }
+.av { width: 30px; height: 30px; border-radius: 50%; background: #2c3a35; display: grid; place-items: center; font-weight: 600; font-size: 13px; color: var(--accent); }
 
-/* the assistant place */
-.stage { display: flex; flex-direction: column; min-height: 0; position: relative; }
-.topbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px; }
-.topbar .title { flex: 1; font-weight: 600; color: var(--label-2); font-size: 13px; }
-.ico { width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; color: var(--label-2); cursor: pointer; display: grid; place-items: center; font-size: 15px; }
+/* ---- stage ---- */
+.stage { position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  background: radial-gradient(900px 500px at 70% -10%, rgba(139,196,176,.10), transparent 60%), radial-gradient(700px 400px at 100% 110%, rgba(227,180,92,.06), transparent 60%), var(--window); }
+.top { display: flex; align-items: center; gap: 10px; padding: 12px 20px; min-height: 52px; }
+.top .t { flex: 1; color: var(--label-2); font-size: 13px; font-weight: 600; }
+.ico { width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; color: var(--label-2); cursor: pointer; display: grid; place-items: center; font-size: 14px; }
 .ico:hover { background: var(--fill); color: var(--label); }
 .scroll { flex: 1; overflow: auto; }
-.col { width: min(720px, 100% - 48px); margin: 0 auto; }
-
-.orb { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; color: #0f2a22; font-size: 15px;
-  background: radial-gradient(circle at 35% 30%, #c8eadb, #8bc4b0 55%, #5f9c88); box-shadow: 0 0 0 4px rgba(139,196,176,.08); }
-.orb.big { width: 64px; height: 64px; font-size: 26px; box-shadow: 0 0 0 8px rgba(139,196,176,.07), 0 0 40px rgba(139,196,176,.18); }
+.col { width: min(740px, 100% - 48px); margin: 0 auto; }
 
 /* welcome */
-.welcome { min-height: 100%; display: grid; place-content: center; justify-items: center; text-align: center; gap: 14px; padding: 40px 0 120px; }
-.welcome h2 { margin: 4px 0 0; font-size: 24px; font-weight: 600; }
-.welcome p { margin: 0; color: var(--label-2); }
-.sugg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; width: min(720px, 100vw - 340px); }
-.sugg button { border: 1px solid var(--separator); background: var(--surface); border-radius: var(--r); padding: 12px 14px; text-align: left; cursor: pointer; display: grid; gap: 4px; }
-.sugg button:hover { background: var(--fill); border-color: transparent; }
-.sugg small { color: var(--label-3); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; }
-.sugg span { color: var(--label); font-size: 13.5px; }
+.hello { min-height: 100%; display: grid; align-content: center; gap: 22px; padding: 10px 0 60px; }
+.pill { justify-self: center; font-size: 12px; color: var(--label-2); border: 1px solid var(--separator); background: var(--surface); padding: 3px 12px; border-radius: var(--r-pill); }
+.pill b { color: var(--accent); font-weight: 600; }
+.hello h1 { margin: 0; text-align: center; font: 500 46px/1.15 var(--font-display); letter-spacing: -.01em; }
+.qs-h { font-size: 11px; color: var(--label-3); letter-spacing: .06em; text-transform: uppercase; margin-top: 8px; }
+.qs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.q { display: grid; grid-template-columns: 32px 1fr; gap: 4px 12px; padding: 12px 14px; border-radius: var(--r); border: 1px solid var(--separator); background: rgba(34,37,40,.7); cursor: pointer; }
+.q:hover { background: var(--surface); }
+.q .qi { grid-row: span 2; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+.q b { font-weight: 600; font-size: 13.5px; }
+.q span { color: var(--label-3); font-size: 12.5px; line-height: 1.4; }
+
+/* composer */
+.comp { border: 1px solid var(--separator); background: var(--surface); border-radius: 18px; padding: 12px 12px 10px 16px; display: grid; gap: 10px; box-shadow: 0 10px 34px rgba(0,0,0,.28); }
+.comp textarea { border: 0; background: none; resize: none; color: var(--label); font: inherit; font-size: 14.5px; outline: none; min-height: 24px; width: 100%; }
+.comp textarea::placeholder { color: var(--label-3); }
+.ctx { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--fill); border-radius: var(--r-pill); padding: 3px 6px 3px 4px; font-size: 12.5px; }
+.chip .k { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--accent-soft); color: var(--accent); }
+.chip button { border: 0; background: none; color: var(--label-3); cursor: pointer; padding: 0 3px; }
+.crow { display: flex; align-items: center; gap: 2px; }
+.crow .grow { flex: 1; }
+.tool { height: 30px; padding: 0 9px; border-radius: 8px; border: 0; background: none; color: var(--label-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.tool:hover { background: var(--fill); color: var(--label); }
+.model { font-size: 12.5px; color: var(--label-2); padding: 0 8px; }
+.send { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer; font-weight: 700; }
+.bottom { padding: 6px 0 18px; }
 
 /* conversation */
-.msgs { display: grid; gap: 26px; padding: 8px 0 30px; }
-.me { justify-self: end; max-width: 80%; background: var(--fill); border-radius: 18px 18px 6px 18px; padding: 10px 15px; }
-.me-att { justify-self: end; display: flex; gap: 6px; }
-.thumb { width: 72px; height: 90px; border-radius: 10px; background: linear-gradient(160deg, #6d5a4a, #2b2420 60%, #8a6b4f); position: relative; overflow: hidden; flex: none; }
-.thumb::after { content: ""; position: absolute; left: 25px; top: 16px; width: 22px; height: 27px; border-radius: 50%; background: #c9a98b; box-shadow: 0 34px 0 9px #3d2f29; }
-.ai { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; }
-.ai .body { display: grid; gap: 10px; padding-top: 5px; }
+.msgs { display: grid; gap: 24px; padding: 6px 0 24px; }
+.me { justify-self: end; max-width: 80%; display: grid; gap: 6px; justify-items: end; }
+.me .b { background: var(--fill); border-radius: 18px 18px 6px 18px; padding: 10px 15px; }
+.ai { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 14px; }
+.orb { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #0f2a22; font-size: 13px; background: radial-gradient(circle at 35% 30%, #c8eadb, #8bc4b0 55%, #5f9c88); box-shadow: 0 0 0 4px rgba(139,196,176,.08); }
+.ai .body { display: grid; gap: 10px; padding-top: 4px; }
 .ai p { margin: 0; line-height: 1.6; }
-.quiet { font-size: 12px; color: var(--label-3); cursor: pointer; user-select: none; width: fit-content; }
-.quiet:hover { color: var(--label-2); }
-.quiet-list { font-size: 12px; color: var(--label-3); padding-left: 12px; border-left: 2px solid var(--separator); display: none; }
-.quiet-list.open { display: block; }
-
-/* result cards: one calm line; details on demand */
+.quiet { font-size: 12px; color: var(--label-3); cursor: pointer; width: fit-content; }
+.qlist { font-size: 12px; color: var(--label-3); padding-left: 12px; border-left: 2px solid var(--separator); display: none; }
+.qlist.open { display: block; }
 .res { border: 1px solid var(--separator); border-radius: var(--r); background: var(--surface); }
 .res-line { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
-.res-ic { width: 34px; height: 34px; border-radius: 9px; background: var(--fill); display: grid; place-items: center; flex: none; font-size: 16px; }
-.res-txt { flex: 1; min-width: 0; display: grid; }
-.res-txt b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.res-txt small { color: var(--label-3); font-size: 12px; }
-.res-txt small.ok { color: var(--ok); }
-.res-txt small.wait { color: var(--warn); }
-.link { border: 0; background: none; padding: 4px 6px; color: var(--label-2); cursor: pointer; font-size: 13px; border-radius: 6px; }
-.link:hover { color: var(--label); background: var(--fill); }
+.res-ic { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+.res-t { flex: 1; min-width: 0; display: grid; }
+.res-t b { font-weight: 600; }
+.res-t small { font-size: 12px; color: var(--label-3); }
+.res-t small.ok { color: var(--ok); }
+.lnk { border: 0; background: none; color: var(--label-2); cursor: pointer; font-size: 13px; padding: 4px 7px; border-radius: 6px; }
+.lnk:hover { background: var(--fill); color: var(--label); }
+.res-more { border-top: 1px solid var(--separator); padding: 12px 14px; display: none; gap: 10px; }
+.res.open .res-more { display: grid; }
+.kv { display: grid; grid-template-columns: 92px 1fr; gap: 6px 12px; font-size: 13px; }
+.kv span:nth-child(odd) { color: var(--label-3); }
+.prose { font-family: var(--font-prose); font-size: 14px; line-height: 1.6; color: var(--label); }
+.prose em { color: rgba(237,240,237,.68); }
+.prose q { color: #e6bf7e; quotes: none; }
 .btn { border: 0; border-radius: var(--r-control); padding: 6px 13px; cursor: pointer; font-size: 13px; background: var(--fill); }
 .btn:hover { background: var(--fill-hover); }
 .btn.pri { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.res-more { border-top: 1px solid var(--separator); padding: 12px 14px; display: none; gap: 10px; }
-.res.open .res-more { display: grid; }
-.diff { font-family: var(--font-prose); font-size: 14px; line-height: 1.6; }
-.diff del { background: var(--del); color: #f2b4ad; text-decoration: line-through; text-decoration-color: rgba(236,138,128,.5); border-radius: 3px; }
-.diff ins { background: var(--add); color: #b9e8c1; text-decoration: none; border-radius: 3px; }
-.fields { display: flex; gap: 6px; flex-wrap: wrap; }
-.fields span { background: var(--fill); border-radius: var(--r-pill); padding: 2px 10px; font-size: 12.5px; color: var(--label-2); }
-.after { display: flex; gap: 8px; align-items: center; }
-.after .grow { flex: 1; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row .grow { flex: 1; }
 
-/* composer */
-.composer-wrap { padding: 8px 0 18px; }
-.composer { border: 1px solid var(--separator); background: var(--surface); border-radius: 18px; padding: 10px 10px 8px 14px; display: grid; gap: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
-.composer .ctx { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--accent); border-radius: var(--r-pill); padding: 2px 10px; font-size: 12px; }
-.chip button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0; opacity: .7; }
-.mini { position: relative; }
-.mini .thumb { width: 40px; height: 48px; border-radius: 7px; }
-.mini .x { position: absolute; top: -5px; right: -5px; width: 17px; height: 17px; border-radius: 50%; background: #3a3f42; border: 0; color: #fff; font-size: 9px; cursor: pointer; }
-.composer textarea { border: 0; background: none; resize: none; color: var(--label); font: inherit; outline: none; min-height: 26px; width: 100%; }
-.composer .row { display: flex; align-items: center; gap: 4px; }
-.composer .row .grow { flex: 1; }
-.model { font-size: 12px; color: var(--label-3); padding: 0 6px; }
-.send { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer; font-size: 15px; font-weight: 700; }
-.foot { text-align: center; font-size: 11.5px; color: var(--label-3); margin-top: 8px; }
+/* ---- sheets ---- */
+.scrim { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; z-index: 5; }
+.sheet { width: min(980px, 94%); height: min(640px, 90%); background: var(--surface); border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,.55); display: flex; flex-direction: column; overflow: hidden; }
+.sh-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--separator); }
+.sh-head h3 { margin: 0; font-size: 16px; flex: 1; }
+.search { display: flex; align-items: center; gap: 8px; background: var(--field); border-radius: var(--r-control); padding: 6px 10px; width: 300px; color: var(--label-3); }
+.search input { border: 0; background: none; outline: none; flex: 1; }
+.sh-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 190px minmax(0, 1fr); }
+.kinds { border-right: 1px solid var(--separator); padding: 10px 8px; display: grid; align-content: start; gap: 2px; }
+.kinds div { padding: 7px 10px; border-radius: 8px; color: var(--label-2); font-size: 13px; display: flex; justify-content: space-between; cursor: pointer; }
+.kinds div:hover { background: var(--fill); }
+.kinds .on { background: var(--fill); color: var(--label); }
+.kinds small { color: var(--label-3); }
+.grid { padding: 14px; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; align-content: start; }
+.card { position: relative; border: 1px solid var(--separator); border-radius: 12px; padding: 10px; display: grid; grid-template-columns: 44px 1fr; gap: 10px; cursor: pointer; background: var(--group); }
+.card:hover { background: var(--fill); }
+.card.sel { border-color: var(--accent); background: var(--accent-soft); }
+.card .ph { width: 44px; height: 54px; border-radius: 8px; }
+.card b { font-size: 13px; font-weight: 600; }
+.card small { color: var(--label-3); font-size: 11.5px; line-height: 1.35; display: block; }
+.card .ck { position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--label-3); display: grid; place-items: center; font-size: 11px; color: var(--accent-ink); }
+.card.sel .ck { background: var(--accent); border-color: var(--accent); }
+.sh-foot { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--separator); }
+.sh-foot .picked { flex: 1; display: flex; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--label-2); }
+.p1 { background: linear-gradient(160deg, #6d5a4a, #2b2420 60%, #8a6b4f); }
+.p2 { background: linear-gradient(160deg, #4a5a6d, #20242b 60%, #4f6b8a); }
+.p3 { background: linear-gradient(160deg, #5a6d4a, #242b20 60%, #6b8a4f); }
+.p4 { background: linear-gradient(160deg, #6d4a5e, #2b2027 60%, #8a4f73); }
+.p5 { background: linear-gradient(160deg, #6d684a, #2b2a20 60%, #8a844f); }
 
-/* settings sheet */
-.scrim { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; }
-.sheet { width: min(520px, 92%); background: var(--surface); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.5); padding: 18px 20px; display: grid; gap: 14px; }
-.sheet h3 { margin: 0; display: flex; justify-content: space-between; align-items: center; }
-.srow { display: grid; gap: 5px; }
-.srow .lbl { font-size: 12px; color: var(--label-2); font-weight: 600; }
-.srow .ctl { background: var(--field); border-radius: var(--r-control); padding: 7px 10px; font-size: 13px; display: flex; justify-content: space-between; }
-.srow .hint { font-size: 11.5px; color: var(--label-3); }
-.seg { display: flex; background: var(--field); border-radius: var(--r-control); padding: 2px; }
-.seg span { flex: 1; text-align: center; padding: 4px; font-size: 12px; border-radius: 6px; color: var(--label-2); }
-.seg .on { background: var(--fill-hover); color: var(--label); }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* customize */
+.cust { width: min(760px, 94%); height: min(640px, 90%); }
+.tabs { display: flex; gap: 4px; padding: 10px 18px 0; border-bottom: 1px solid var(--separator); }
+.tabs span { padding: 8px 12px; font-size: 13px; color: var(--label-2); cursor: pointer; border-bottom: 2px solid transparent; }
+.tabs .on { color: var(--label); border-color: var(--accent); font-weight: 600; }
+.pane { padding: 16px 18px; overflow: auto; display: grid; gap: 12px; align-content: start; flex: 1; }
+.pane .hint { font-size: 12px; color: var(--label-3); }
+.area { background: var(--field); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.55; min-height: 120px; color: var(--label); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+.lrow { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; background: var(--group); font-size: 13.5px; }
+.lrow .grow { flex: 1; }
+.lrow small { color: var(--label-3); font-size: 11.5px; }
+.sw { width: 32px; height: 19px; border-radius: 10px; background: var(--accent); position: relative; flex: none; }
+.sw::after { content: ""; position: absolute; right: 2px; top: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; }
+.sw.off { background: #4a5154; }
+.sw.off::after { right: auto; left: 2px; }
+.f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fld { display: grid; gap: 5px; }
+.fld .l { font-size: 12px; color: var(--label-2); font-weight: 600; }
+.fld .c { background: var(--field); border-radius: var(--r-control); padding: 7px 10px; font-size: 13px; display: flex; justify-content: space-between; }
 </style>
 
 <div class="states">
   <b>STATES</b>
-  <button class="on" data-state="talk">Conversation</button>
-  <button data-state="hello">Welcome</button>
-  <button data-state="settings">Settings</button>
-  <button data-state="editor">From an editor</button>
+  <button class="on" data-s="hello">Welcome</button>
+  <button data-s="talk">Conversation</button>
+  <button data-s="ctx">Add context</button>
+  <button data-s="cust">Customize</button>
 </div>
 
 <div class="app">
   <aside class="side">
-    <h1>Homunculus</h1>
-    <div class="place"><span class="i">▣</span>Stories</div>
-    <div class="place"><span class="i">◯</span>Characters</div>
-    <div class="place"><span class="i">▦</span>Library</div>
-    <div class="place asst on"><span class="i">✦</span>Assistant</div>
-    <div class="recent">
-      <h5>Conversations <button title="New conversation" id="new">+ New</button></h5>
-      <div class="conv on"><b>World tracker + Lyra</b><small>now · 2 made, 2 changes</small></div>
-      <div class="conv"><b>Thieves' Guild lorebook</b><small>yesterday · 12 entries</small></div>
-      <div class="conv"><b>Mercenary from a picture</b><small>Oct 29 · Kessa</small></div>
-    </div>
+    <div class="mode"><span>Play</span><span class="on">Assistant</span></div>
+    <div class="it" data-s="hello"><span class="i acc">＋</span>New chat</div>
+    <div class="it"><span class="i">⌕</span>Search</div>
+    <div class="it" data-s="cust"><span class="i">⚙</span>Customize</div>
+    <div class="sep"></div>
+    <div class="rec-h">Recents</div>
+    <div class="rec" data-s="talk"><b>Kit: Lyra & Kessa at the mill</b><small>Kit, opening and scenario made</small></div>
+    <div class="rec"><b>World tracker</b><small>Time, weather and place</small></div>
+    <div class="rec"><b>Thieves' Guild lorebook</b><small>12 entries</small></div>
+    <div class="rec"><b>Kessa from a picture</b><small>Character with avatar</small></div>
+    <div class="rec"><b>Tighten Lyra's card</b><small>3,100 → 1,400 tokens</small></div>
     <div class="grow"></div>
-    <div class="place"><span class="i">⚙</span>Settings</div>
+    <div class="me-row"><div class="av">D</div><div style="flex:1"><div style="font-size:13px;font-weight:600">Daniel</div><div style="font-size:11.5px;color:var(--label-3)">nano-gpt · Claude</div></div><button class="ico" title="Settings">⚙</button></div>
   </aside>
 
   <section class="stage">
-    <div class="topbar"><span class="title" id="title">World tracker + Lyra</span>
-      <button class="ico" title="Assistant settings" id="gear">⚙</button></div>
+    <div class="top"><span class="t" id="ttl"></span><button class="ico" title="Chat menu">⋯</button></div>
+    <div class="scroll">
 
-    <div class="scroll" id="scroll">
-      <!-- welcome -->
-      <div class="col welcome hidden" id="hello">
-        <div class="orb big">✦</div>
-        <h2>What shall we make?</h2>
-        <p>Trackers, characters and lorebooks — new ones, or better versions of yours.</p>
-        <div class="sugg">
-          <button><small>Create</small><span>A world tracker with time, weather and place</span></button>
-          <button><small>Create</small><span>A cynical mercenary for a dark fantasy story</span></button>
-          <button><small>Improve</small><span>Make Lyra's description less generic</span></button>
+      <!-- WELCOME -->
+      <div class="col hello" id="hello">
+        <span class="pill">Knows <b>your library</b> · 214 items</span>
+        <h1>Good evening, Daniel</h1>
+        <div class="comp">
+          <div class="ctx" id="ctx-hello"></div>
+          <textarea rows="2" placeholder="What shall we make? A character, a Kit, a lorebook…"></textarea>
+          <div class="crow">
+            <button class="tool" data-s="ctx" title="Add characters, lorebooks, stories… as context">＠ Add context</button>
+            <button class="tool" title="Attach an image">📎</button>
+            <span class="grow"></span><span class="model">Claude ▾</span><button class="send">↑</button>
+          </div>
+        </div>
+        <div class="qs-h">Quick start</div>
+        <div class="qs">
+          <div class="q"><div class="qi">❖</div><b>Build a Kit</b><span>Pick characters and get a Kit with a scenario and an opening where they fit together.</span></div>
+          <div class="q"><div class="qi">◯</div><b>Make a character</b><span>From a description or a picture: card, first message and examples.</span></div>
+          <div class="q"><div class="qi">▤</div><b>Write a lorebook</b><span>A place, a faction or a whole world, with keywords that trigger well.</span></div>
+          <div class="q"><div class="qi">◉</div><b>Make a tracker</b><span>Time and weather, moods, inventory… whatever the story should keep straight.</span></div>
         </div>
       </div>
 
-      <!-- conversation -->
-      <div class="col msgs" id="talk">
-        <div class="me">Make a world tracker with time of day, weather and place.</div>
+      <!-- CONVERSATION -->
+      <div class="col msgs hidden" id="talk">
+        <div class="me">
+          <div class="ctx"><span class="chip"><span class="k">◯</span>Lyra</span><span class="chip"><span class="k">◯</span>Kessa</span><span class="chip"><span class="k">▤</span>Northern Woods</span></div>
+          <div class="b">Make a Kit with these two. They should meet at the old mill — Lyra guards the woods, Kessa is hunting someone hiding there. Scenario, opening, and anything they need so they don't clash.</div>
+        </div>
         <div class="ai"><div class="orb">✦</div><div class="body">
-          <span class="quiet" data-fold="q1">Looked at 2 starter trackers ›</span>
-          <div class="quiet-list" id="q1">Loaded trackers · Read the trackers guide · Read “Scene: World”, “Scene: Plot”</div>
-          <p>Done — one value each, and the story's AI sees all three.</p>
+          <span class="quiet" data-f="q1">Read Lyra, Kessa and Northern Woods · thought for 9 s ›</span>
+          <div class="qlist" id="q1">Lyra's card says she never leaves the woods, Kessa's says she “travels light and alone” — fine. Clash: Kessa's card has her as an ex-ranger of the same order Lyra belongs to; that becomes their shared past instead of a contradiction. The lorebook has the mill as “abandoned since the flood”: used as the hideout.</div>
+          <p>Here's the Kit. One thing I had to settle: both cards put them in the same ranger order, so I made that their history — Kessa left it, Lyra stayed. Nothing in their cards was changed.</p>
           <div class="res" id="r1">
-            <div class="res-line"><div class="res-ic">🕰</div>
-              <div class="res-txt"><b>World</b><small class="ok">Tracker · created</small></div>
-              <button class="link" data-open="r1">Details</button><button class="link">Open</button><button class="link" id="undo1">Undo</button></div>
-            <div class="res-more"><div class="fields"><span>🕰 Time of day</span><span>☁ Weather</span><span>📍 Place</span></div>
-              <div class="after"><span style="font-size:12px;color:var(--label-3)">In a chat it shows: late evening · light rain · the mill gate</span><span class="grow"></span><button class="btn">Turn on in a chat…</button></div></div>
+            <div class="res-line"><div class="res-ic">❖</div><div class="res-t"><b>Old Mill — Lyra & Kessa</b><small class="ok">Kit · created</small></div>
+              <button class="lnk" data-o="r1">Details</button><button class="lnk">Open</button><button class="lnk">Undo</button></div>
+            <div class="res-more">
+              <div class="kv"><span>Cast</span><span>Lyra (narrator's lead), Kessa</span><span>Lorebooks</span><span>Northern Woods + 2 new entries: “The Old Mill”, “The Grey Order”</span><span>Scenario</span><span class="prose">Rain over the Northern Woods. Someone has been sleeping in the flooded mill, and two people who once swore the same oath are about to find them on the same night.</span></div>
+              <div class="prose"><em>The mill wheel hasn't turned in six winters, but tonight it creaks.</em> Lyra is already on the bank when a second shadow comes out of the reeds — cloak she knows, gait she knows. <q>"Kessa."</q></div>
+              <div class="row"><span class="grow"></span><button class="btn pri">Start a story with this Kit</button></div>
+            </div>
           </div>
-        </div></div>
-
-        <div class="me-att"><div class="thumb"></div></div>
-        <div class="me" style="margin-top:-18px">Lyra's description is generic. Use this picture for her look, and keep her dry humor.</div>
-        <div class="ai"><div class="orb">✦</div><div class="body">
-          <span class="quiet" data-fold="q2">Thought for 6 s · read Lyra ›</span>
-          <div class="quiet-list" id="q2">Short brown hair, scar over the left brow, green hooded cloak, longbow; the picture reads cold and quiet.</div>
-          <p>I rewrote her description from the picture and kept her voice. I'd also use the picture as her avatar.</p>
-          <div class="res" id="r2">
-            <div class="res-line"><div class="res-ic">✎</div>
-              <div class="res-txt"><b>Lyra · Description</b><small class="wait" id="s2">Change waiting for you</small></div>
-              <button class="link" data-open="r2">See change</button></div>
-            <div class="res-more"><div class="diff"><del>A ranger who guards the northern woods. She is good with a bow and doesn't trust strangers. She has a dry sense of humor.</del> <ins>Lyra has kept the northern woods for eleven winters: short brown hair she cuts herself, a pale scar through her left brow, a green hooded cloak gone grey at the hem. She speaks little, notices everything, and when she does talk it is usually to say something dry enough to sting.</ins></div>
-              <div class="after"><button class="link">Edit first</button><span class="grow"></span></div></div>
-          </div>
-          <div class="res" id="r3">
-            <div class="res-line"><div class="res-ic" style="padding:0;overflow:hidden"><div class="thumb" style="width:34px;height:34px;border-radius:9px"></div></div>
-              <div class="res-txt"><b>Lyra · Picture</b><small class="wait" id="s3">Change waiting for you</small></div></div>
-          </div>
-          <div class="after" id="decide"><button class="btn pri" id="apply">Apply both</button><button class="btn" id="discard">Discard</button><span class="grow"></span></div>
+          <div class="res"><div class="res-line"><div class="res-ic">▤</div><div class="res-t"><b>Northern Woods · 2 new entries</b><small class="ok">Lorebook · added</small></div><button class="lnk">Open</button><button class="lnk">Undo</button></div></div>
         </div></div>
       </div>
     </div>
 
-    <div class="composer-wrap"><div class="col">
-      <div class="composer">
-        <div class="ctx" id="ctx"><span class="mini"><span class="thumb" style="display:block"></span><button class="x">✕</button></span></div>
-        <textarea placeholder="Ask for a tracker, a character or a lorebook…">Now a lorebook entry about the mill gate.</textarea>
-        <div class="row"><button class="ico" title="Attach an image">＋</button><span class="model">Claude · sees images</span><span class="grow"></span><button class="send" title="Send">↑</button></div>
+    <div class="bottom hidden" id="bottom"><div class="col">
+      <div class="comp">
+        <textarea rows="1" placeholder="Reply…">Make Kessa's first line colder.</textarea>
+        <div class="crow"><button class="tool" data-s="ctx">＠ Add context</button><button class="tool">📎</button><span class="grow"></span><span class="model">Claude ▾</span><button class="send">↑</button></div>
       </div>
-      <div class="foot">It saves new things right away (Undo is on each card); changes to yours wait for your OK.</div>
     </div></div>
 
-    <!-- settings sheet -->
-    <div class="scrim hidden" id="settings"><div class="sheet">
-      <h3>Assistant settings <button class="ico" id="close">✕</button></h3>
-      <div class="srow"><span class="lbl">Connection</span><div class="ctl">nano-gpt · Claude <span>▾</span></div><span class="hint">Empty = the one your stories use.</span></div>
-      <div class="two">
-        <div class="srow"><span class="lbl">Thinking</span><div class="seg"><span>Off</span><span>Low</span><span class="on">Med</span><span>High</span></div></div>
-        <div class="srow"><span class="lbl">Steps per message</span><div class="ctl">25<span></span></div></div>
+    <!-- ADD CONTEXT -->
+    <div class="scrim hidden" id="ctx"><div class="sheet">
+      <div class="sh-head"><h3>Add context</h3><label class="search">⌕ <input placeholder="Search everything"></label><button class="ico" data-s="hello">✕</button></div>
+      <div class="sh-body">
+        <div class="kinds">
+          <div class="on">Characters <small>38</small></div><div>Personas <small>4</small></div><div>Narrators <small>10</small></div><div>NPCs <small>21</small></div>
+          <div>Stories <small>7</small></div><div>Kits <small>5</small></div><div>Lorebooks <small>16</small></div><div>Trackers <small>9</small></div><div>Presets <small>3</small></div>
+        </div>
+        <div class="grid" id="grid">
+          <div class="card sel"><div class="ph p1"></div><div><b>Lyra</b><small>Ranger of the Northern Woods · fantasy</small></div><span class="ck">✓</span></div>
+          <div class="card sel"><div class="ph p2"></div><div><b>Kessa</b><small>Mercenary, travels light and alone</small></div><span class="ck">✓</span></div>
+          <div class="card"><div class="ph p3"></div><div><b>Bram</b><small>Miller's son, too curious</small></div><span class="ck"></span></div>
+          <div class="card"><div class="ph p4"></div><div><b>Sister Ilse</b><small>Healer with a secret</small></div><span class="ck"></span></div>
+          <div class="card"><div class="ph p5"></div><div><b>Corvin</b><small>Thief, charming liar</small></div><span class="ck"></span></div>
+          <div class="card"><div class="ph p2"></div><div><b>Mara (modern)</b><small>Lyra · modern version</small></div><span class="ck"></span></div>
+        </div>
       </div>
-      <div class="srow"><span class="lbl">House rules</span><div class="ctl" style="display:block;line-height:1.5">Cards in English. Descriptions in prose, never W++. Lorebook keywords lowercase.</div><span class="hint">Sent with every request. You can also say “remember: …”.</span></div>
-      <div class="srow"><span class="lbl">More</span><div class="ctl">Temperature 0.7 · Save new things right away · System prompt…<span>›</span></div></div>
+      <div class="sh-foot"><div class="picked">Picked: <span class="chip"><span class="k">◯</span>Lyra</span><span class="chip"><span class="k">◯</span>Kessa</span><span class="chip"><span class="k">▤</span>Northern Woods</span></div><button class="btn" data-s="hello">Cancel</button><button class="btn pri" id="addctx">Add 3</button></div>
+    </div></div>
+
+    <!-- CUSTOMIZE -->
+    <div class="scrim hidden" id="cust"><div class="sheet cust">
+      <div class="sh-head"><h3>Customize the Assistant</h3><button class="ico" data-s="hello">✕</button></div>
+      <div class="tabs" id="tabs"><span class="on" data-t="rules">Rules</span><span data-t="memory">Memory</span><span data-t="prompt">Instructions</span><span data-t="model">Model</span></div>
+      <div class="pane" id="t-rules">
+        <span class="hint">Always followed, in every chat. Switch one off to pause it.</span>
+        <div class="lrow"><span class="grow">Cards in English, even when we talk in Portuguese.</span><span class="sw"></span></div>
+        <div class="lrow"><span class="grow">Descriptions in prose, never W++.</span><span class="sw"></span></div>
+        <div class="lrow"><span class="grow">Lorebook keywords lowercase, 2–4 per entry.</span><span class="sw"></span></div>
+        <div class="lrow"><span class="grow">First messages in third person, past tense.</span><span class="sw off"></span></div>
+        <button class="btn" style="justify-self:start">＋ Add a rule</button>
+      </div>
+      <div class="pane hidden" id="t-memory">
+        <span class="hint">What it remembers about you and your worlds, across chats. It adds things when you say “remember…” (you see them here); edit or delete any.</span>
+        <div class="lrow"><span class="grow">Daniel plays mostly dark fantasy and slow-burn stories.<br><small>from “Tighten Lyra's card” · Oct 30</small></span><button class="lnk">Edit</button><button class="lnk">✕</button></div>
+        <div class="lrow"><span class="grow">The Northern Woods setting: the Grey Order of rangers, the flood six winters ago.<br><small>from “Kit: Lyra & Kessa” · today</small></span><button class="lnk">Edit</button><button class="lnk">✕</button></div>
+        <div class="lrow"><span class="grow">Prefers cards around 1,000–1,500 tokens.<br><small>added by you</small></span><button class="lnk">Edit</button><button class="lnk">✕</button></div>
+        <div class="row"><button class="btn">＋ Add</button><span class="grow"></span><span class="hint">Memory on</span><span class="sw"></span></div>
+      </div>
+      <div class="pane hidden" id="t-prompt">
+        <span class="hint">Its main instructions. The app adds the tools, the guides and your rules and memory around this text.</span>
+        <div class="area">You are the Homunculus Assistant. You build and improve the user's roleplay material — characters, Kits, lorebooks and trackers — using the tools. Read before you change. Propose changes to existing items; never delete. When several items go together, make them consistent with each other and say what you had to settle…</div>
+        <div class="row"><button class="btn">Reset to default</button><span class="grow"></span><span class="hint">412 tokens</span></div>
+      </div>
+      <div class="pane hidden" id="t-model">
+        <div class="fld"><span class="l">Connection</span><div class="c">nano-gpt · Claude <span>▾</span></div><span class="hint">Empty = the one your stories use. A strong model is worth it here.</span></div>
+        <div class="f2"><div class="fld"><span class="l">Thinking</span><div class="c">Medium <span>▾</span></div></div><div class="fld"><span class="l">Temperature</span><div class="c">0.7</div></div></div>
+        <div class="f2"><div class="fld"><span class="l">Steps per message</span><div class="c">25</div></div><div class="fld"><span class="l">New items</span><div class="c">Save right away <span>▾</span></div></div></div>
+      </div>
     </div></div>
   </section>
 </div>
@@ -241,27 +311,24 @@ button { font: inherit; color: inherit; }
 <script>
 const $ = (s) => document.querySelector(s);
 const show = (el, on) => el.classList.toggle("hidden", !on);
-function setState(s) {
-  document.querySelectorAll(".states button").forEach((b) => b.classList.toggle("on", b.dataset.state === s));
-  show($("#hello"), s === "hello"); show($("#talk"), s !== "hello");
-  show($("#settings"), s === "settings");
-  document.querySelector(".composer textarea").value = s === "hello" ? "" : "Now a lorebook entry about the mill gate.";
-  $("#title").textContent = s === "hello" ? "New conversation" : "World tracker + Lyra";
-  $("#ctx").innerHTML = s === "editor"
-    ? '<span class="chip">About: Lyra <button title="Talk about anything">✕</button></span>'
-    : s === "hello" ? "" : '<span class="mini"><span class="thumb" style="display:block"></span><button class="x">✕</button></span>';
+const CHIPS = '<span class="chip"><span class="k">◯</span>Lyra<button>✕</button></span><span class="chip"><span class="k">◯</span>Kessa<button>✕</button></span><span class="chip"><span class="k">▤</span>Northern Woods<button>✕</button></span>';
+let base = "hello";
+function go(s) {
+  if (s === "hello" || s === "talk") base = s;
+  document.querySelectorAll(".states button").forEach((b) => b.classList.toggle("on", b.dataset.s === s));
+  show($("#hello"), base === "hello"); show($("#talk"), base === "talk"); show($("#bottom"), base === "talk");
+  show($("#ctx"), s === "ctx"); show($("#cust"), s === "cust");
+  $("#ttl").textContent = base === "talk" ? "Kit: Lyra & Kessa at the mill" : "";
+  document.querySelectorAll(".rec").forEach((r) => r.classList.toggle("on", base === "talk" && r.dataset.s === "talk"));
 }
-document.querySelectorAll(".states button").forEach((b) => b.onclick = () => setState(b.dataset.state));
-$("#gear").onclick = () => setState("settings");
-$("#close").onclick = () => setState("talk");
-$("#new").onclick = () => setState("hello");
-document.querySelectorAll("[data-fold]").forEach((f) => f.onclick = () => $("#" + f.dataset.fold).classList.toggle("open"));
-document.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => { const r = $("#" + b.dataset.open); r.classList.toggle("open"); b.textContent = r.classList.contains("open") ? "Hide" : (b.dataset.open === "r1" ? "Details" : "See change"); });
-const decide = (applied) => {
-  for (const id of ["#s2", "#s3"]) { const s = $(id); s.className = applied ? "ok" : ""; s.textContent = applied ? "Applied · undo from its History" : "Discarded"; }
-  $("#decide").innerHTML = "";
-};
-$("#apply").onclick = () => decide(true);
-$("#discard").onclick = () => decide(false);
-$("#undo1").onclick = (e) => { const s = $("#r1 small"); s.className = ""; s.textContent = "Tracker · moved to the Trash"; e.target.textContent = "Restore"; };
+document.querySelectorAll("[data-s]").forEach((b) => b.addEventListener("click", () => go(b.dataset.s)));
+document.querySelectorAll("#grid .card").forEach((c) => c.onclick = () => { c.classList.toggle("sel"); c.querySelector(".ck").textContent = c.classList.contains("sel") ? "✓" : ""; });
+$("#addctx").onclick = () => { $("#ctx-hello").innerHTML = CHIPS; go("hello"); };
+document.querySelectorAll("[data-f]").forEach((f) => f.onclick = () => $("#" + f.dataset.f).classList.toggle("open"));
+document.querySelectorAll("[data-o]").forEach((b) => b.onclick = () => { $("#" + b.dataset.o).classList.toggle("open"); b.textContent = $("#" + b.dataset.o).classList.contains("open") ? "Hide" : "Details"; });
+document.querySelectorAll("#tabs span").forEach((t) => t.onclick = () => {
+  document.querySelectorAll("#tabs span").forEach((x) => x.classList.toggle("on", x === t));
+  ["rules", "memory", "prompt", "model"].forEach((k) => show($("#t-" + k), k === t.dataset.t));
+});
+go("hello");
 </script>
