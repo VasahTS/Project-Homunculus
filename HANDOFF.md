@@ -4,6 +4,15 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Where we are and what is next (2026-11-01, 04h40) — CLAUDE
+
+Order agreed with Daniel (01/11: "finish the app first, then come back to details"):
+1. ✅ Regex scripts (D-060) · ✅ message formatting, links and pictures (D-061) · ✅ the Assistant, rounds 1–4 (D-062) · ✅ Character's Note (D-063).
+2. **Now: Daniel tries the Assistant with a real model** (GLM 5.3 on nano-gpt). Things to watch: tool calls work, tokens/cost reported, drafts, compaction.
+3. **Next big ones:** Customize screen (themes/layouts, slice 10) — then **import a whole SillyTavern / v1 folder (moved to the END by Daniel)**.
+4. **Detail round after that:** agents' ⏳ items (D-059); a regex switch per story; pausing slow regex scripts; agents' own regex; "Ask the assistant" buttons in editors; a fallback for models without tool calling; **Director's notes** (Daniel's OOC idea: instructions outside the chat, permanent or for N turns, injected after the history, gone when they expire; the Assistant can manage them).
+5. CODEX: T-001/T-002/T-003 in `docs/CODEX-TASKS.md` (Daniel said CODEX is working on them).
+
 ## Five review bugfixes (2026-11-01) — CODEX
 
 Daniel directly authorized the five reviewed fixes: chapter invalidation after message edits/regex undo, non-overlapping summary requests, originals of regex edits, before/parallel note feedback, and explicit Compare/Try it models.
