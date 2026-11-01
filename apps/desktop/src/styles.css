@@ -135,6 +135,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .label-row { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ───────────── library: master-detail */
+.master-detail.solo > .detail { flex: 1; }
 .master-detail { flex: 1; min-height: 0; display: flex; gap: var(--gap-float); padding: 0 6px 6px; }
 .master { flex: 0 0 280px; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
 .detail { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; border-radius: var(--radius-panel); background: var(--surface); overflow: hidden; }
@@ -2786,8 +2787,12 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .ce-gtools .ce-danger.armed { background: var(--danger-soft); }
 .ce-snip { color: var(--label-2); font-size: var(--size-small); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left; }
 .blank > .ce-snip { color: var(--label-3); font-style: italic; }
-.ce-g-list { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 14px; }
-.ce-glist { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* Sheet: the greetings are a row of cards above the editor, not one more column (D-071) */
+.ce-g-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.ce-glist { display: flex; gap: 6px; min-width: 0; overflow-x: auto; padding-bottom: 2px; }
+.ce-glist > * { flex: 0 0 200px; }
+.ce-g-list .ce-gitem { background: var(--surface); }
+.ce-g-list .ce-gitem.on { background: var(--accent-soft); }
 .ce-gitem { border: 0; background: transparent; border-radius: 8px; padding: 7px 9px; display: grid; gap: 1px; cursor: pointer; text-align: left; color: var(--label); }
 .ce-gitem b { font-size: var(--size-small); font-weight: 600; display: flex; align-items: center; }
 .ce-gitem:hover { background: var(--fill); }
@@ -2833,7 +2838,9 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 
 /* Sheet: identity on the left, sections with a jump bar on the right */
 .ce-sheet { display: grid; grid-template-columns: 250px minmax(0, 1fr); }
-.ce-side { overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; border-right: 1px solid var(--separator); min-width: 0; }
+.ce-side { overflow-y: auto; overflow-x: hidden; padding: 16px; display: flex; flex-direction: column; gap: 16px; border-right: 1px solid var(--separator); min-width: 0; }
+.ce-side > * { min-width: 0; max-width: 100%; }
+.ce-side select, .ce-side input { max-width: 100%; }
 .ce-main { position: relative; overflow-y: auto; min-width: 0; }
 .ce-jump { position: sticky; top: 0; z-index: 2; display: flex; gap: 2px; padding: 8px 18px; overflow-x: auto; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--separator); }
 .ce-jump button { border: 0; background: transparent; border-radius: 6px; padding: 4px 10px; color: var(--label-2); white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; }
@@ -2900,7 +2907,6 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
   .ce-side .ce-portrait .avatar-big { max-width: 150px; }
   .ce-jump { position: static; }
   .ce-two, .ce-g-list { grid-template-columns: minmax(0, 1fr); }
-  .ce-glist { flex-direction: row; overflow-x: auto; }
   .ce-glist > * { flex: 0 0 150px; }
   .ce-doc { padding: 0 16px; }
   .ce-page { padding: 20px 0 30px; }

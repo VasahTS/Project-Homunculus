@@ -136,6 +136,7 @@ export function Greetings({ value, onChange, look, name, avatarSrc, changed, onR
 
   return (
     <div className="ce-greetings ce-g-list" data-testid="greetings">
+      <div className="ce-lab">{head}<span className="ce-sub">the first opens a new chat; the others are its swipes</span></div>
       <div className="ce-glist" role="group" aria-label="Pick a greeting">
         {list.map((t, k) => (
           <button type="button" aria-pressed={k === cur} aria-label={`Show greeting ${k + 1}`} key={k} className={`ce-gitem${k === cur ? " on" : ""}${t.trim() ? "" : " blank"}`} onClick={() => setPicked(k)}>
@@ -146,14 +147,13 @@ export function Greetings({ value, onChange, look, name, avatarSrc, changed, onR
       </div>
       <div className="ce-gedit">
         <div className="ce-gedit-head">
-          {head}
           <Segmented small label="Greeting view" value={preview ? "preview" : "edit"} options={[{ value: "edit", label: "Edit" }, { value: "preview", label: "Preview" }]}
             onChange={(x) => setPreview(x === "preview")} />
           <span className="spacer" />
           {tools(cur)}
         </div>
         {preview ? <div className="ce-gpreview">{chatPreview(cur)}</div> : box(cur, 9)}
-        <div className="ce-gfoot"><span className="hint">The first greeting opens a new chat; the others are its swipes.</span><span className="ce-tok">{tokensText(list[cur] ?? "")}</span></div>
+        <div className="ce-gfoot"><span className="ce-tok">{tokensText(list[cur] ?? "")}{list[cur]?.trim() ? " · sent only when the chat starts" : ""}</span></div>
       </div>
     </div>
   );

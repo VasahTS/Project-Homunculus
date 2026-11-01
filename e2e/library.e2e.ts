@@ -3,7 +3,6 @@ import { expect, test, type Page } from "@playwright/test";
 import { editCharacter, newChatWith, openLibrary } from "./ui.ts";
 
 const sessions = (p: Page) => p.getByTestId("session-list").getByRole("button");
-const characters = (p: Page) => p.getByTestId("character-list").getByRole("button");
 
 test("create a character, then start a session with them", async ({ page }) => {
   await page.goto("/");
@@ -19,7 +18,7 @@ test("create a character, then start a session with them", async ({ page }) => {
   await page.getByLabel("Greeting 1", { exact: true }).fill("*Corvin wipes a mug.* \"Room's two silver.\"");
   await page.getByRole("button", { name: "Create Character" }).click();
   await expect(page.getByText("✓ Saved")).toBeVisible();
-  await expect(characters(page)).toHaveCount(2);
+  await expect(page.getByText("2 in the library")).toBeVisible(); // the editor has the whole width (D-071): no list beside it
 
   await page.getByLabel("Character editor").getByRole("button", { name: "Chat Now" }).click();
   await expect(sessions(page)).toHaveCount(2);
@@ -65,7 +64,7 @@ test("a character used by a session cannot go to the Trash, with a clear reason"
   await editCharacter(page);
   await page.getByRole("button", { name: "Move to Trash" }).click();
   await expect(page.getByRole("alert")).toContainText("used by 1 session");
-  await expect(characters(page)).toHaveCount(1);
+  await expect(page.getByText("1 in the library")).toBeVisible();
 });
 
 test("every option has a '?' that explains it", async ({ page }) => {

@@ -7,6 +7,21 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
+## Text mode (edit the card as text) — CLAUDE, 10/31 (plan) · 11/01 draft · ⏳ waiting for Daniel's OK on the draft
+
+Daniel (10/30, translated): "a mode that shows all fields at once, to edit raw without the JSON or tags; with find, replace etc.; a copy to compare with before editing; so I don't have to open Notepad++ every time I want to edit a card." Lorebooks stay out (they have their own editor). On 11/01: "can we start the built-in text editor for characters?"
+Draft: `docs/drafts/text-mode/index.html` (works: typing, Ctrl+F / Ctrl+H, options, Replace All with one Undo, Compare with Put back).
+
+- **Where:** a fourth choice in the character editor's layout switch: **Sheet · Tabs · Writer · Text** (D-070), remembered like the others. Same data: a change in Text shows in the other layouts at once. Later: Persona, NPC and Narrator editors get the same Text view.
+- **The document:** one column in the reading font, no boxes. Each field has a **fixed title** (`DESCRIPTION · 187 tokens`) that can't be edited or deleted; the text under it can. Character: Name, Description, Personality, Scenario, First message + every alternate greeting, Example dialogue, Character's Note, System prompt, Post-history, Creator notes, Tags (one line, commas). Empty fields hidden; "Show empty fields" shows them. Macros (`{{char}}`, `{{user}}`) get a soft outline. Clicking a title: Open in Form, Copy this field, and on greetings Add another / Remove. Follows the version being edited ("from Main" mark on fields the version doesn't change).
+- **Find / Replace (Ctrl+F / Ctrl+H, F3 / Shift+F3):** a bar over the document: Find, Replace, **Aa** match case, **W** whole word, **.*** regex (`$1` works), "In: all fields / this field", "3 of 14", ↑ ↓, Replace, Replace All. Every match is marked at once and each field title says how many it has. A broken regex says so in red and replaces nothing. **Replace All is one Undo.**
+- **Compare:** opening Text keeps a copy **Before this edit** by itself. **Compare…** opens side by side (before | now), changes marked word by word (small pieces merged so it reads well), **Put back** on each change and **Put back all**. Compare with: Before this edit (default) · Last saved · Original import · Main version · a History entry.
+- **States:** new card (Name, Description, First message shown; the rest behind "Show empty fields"); huge card (5k+ tokens: the editor only draws what is on screen); invalid regex.
+- **How to build:** CodeMirror 6 (MIT; `@codemirror/view`, `state`, `search`, `commands`, `merge`), one EditorState with the titles as atomic widgets, so search covers every field and Ctrl+Z is one history. Not Monaco (heavy, IDE look, worse with prose). The lorebook editor can move to the same component later.
+- **Open questions:** (1) only Character first, then Persona/NPC/Narrator — proposed; Presets/Agents/Trackers later if wanted. (2) Compare opens on "Before this edit" — proposed.
+
+---
+
 ## Character editor: three drafts + alternate greetings — CLAUDE, 2026-11-01 · ✅ all three approved ("I liked all 3, add them all") and in the app as layouts (D-070)
 
 Daniel (translated): "the character creation screen is very basic and bad to use; what can we do to improve the design? Make some drafts in HTML — functional, stylish and elegant. And alternate greetings are not showing in the current version."

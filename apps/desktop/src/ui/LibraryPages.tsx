@@ -12,10 +12,10 @@ import { AvatarDot } from "./Sidebar.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import type { Tracker } from "../trackers.ts";
 
-export function MasterDetail({ list, detail }: { list: ReactNode; detail: ReactNode }) {
+export function MasterDetail({ list, detail, solo = false }: { list: ReactNode; detail: ReactNode; solo?: boolean }) {
   return (
-    <div className="master-detail">
-      <div className="master" data-region="library">{list}</div>
+    <div className={`master-detail${solo ? " solo" : ""}`}>
+      {!solo && <div className="master" data-region="library">{list}</div>}
       <div className="detail" data-region="editor">{detail}</div>
     </div>
   );
@@ -72,6 +72,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
           </ul>
         </>}
         detail={detail ?? <EmptyDetail text="Pick a character on the left, or create or import one." />}
+        solo={detail !== null} /* editing: the editor gets the whole width (D-071; the list was a third column) */
       />
     </div>
   );

@@ -1,0 +1,471 @@
+<title>Text Mode Draft</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<style>
+/* Homunculus 2 — draft "Text mode" for the character editor (CLAUDE, 2026-11-01). Not code: the picture of the plan
+   "Text mode (edit as text)" (Project doc claude/UI-PLAN-TEXT-MODE.md, 10/31). Daniel (translated): "a mode that shows all
+   fields at once, to edit raw without JSON or tags; with find, replace etc.; a copy to compare with before editing; so I
+   don't have to open Notepad++ every time I want to edit a card."
+   Here: a 4th choice in the editor's layout switch (Sheet · Tabs · Writer · Text). Everything works: type, Ctrl+F /
+   Ctrl+H, match case / whole word / regex with $1, Replace All (one undo), Compare with "Before this edit", Put back.
+   Layout: the app's dark graphite theme, one look on purpose. */
+:root {
+  color-scheme: dark;
+  --window: #1b1c1f; --surface: #202226; --field: #24262a; --pop: #26282c;
+  --label: rgba(255,255,255,.88); --label-2: rgba(235,235,245,.62); --label-3: rgba(235,235,245,.42);
+  --separator: rgba(255,255,255,.09); --fill: rgba(255,255,255,.07); --fill-hover: rgba(255,255,255,.12); --fill-sel: rgba(255,255,255,.16);
+  --accent: #62b6a4; --accent-ink: #0d2420; --accent-soft: rgba(98,182,164,.2); --focus: rgba(98,182,164,.45);
+  --warn: #e3b45c; --danger: #ff8a80; --danger-soft: rgba(255,138,128,.14);
+  --hit: rgba(227,180,92,.28); --hit-cur: rgba(227,180,92,.75);
+  --add: rgba(127,209,155,.2); --add-ink: #9fe0b5; --del: rgba(255,138,128,.18); --del-ink: #ffb0a8;
+  --macro: #8db4ee;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-prose: "Literata", "Iowan Old Style", Georgia, serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --stage-h: min(860px, calc(100vh - 150px));
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #141518; color: var(--label); font: 13px/1.5 var(--font-ui); -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.states { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center;
+  padding-block: 9px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: #101113; border-bottom: 1px solid var(--separator); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: #101113; }
+.states b { font-size: 10.5px; color: var(--label-3); letter-spacing: .08em; text-transform: uppercase; margin-right: 4px; font-weight: 600; }
+.states button { border: 1px solid var(--separator); background: none; border-radius: 999px; padding: 3px 12px; font-size: 12px; color: var(--label-2); }
+.states button.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.states .kbd { margin-left: auto; color: var(--label-3); font-size: 11.5px; }
+main { padding-block: 18px 60px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.intro { max-width: 80ch; color: var(--label-2); margin: 0 0 14px; font-size: 13.5px; }
+.intro b { color: var(--label); font-weight: 600; }
+
+.win { display: flex; flex-direction: column; height: var(--stage-h); min-height: 620px; background: var(--surface); border-radius: 14px; border: 1px solid var(--separator); overflow: hidden; position: relative; }
+.bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px 10px 20px; border-bottom: 1px solid var(--separator); flex-wrap: wrap; }
+.title { font-weight: 700; font-size: 15px; }
+.spacer { flex: 1; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 7px; padding: 6px 12px; background: var(--fill); white-space: nowrap; }
+.btn:hover:not([disabled]) { background: var(--fill-hover); }
+.btn.pri { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.sm { padding: 3px 9px; font-size: 12px; }
+.btn.plain { background: none; color: var(--label-2); }
+.btn.plain:hover:not([disabled]) { background: var(--fill); color: var(--label); }
+.btn.on { background: var(--accent-soft); color: var(--accent); }
+.btn[disabled] { opacity: .4; cursor: default; }
+.seg { display: inline-flex; background: var(--fill); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { border: 0; background: none; border-radius: 6px; padding: 3px 9px; font-size: 12px; color: var(--label-2); }
+.seg button.on { background: var(--fill-sel); color: var(--label); font-weight: 600; }
+.seg button .new { font-size: 9.5px; color: var(--accent); margin-left: 3px; font-weight: 700; }
+.dirty { color: var(--warn); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
+.dirty::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.chip { border: 0; border-radius: 999px; padding: 2px 10px; font-size: 12px; background: var(--fill); color: var(--label-2); }
+.chip.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* text-mode toolbar */
+.tbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 20px; border-bottom: 1px solid var(--separator); flex-wrap: wrap; font-size: 12px; color: var(--label-2); }
+.tbar .grp { display: flex; align-items: center; gap: 6px; }
+.tbar label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.tbar input[type=checkbox] { accent-color: var(--accent); }
+
+/* find bar */
+.find { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 8px; align-items: center; padding: 8px 20px; background: var(--pop); border-bottom: 1px solid var(--separator); }
+.find[hidden] { display: none; }
+.find .lbl { color: var(--label-3); font-size: 11.5px; width: 52px; }
+.find .row { display: flex; gap: 6px; align-items: center; min-width: 0; flex-wrap: wrap; }
+.find input[type=text] { flex: 1; min-width: 140px; background: var(--field); border: 1px solid var(--separator); border-radius: 7px; padding: 5px 9px; }
+.find input.bad { border-color: var(--danger); }
+.find .opt { border: 1px solid var(--separator); background: none; border-radius: 6px; padding: 2px 7px; font: 12px var(--font-mono); color: var(--label-2); }
+.find .opt.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.find .count { color: var(--label-2); font-variant-numeric: tabular-nums; min-width: 70px; text-align: right; font-size: 12px; }
+.find .count.err { color: var(--danger); min-width: 0; text-align: left; }
+.find select { background: var(--field); border: 1px solid var(--separator); border-radius: 6px; padding: 2px 6px; font-size: 12px; }
+
+/* the document */
+.doc { flex: 1; min-height: 0; overflow-y: auto; scroll-behavior: smooth; }
+.page { max-width: 74ch; margin: 0 auto; padding: 26px 20px 120px; display: grid; gap: 22px; }
+.sec { display: grid; gap: 2px; }
+.sec-head { display: flex; align-items: baseline; gap: 8px; position: relative; user-select: none; }
+.sec-head button.name { border: 0; background: none; padding: 1px 6px 1px 0; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; font-weight: 700; color: var(--label-3); border-radius: 4px; }
+.sec-head button.name:hover { color: var(--label); }
+.sec:focus-within .sec-head button.name { color: var(--accent); }
+.sec-head .tok { color: var(--label-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.sec-head .hits { font-size: 11px; color: var(--warn); }
+.sec-head .ch { font-size: 11px; color: var(--add-ink); }
+.menu { position: absolute; top: 100%; left: 0; z-index: 5; background: var(--pop); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.1); padding: 4px; display: grid; min-width: 180px; }
+.menu button { border: 0; background: none; text-align: left; padding: 6px 9px; border-radius: 6px; font-size: 12.5px; text-transform: none; letter-spacing: 0; }
+.menu button:hover { background: var(--fill-hover); }
+.menu .danger { color: var(--danger); }
+.ed { position: relative; }
+.ed .back, .ed textarea { font: 16px/1.72 var(--font-prose); padding: 2px 0 4px; margin: 0; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; letter-spacing: normal; }
+.ed.mono .back, .ed.mono textarea { font: 13px/1.65 var(--font-mono); }
+.ed.line .back, .ed.line textarea { font: 14px/1.6 var(--font-ui); }
+.ed.title .back, .ed.title textarea { font: 600 28px/1.25 var(--font-prose); }
+.ed .back { position: absolute; inset: 0; color: transparent; pointer-events: none; }
+.ed textarea { position: relative; display: block; width: 100%; resize: none; overflow: hidden; background: transparent; border: 0; color: var(--label); caret-color: var(--accent); }
+.ed textarea:focus { outline: none; }
+.ed textarea::placeholder { color: var(--label-3); }
+.back mark { background: var(--hit); color: transparent; border-radius: 2px; }
+.back mark.cur { background: var(--hit-cur); }
+.back .mac { color: transparent; background: rgba(141,180,238,.16); border-radius: 3px; box-shadow: 0 0 0 1px rgba(141,180,238,.25); }
+.rule { height: 1px; background: var(--separator); }
+.show-empty { justify-self: start; }
+
+/* compare */
+.cmp { position: absolute; inset: 0; z-index: 10; background: var(--surface); display: flex; flex-direction: column; }
+.cmp[hidden] { display: none; }
+.cmp-bar { flex: none; display: flex; gap: 10px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--separator); flex-wrap: wrap; }
+.cmp-bar b { font-size: 14px; }
+.cmp-bar select { background: var(--field); border: 1px solid var(--separator); border-radius: 7px; padding: 4px 8px; }
+.cmp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 60px; display: grid; gap: 18px; align-content: start; }
+.cmp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; color: var(--label-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; max-width: 1200px; width: 100%; margin: 0 auto; }
+.cf { display: grid; gap: 6px; max-width: 1200px; width: 100%; margin: 0 auto; }
+.cf-head { font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; font-weight: 700; color: var(--label-2); display: flex; gap: 10px; align-items: center; }
+.cf-head span { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--label-3); }
+.cf-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.cf-cols > div { font: 14.5px/1.7 var(--font-prose); white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 12px; border-radius: 9px; background: var(--window); min-width: 0; }
+.cf-cols del { background: var(--del); color: var(--del-ink); text-decoration: line-through; text-decoration-color: rgba(255,176,168,.5); border-radius: 2px; }
+.cf-cols ins { background: var(--add); color: var(--add-ink); text-decoration: none; border-radius: 2px; position: relative; }
+.pb { border: 0; background: var(--fill); color: var(--label-2); border-radius: 5px; font: 11px var(--font-ui); padding: 0 6px; margin: 0 2px; vertical-align: 1px; }
+.pb:hover { background: var(--fill-hover); color: var(--label); }
+.same { color: var(--label-3); font-size: 12px; max-width: 1200px; width: 100%; margin: 0 auto; }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+.note { background: var(--surface); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--separator); }
+.note h4 { margin: 0 0 6px; font-size: 13.5px; }
+.note p, .note li { color: var(--label-2); font-size: 12.5px; margin: 0; }
+.note ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.note b { color: var(--label); font-weight: 600; }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); background: var(--pop); box-shadow: 0 12px 32px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.1); padding: 8px 10px 8px 14px; border-radius: 9px; opacity: 0; transition: .2s; pointer-events: none; z-index: 40; font-size: 12.5px; display: flex; gap: 10px; align-items: center; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+@media (max-width: 760px) {
+  .win { height: auto; min-height: 0; } .doc, .cmp-body { overflow: visible; } .cmp { position: fixed; z-index: 50; }
+  .cmp-body { overflow-y: auto; }
+  .cf-cols, .cmp-cols { grid-template-columns: minmax(0, 1fr); }
+  .find { grid-template-columns: minmax(0, 1fr); } .find .lbl { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="states" role="toolbar" aria-label="Draft controls">
+  <b>Try</b>
+  <button data-demo="plain" class="on">Text mode</button>
+  <button data-demo="find">Find &amp; Replace open</button>
+  <button data-demo="compare">After an edit → Compare</button>
+  <span class="kbd">Ctrl+F find · Ctrl+H replace · F3 next · Ctrl+S save</span>
+</div>
+<main>
+  <p class="intro"><b>Text</b> is a fourth choice in the editor's layout switch. It shows the whole card as one plain document: a fixed title per field, no boxes, no JSON, no quotes or <code>\n</code>. Find and Replace work across every field at once, like Notepad++. When you open it, the app keeps a copy called <b>Before this edit</b>, so <b>Compare</b> can show what you changed and put any change back.</p>
+  <div class="win" id="win">
+    <div class="bar">
+      <span class="title" id="title">Lyra</span><span class="spacer"></span>
+      <span class="dirty" id="dirty" hidden>Unsaved changes</span>
+      <div class="seg" aria-label="Layout"><button>Sheet</button><button>Tabs</button><button>Writer</button><button class="on">Text<span class="new">NEW</span></button></div>
+      <button class="btn">Chat Now</button><button class="btn pri" id="save">Save</button>
+    </div>
+    <div class="tbar">
+      <div class="grp"><span>Version</span><button class="chip on">Main</button><button class="chip">Modern</button></div>
+      <span class="spacer"></span>
+      <label><input type="checkbox" id="empty"> Show empty fields</label>
+      <button class="btn sm plain" id="openFind" title="Ctrl+F">Find</button>
+      <button class="btn sm plain" id="openReplace" title="Ctrl+H">Replace</button>
+      <button class="btn sm" id="openCmp">Compare…</button>
+    </div>
+    <div class="find" id="find" hidden role="search">
+      <span class="lbl">Find</span>
+      <div class="row"><input type="text" id="q" placeholder="Find in the card" aria-label="Find" autocomplete="off" spellcheck="false">
+        <button class="opt" id="oCase" title="Match case" aria-pressed="false">Aa</button>
+        <button class="opt" id="oWord" title="Whole word" aria-pressed="false">W</button>
+        <button class="opt" id="oRe" title="Regular expression ($1 works in Replace)" aria-pressed="false">.*</button>
+        <select id="scope" aria-label="Search in"><option value="all">In: all fields</option><option value="one">In: this field</option></select>
+      </div>
+      <div class="row"><span class="count" id="count"></span><button class="btn sm plain" id="prev" aria-label="Previous (Shift+F3)">↑</button><button class="btn sm plain" id="next" aria-label="Next (F3)">↓</button><button class="btn sm plain" id="closeFind" aria-label="Close find (Esc)">✕</button></div>
+      <span class="lbl" data-rep>Replace</span>
+      <div class="row" data-rep><input type="text" id="r" placeholder="Replace with" aria-label="Replace with" autocomplete="off" spellcheck="false"></div>
+      <div class="row" data-rep><button class="btn sm" id="rep1">Replace</button><button class="btn sm" id="repAll">Replace All</button></div>
+    </div>
+    <div class="doc" id="doc"><div class="page" id="page"></div></div>
+    <div class="cmp" id="cmp" hidden aria-label="Compare">
+      <div class="cmp-bar"><b>Compare</b>
+        <select id="cmpWith" aria-label="Compare with"><option value="before">Before this edit</option><option value="saved">Last saved</option><option value="import">Original import</option></select>
+        <span class="muted" id="cmpSum" style="color:var(--label-2)"></span><span class="spacer"></span>
+        <button class="btn sm" id="putAll">Put back all</button><button class="btn sm pri" id="closeCmp">Done</button>
+      </div>
+      <div class="cmp-body" id="cmpBody"></div>
+    </div>
+  </div>
+  <div class="notes">
+    <div class="note"><h4>What it is</h4><p>The same card as the other layouts, shown as text. A change here shows up in Sheet, Tabs and Writer at once, and it saves like the rest of the app.</p>
+      <ul><li><b>Fixed titles:</b> click one for Open in Form, Copy this field, or (on greetings) Add another / Remove.</li><li><b>Empty fields hidden</b> until "Show empty fields".</li><li><b>Macros</b> like {{char}} get a soft outline.</li></ul></div>
+    <div class="note"><h4>Find &amp; Replace</h4><ul><li>Every match is marked at once; the field titles say how many each one has.</li><li><b>Aa</b> match case, <b>W</b> whole word, <b>.*</b> regex with <code>$1</code>. A broken regex says so and replaces nothing.</li><li><b>Replace All</b> is one step: one Undo puts everything back.</li></ul></div>
+    <div class="note"><h4>Compare</h4><ul><li>Opening Text keeps <b>Before this edit</b> by itself; nobody has to make a copy.</li><li>Side by side, changes marked word by word, <b>Put back</b> on each one, or <b>Put back all</b>.</li><li>In the app it can also compare with Last saved, the Original import, the Main version or any History entry.</li></ul></div>
+  </div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button class="btn sm" id="toastUndo" hidden>Undo</button></div>
+
+<script>
+/* ── data: one card, fields in the Form's order */
+const FIELDS = [
+  { k: "name", label: "Name", kind: "title" },
+  { k: "description", label: "Description" },
+  { k: "personality", label: "Personality" },
+  { k: "scenario", label: "Scenario" },
+  { k: "g", label: "First message", kind: "greet" },
+  { k: "examples", label: "Example dialogue", kind: "mono" },
+  { k: "note", label: "Character's Note" },
+  { k: "system", label: "System prompt" },
+  { k: "post", label: "Post-history instructions" },
+  { k: "creator", label: "Creator notes" },
+  { k: "tags", label: "Tags", kind: "line" },
+];
+const ORIGINAL = {
+  name: "Lyra",
+  description: `<lyra>\nName: Lyra Vael\nAge: 27\nRole: Ranger of the Thornwood border; scout for the river villages.\nAppearance: Lean and weathered. Copper hair cut short with a knife, a scar through the left eyebrow, green cloak patched at the hem.\nPersonality: Wary, patient, dry humor that surfaces once she trusts someone. Keeps promises to the letter.\nSpeech: Short sentences. Rarely asks questions; makes statements and waits.\nSecret: She let a raider band through the pass two winters ago to save her brother.\n</lyra>\n\n<thornwood>\nAn old border forest of black pines between the river villages and the hill clans. Rangers keep watchtowers along the ridge.\n</thornwood>`,
+  personality: "",
+  scenario: "{{user}} is a traveler crossing the Thornwood at the start of the raiding season.",
+  g: [
+    `*Lyra steps out of the shadow of the mill gate, an arrow already nocked.* "That's close enough. Who sent you?"`,
+    `*Rain drums on the watchtower roof. Lyra doesn't turn from the arrow slit when {{user}} climbs the last step.* "You're soaked. Blanket's by the fire."`,
+    `*The tavern in Hollowford is loud tonight. Lyra sits alone with her back to the wall.* "You look like you need this more than I do."`,
+  ],
+  examples: `<START>\n{{user}}: Are we lost?\n{{char}}: *She crouches, touches the moss on a stone.* "No. You are."`,
+  note: "Lyra never says more than three sentences at a time unless she is angry.",
+  system: "", post: "",
+  creator: "A slow-burn ranger. Works best with a narrator that lets silences breathe.",
+  tags: "fantasy, ranger, slow burn",
+};
+const clone = (o) => JSON.parse(JSON.stringify(o));
+let S = clone(ORIGINAL);           // the card now
+let BEFORE = clone(ORIGINAL);      // "Before this edit": taken when Text opens
+let SAVED = clone(ORIGINAL);
+const IMPORT = (() => { const o = clone(ORIGINAL); o.description = o.description.replace("Age: 27\n", "Age: 26\n"); o.g = o.g.slice(0, 2); return o; })();
+let showEmpty = false, findOpen = false, repOpen = false, focusKey = "description";
+const opt = { case: false, word: false, re: false };
+let hits = [], cur = -1, undoSnap = null, menuFor = null;
+
+/* every editable piece: "name", "description", …, "g.0", "g.1" */
+const pieces = () => FIELDS.flatMap((f) => f.kind === "greet" ? S.g.map((_, i) => ({ id: "g." + i, f, i })) : [{ id: f.k, f }]);
+const getV = (id) => id.startsWith("g.") ? S.g[+id.slice(2)] ?? "" : S[id];
+const setV = (id, v) => { if (id.startsWith("g.")) S.g[+id.slice(2)] = v; else S[id] = v; };
+const tok = (t) => t.trim() ? Math.ceil(t.length / 3.6) + 4 : 0;
+const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const $ = (s) => document.querySelector(s);
+
+/* ── the document */
+function render() {
+  const page = $("#page"); const keep = document.activeElement?.dataset?.id; const sel = keep ? document.activeElement.selectionStart : 0;
+  let html = "";
+  let lastWasGreet = false;
+  for (const p of pieces()) {
+    const v = getV(p.id);
+    if (!showEmpty && !v.trim() && p.f.k !== "name" && !(p.f.k === "g" && p.i === 0) && p.f.k !== "description") continue;
+    const label = p.f.kind === "greet" ? (p.i === 0 ? "First message" : `Alternate greeting ${p.i}`) : p.f.label;
+    if ((p.f.k === "examples" || p.f.k === "g") && !lastWasGreet) html += `<div class="rule"></div>`;
+    lastWasGreet = p.f.k === "g";
+    const cls = p.f.kind === "mono" ? "mono" : p.f.kind === "line" ? "line" : p.f.kind === "title" ? "title" : "";
+    html += `<section class="sec" data-sec="${p.id}">
+      <div class="sec-head"><button class="name" data-menu="${p.id}" aria-haspopup="menu">${label}</button><span class="tok" data-tok="${p.id}"></span><span class="hits" data-hits="${p.id}"></span><span class="ch" data-ch="${p.id}"></span>
+        ${menuFor === p.id ? `<div class="menu" role="menu"><button data-act="form">Open in Form</button><button data-act="copy">Copy this field</button>${p.f.kind === "greet" ? `<button data-act="addg">Add another greeting</button>${S.g.length > 1 ? `<button data-act="delg" class="danger">Remove this greeting</button>` : ""}` : ""}</div>` : ""}</div>
+      <div class="ed ${cls}"><div class="back" aria-hidden="true" data-back="${p.id}"></div><textarea rows="1" data-id="${p.id}" aria-label="${label}" spellcheck="true" placeholder="${p.f.kind === "title" ? "Name" : "Empty"}">${esc(v)}</textarea></div>
+    </section>`;
+  }
+  if (!showEmpty) html += `<button class="btn sm plain show-empty" id="showEmpty2">+ Show empty fields</button>`;
+  page.innerHTML = html;
+  page.querySelectorAll("textarea").forEach(fit);
+  if (keep) { const t = page.querySelector(`textarea[data-id="${keep}"]`); if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(sel, sel); } }
+  refresh();
+}
+function fit(t) { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }
+function refresh() {
+  computeHits();
+  document.querySelectorAll("[data-back]").forEach((b) => b.innerHTML = paint(b.dataset.back));
+  document.querySelectorAll("[data-tok]").forEach((e) => { const n = tok(getV(e.dataset.tok)); e.textContent = n ? `${n} tokens` : ""; });
+  document.querySelectorAll("[data-hits]").forEach((e) => { const n = hits.filter((h) => h.id === e.dataset.hits).length; e.textContent = n ? `${n} found` : ""; });
+  document.querySelectorAll("[data-ch]").forEach((e) => { const id = e.dataset.ch; const before = id.startsWith("g.") ? BEFORE.g[+id.slice(2)] ?? "" : BEFORE[id]; e.textContent = before !== getV(id) ? "• edited" : ""; });
+  const changed = JSON.stringify(S) !== JSON.stringify(SAVED);
+  $("#dirty").hidden = !changed;
+  $("#title").textContent = S.name || "Character";
+  updCount();
+}
+/* the backdrop: same text, transparent, with marks for matches and macros */
+function paint(id) {
+  const v = getV(id); const hs = hits.map((h, i) => ({ ...h, i })).filter((h) => h.id === id);
+  const marks = [...hs.map((h) => ({ s: h.s, e: h.e, cls: h.i === cur ? "cur" : "", tag: "mark" }))];
+  const re = /\{\{[^}]+\}\}/g; let m;
+  while ((m = re.exec(v))) if (!marks.some((x) => x.s < m.index + m[0].length && m.index < x.e)) marks.push({ s: m.index, e: m.index + m[0].length, cls: "mac", tag: "span" });
+  marks.sort((a, b) => a.s - b.s);
+  let out = "", at = 0;
+  for (const x of marks) { out += esc(v.slice(at, x.s)) + `<${x.tag} class="${x.cls}"${x.tag === "mark" && x.cls === "cur" ? ' id="curhit"' : ""}>${esc(v.slice(x.s, x.e))}</${x.tag}>`; at = x.e; }
+  return out + esc(v.slice(at)) + "\n";
+}
+
+/* ── find */
+function pattern() {
+  const q = $("#q").value; if (!q) return null;
+  let src = opt.re ? q : q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (opt.word) src = `\\b(?:${src})\\b`;
+  try { return new RegExp(src, opt.case ? "g" : "gi"); } catch (e) { return { error: e.message }; }
+}
+function computeHits() {
+  hits = []; const p = findOpen ? pattern() : null; $("#q").classList.toggle("bad", !!p?.error);
+  if (!p || p.error) { cur = -1; return; }
+  const scope = $("#scope").value;
+  for (const pc of pieces()) {
+    if (scope === "one" && pc.id !== focusKey) continue;
+    if (!showEmpty && !getV(pc.id).trim()) continue;
+    const v = getV(pc.id); p.lastIndex = 0; let m;
+    while ((m = p.exec(v))) { if (!m[0].length) { p.lastIndex++; continue; } hits.push({ id: pc.id, s: m.index, e: m.index + m[0].length }); }
+  }
+  if (cur >= hits.length) cur = hits.length - 1;
+  if (cur < 0 && hits.length) cur = 0;
+}
+function updCount() {
+  const c = $("#count"); const p = findOpen ? pattern() : null;
+  c.classList.toggle("err", !!p?.error);
+  c.textContent = p?.error ? "Not a valid regex — nothing will be replaced" : !$("#q").value ? "" : hits.length ? `${cur + 1} of ${hits.length}` : "No results";
+  $("#rep1").disabled = $("#repAll").disabled = !hits.length;
+}
+function go(d) {
+  if (!hits.length) return; cur = (cur + d + hits.length) % hits.length;
+  document.querySelectorAll("[data-back]").forEach((b) => b.innerHTML = paint(b.dataset.back)); updCount();
+  document.getElementById("curhit")?.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+function openFind(rep) {
+  findOpen = true; repOpen = rep; $("#find").hidden = false;
+  document.querySelectorAll("[data-rep]").forEach((e) => e.hidden = !rep);
+  const sel = window.getSelection()?.toString() || (document.activeElement?.tagName === "TEXTAREA" ? document.activeElement.value.slice(document.activeElement.selectionStart, document.activeElement.selectionEnd) : "");
+  if (sel && !sel.includes("\n")) $("#q").value = sel;
+  $(rep && $("#q").value ? "#r" : "#q").focus(); $("#q").select(); refresh();
+}
+function closeFind() { findOpen = false; $("#find").hidden = true; refresh(); }
+function replaceText(m, ...args) { const r = $("#r").value; if (!opt.re) return r; const groups = args.slice(0, -2); return r.replace(/\$(\d)/g, (_, n) => groups[n - 1] ?? "").replace(/\$&/g, m); }
+function replaceOne() {
+  const h = hits[cur]; if (!h) return; const v = getV(h.id); const p = pattern();
+  p.lastIndex = h.s; const m = p.exec(v); if (!m) return;
+  snapshot();
+  setV(h.id, v.slice(0, h.s) + replaceText(m[0], ...m.slice(1), m.index, v) + v.slice(h.e));
+  render();
+}
+function replaceAll() {
+  const p = pattern(); if (!p || p.error || !hits.length) return; const n = hits.length;
+  snapshot(); const ids = new Set(hits.map((h) => h.id));
+  ids.forEach((id) => { p.lastIndex = 0; setV(id, getV(id).replace(p, (m, ...a) => replaceText(m, ...a))); });
+  render(); toast(`Replaced ${n} in ${ids.size} field${ids.size > 1 ? "s" : ""}`, true);
+}
+function snapshot() { undoSnap = clone(S); }
+function undo() { if (!undoSnap) return; S = undoSnap; undoSnap = null; render(); toast("Put back as it was"); }
+
+/* ── compare: word-level diff with Put back */
+const words = (t) => t.match(/\s+|[\p{L}\p{N}'’]+|[^\s\p{L}\p{N}]/gu) || [];
+function diff(a, b) {
+  const A = words(a), B = words(b), n = A.length, m = B.length;
+  const L = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = []; let i = 0, j = 0; const push = (t, x, y) => { const l = out[out.length - 1]; if (l && l.t === t) { l.a += x; l.b += y; } else out.push({ t, a: x, b: y }); };
+  while (i < n || j < m) {
+    if (i < n && j < m && A[i] === B[j]) { push("eq", A[i], B[j]); i++; j++; }
+    else if (j < m && (i === n || L[i][j + 1] >= L[i + 1][j])) { push("ch", "", B[j]); j++; }
+    else { push("ch", A[i], ""); i++; }
+  }
+  // easier to read: a change, a short equal piece (a space, a comma, one short word), a change → one change
+  for (let k = 1; k < out.length - 1; k++) {
+    const [x, e, y] = [out[k - 1], out[k], out[k + 1]];
+    if (x.t === "ch" && e.t === "eq" && y.t === "ch" && (e.a.trim().length <= 3)) {
+      out.splice(k - 1, 3, { t: "ch", a: x.a + e.a + y.a, b: x.b + e.b + y.b }); k = Math.max(0, k - 2);
+    }
+  }
+  return out;
+}
+function base() { return { before: BEFORE, saved: SAVED, import: IMPORT }[$("#cmpWith").value]; }
+const bval = (o, id) => id.startsWith("g.") ? o.g[+id.slice(2)] ?? "" : o[id] ?? "";
+function renderCmp() {
+  const B = base(); const ids = [...new Set([...pieces().map((p) => p.id), ...B.g.map((_, i) => "g." + i)])];
+  let html = `<div class="cmp-cols"><span>${$("#cmpWith").selectedOptions[0].text}</span><span>Now</span></div>`; let changes = 0, fields = 0;
+  for (const id of ids) {
+    const a = bval(B, id), b = getV(id); if (a === b) continue; fields++;
+    const f = FIELDS.find((x) => x.k === (id.startsWith("g.") ? "g" : id)); const label = id.startsWith("g.") ? (id === "g.0" ? "First message" : `Alternate greeting ${id.slice(2)}`) : f.label;
+    const chunks = diff(a, b); let L = "", R = "";
+    chunks.forEach((c, k) => {
+      if (c.t === "eq") { L += esc(c.a); R += esc(c.b); return; }
+      changes++;
+      if (c.a) L += `<del>${esc(c.a)}</del>`;
+      if (c.b) R += `<ins>${esc(c.b)}</ins>`;
+      R += `<button class="pb" data-pb="${id}" data-k="${k}" title="Put this one back">Put back</button>`;
+    });
+    html += `<div class="cf"><div class="cf-head">${label}<span>${b === "" ? "emptied" : a === "" ? "new" : ""}</span></div><div class="cf-cols"><div>${L || '<span style="color:var(--label-3)">(empty)</span>'}</div><div>${R || '<span style="color:var(--label-3)">(empty)</span>'}</div></div></div>`;
+  }
+  if (!fields) html += `<p class="same">No differences: the card is the same as "${$("#cmpWith").selectedOptions[0].text}".</p>`;
+  $("#cmpBody").innerHTML = html;
+  $("#cmpSum").textContent = fields ? `${changes} change${changes > 1 ? "s" : ""} in ${fields} field${fields > 1 ? "s" : ""}` : "";
+  $("#putAll").disabled = !fields;
+}
+function putBack(id, k) {
+  const a = bval(base(), id), b = getV(id); const chunks = diff(a, b);
+  const v = chunks.map((c, i) => (c.t === "eq" ? c.b : i === k ? c.a : c.b)).join("");
+  if (id.startsWith("g.") && +id.slice(2) >= S.g.length) S.g.push(v); else setV(id, v);
+  render(); renderCmp();
+}
+function putAll() { snapshot(); const B = base(); S = clone(B); render(); renderCmp(); toast("Everything put back", true); }
+
+/* ── events */
+$("#page").addEventListener("input", (e) => { const t = e.target; if (!t.dataset.id) return; setV(t.dataset.id, t.value); fit(t); refresh(); });
+$("#page").addEventListener("focusin", (e) => { if (e.target.dataset.id) { focusKey = e.target.dataset.id; if ($("#scope").value === "one") refresh(); } });
+$("#page").addEventListener("click", (e) => {
+  const m = e.target.closest("[data-menu]"); if (m) { menuFor = menuFor === m.dataset.menu ? null : m.dataset.menu; render(); return; }
+  const a = e.target.closest("[data-act]");
+  if (a) {
+    const id = menuFor; menuFor = null;
+    if (a.dataset.act === "copy") { navigator.clipboard?.writeText(getV(id)).then(() => toast("Copied"), () => toast("Select the text and copy it")); }
+    if (a.dataset.act === "form") toast("Opens the Sheet layout on this field");
+    if (a.dataset.act === "addg") { const i = +id.slice(2); S.g.splice(i + 1, 0, ""); render(); document.querySelector(`textarea[data-id="g.${i + 1}"]`)?.focus(); return; }
+    if (a.dataset.act === "delg") { snapshot(); S.g.splice(+id.slice(2), 1); toast("Greeting removed", true); }
+    render(); return;
+  }
+  if (e.target.id === "showEmpty2") { showEmpty = true; $("#empty").checked = true; render(); }
+});
+document.addEventListener("click", (e) => { if (menuFor && !e.target.closest(".sec-head")) { menuFor = null; render(); } });
+$("#empty").onchange = (e) => { showEmpty = e.target.checked; render(); };
+$("#q").oninput = () => { cur = 0; refresh(); };
+$("#q").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); go(e.shiftKey ? -1 : 1); } };
+$("#r").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); replaceOne(); } };
+$("#scope").onchange = () => { cur = 0; refresh(); };
+[["#oCase", "case"], ["#oWord", "word"], ["#oRe", "re"]].forEach(([s, k]) => $(s).onclick = () => { opt[k] = !opt[k]; $(s).classList.toggle("on", opt[k]); $(s).setAttribute("aria-pressed", opt[k]); cur = 0; refresh(); });
+$("#next").onclick = () => go(1); $("#prev").onclick = () => go(-1);
+$("#closeFind").onclick = closeFind; $("#openFind").onclick = () => openFind(false); $("#openReplace").onclick = () => openFind(true);
+$("#rep1").onclick = replaceOne; $("#repAll").onclick = replaceAll;
+$("#openCmp").onclick = () => { $("#cmp").hidden = false; renderCmp(); };
+$("#closeCmp").onclick = () => { $("#cmp").hidden = true; };
+$("#cmpWith").onchange = renderCmp;
+$("#cmpBody").addEventListener("click", (e) => { const b = e.target.closest("[data-pb]"); if (b) putBack(b.dataset.pb, +b.dataset.k); });
+$("#putAll").onclick = putAll;
+$("#save").onclick = () => { SAVED = clone(S); refresh(); toast("Saved"); };
+$("#toastUndo").onclick = () => { undo(); $("#toast").classList.remove("show"); };
+document.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+  if (mod && k === "f") { e.preventDefault(); openFind(false); }
+  else if (mod && k === "h") { e.preventDefault(); openFind(true); }
+  else if (mod && k === "s") { e.preventDefault(); $("#save").click(); }
+  else if (e.key === "F3") { e.preventDefault(); if (!findOpen) openFind(false); else go(e.shiftKey ? -1 : 1); }
+  else if (mod && k === "z" && undoSnap && document.activeElement?.tagName !== "TEXTAREA") { e.preventDefault(); undo(); }
+  else if (e.key === "Escape") { if (!$("#cmp").hidden) $("#cmp").hidden = true; else if (findOpen) closeFind(); else if (menuFor) { menuFor = null; render(); } }
+});
+window.addEventListener("resize", () => document.querySelectorAll("#page textarea").forEach(fit));
+function toast(msg, withUndo = false) {
+  $("#toastText").textContent = msg; $("#toastUndo").hidden = !withUndo; const t = $("#toast"); t.classList.add("show");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), withUndo ? 6000 : 2200);
+}
+/* demo buttons */
+document.querySelectorAll("[data-demo]").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("[data-demo]").forEach((x) => x.classList.toggle("on", x === b));
+  S = clone(ORIGINAL); BEFORE = clone(ORIGINAL); SAVED = clone(ORIGINAL); undoSnap = null; $("#cmp").hidden = true; closeFind(); $("#toast").classList.remove("show");
+  if (b.dataset.demo === "find") { render(); $("#q").value = "Thornwood"; $("#r").value = "Blackpine"; openFind(true); $("#q").value = "Thornwood"; cur = 0; refresh(); }
+  else if (b.dataset.demo === "compare") {
+    S.description = S.description.replace("Age: 27", "Age: 28").replace("dry humor that surfaces once she trusts someone", "a dry, quiet humor");
+    S.g[1] = S.g[1].replace("You're soaked.", "You're soaked through."); S.personality = "Calm, watchful, slow to trust.";
+    render(); $("#cmp").hidden = false; renderCmp();
+  } else render();
+});
+render();
+</script>

@@ -711,3 +711,13 @@ Daniel (translated): "the character creation screen is very basic and bad to use
 - Code: `ui/CharacterEditor.tsx`, `ui/Greetings.tsx`, `cardSections.ts`, `packages/core/src/chat.ts`, styles (`.ce*`). Tests: `apps/desktop/test/card-sections.test.ts`, `packages/core/test/chat.test.ts`, `e2e/character-editor.e2e.ts` (library/people tests now use the labels and "Chat Now").
 
 Signed: **CLAUDE**.
+
+## D-071 — Character editor without the list beside it; greetings as a row (2026-11-01)
+
+Daniel (screenshot with 1 · 2 · 3 drawn on it): "again that 1 2 3 problem" — the app sidebar, the character list, the editor's identity column and the Sheet's greetings list made four columns side by side (the same complaint as D-069).
+- **Editing a character takes the whole width:** while the editor is open the character list is not shown (`MasterDetail solo`); Close (×) goes back to the Characters page. The toolbar still says how many are in the library.
+- **Sheet layout: greetings are a row of cards** above the editor (Greeting 1 · Main, Greeting 2…, + Add Greeting), not a column; the "Greetings" title sits above the row.
+- The identity column no longer scrolls sideways (the Lorebooks picker could push it wider).
+- Tests: `library.e2e.ts` and `people.e2e.ts` read the count in the toolbar instead of the hidden list.
+
+Signed: **CLAUDE**.

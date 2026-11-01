@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Character editor full width; Text mode draft (2026-11-01) — CLAUDE — D-071
+
+Daniel: "again that 1 2 3 problem" (four columns) and "can we start the built-in text editor for characters?"
+- **D-071 (in the app):** editing a character hides the list beside it (the editor gets the whole width; × goes back); the Sheet's greetings are a row of cards above the editor; the identity column no longer scrolls sideways.
+- **Text mode:** plan moved into `docs/UI-PLAN.md` ("Text mode") and a working draft in `docs/drafts/text-mode/` (4th layout "Text": one document, Find/Replace with regex, Compare with Put back). Waiting for Daniel's OK; then CodeMirror 6 in the app.
+- Checks: typecheck, unit tests, full browser suite (library/people tests read the toolbar count now).
+
 ## Character editor: Sheet · Tabs · Writer, greetings, swipes (2026-11-01) — CLAUDE — D-070
 
 Daniel liked all three drafts ("add them all") and said yes to greetings as swipes.
