@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Library tabs on top + Ctrl+K (2026-11-01) — CLAUDE — D-069
+
+Daniel: the Library was "too busy, many stacked menus". Drafts A–G on the canvas "Library – barra no topo"; he chose **B + Ctrl+K**.
+- **Library:** the category column is now **one row of tabs under the title** (groups split by a thin line, Trash on the right). The section's own title is not repeated below; its description and buttons stay. Narrow window: the row scrolls sideways.
+- **Ctrl+K:** a box over any screen to open anything (characters, stories, chats, kits, narrators, NPCs, lorebooks, personas, presets, trackers, agents, Library sections, Settings, New Story). ↑/↓, Enter, Esc. Empty: last chats + Go to.
+- To try: Library → click the tabs; press Ctrl+K anywhere, type part of a name, Enter.
+- Checks: typecheck, unit tests (4 new in `palette.test.ts`), `e2e/navigation.e2e.ts` (rewritten for the tabs and the box) plus library/lorebooks/agents/round3 click tests. Screens compared with draft B at 1512, 1100 and 900 px wide. Not tried with Daniel's real database (no access from the cloud).
+
 ## Web search in the Assistant: built (2026-11-01) — CLAUDE — D-067
 
 Daniel: "you can do it yourself" (T-006).

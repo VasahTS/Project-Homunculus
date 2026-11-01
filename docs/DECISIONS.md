@@ -683,3 +683,14 @@ Daniel (translated): "when you search, folders are not included; have a mode tha
 - **Built (same day):** T-005 by CODEX (reviewed; Claude added the ring provider fix), T-006 by Claude at Daniel's request. The web rules join the instructions only when web search is on for the chat (no tokens and no temptation when it is off). Live check from the cloud machine: DuckDuckGo answered 200 with 10 results and the parser read them all.
 
 Signed: **CLAUDE**.
+
+## D-069 — Library: categories as one row of tabs; Ctrl+K opens anything (2026-11-01)
+
+Daniel (translated): "I think it is too busy the way it is, there are many stacked menus" (the Library had the app sidebar, a second column of category headings and items, the list and the detail side by side). Drafts on the canvas "Library – barra no topo" (A–G); Daniel: "do B, but with Ctrl K too, I liked the idea".
+- **Tabs under the title (draft B):** the category column is gone; the categories are one row of tabs under "Library" (underline on the open one, counts kept but quiet). The three groups stay in the same order, split by a thin line instead of headings; **Trash** sits apart at the right end with its icon (`trailing` on the navigation group, so a theme profile can still move it). In a narrow window the row scrolls sideways and keeps the open tab in view. The content below gets the whole width.
+- **No repeated title:** a section's own toolbar no longer shows its name (the tab says it; kept for screen readers): it keeps its description on the left and its actions on the right.
+- **Ctrl+K (draft G)** opens a box over any screen (Play or Assistant; opening something goes to Play): type to search, ↑/↓, Enter, Esc. Empty: the last 5 chats, then **Go to** (Stories, Characters, every Library section, Settings). Searching: names grouped by kind — Actions (New Story), Characters, Stories, Chats, Kits, Narrators, NPCs, Lorebooks, Personas, Presets, Trackers, Agents — at most 6 per kind, names that start with the search first; every word must match the name, the kind or a keyword (a chat also matches its story or character). Ctrl+K again closes it. It replaces the old Ctrl+K (focus the sidebar search); the sidebar search itself is unchanged.
+- Code: `ui/LibraryWorkspace.tsx`, `theme/navigation.ts` (`trailing`), `ui/CommandPalette.tsx`, `palette.ts` (`paletteResults`), `App.tsx` (`paletteItems`, `PALETTE_GROUPS`), styles (`.library-tab*`, `.palette*`). Tests: `apps/desktop/test/palette.test.ts`, `e2e/navigation.e2e.ts`.
+- Not done (other drafts on the canvas, not chosen): Library sections inside the app sidebar (C), Narrators/NPCs/Personas as tabs of Characters (D), full-width list → detail (E/F).
+
+Signed: **CLAUDE**.

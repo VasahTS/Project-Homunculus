@@ -40,6 +40,7 @@ import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
 import { LibraryWorkspace } from "./ui/LibraryWorkspace.tsx";
+import { CommandPalette, type PaletteItem } from "./ui/CommandPalette.tsx";
 import { AssistantSidebar, AssistantView, useAssistant, type AppMode, type LibraryEntry } from "./ui/Assistant.tsx";
 import { RegexPage } from "./ui/RegexScripts.tsx";
 import { loadMessageLook } from "./messageLook.ts";
@@ -67,6 +68,9 @@ export interface Notice { kind: "ok" | "warn" | "error"; title: string; lines: s
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Small per-viewer layout memory (which panels are open). Never required: defaults apply without it. */
+/** The order of the groups in Ctrl+K (D-069). */
+const PALETTE_GROUPS = ["Recent chats", "Go to", "Actions", "Characters", "Stories", "Chats", "Kits", "Narrators", "NPCs", "Lorebooks", "Personas", "Presets", "Trackers", "Agents"];
+
 function usePanel(key: string, initial: boolean): [boolean, () => void] {
   const [open, setOpen] = useState(() => { try { const v = localStorage.getItem(key); return v === null ? initial : v === "1"; } catch { return initial; } });
   const toggle = useCallback(() => setOpen((v) => { try { localStorage.setItem(key, v ? "0" : "1"); } catch { /* storage unavailable */ } return !v; }), [key]);
@@ -158,16 +162,17 @@ export function App() {
 
   useEffect(() => { applyProfile(BUILTIN_PROFILES.find((p) => p.id === DEFAULT_PROFILE_ID) ?? BUILTIN_PROFILES[0]!); }, []);
 
+  // Ctrl+K opens the "open anything" box (D-069); pressed again, it closes it
+  const [paletteOpen, setPaletteOpen] = useState(false);
   useEffect(() => {
     const search = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k") return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "k") return;
       event.preventDefault();
-      if (!sidebarOpen) toggleSidebar();
-      requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-region="sidebar"] input')?.focus());
+      setPaletteOpen((o) => !o);
     };
     document.addEventListener("keydown", search);
     return () => document.removeEventListener("keydown", search);
-  }, [sidebarOpen, toggleSidebar]);
+  }, []);
 
   /** Stories, narrators and NPCs (the Vault). */
   const refreshVault = useCallback(async (s: AppServices) => {
@@ -1479,6 +1484,34 @@ export function App() {
     );
   }
 
+  /** Everything Ctrl+K can open (D-069). Opening something from the Assistant goes back to Play. */
+  const paletteItems = (): PaletteItem[] => {
+    const go = (f: () => void) => () => { setMode("play"); f(); };
+    const storyOf = (x: Session) => stories.find((st) => st.id === x.storyId)?.name;
+    const leadOf = (x: Session) => characters.find((c) => c.id === x.cast[0]?.characterId)?.name;
+    const openChat = (x: Session) => go(() => { setActiveId(x.id); setView({ kind: "session" }); });
+    const sections = COLLECTION_NAVIGATION.groups.flatMap((g) => g.items);
+    return [
+      { id: "go:stories", name: "Stories", group: "Go to", onOpen: go(() => { setVaultQuery(""); setView({ kind: "vault", tab: "stories", id: null }); }) },
+      { id: "go:characters", name: "Characters", group: "Go to", onOpen: go(() => setView({ kind: "characters", id: null })) },
+      ...sections.map((it) => ({ id: `go:${it.id}`, name: it.label, group: "Go to", hint: "Library", keywords: "library", onOpen: go(() => openLibrary(it.id)) })),
+      { id: "go:settings", name: "Settings", group: "Go to", onOpen: go(() => setView({ kind: "settings", tab: "connections" })) },
+      ...sessions.slice(0, 5).map((x) => ({ id: `recent:${x.id}`, name: x.title, group: "Recent chats", hint: storyOf(x) ?? leadOf(x), onOpen: openChat(x) })),
+      { id: "do:new-story", name: "New Story", group: "Actions", keywords: "create start", onOpen: go(() => setNewStoryOpen({ cardId: null })) },
+      ...characters.map((c) => ({ id: `character:${c.id}`, name: c.name, group: "Characters", onOpen: go(() => setView({ kind: "characters", id: c.id })) })),
+      ...stories.map((st) => ({ id: `story:${st.id}`, name: st.name, group: "Stories", onOpen: go(() => setView({ kind: "story", id: st.id })) })),
+      ...sessions.map((x) => ({ id: `chat:${x.id}`, name: x.title, group: "Chats", hint: storyOf(x) ?? leadOf(x), keywords: `${storyOf(x) ?? ""} ${leadOf(x) ?? ""}`, onOpen: openChat(x) })),
+      ...kits.map((k) => ({ id: `kit:${k.id}`, name: k.name, group: "Kits", onOpen: go(() => setView({ kind: "kit", id: k.id })) })),
+      ...narrators.map((n) => ({ id: `narrator:${n.id}`, name: n.name, group: "Narrators", onOpen: go(() => setView({ kind: "vault", tab: "narrators", id: n.id })) })),
+      ...npcs.map((n) => ({ id: `npc:${n.id}`, name: n.name, group: "NPCs", onOpen: go(() => setView({ kind: "vault", tab: "npcs", id: n.id })) })),
+      ...lorebooks.map((b) => ({ id: `lorebook:${b.id}`, name: b.name, group: "Lorebooks", onOpen: go(() => setView({ kind: "lorebooks", id: b.id })) })),
+      ...personas.map((p) => ({ id: `persona:${p.id}`, name: p.name, group: "Personas", onOpen: go(() => setView({ kind: "personas", id: p.id })) })),
+      ...presets.map((p) => ({ id: `preset:${p.id}`, name: p.name, group: "Presets", onOpen: go(() => setView({ kind: "presets", id: p.id })) })),
+      ...trackers.map((t) => ({ id: `tracker:${t.agent.id}`, name: t.agent.name, group: "Trackers", onOpen: go(() => openTracker(t.agent.id)) })),
+      ...agents.map((a) => ({ id: `agent:${a.id}`, name: a.name, group: "Agents", onOpen: go(() => openAgent(a.id)) })),
+    ];
+  };
+
   return (
     <div className="app" data-region="app">
       {sidebarOpen && mode === "assistant" && (
@@ -1539,6 +1572,7 @@ export function App() {
         return <SaveNpcSheet draft={savingNpc.draft} fieldSets={fieldSets} story={st ? { id: st.id, name: st.name } : undefined} folders={folderRows("npc")}
           onSave={(c) => void saveNpcToVault(savingNpc.sessionId, c)} onClose={() => setSavingNpc(null)} />;
       })()}
+      {paletteOpen && <CommandPalette items={paletteItems()} groupOrder={PALETTE_GROUPS} onClose={() => setPaletteOpen(false)} />}
       {picker && <Picker title={picker.title} kinds={picker.kinds} {...(picker.initial ? { initial: picker.initial } : {})} onClose={() => setPicker(null)} />}
       {newStoryOpen && <NewStorySheet characters={characters} avatars={avatars} lorebooks={lorebooks} setup={setupProps} initialCardId={newStoryOpen.cardId}
         onCreate={(c) => void createStory(c)} onClose={() => setNewStoryOpen(false)} />}

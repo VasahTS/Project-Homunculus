@@ -3,7 +3,7 @@ export type LibraryCategory = "kits" | "narrators" | "npcs" | "personas" | "lore
 export type NavigationPlace = "stories" | "characters" | "library" | "vault";
 export interface NavigationProfile {
   places: Array<{ id: NavigationPlace; label: string; icon: "book" | "characters" | "grid" | "lock" }>;
-  groups: Array<{ id: string; label: string; items: Array<{ id: LibraryCategory; label: string }> }>;
+  groups: Array<{ id: string; label: string; items: Array<{ id: LibraryCategory; label: string }>; /** Shown apart, at the end of the tabs (Trash). D-069. */ trailing?: boolean }>;
   recentLimit: number;
   showStoryShortcuts: boolean;
 }
@@ -13,7 +13,7 @@ export const COLLECTION_NAVIGATION: NavigationProfile = {
     { id: "building", label: "Story building", items: [{ id: "kits", label: "Kits" }, { id: "narrators", label: "Narrators" }, { id: "npcs", label: "NPCs" }] },
     { id: "writing", label: "Writing and context", items: [{ id: "personas", label: "Personas" }, { id: "lorebooks", label: "Lorebooks" }, { id: "presets", label: "Presets" }, { id: "regex", label: "Regex" }] },
     { id: "scene", label: "Around each reply", items: [{ id: "trackers", label: "Trackers" }, { id: "agents", label: "Agents" }] },
-    { id: "manage", label: "Manage", items: [{ id: "trash", label: "Trash" }] },
+    { id: "manage", label: "Manage", items: [{ id: "trash", label: "Trash" }], trailing: true },
   ],
   recentLimit: 3,
   showStoryShortcuts: false,

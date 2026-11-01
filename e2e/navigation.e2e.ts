@@ -2,12 +2,17 @@
 import { expect, test } from "@playwright/test";
 import { openLibrary } from "./ui.ts";
 
-test("Library distinguishes static group headings from categories and preserves resource editing", async ({ page }, info) => {
+test("Library categories are one row of tabs in their groups, and resource editing is preserved (D-069)", async ({ page }, info) => {
   await page.setViewportSize({ width: 1512, height: 988 });
   await page.goto("/");
   await openLibrary(page, "Kits");
   const navigation = page.getByRole("navigation", { name: "Library categories" });
-  await expect(navigation.getByRole("heading")).toHaveText(["Story building", "Writing and context", "Around each reply", "Manage"]);
+  // D-069: one row of tabs under the title; the groups are kept (split by a line), Trash apart on the right
+  await expect(navigation.getByRole("group")).toHaveCount(4);
+  await expect(navigation.getByRole("group", { name: "Writing and context" }).getByRole("button")).toHaveText([/Personas/, /Lorebooks/, /Presets/, /Regex/]);
+  const kitsBox = await navigation.getByRole("button", { name: "Kits", exact: true }).boundingBox();
+  const agentsBox = await navigation.getByRole("button", { name: "Agents", exact: true }).boundingBox();
+  expect(Math.abs((kitsBox?.y ?? 0) - (agentsBox?.y ?? 99))).toBeLessThan(2);
   await expect(navigation.getByRole("button")).toHaveCount(10);
   await expect(navigation.getByRole("button", { name: "Kits", exact: true })).toHaveAttribute("aria-current", "page");
   const inactive = navigation.getByRole("button", { name: "NPCs", exact: true });
@@ -61,16 +66,31 @@ test("Library navigation and collection actions remain reachable in a narrow win
   await expect(page.getByRole("button", { name: "New NPC", exact: true })).toBeVisible();
 });
 
-test("Ctrl K finds characters and Library resources, including when the sidebar is hidden", async ({ page }) => {
+test("Ctrl K opens anything, including when the sidebar is hidden (D-069)", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Hide Sidebar", exact: true }).click();
   await page.keyboard.press("Control+k");
-  const search = page.getByRole("textbox", { name: "Search everything", exact: true });
+  const palette = page.getByTestId("palette");
+  const search = palette.getByRole("combobox", { name: "Open anything" });
   await expect(search).toBeFocused();
+  // nothing typed: the places and the Library sections
+  await expect(palette.getByRole("group", { name: "Go to" }).getByRole("option", { name: /Lorebooks/ })).toBeVisible();
   await search.fill("Lyra");
-  await page.getByRole("region", { name: "Matching library items and characters" }).getByRole("button", { name: /Lyra/ }).click();
+  await expect(palette.getByRole("group", { name: "Characters" }).getByRole("option").first()).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Enter");
+  await expect(palette).toBeHidden();
   await expect(page.getByTestId("character-sheet")).toContainText("Lyra");
+  await page.keyboard.press("Control+k");
   await search.fill("Scene: Plot");
-  await page.getByRole("region", { name: "Matching library items and characters" }).getByRole("button", { name: /Scene: Plot/ }).click();
+  await palette.getByRole("group", { name: "Trackers" }).getByRole("option", { name: /Scene: Plot/ }).click();
   await expect(page.getByRole("navigation", { name: "Library categories" }).getByRole("button", { name: "Trackers", exact: true })).toHaveAttribute("aria-current", "page");
+  // a section by name, with the keys; Esc closes
+  await page.keyboard.press("Control+k");
+  await search.fill("lorebooks");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("navigation", { name: "Library categories" }).getByRole("button", { name: "Lorebooks", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.keyboard.press("Control+k");
+  await expect(search).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
 });
