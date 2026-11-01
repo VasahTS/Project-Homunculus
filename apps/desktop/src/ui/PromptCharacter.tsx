@@ -25,7 +25,7 @@ const OPEN_KEY = "h2.promptCharacterOpen";
 const readOpen = () => { try { return localStorage.getItem(OPEN_KEY) !== "0"; } catch { return true; } };
 
 /** One card of the chat (a group chat may have several: a pick at the top). */
-export interface ChatCard { character: Character; variantId: string | null }
+export interface ChatCard { character: Character; variantId: string | null; /** Tracked in the Scene in this chat (D-065). */ tracked?: boolean }
 
 export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
   cards: ChatCard[];
@@ -91,7 +91,7 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
         <button type="button" className="pc-toggle" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="prompt-character-toggle">
           <span className="chev" aria-hidden><Icon name="chevron" size={12} /></span>
           <AvatarDot name={shown.name} avatar={pic} size={24} />
-          <span className="pc-title"><strong>{shown.name}</strong><small>{card.character.ensemble ? "Several characters · " : ""}{version ? `${version} version` : "Main version"} · ~{tokens} tokens{state === "saving" ? " · saving…" : state === "saved" ? " · saved" : ""}</small></span>
+          <span className="pc-title"><strong>{shown.name}</strong><small>{card.tracked === false ? "Not tracked in the Scene · " : ""}{version ? `${version} version` : "Main version"} · ~{tokens} tokens{state === "saving" ? " · saving…" : state === "saved" ? " · saved" : ""}</small></span>
         </button>
         {cards.length > 1 && (
           <select className="link-select" aria-label="Which character" value={card.character.id} onChange={(e) => setWhich(e.target.value)}>
@@ -102,7 +102,7 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
       </div>
       <Collapse open={open}>
         <div className="group pc-fields">
-          {card.character.ensemble && <p className="hint pc-note" data-testid="prompt-ensemble-note">A card with several characters: sent whole, like any card. The Scene does not follow it as one person; its people appear there on their own.</p>}
+          {card.tracked === false && <p className="hint pc-note" data-testid="prompt-untracked-note">Sent whole, like any card. The Scene does not track it as one person; if it holds several characters, each one appears there by name.</p>}
           <p className="hint pc-note">Edits go to {version ? `the “${version}” version` : "the main version"} of the card: every chat with that version sees them.</p>
           {FIELDS.map((f) => {
             const on = editing.includes(f.key);

@@ -4,9 +4,10 @@
 // Slice 4 (2026-10-29, D-029): NPCs from the Vault can join a chat; a story session says who tells it.
 import { useEffect, useRef, useState } from "react";
 import type { Avatar, Character, Npc, Persona, Session } from "@homunculus/schemas";
-import { effectiveCharacter, effectivePersona, npcTagline, variantAvatarId } from "@homunculus/core";
+import { effectiveCharacter, effectivePersona, isTracked, npcTagline, variantAvatarId } from "@homunculus/core";
 import { Help } from "./Help.tsx";
 import { AvatarDot } from "./Sidebar.tsx";
+import { Switch } from "./kit.tsx";
 
 const INHERIT = "__default__";
 const NONE = "__none__";
@@ -53,6 +54,9 @@ export function WhoPicker({ session, characters, personas, defaultPersonaId, ava
 
   const setVariant = (characterId: string, variantId: string | null) =>
     onChange({ ...session, cast: session.cast.map((m) => (m.characterId === characterId ? { ...m, variantId } : m)) });
+  /** Track in the Scene, for this chat (the card's own choice is the default, and is not stored again). D-065. */
+  const setTracked = (c: Character, v: boolean) =>
+    onChange({ ...session, cast: session.cast.map((m) => { if (m.characterId !== c.id) return m; const { tracked: _t, ...rest } = m; return v === (c.tracked ?? true) ? rest : { ...rest, tracked: v }; }) });
   const setPersona = (value: string) => {
     const setup = { ...session.setup };
     if (value === INHERIT) { delete setup.personaId; delete setup.personaVariantId; }
@@ -82,6 +86,8 @@ export function WhoPicker({ session, characters, personas, defaultPersonaId, ava
                     {c.variants.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                   </select>
                 ) : <span className="hint">one version (add more in Characters)</span>}
+                <span className="cast-track" title="Off: sent whole to the AI, but the Scene does not list it as one person. For a card with several characters (each is added by name), a world card, or anyone you don't want in the cast.">Scene
+                  <Switch label={`Track ${c.name} in the Scene`} checked={isTracked(m, c)} onChange={(v) => setTracked(c, v)} /></span>
               </div>
             );
           })}

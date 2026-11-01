@@ -17,7 +17,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { AgentRun, Avatar, Npc, Session, SetupLayer, StateDelta, TrackerField, TrackerSchema } from "@homunculus/schemas";
 import {
-  applyBasicMacros, applyInto, briefFields, castOf, ensembleCards, userInStory, DEFAULT_USER_NAME, formatFieldValue, PAIR, trackerPeople, USER_ID, type ListItem, type ResolvedState, type TrackerCastMember,
+  applyBasicMacros, applyInto, briefFields, castOf, untrackedCards, userInStory, DEFAULT_USER_NAME, formatFieldValue, PAIR, trackerPeople, USER_ID, type ListItem, type ResolvedState, type TrackerCastMember,
 } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
@@ -42,8 +42,8 @@ interface View {
   /** NPCs added to this chat (they can be taken out of it) and the names of the story's NPCs (those stay: Story Page). */
   chatNpcs: Npc[];
   storyNpcNames: string[];
-  /** Cards of this chat that hold several characters (D-065): sent to the AI, followed as their people. */
-  ensembles: string[];
+  /** Cards of this chat sent to the AI but not tracked as a person (D-065). */
+  untracked: string[];
 }
 
 /** One line of the cast list: a group's title (a place to drop people) or a person. */
@@ -105,7 +105,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
     (async () => {
       const message = messageId ? await svc.store.getMessage(messageId) : undefined;
       const story = session.storyId ? await svc.store.getStory(session.storyId) : undefined;
-      const [state, before, userDelta, runs, cast, withUser, chatNpcs, storyNpcs, agentDelta, ensembles] = await Promise.all([
+      const [state, before, userDelta, runs, cast, withUser, chatNpcs, storyNpcs, agentDelta, untracked] = await Promise.all([
         svc.core.state.resolve(session.id, messageId),
         message ? svc.core.state.resolve(session.id, message.parentId) : Promise.resolve(null),
         messageId ? svc.store.getUserDelta(messageId).then((d) => d ?? {}) : Promise.resolve({}),
@@ -115,12 +115,12 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
         svc.store.npcsForUse(session.npcIds),
         story ? svc.store.npcsForUse(story.npcIds) : Promise.resolve([]),
         messageId ? svc.store.getDelta(messageId) : Promise.resolve(undefined),
-        ensembleCards(svc.store, session),
+        untrackedCards(svc.store, session),
       ]);
       // (a whole field is saved when you change one person's value in it, so "yours" is checked per person)
       const agents = before ? structuredClone(before) : {};
       if (agentDelta) applyInto(agents, agentDelta);
-      if (!cancelled) setView({ state, before, agents, userDelta, runs, cast, withUser, chatNpcs, storyNpcNames: storyNpcs.map((n) => n.name), ensembles });
+      if (!cancelled) setView({ state, before, agents, userDelta, runs, cast, withUser, chatNpcs, storyNpcNames: storyNpcs.map((n) => n.name), untracked });
     })();
     return () => { cancelled = true; };
   }, [svc, session, messageId, refreshKey, tick]);
@@ -398,10 +398,10 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
             </section>
           )}
 
-          {view.ensembles.length > 0 && (active === "cast" || !hasCast) && (
-            <p className="q-ensemble-note" data-testid="ensemble-note">
+          {view.untracked.length > 0 && (active === "cast" || !hasCast) && (
+            <p className="q-untracked-note" data-testid="untracked-note">
               <Icon name="info" size={13} />
-              <span>{view.ensembles.map((n) => `“${n}”`).join(", ")} {view.ensembles.length === 1 ? "has" : "have"} several characters. {view.ensembles.length === 1 ? "Its card is" : "Their cards are"} sent whole; the people show here as the story brings them in.</span>
+              <span>{view.untracked.map((n) => `“${n}”`).join(", ")} {view.untracked.length === 1 ? "is" : "are"} sent whole but not tracked as a person. If {view.untracked.length === 1 ? "it holds" : "they hold"} several characters, each one shows here as the story brings them in.</span>
             </p>
           )}
 

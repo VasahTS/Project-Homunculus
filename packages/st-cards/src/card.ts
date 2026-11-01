@@ -42,17 +42,17 @@ function withNote(ext: unknown, n: { text: string; depth: number; role: string }
 }
 
 /** Our own card flags, kept in data.extensions.homunculus so a card exported and imported again keeps them (D-065). */
-function flagsOf(d: Obj): { ensemble?: boolean } {
+function flagsOf(d: Obj): { tracked?: boolean } {
   const ext = isObj(d.extensions) ? d.extensions : {};
   const h = isObj(ext.homunculus) ? ext.homunculus : {};
-  return h.ensemble === true ? { ensemble: true } : {};
+  return h.tracked === false ? { tracked: false } : {};
 }
 
 function withFlags(ext: unknown, c: Character): Obj {
   const e = isObj(ext) ? ext : {};
-  if (c.ensemble === undefined) return e;
+  if (c.tracked === undefined) return e;
   const prev = isObj(e.homunculus) ? e.homunculus : {};
-  return { ...e, homunculus: { ...prev, ensemble: c.ensemble } };
+  return { ...e, homunculus: { ...prev, tracked: c.tracked } };
 }
 
 export function parseCard(card: unknown): ParsedCard {

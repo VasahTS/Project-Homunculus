@@ -15,7 +15,7 @@ import { AgentsPanel } from "./AgentsPanel.tsx";
 import { MemoryGroup } from "./MemoryGroup.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
-import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona } from "@homunculus/core";
+import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, isTracked } from "@homunculus/core";
 import { WhoPicker } from "./WhoPicker.tsx";
 import type { AppServices } from "../core-instance.ts";
 import { turns, useTurn, type LiveTurn, type StreamTo } from "../turns.ts";
@@ -774,7 +774,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             </>}
             memory={<MemoryGroup svc={svc} session={session} headId={headId ?? null} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession} refreshKey={sceneKey} />}
             character={onSaveCharacter && onOpenCharacter ? (
-              <PromptCharacter cards={session.cast.filter((m) => m.characterId && characters[m.characterId]).map((m) => ({ character: characters[m.characterId!]!, variantId: m.variantId }))}
+              <PromptCharacter cards={session.cast.filter((m) => m.characterId && characters[m.characterId]).map((m) => ({ character: characters[m.characterId!]!, variantId: m.variantId, tracked: isTracked(m, characters[m.characterId!]!) }))}
                 avatars={avatars} onSave={onSaveCharacter} onOpenEditor={onOpenCharacter} />
             ) : undefined}
             preview={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, userText: input }); }} />}

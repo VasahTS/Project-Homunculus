@@ -2635,9 +2635,11 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 
 /* D-065: "This card is: One character · Several characters" under the name */
 .card-kind { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--label-2); }
+.card-kind-hint { flex-basis: 100%; font-size: 12px; }
+.cast-track { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--label-2); white-space: nowrap; }
 /* D-065: people out of the scene show a brief; cards with several characters say where their content goes */
 .q-brief-foot { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 6px 0 0; font-size: 12.5px; }
 .q-brief-foot .hint { font-size: 11.5px; }
-.q-ensemble-note { display: flex; align-items: flex-start; gap: 8px; margin: 10px 4px 0; font-size: 12px; color: var(--label-2); }
-.q-ensemble-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--accent); }
+.q-untracked-note { display: flex; align-items: flex-start; gap: 8px; margin: 10px 4px 0; font-size: 12px; color: var(--label-2); }
+.q-untracked-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--accent); }
 .pc-to { color: var(--place-character); font-weight: 400; font-size: 11px; margin-left: 2px; white-space: nowrap; }

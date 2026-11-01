@@ -339,7 +339,7 @@ export class AgentRunner {
       const c = effectiveCharacter(raw, m.variantId);
       const names = { char: c.name, user: req.names.user };
       const cut = (t: string) => (t.length > 1500 ? `${t.slice(0, 1500)}…` : t);
-      const lines = [raw.ensemble ? `### ${c.name} (a card with several characters, not one person: follow each of them by their own name)` : `### ${c.name}`];
+      const lines = [isTracked(m, raw) ? `### ${c.name}` : `### ${c.name} (not tracked as one person: if it holds several characters, follow each of them by their own name)`];
       if (c.description.trim()) lines.push(cut(applyBasicMacros(c.description, names)));
       if (c.personality.trim()) lines.push(`Personality: ${cut(applyBasicMacros(c.personality, names))}`);
       parts.push(lines.join("\n"));
@@ -531,13 +531,16 @@ export async function userInStory(store: SqlStore, session: Session): Promise<bo
   return (story?.userRole ?? session.userRole) !== "director";
 }
 
-/** Names of the session's cards that hold several characters (D-065): sent to the AI, not tracked as one person. */
-export async function ensembleCards(store: SqlStore, session: Session): Promise<string[]> {
+/** Is this cast member followed by trackers as a person? The story's/chat's choice, else the card's (D-065). */
+export const isTracked = (m: { tracked?: boolean | undefined }, c: { tracked?: boolean | undefined }): boolean => m.tracked ?? c.tracked ?? true;
+
+/** Names of the session's cards that are sent but not tracked as a person (D-065). */
+export async function untrackedCards(store: SqlStore, session: Session): Promise<string[]> {
   const out: string[] = [];
   for (const m of session.cast) {
     if (!m.characterId || m.presence === "off") continue;
     const c = await store.getCharacter(m.characterId);
-    if (c?.ensemble) out.push(effectiveCharacter(c, m.variantId).name);
+    if (c && !isTracked(m, c)) out.push(effectiveCharacter(c, m.variantId).name);
   }
   return [...new Set(out)];
 }
@@ -547,8 +550,8 @@ export async function castOf(store: SqlStore, session: Session): Promise<Tracker
   for (const m of session.cast) {
     if (!m.characterId || m.presence === "off") continue;
     const c = await store.getCharacter(m.characterId);
-    // a card with several characters is not a person: the trackers follow its people by name (D-065)
-    if (c && !c.ensemble && !out.some((x) => x.id === c.id)) out.push({ id: c.id, name: effectiveCharacter(c, m.variantId).name });
+    // a card not tracked here (several characters, a world card…) is not a person: trackers add its people by name (D-065)
+    if (c && isTracked(m, c) && !out.some((x) => x.id === c.id)) out.push({ id: c.id, name: effectiveCharacter(c, m.variantId).name });
   }
   // NPCs of the story and of the session (D-029), keyed by name like people a tracker adds from the story ("n:<Name>"),
   // so an NPC the tracker already met keeps its values

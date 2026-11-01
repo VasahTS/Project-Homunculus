@@ -3,7 +3,7 @@
 // left the scene keeps a short line instead of a sheet the tracker keeps rewriting (Aventuras' "withheld" characters).
 import { TrackerSchema } from "@homunculus/schemas";
 import { describe, expect, it } from "vitest";
-import { awayIds, briefFields, castOf, ensembleCards, normalizeTrackerAnswer, trackerInstruction, valuesForTracker } from "../src/index.ts";
+import { awayIds, briefFields, castOf, isTracked, normalizeTrackerAnswer, trackerInstruction, untrackedCards, valuesForTracker } from "../src/index.ts";
 import { connection, isAgentCall, world } from "./helpers.ts";
 
 const PEOPLE = TrackerSchema.parse({
@@ -78,13 +78,20 @@ describe("people out of the scene (pure)", () => {
   });
 });
 
-describe("a card with several characters, in a real turn", () => {
+describe("a card not tracked in the Scene, in a real turn", () => {
+  it("the story/chat choice wins over the card's; missing = tracked", () => {
+    expect(isTracked({}, {})).toBe(true);
+    expect(isTracked({}, { tracked: false })).toBe(false);
+    expect(isTracked({ tracked: true }, { tracked: false })).toBe(true);
+    expect(isTracked({ tracked: false }, {})).toBe(false);
+  });
+
   it("is not tracked as a person, is still sent, and its people are added by name", async () => {
     let i = 0;
     const answers = [{ present: { Brenda: "here", Jessica: "here" }, role: { Brenda: "older sister" } }];
     const w = await world((m) => (isAgentCall(m) ? JSON.stringify(answers[i++ % answers.length]) : "Brenda waves."));
     const lyra = (await w.store.getCharacter("lyra"))!;
-    await w.store.saveCharacter({ ...lyra, name: "Brenda & Jessica", ensemble: true });
+    await w.store.saveCharacter({ ...lyra, name: "Brenda & Jessica", tracked: false });
     await w.store.saveTrackerSchema(PEOPLE);
     await w.store.saveAgentConfig({
       id: "people", name: "People", prompt: "Track the people.", output: "state", input: { cards: true },
@@ -94,7 +101,7 @@ describe("a card with several characters, in a real turn", () => {
     await w.store.saveSession({ ...session, setup: { agents: { mode: "add", add: ["people"], remove: [] } } });
 
     expect(await castOf(w.store, session)).toEqual([]);
-    expect(await ensembleCards(w.store, session)).toEqual(["Brenda & Jessica"]);
+    expect(await untrackedCards(w.store, session)).toEqual(["Brenda & Jessica"]);
 
     const { reply } = await w.chat.send(session.id, firstMessage!.id, "Hello", connection);
     // the main prompt still has the card
@@ -102,10 +109,25 @@ describe("a card with several characters, in a real turn", () => {
     expect(record?.prompt.some((p) => p.source === "card:description" && p.content.includes("A wary ranger."))).toBe(true);
     // the tracker is told it is a card of several people, and is not given it as a name to track
     const agent = w.ai.prompts.find(isAgentCall)!.at(-1)!.content;
-    expect(agent).toContain("### Brenda & Jessica (a card with several characters, not one person: follow each of them by their own name)");
+    expect(agent).toContain("### Brenda & Jessica (not tracked as one person: if it holds several characters, follow each of them by their own name)");
     expect(agent).toContain("Characters: User. You may ADD");
     expect(agent).not.toContain("Characters: Brenda & Jessica");
     const state = (await w.core.state.resolve(session.id, reply.id)).people as Record<string, Record<string, unknown>>;
     expect(Object.keys(state.present!)).toEqual(["n:Brenda", "n:Jessica"]);
+  });
+});
+
+describe("a chat can track a card the card itself does not, and the other way round", () => {
+  it("follows the cast member's choice", async () => {
+    const w = await world(() => "ok");
+    const { session } = await w.chat.createSession({ characterIds: ["lyra"] });
+    expect(await castOf(w.store, session)).toEqual([{ id: "lyra", name: "Lyra" }]);
+    const off = { ...session, cast: session.cast.map((m) => ({ ...m, tracked: false })) };
+    expect(await castOf(w.store, off)).toEqual([]);
+    expect(await untrackedCards(w.store, off)).toEqual(["Lyra"]);
+    const lyra = (await w.store.getCharacter("lyra"))!;
+    await w.store.saveCharacter({ ...lyra, tracked: false });
+    const on = { ...session, cast: session.cast.map((m) => ({ ...m, tracked: true })) };
+    expect(await castOf(w.store, on)).toEqual([{ id: "lyra", name: "Lyra" }]);
   });
 });

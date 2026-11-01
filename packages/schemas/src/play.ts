@@ -12,6 +12,8 @@ export const CastMember = z.object({
   role: z.enum(["character", "narrator"]).default("character"),
   /** in_scene: whole sheet goes to the AI · offscreen: one line · off: nothing is sent. */
   presence: z.enum(["in_scene", "offscreen", "off"]).default("in_scene"),
+  /** Track in the Scene for this story/chat only; missing = the card's own choice (Character.tracked). D-065. */
+  tracked: z.boolean().optional(),
   /** Muted members stay in the cast but never reply on their own. */
   muted: z.boolean().default(false),
   /** A clean sheet written for the narrator (the card itself is never changed). */

@@ -714,7 +714,7 @@ export function App() {
     setStories((ls) => ls.map((x) => (x.id === saved.id ? saved : x)));
     // a card's version changed on the story page: its chats follow (each chat copied the cast when it was made),
     // unless a chat had picked another version for itself
-    const moved = saved.cast.filter((m) => { const old = before?.cast.find((o) => o.characterId === m.characterId); return old && old.variantId !== m.variantId; });
+    const moved = saved.cast.filter((m) => { const old = before?.cast.find((o) => o.characterId === m.characterId); return old && (old.variantId !== m.variantId || old.tracked !== m.tracked); });
     if (!moved.length) return;
     const chats = sessions.filter((x) => x.storyId === saved.id);
     for (const chat of chats) {
@@ -722,9 +722,17 @@ export function App() {
       const cast = chat.cast.map((c) => {
         const m = moved.find((x) => x.characterId === c.characterId);
         const old = before?.cast.find((o) => o.characterId === c.characterId);
-        if (!m || !old || c.variantId !== old.variantId) return c;
+        if (!m || !old) return c;
+        let next = c;
+        // each follows the story unless the chat had picked its own (D-035 versions; D-065 Track in Scene)
+        if (c.variantId === old.variantId && m.variantId !== old.variantId) next = { ...next, variantId: m.variantId };
+        if (c.tracked === old.tracked && m.tracked !== old.tracked) {
+          const { tracked: _t, ...rest } = next;
+          next = m.tracked === undefined ? rest : { ...rest, tracked: m.tracked };
+        }
+        if (next === c) return c;
         touched = true;
-        return { ...c, variantId: m.variantId };
+        return next;
       });
       if (touched) await svc.store.saveSession({ ...chat, cast });
     }

@@ -149,10 +149,13 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
           <input aria-label="Name" value={v.get("name")} onChange={(e) => v.set("name", e.target.value)} placeholder="e.g. Lyra" />
         </label>
         <div className="card-kind" data-testid="card-kind">
-          <span className="label-row">This card is <Help text="For a card with two or more people (or a whole cast). It is sent to the AI as usual; the Scene follows each of its people on their own instead of the card. Holds for every version and every chat that uses this card." /></span>
-          <Segmented small label="This card is" value={draft.ensemble ? "several" : "one"}
-            options={[{ value: "one", label: "One character" }, { value: "several", label: "Several characters" }]}
-            onChange={(k) => setDraft((d) => ({ ...d, ensemble: k === "several" }))} />
+          <span className="label-row">In the Scene <Help text="The default for every story and chat with this card; each can change it in its cast (Story → Characters, or “Who is in this story” in a chat)." /></span>
+          <Segmented small label="In the Scene" value={draft.tracked === false ? "no" : "yes"}
+            options={[{ value: "yes", label: "Track as a person" }, { value: "no", label: "Don't track" }]}
+            onChange={(k) => setDraft((d) => { const { tracked: _t, ...rest } = d; return k === "no" ? { ...rest, tracked: false } : rest; })} />
+          <small className="hint card-kind-hint">{draft.tracked === false
+            ? "Sent whole to the AI, but the Scene does not list it as one person. If it holds several characters, each one is added by name as they appear."
+            : "Use “Don't track” for a card with several characters, a world or scenario card, or anyone you don't want in the Scene's cast. The card is still sent to the AI."}</small>
         </div>
         {text("description", "Description", "Who the character is: looks, background, important facts. This is the main thing the AI reads.", 6)}
         {text("personality", "Personality", "How they think and behave, in a few lines. Optional — many people put this inside the description.", 3)}

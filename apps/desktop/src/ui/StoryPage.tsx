@@ -7,11 +7,11 @@
 // and "Start a Story" instead of Play.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, UserRole } from "@homunculus/schemas";
-import { effectiveCharacter, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
+import { effectiveCharacter, isTracked, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { LorebookChips } from "./LorePanels.tsx";
-import { Button, Icon, IconButton, Segmented } from "./kit.tsx";
+import { Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { NarratorPromptGroup } from "./NarratorPromptGroup.tsx";
 import { AuthorsNoteGroup } from "./AuthorsNote.tsx";
 import { SetupFields, SetupSection, type StorySetupProps } from "./SetupFields.tsx";
@@ -322,7 +322,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               })}
 
               <div className="setup-row">
-                <span className="setup-k grow"><span>Characters</span>{cards.length === 0 && <small>Full cards from your Library, sent as they are.</small>}</span>
+                <span className="setup-k grow"><span>Characters</span><small>{cards.length === 0 ? "Full cards from your Library, sent as they are. " : ""}Turn off “Track in Scene” for a card with several characters, a world card, or anyone you don't want in the Scene's cast; it is still sent to the AI.</small></span>
                 {pickers ? (
                   <button type="button" className="link" onClick={() => pickers.card([...draft.cast.map((m) => m.characterId ?? ""), narratorCard?.id ?? ""].filter(Boolean),
                     (id) => change({ cast: [...draft.cast, { characterId: id, variantId: null, role: "character", presence: "in_scene", muted: false, joinedAtMessageId: null }] }))}>+ Add a Card</button>
@@ -339,7 +339,10 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                 return (
                   <div key={c.id} className="setup-row sub" data-testid="story-card-row">
                     <AvatarDot name={c.name} avatar={pic} size={26} />
-                    <span className="setup-k grow"><span>{effectiveCharacter(c, m.variantId).name}</span><small>{version ? `Card · ${version.label} version` : "Card, joins as it is"}</small></span>
+                    <span className="setup-k grow"><span>{effectiveCharacter(c, m.variantId).name}</span><small>{[version ? `Card · ${version.label} version` : "Card, joins as it is", isTracked(m, c) ? "" : "not tracked in the Scene"].filter(Boolean).join(" · ")}</small></span>
+                    <span className="cast-track" title="Off: sent whole to the AI, but the Scene does not list it as one person (its people are added by name). The card's own choice is the default.">Track in Scene
+                      <Switch label={`Track ${c.name} in the Scene`} checked={isTracked(m, c)}
+                        onChange={(v) => change({ cast: draft.cast.map((x) => { if (x.characterId !== c.id) return x; const { tracked: _t, ...rest } = x; return v === (c.tracked ?? true) ? rest : { ...rest, tracked: v }; }) })} /></span>
                     {c.variants.length > 0 && (
                       <VersionSelect c={c} value={m.variantId} label={`Version of ${c.name}`}
                         onChange={(v) => change({ cast: draft.cast.map((x) => (x.characterId === c.id ? { ...x, variantId: v } : x)) })} />
