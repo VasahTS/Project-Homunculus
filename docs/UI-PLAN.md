@@ -455,22 +455,21 @@ The engine already works (D-027): it activates entries exactly like SillyTavern 
 4. **The system prompt** (editable): its job, "propose, never delete", answer in the user's language, keep cards in the language they are written in.
 5. **House rules** (a note the user writes once, also editable by asking it): "cards always in English", "descriptions in prose, never W++", "lorebook keywords lowercase"… sent with every request.
 
-**Where it lives**
-- **✦ Assistant** button in the Library header → a panel on the right (380 px; the editor stays beside it). Opened from an editor, it is already about that item ("About: Lyra" chip; × to talk about anything).
-- **Library → Assistant** page: saved conversations (title, date, items touched, cost), rename, delete, continue.
+**Where it lives** (round 2 — Daniel on round 1: "very busy": four columns at once — sidebar, Library categories, editor, panel)
+- **Its own place in the sidebar: ✦ Assistant**, beside Stories, Characters and Library. Two columns only: the sidebar (its list shows **Conversations** with "+ New", like Recent) and one **centered conversation** (720 px) with a virtual-assistant look: a small glowing ✦ orb beside its answers, the user's messages as soft bubbles on the right, no panel chrome.
+- **Welcome** (new conversation): the big orb, "What shall we make?", one line of what it does, three suggestions (Create / Create / Improve).
+- **From an editor:** a "✦ Ask the assistant" button opens the Assistant place with an "About: Lyra" chip in the composer (× to talk about anything). The editor is not shown beside it.
 
 **The conversation**
-- Messages stream; reasoning folded ("Thought for 6 s"); **tool steps** as one quiet line each ("Read 3 trackers", "Loaded: trackers guide") folded into "4 steps" when there are many.
-- **Composer:** text, **attach images** (button, paste, drag; thumbnails above the box, × to remove). Images go to the model only if the connection's model sees images; otherwise a notice says so before sending. Attached images can be used in proposals ("use this as Lyra's picture").
-- Footer: model name · this conversation's tokens and cost · settings (gear).
+- Its answers are plain text (no bubble). Tool steps and reasoning are one quiet grey line ("Looked at 2 starter trackers ›", "Thought for 6 s · read Lyra ›") that unfolds on click.
+- **Composer** at the bottom, floating, rounded: attached images as small thumbnails, "+" to attach (or paste/drag), the model in grey ("Claude · sees images"), a round send button. One line under it says the rule: new things are saved right away (Undo on each card), changes to yours wait for your OK.
 
-**Proposal cards** (in the conversation, where the assistant made them)
-- **New item:** saved right away (Daniel's choice), card says "Created ✓" with **Open**, **Undo** (moves it to the Trash). For a tracker: field list + a small Scene preview + **Turn on in a chat…**.
-- **Change to an existing item:** field-by-field before → after (only changed fields; long texts as a diff) with **Apply**, **Edit first** (opens the editor with the change filled in, not saved), **Discard**. Several pending → **Apply all** at the bottom. Applied changes go into the item's History (undo there).
-- **Move to Trash** is only ever a proposal.
-- A stale proposal (the item changed since) says so and offers "Ask again".
+**Result cards** (compact: one line; details only when asked)
+- **Created:** icon · name · "Tracker · created" (green) · Details / Open / Undo. Details: the fields as chips, how it shows in a chat, "Turn on in a chat…".
+- **Change waiting:** icon · "Lyra · Description" · "Change waiting for you" (amber) · See change (the diff unfolds; "Edit first" inside). Several changes from one answer share **one** pair of buttons under them: "Apply both / Apply all" · "Discard". Applied → "Applied · undo from its History".
+- Move to Trash is only ever a proposal. A stale proposal says so and offers "Ask again".
 
-**Settings (gear):** connection (empty = the story's), model, reasoning effort, temperature, steps limit per message (default 25), "Save new items right away" (on), system prompt, house rules.
+**Settings (gear in the top bar → a sheet over the conversation):** connection (empty = the story's), model, reasoning effort, temperature, steps limit per message (default 25), "Save new items right away" (on), system prompt, house rules.
 
 **Tool calling:** native OpenAI-style `tools` in the provider (nano-gpt, OpenRouter, most local servers support it), streamed; fallback for models without it: the same tools described in the prompt and called as JSON blocks. Toolsets loaded on demand (`load_toolset`: trackers / characters / lorebooks), so the prompt stays small.
 

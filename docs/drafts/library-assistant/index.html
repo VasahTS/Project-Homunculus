@@ -1,268 +1,240 @@
-<title>Library Assistant Draft</title>
+<title>Assistant Draft v2</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-/* Homunculus 2 — draft "Library Assistant" (CLAUDE, 2026-11-01). Not code: the picture of docs/UI-PLAN.md →
-   "Library Assistant". Colors and sizes are the app's Quiet profile. Layout: app window — sidebar · Library editor ·
-   assistant panel on the right. Switch states with the bar at the top. */
+/* Homunculus 2 — draft "Assistant", round 2 (CLAUDE, 2026-11-01). Not code: the picture of docs/UI-PLAN.md →
+   "Library Assistant". Round 1 had four columns at once (sidebar, Library categories, editor, panel) — Daniel: "very
+   busy". Now the Assistant is its own place in the sidebar: two columns only, one calm centered conversation like a
+   virtual assistant, compact result cards that open on demand, settings in a sheet. Colors: the app's Quiet profile. */
 :root {
   color-scheme: dark;
-  --window: #1b1d20; --surface: #23272a; --field: #292d30; --group: rgba(255,255,255,.045);
-  --label: #edf0ed; --label-2: #afb8b5; --label-3: #8d9893; --separator: #3b4244;
-  --fill: rgba(255,255,255,.07); --fill-hover: rgba(255,255,255,.12);
+  --window: #1b1d20; --surface: #212427; --field: #292d30; --group: rgba(255,255,255,.045);
+  --label: #edf0ed; --label-2: #afb8b5; --label-3: #8d9893; --separator: #33393b;
+  --fill: rgba(255,255,255,.065); --fill-hover: rgba(255,255,255,.11);
   --accent: #8bc4b0; --accent-ink: #142b24; --accent-soft: rgba(139,196,176,.10);
-  --ok: #8fcf9a; --warn: #e3b45c; --danger: #ec8a80; --dialogue: #e6bf7e;
-  --add: rgba(143,207,154,.16); --del: rgba(236,138,128,.16);
+  --ok: #8fcf9a; --warn: #e3b45c; --add: rgba(143,207,154,.16); --del: rgba(236,138,128,.16);
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-prose: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --small: 12px; --r-group: 10px; --r-control: 7px; --r-pill: 999px;
+  --small: 12px; --r: 12px; --r-control: 8px; --r-pill: 999px;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body { background: var(--window); color: var(--label); font: 14px/1.45 var(--font-ui); display: flex; flex-direction: column; }
+body { background: var(--window); color: var(--label); font: 14px/1.5 var(--font-ui); display: flex; flex-direction: column; }
 button { font: inherit; color: inherit; }
-.states { display: flex; gap: 6px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--separator); background: #15171a; flex-wrap: wrap; }
-.states b { font-size: var(--small); color: var(--label-3); font-weight: 600; margin-right: 6px; }
+.hidden { display: none !important; }
+.states { display: flex; gap: 6px; align-items: center; padding: 7px 14px; border-bottom: 1px solid var(--separator); background: #15171a; flex-wrap: wrap; }
+.states b { font-size: 11px; color: var(--label-3); font-weight: 600; margin-right: 6px; letter-spacing: .05em; }
 .states button { border: 1px solid var(--separator); background: none; border-radius: var(--r-pill); padding: 3px 11px; font-size: var(--small); color: var(--label-2); cursor: pointer; }
 .states button.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
-.app { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px 200px minmax(0, 1fr) 400px; }
-.app.page { grid-template-columns: 220px 200px minmax(0, 1fr); }
-.side { padding: 18px 14px; border-right: 1px solid var(--separator); }
-.side h1 { font-size: 15px; margin: 0 0 18px; }
-.side .nav div { padding: 7px 10px; border-radius: 8px; color: var(--label-2); }
-.side .nav .on { background: var(--fill); color: var(--label); }
-.cats { padding: 18px 10px; border-right: 1px solid var(--separator); }
-.cats h4 { margin: 14px 8px 6px; font-size: 11px; color: var(--label-3); text-transform: uppercase; letter-spacing: .04em; }
-.cats div { padding: 6px 10px; border-radius: 7px; color: var(--label-2); font-size: 13px; display: flex; justify-content: space-between; }
-.cats .on { background: var(--fill); color: var(--label); }
-.cats .star { color: var(--accent); }
-.main { padding: 18px 24px; overflow: auto; min-width: 0; }
-.head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.head h2 { margin: 0; font-size: 20px; flex: 1; }
-.btn { border: 1px solid var(--separator); background: none; border-radius: var(--r-control); padding: 5px 11px; cursor: pointer; font-size: 13px; }
-.btn:hover { background: var(--fill); }
-.btn.pri { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
-.btn.plain { border-color: transparent; color: var(--label-2); }
-.btn.sm { padding: 3px 9px; font-size: 12px; }
-.btn.star { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-.card { background: var(--group); border-radius: var(--r-group); padding: 12px 14px; margin-bottom: 10px; }
-.lbl { font-size: var(--small); color: var(--label-2); font-weight: 600; margin-bottom: 4px; }
-.field { background: var(--field); border-radius: var(--r-control); padding: 8px 10px; font-family: var(--font-prose); font-size: 14.5px; line-height: 1.55; color: var(--label); }
-.flash { animation: flash 1.6s ease-out; }
-@keyframes flash { 0% { box-shadow: 0 0 0 2px var(--accent); } 100% { box-shadow: 0 0 0 2px transparent; } }
 
-/* assistant panel */
-.asst { border-left: 1px solid var(--separator); background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
-.asst-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--separator); }
-.asst-head strong { flex: 1; }
-.ico { width: 26px; height: 26px; border-radius: 7px; border: 0; background: none; color: var(--label-2); cursor: pointer; display: grid; place-items: center; }
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); }
+/* sidebar: the app's own, with the Assistant as a fourth place; its Recent list shows conversations here */
+.side { padding: 18px 12px; border-right: 1px solid var(--separator); display: flex; flex-direction: column; gap: 4px; }
+.side h1 { font-size: 15px; margin: 0 8px 14px; }
+.place { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; color: var(--label-2); cursor: default; }
+.place.on { background: var(--fill); color: var(--label); }
+.place .i { width: 18px; text-align: center; }
+.place.asst .i { color: var(--accent); }
+.recent { margin-top: 18px; display: grid; gap: 2px; }
+.recent h5 { margin: 0 10px 6px; font-size: 11px; color: var(--label-3); font-weight: 600; letter-spacing: .03em; display: flex; justify-content: space-between; }
+.recent h5 button { border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; }
+.conv { padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+.conv:hover { background: var(--fill); }
+.conv.on { background: var(--fill); }
+.conv b { display: block; font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv small { color: var(--label-3); font-size: 11.5px; }
+.side .grow { flex: 1; }
+
+/* the assistant place */
+.stage { display: flex; flex-direction: column; min-height: 0; position: relative; }
+.topbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px; }
+.topbar .title { flex: 1; font-weight: 600; color: var(--label-2); font-size: 13px; }
+.ico { width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; color: var(--label-2); cursor: pointer; display: grid; place-items: center; font-size: 15px; }
 .ico:hover { background: var(--fill); color: var(--label); }
-.about { display: flex; gap: 6px; align-items: center; padding: 8px 14px; font-size: var(--small); color: var(--label-2); border-bottom: 1px solid var(--separator); }
-.chip { display: inline-flex; align-items: center; gap: 5px; background: var(--fill); border-radius: var(--r-pill); padding: 2px 9px; font-size: 12px; color: var(--label); }
-.chip button { border: 0; background: none; color: var(--label-3); cursor: pointer; padding: 0; }
-.convo { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
-.me { align-self: flex-end; max-width: 88%; background: var(--fill); border-radius: 12px 12px 4px 12px; padding: 8px 12px; }
-.me .att { display: flex; gap: 6px; margin-bottom: 6px; }
-.thumb { width: 64px; height: 80px; border-radius: 7px; background: linear-gradient(160deg, #6d5a4a, #2b2420 60%, #8a6b4f); position: relative; overflow: hidden; }
-.thumb::after { content: ""; position: absolute; left: 22px; top: 14px; width: 20px; height: 24px; border-radius: 50%; background: #c9a98b; box-shadow: 0 30px 0 8px #3d2f29; }
-.ai { max-width: 100%; }
-.ai p { margin: 0 0 8px; }
-.think, .steps { font-size: var(--small); color: var(--label-3); cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.steps-list { margin: 0 0 8px 2px; padding-left: 12px; border-left: 2px solid var(--separator); font-size: var(--small); color: var(--label-3); display: none; }
-.steps-list.open { display: block; }
-.steps-list div { padding: 2px 0; }
-.chev { display: inline-block; transition: transform .15s; }
-.open-chev .chev { transform: rotate(90deg); }
+.scroll { flex: 1; overflow: auto; }
+.col { width: min(720px, 100% - 48px); margin: 0 auto; }
 
-.prop { border: 1px solid var(--separator); border-radius: var(--r-group); background: var(--window); margin: 6px 0 10px; overflow: hidden; }
-.prop-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--separator); }
-.prop-head .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--label-3); }
-.prop-head strong { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.status { font-size: 12px; padding: 1px 8px; border-radius: var(--r-pill); }
-.status.ok { color: var(--ok); background: rgba(143,207,154,.12); }
-.status.wait { color: var(--warn); background: rgba(227,180,92,.12); }
-.status.off { color: var(--label-3); background: var(--fill); }
-.prop-body { padding: 10px 12px; display: grid; gap: 8px; font-size: 13px; }
-.fields { display: grid; gap: 4px; }
-.frow { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 6px; background: var(--group); }
-.frow small { color: var(--label-3); }
-.scene { border-radius: 8px; background: var(--surface); padding: 8px 10px; display: grid; gap: 4px; font-size: 12.5px; }
-.scene .strip { display: flex; gap: 10px; color: var(--label-2); }
-.diff { display: grid; gap: 6px; }
-.diff .fld { font-size: 11.5px; color: var(--label-3); font-weight: 600; }
-.diff .txt { font-family: var(--font-prose); font-size: 13.5px; line-height: 1.55; padding: 6px 8px; border-radius: 6px; background: var(--group); }
+.orb { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; color: #0f2a22; font-size: 15px;
+  background: radial-gradient(circle at 35% 30%, #c8eadb, #8bc4b0 55%, #5f9c88); box-shadow: 0 0 0 4px rgba(139,196,176,.08); }
+.orb.big { width: 64px; height: 64px; font-size: 26px; box-shadow: 0 0 0 8px rgba(139,196,176,.07), 0 0 40px rgba(139,196,176,.18); }
+
+/* welcome */
+.welcome { min-height: 100%; display: grid; place-content: center; justify-items: center; text-align: center; gap: 14px; padding: 40px 0 120px; }
+.welcome h2 { margin: 4px 0 0; font-size: 24px; font-weight: 600; }
+.welcome p { margin: 0; color: var(--label-2); }
+.sugg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; width: min(720px, 100vw - 340px); }
+.sugg button { border: 1px solid var(--separator); background: var(--surface); border-radius: var(--r); padding: 12px 14px; text-align: left; cursor: pointer; display: grid; gap: 4px; }
+.sugg button:hover { background: var(--fill); border-color: transparent; }
+.sugg small { color: var(--label-3); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; }
+.sugg span { color: var(--label); font-size: 13.5px; }
+
+/* conversation */
+.msgs { display: grid; gap: 26px; padding: 8px 0 30px; }
+.me { justify-self: end; max-width: 80%; background: var(--fill); border-radius: 18px 18px 6px 18px; padding: 10px 15px; }
+.me-att { justify-self: end; display: flex; gap: 6px; }
+.thumb { width: 72px; height: 90px; border-radius: 10px; background: linear-gradient(160deg, #6d5a4a, #2b2420 60%, #8a6b4f); position: relative; overflow: hidden; flex: none; }
+.thumb::after { content: ""; position: absolute; left: 25px; top: 16px; width: 22px; height: 27px; border-radius: 50%; background: #c9a98b; box-shadow: 0 34px 0 9px #3d2f29; }
+.ai { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; }
+.ai .body { display: grid; gap: 10px; padding-top: 5px; }
+.ai p { margin: 0; line-height: 1.6; }
+.quiet { font-size: 12px; color: var(--label-3); cursor: pointer; user-select: none; width: fit-content; }
+.quiet:hover { color: var(--label-2); }
+.quiet-list { font-size: 12px; color: var(--label-3); padding-left: 12px; border-left: 2px solid var(--separator); display: none; }
+.quiet-list.open { display: block; }
+
+/* result cards: one calm line; details on demand */
+.res { border: 1px solid var(--separator); border-radius: var(--r); background: var(--surface); }
+.res-line { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+.res-ic { width: 34px; height: 34px; border-radius: 9px; background: var(--fill); display: grid; place-items: center; flex: none; font-size: 16px; }
+.res-txt { flex: 1; min-width: 0; display: grid; }
+.res-txt b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res-txt small { color: var(--label-3); font-size: 12px; }
+.res-txt small.ok { color: var(--ok); }
+.res-txt small.wait { color: var(--warn); }
+.link { border: 0; background: none; padding: 4px 6px; color: var(--label-2); cursor: pointer; font-size: 13px; border-radius: 6px; }
+.link:hover { color: var(--label); background: var(--fill); }
+.btn { border: 0; border-radius: var(--r-control); padding: 6px 13px; cursor: pointer; font-size: 13px; background: var(--fill); }
+.btn:hover { background: var(--fill-hover); }
+.btn.pri { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.res-more { border-top: 1px solid var(--separator); padding: 12px 14px; display: none; gap: 10px; }
+.res.open .res-more { display: grid; }
+.diff { font-family: var(--font-prose); font-size: 14px; line-height: 1.6; }
 .diff del { background: var(--del); color: #f2b4ad; text-decoration: line-through; text-decoration-color: rgba(236,138,128,.5); border-radius: 3px; }
 .diff ins { background: var(--add); color: #b9e8c1; text-decoration: none; border-radius: 3px; }
-.prop-foot { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--separator); flex-wrap: wrap; }
-.prop-foot .grow { flex: 1; }
-.applyall { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-group); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
-.applyall span { flex: 1; font-size: 13px; }
+.fields { display: flex; gap: 6px; flex-wrap: wrap; }
+.fields span { background: var(--fill); border-radius: var(--r-pill); padding: 2px 10px; font-size: 12.5px; color: var(--label-2); }
+.after { display: flex; gap: 8px; align-items: center; }
+.after .grow { flex: 1; }
 
-.composer { border-top: 1px solid var(--separator); padding: 10px 12px 12px; display: grid; gap: 8px; }
-.pending-att { display: flex; gap: 6px; }
-.pending-att .thumb { width: 44px; height: 54px; }
-.pending-att .x { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: rgba(0,0,0,.6); border: 0; color: #fff; font-size: 10px; cursor: pointer; z-index: 1; }
-.box { display: flex; gap: 6px; align-items: flex-end; background: var(--field); border-radius: 10px; padding: 6px 6px 6px 10px; }
-.box textarea { flex: 1; border: 0; background: none; resize: none; color: var(--label); font: inherit; outline: none; min-height: 40px; }
-.foot { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--label-3); }
-.foot .grow { flex: 1; }
-.notice { font-size: 12px; color: var(--warn); background: rgba(227,180,92,.1); border-radius: 7px; padding: 6px 9px; }
+/* composer */
+.composer-wrap { padding: 8px 0 18px; }
+.composer { border: 1px solid var(--separator); background: var(--surface); border-radius: 18px; padding: 10px 10px 8px 14px; display: grid; gap: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+.composer .ctx { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--accent); border-radius: var(--r-pill); padding: 2px 10px; font-size: 12px; }
+.chip button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0; opacity: .7; }
+.mini { position: relative; }
+.mini .thumb { width: 40px; height: 48px; border-radius: 7px; }
+.mini .x { position: absolute; top: -5px; right: -5px; width: 17px; height: 17px; border-radius: 50%; background: #3a3f42; border: 0; color: #fff; font-size: 9px; cursor: pointer; }
+.composer textarea { border: 0; background: none; resize: none; color: var(--label); font: inherit; outline: none; min-height: 26px; width: 100%; }
+.composer .row { display: flex; align-items: center; gap: 4px; }
+.composer .row .grow { flex: 1; }
+.model { font-size: 12px; color: var(--label-3); padding: 0 6px; }
+.send { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer; font-size: 15px; font-weight: 700; }
+.foot { text-align: center; font-size: 11.5px; color: var(--label-3); margin-top: 8px; }
 
-.empty { flex: 1; display: grid; place-content: center; text-align: center; gap: 10px; padding: 24px; color: var(--label-2); }
-.empty .big { font-size: 28px; color: var(--accent); }
-.empty .ex { display: grid; gap: 6px; margin-top: 6px; }
-.empty .ex button { border: 1px solid var(--separator); background: none; border-radius: 9px; padding: 7px 11px; color: var(--label); cursor: pointer; text-align: left; font-size: 13px; }
-.empty .ex button:hover { background: var(--fill); }
-
-.settings { padding: 14px; display: grid; gap: 12px; overflow: auto; }
-.srow { display: grid; gap: 4px; }
-.srow .ctl { background: var(--field); border-radius: var(--r-control); padding: 6px 9px; font-size: 13px; display: flex; justify-content: space-between; color: var(--label); }
+/* settings sheet */
+.scrim { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; }
+.sheet { width: min(520px, 92%); background: var(--surface); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.5); padding: 18px 20px; display: grid; gap: 14px; }
+.sheet h3 { margin: 0; display: flex; justify-content: space-between; align-items: center; }
+.srow { display: grid; gap: 5px; }
+.srow .lbl { font-size: 12px; color: var(--label-2); font-weight: 600; }
+.srow .ctl { background: var(--field); border-radius: var(--r-control); padding: 7px 10px; font-size: 13px; display: flex; justify-content: space-between; }
 .srow .hint { font-size: 11.5px; color: var(--label-3); }
 .seg { display: flex; background: var(--field); border-radius: var(--r-control); padding: 2px; }
-.seg span { flex: 1; text-align: center; padding: 4px; font-size: 12px; border-radius: 5px; color: var(--label-2); }
+.seg span { flex: 1; text-align: center; padding: 4px; font-size: 12px; border-radius: 6px; color: var(--label-2); }
 .seg .on { background: var(--fill-hover); color: var(--label); }
-.sw { width: 32px; height: 19px; border-radius: 10px; background: var(--accent); position: relative; flex: none; }
-.sw::after { content: ""; position: absolute; right: 2px; top: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; }
-
-.list { display: grid; gap: 6px; max-width: 720px; }
-.lrow { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 14px; border-radius: var(--r-group); background: var(--group); cursor: pointer; }
-.lrow:hover { background: var(--fill); }
-.lrow small { color: var(--label-3); grid-column: 1 / -1; }
-.hidden { display: none !important; }
-.note { max-width: 720px; color: var(--label-3); font-size: 12px; margin-top: 18px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 </style>
 
-<div class="states" role="tablist">
+<div class="states">
   <b>STATES</b>
-  <button class="on" data-state="convo">Conversation</button>
-  <button data-state="empty">Empty</button>
+  <button class="on" data-state="talk">Conversation</button>
+  <button data-state="hello">Welcome</button>
   <button data-state="settings">Settings</button>
-  <button data-state="page">Library → Assistant</button>
+  <button data-state="editor">From an editor</button>
 </div>
 
-<div class="app" id="app">
+<div class="app">
   <aside class="side">
     <h1>Homunculus</h1>
-    <div class="nav"><div>Stories</div><div>Characters</div><div class="on">Library</div></div>
+    <div class="place"><span class="i">▣</span>Stories</div>
+    <div class="place"><span class="i">◯</span>Characters</div>
+    <div class="place"><span class="i">▦</span>Library</div>
+    <div class="place asst on"><span class="i">✦</span>Assistant</div>
+    <div class="recent">
+      <h5>Conversations <button title="New conversation" id="new">+ New</button></h5>
+      <div class="conv on"><b>World tracker + Lyra</b><small>now · 2 made, 2 changes</small></div>
+      <div class="conv"><b>Thieves' Guild lorebook</b><small>yesterday · 12 entries</small></div>
+      <div class="conv"><b>Mercenary from a picture</b><small>Oct 29 · Kessa</small></div>
+    </div>
+    <div class="grow"></div>
+    <div class="place"><span class="i">⚙</span>Settings</div>
   </aside>
-  <nav class="cats">
-    <h4>Story building</h4><div>Kits</div><div>Narrators</div><div>NPCs</div>
-    <h4>Writing and context</h4><div>Personas</div><div>Lorebooks</div><div>Presets</div><div>Regex</div>
-    <h4>Around each reply</h4><div class="on" id="cat-trackers">Trackers</div><div>Agents</div>
-    <h4>Help</h4><div class="star" id="cat-asst">✦ Assistant</div>
-    <h4>Manage</h4><div>Trash</div>
-  </nav>
 
-  <!-- editor in the middle (the item the assistant is about) -->
-  <main class="main" id="editor">
-    <div class="head">
-      <h2>Lyra</h2>
-      <button class="btn star" id="open-asst">✦ Assistant</button>
-      <button class="btn">History</button>
-      <button class="btn pri">Save</button>
-    </div>
-    <div class="card"><div class="lbl">Description</div><div class="field" id="lyra-desc">A ranger who guards the northern woods. She is good with a bow and doesn't trust strangers. She has a dry sense of humor.</div></div>
-    <div class="card"><div class="lbl">Personality</div><div class="field">Wary, dry humor, loyal once trust is earned.</div></div>
-    <div class="card"><div class="lbl">First message</div><div class="field">*Lyra eyes you from the tree line.* "Who's there?"</div></div>
-  </main>
+  <section class="stage">
+    <div class="topbar"><span class="title" id="title">World tracker + Lyra</span>
+      <button class="ico" title="Assistant settings" id="gear">⚙</button></div>
 
-  <!-- Library → Assistant page -->
-  <main class="main hidden" id="page">
-    <div class="head"><h2>Assistant</h2><button class="btn pri">New conversation</button></div>
-    <div class="list">
-      <div class="lrow"><strong>World tracker + Lyra's description</strong><span>today 02:31</span><small>Created: World · Changed: Lyra · 18.2k tokens · $0.04</small></div>
-      <div class="lrow"><strong>Thieves' Guild lorebook</strong><span>yesterday</span><small>Created: Thieves' Guild (12 entries) · 31.0k tokens · $0.07</small></div>
-      <div class="lrow"><strong>Mercenary from a picture</strong><span>Oct 29</span><small>Created: Kessa (with picture) · 9.4k tokens · $0.03</small></div>
-    </div>
-    <p class="note">Rename and delete from each row's menu (right click / ⋯). Opening one continues it in the panel.</p>
-  </main>
+    <div class="scroll" id="scroll">
+      <!-- welcome -->
+      <div class="col welcome hidden" id="hello">
+        <div class="orb big">✦</div>
+        <h2>What shall we make?</h2>
+        <p>Trackers, characters and lorebooks — new ones, or better versions of yours.</p>
+        <div class="sugg">
+          <button><small>Create</small><span>A world tracker with time, weather and place</span></button>
+          <button><small>Create</small><span>A cynical mercenary for a dark fantasy story</span></button>
+          <button><small>Improve</small><span>Make Lyra's description less generic</span></button>
+        </div>
+      </div>
 
-  <!-- assistant panel -->
-  <section class="asst" id="asst">
-    <div class="asst-head">
-      <span style="color:var(--accent)">✦</span><strong>Assistant</strong>
-      <button class="ico" title="Conversations">☰</button>
-      <button class="ico" title="Settings" id="gear">⚙</button>
-      <button class="ico" title="Close">✕</button>
-    </div>
-    <div class="about" id="about">About <span class="chip">Lyra <button title="Talk about anything">✕</button></span></div>
-
-    <!-- conversation -->
-    <div class="convo" id="convo">
-      <div class="me">Make a world tracker with time of day, weather and place.</div>
-      <div class="ai">
-        <div class="steps" data-fold="s1"><span class="chev">›</span> 3 steps</div>
-        <div class="steps-list" id="s1"><div>Loaded: trackers</div><div>Read guide: trackers</div><div>Read 2 starter trackers (Scene: World, Scene: Plot)</div></div>
-        <p>Here it is — one value each, sent to the story's AI so it keeps them straight.</p>
-        <div class="prop" id="p-tracker">
-          <div class="prop-head"><span class="kind">Tracker</span><strong>World</strong><span class="status ok">Created ✓</span></div>
-          <div class="prop-body">
-            <div class="fields">
-              <div class="frow"><span>🕰</span><span>Time of day <small>· text · e.g. "late evening"</small></span><small>to the AI</small></div>
-              <div class="frow"><span>☁</span><span>Weather <small>· text</small></span><small>to the AI</small></div>
-              <div class="frow"><span>📍</span><span>Place <small>· text</small></span><small>to the AI</small></div>
-            </div>
-            <div class="scene"><span style="font-size:11px;color:var(--label-3)">In the Scene panel</span><div class="strip"><span>🕰 late evening</span><span>☁ light rain</span><span>📍 the mill gate</span></div></div>
+      <!-- conversation -->
+      <div class="col msgs" id="talk">
+        <div class="me">Make a world tracker with time of day, weather and place.</div>
+        <div class="ai"><div class="orb">✦</div><div class="body">
+          <span class="quiet" data-fold="q1">Looked at 2 starter trackers ›</span>
+          <div class="quiet-list" id="q1">Loaded trackers · Read the trackers guide · Read “Scene: World”, “Scene: Plot”</div>
+          <p>Done — one value each, and the story's AI sees all three.</p>
+          <div class="res" id="r1">
+            <div class="res-line"><div class="res-ic">🕰</div>
+              <div class="res-txt"><b>World</b><small class="ok">Tracker · created</small></div>
+              <button class="link" data-open="r1">Details</button><button class="link">Open</button><button class="link" id="undo1">Undo</button></div>
+            <div class="res-more"><div class="fields"><span>🕰 Time of day</span><span>☁ Weather</span><span>📍 Place</span></div>
+              <div class="after"><span style="font-size:12px;color:var(--label-3)">In a chat it shows: late evening · light rain · the mill gate</span><span class="grow"></span><button class="btn">Turn on in a chat…</button></div></div>
           </div>
-          <div class="prop-foot"><button class="btn sm">Open</button><button class="btn sm">Turn on in a chat…</button><span class="grow"></span><button class="btn sm plain" id="undo-tracker">Undo</button></div>
-        </div>
-      </div>
+        </div></div>
 
-      <div class="me">
-        <div class="att"><div class="thumb"></div></div>
-        Lyra's description is generic. Use this picture for her look, and keep her dry humor.
-      </div>
-      <div class="ai">
-        <div class="think" data-fold="t1"><span class="chev">›</span> Thought for 6 s</div>
-        <div class="steps-list" id="t1"><div>Short brown hair, a scar over the left brow, a green hooded cloak, a longbow; the picture reads cold and quiet.</div></div>
-        <div class="steps" data-fold="s2"><span class="chev">›</span> 2 steps</div>
-        <div class="steps-list" id="s2"><div>Loaded: characters</div><div>Read: Lyra</div></div>
-        <p>I rewrote the description from the picture and kept her voice. I also suggest the picture as her avatar.</p>
-        <div class="prop" id="p-desc">
-          <div class="prop-head"><span class="kind">Character</span><strong>Lyra · Description</strong><span class="status wait" id="st-desc">Waiting</span></div>
-          <div class="prop-body diff">
-            <div class="fld">Description</div>
-            <div class="txt"><del>A ranger who guards the northern woods. She is good with a bow and doesn't trust strangers. She has a dry sense of humor.</del> <ins>Lyra has kept the northern woods for eleven winters: short brown hair she cuts herself, a pale scar through her left brow, a green hooded cloak gone grey at the hem. Her longbow is older than she is. She speaks little, notices everything, and when she does talk it is usually to say something dry enough to sting.</ins></div>
+        <div class="me-att"><div class="thumb"></div></div>
+        <div class="me" style="margin-top:-18px">Lyra's description is generic. Use this picture for her look, and keep her dry humor.</div>
+        <div class="ai"><div class="orb">✦</div><div class="body">
+          <span class="quiet" data-fold="q2">Thought for 6 s · read Lyra ›</span>
+          <div class="quiet-list" id="q2">Short brown hair, scar over the left brow, green hooded cloak, longbow; the picture reads cold and quiet.</div>
+          <p>I rewrote her description from the picture and kept her voice. I'd also use the picture as her avatar.</p>
+          <div class="res" id="r2">
+            <div class="res-line"><div class="res-ic">✎</div>
+              <div class="res-txt"><b>Lyra · Description</b><small class="wait" id="s2">Change waiting for you</small></div>
+              <button class="link" data-open="r2">See change</button></div>
+            <div class="res-more"><div class="diff"><del>A ranger who guards the northern woods. She is good with a bow and doesn't trust strangers. She has a dry sense of humor.</del> <ins>Lyra has kept the northern woods for eleven winters: short brown hair she cuts herself, a pale scar through her left brow, a green hooded cloak gone grey at the hem. She speaks little, notices everything, and when she does talk it is usually to say something dry enough to sting.</ins></div>
+              <div class="after"><button class="link">Edit first</button><span class="grow"></span></div></div>
           </div>
-          <div class="prop-foot"><button class="btn sm pri" data-apply="desc">Apply</button><button class="btn sm">Edit first</button><span class="grow"></span><button class="btn sm plain" data-discard="desc">Discard</button></div>
-        </div>
-        <div class="prop" id="p-pic">
-          <div class="prop-head"><span class="kind">Character</span><strong>Lyra · Picture</strong><span class="status wait" id="st-pic">Waiting</span></div>
-          <div class="prop-body" style="grid-template-columns:auto 1fr;align-items:center"><div class="thumb" style="width:48px;height:60px"></div><span style="color:var(--label-2)">Use the attached picture as Lyra's avatar (main version).</span></div>
-          <div class="prop-foot"><button class="btn sm pri" data-apply="pic">Apply</button><span class="grow"></span><button class="btn sm plain" data-discard="pic">Discard</button></div>
-        </div>
-      </div>
-      <div class="applyall" id="applyall"><span>2 changes waiting</span><button class="btn sm pri" id="apply-all">Apply all</button></div>
-    </div>
-
-    <!-- empty -->
-    <div class="empty hidden" id="empty">
-      <div class="big">✦</div>
-      <strong style="color:var(--label)">What should we make?</strong>
-      <span style="font-size:13px">A tracker, a character or a lorebook — or ask to improve one.</span>
-      <div class="ex">
-        <button>“A world tracker with time, weather and place”</button>
-        <button>“A cynical mercenary for a dark fantasy story”</button>
-        <button>“A lorebook about a thieves' guild: leaders, base, rules”</button>
+          <div class="res" id="r3">
+            <div class="res-line"><div class="res-ic" style="padding:0;overflow:hidden"><div class="thumb" style="width:34px;height:34px;border-radius:9px"></div></div>
+              <div class="res-txt"><b>Lyra · Picture</b><small class="wait" id="s3">Change waiting for you</small></div></div>
+          </div>
+          <div class="after" id="decide"><button class="btn pri" id="apply">Apply both</button><button class="btn" id="discard">Discard</button><span class="grow"></span></div>
+        </div></div>
       </div>
     </div>
 
-    <!-- settings -->
-    <div class="settings hidden" id="settings">
-      <div class="srow"><span class="lbl">Connection</span><div class="ctl">nano-gpt · Claude <span>▾</span></div><span class="hint">Empty = the one your stories use. A strong model is worth it here.</span></div>
-      <div class="srow"><span class="lbl">Reasoning effort</span><div class="seg"><span>Off</span><span>Low</span><span class="on">Medium</span><span>High</span></div></div>
-      <div class="srow"><span class="lbl">Temperature</span><div class="ctl">0.7 <span></span></div></div>
-      <div class="srow"><span class="lbl">Steps per message</span><div class="ctl">25 <span></span></div><span class="hint">How many tool calls it may make before it stops and asks.</span></div>
-      <div class="srow"><div class="ctl" style="background:none;padding:0"><span>Save new items right away</span><span class="sw"></span></div><span class="hint">Changes to existing items always wait for your OK.</span></div>
-      <div class="srow"><span class="lbl">House rules</span><div class="field" style="font-family:var(--font-ui);font-size:13px">Cards in English. Descriptions in prose, never W++. Lorebook keywords lowercase.</div><span class="hint">Sent with every request. You can also say “remember: …” in the chat.</span></div>
-      <div class="srow"><span class="lbl">System prompt</span><div class="ctl">Edit… <span>Reset</span></div></div>
-    </div>
+    <div class="composer-wrap"><div class="col">
+      <div class="composer">
+        <div class="ctx" id="ctx"><span class="mini"><span class="thumb" style="display:block"></span><button class="x">✕</button></span></div>
+        <textarea placeholder="Ask for a tracker, a character or a lorebook…">Now a lorebook entry about the mill gate.</textarea>
+        <div class="row"><button class="ico" title="Attach an image">＋</button><span class="model">Claude · sees images</span><span class="grow"></span><button class="send" title="Send">↑</button></div>
+      </div>
+      <div class="foot">It saves new things right away (Undo is on each card); changes to yours wait for your OK.</div>
+    </div></div>
 
-    <div class="composer" id="composer">
-      <div class="pending-att"><div class="thumb"><button class="x" title="Remove">✕</button></div></div>
-      <div class="box"><button class="ico" title="Attach image">📎</button><textarea placeholder="Ask for something, or describe a change…">Now a lorebook entry about the mill gate.</textarea><button class="btn sm pri">Send</button></div>
-      <div class="foot"><span>Claude · sees images</span><span class="grow"></span><span>this conversation: 18.2k tokens · $0.04</span></div>
-    </div>
+    <!-- settings sheet -->
+    <div class="scrim hidden" id="settings"><div class="sheet">
+      <h3>Assistant settings <button class="ico" id="close">✕</button></h3>
+      <div class="srow"><span class="lbl">Connection</span><div class="ctl">nano-gpt · Claude <span>▾</span></div><span class="hint">Empty = the one your stories use.</span></div>
+      <div class="two">
+        <div class="srow"><span class="lbl">Thinking</span><div class="seg"><span>Off</span><span>Low</span><span class="on">Med</span><span>High</span></div></div>
+        <div class="srow"><span class="lbl">Steps per message</span><div class="ctl">25<span></span></div></div>
+      </div>
+      <div class="srow"><span class="lbl">House rules</span><div class="ctl" style="display:block;line-height:1.5">Cards in English. Descriptions in prose, never W++. Lorebook keywords lowercase.</div><span class="hint">Sent with every request. You can also say “remember: …”.</span></div>
+      <div class="srow"><span class="lbl">More</span><div class="ctl">Temperature 0.7 · Save new things right away · System prompt…<span>›</span></div></div>
+    </div></div>
   </section>
 </div>
 
@@ -271,29 +243,25 @@ const $ = (s) => document.querySelector(s);
 const show = (el, on) => el.classList.toggle("hidden", !on);
 function setState(s) {
   document.querySelectorAll(".states button").forEach((b) => b.classList.toggle("on", b.dataset.state === s));
-  const page = s === "page";
-  $("#app").classList.toggle("page", page);
-  show($("#asst"), !page); show($("#editor"), !page); show($("#page"), page);
-  $("#cat-trackers").classList.toggle("on", !page); $("#cat-asst").classList.toggle("on", page);
-  show($("#convo"), s === "convo"); show($("#empty"), s === "empty"); show($("#settings"), s === "settings");
-  show($("#composer"), s !== "settings"); show($("#about"), s !== "settings");
+  show($("#hello"), s === "hello"); show($("#talk"), s !== "hello");
+  show($("#settings"), s === "settings");
+  document.querySelector(".composer textarea").value = s === "hello" ? "" : "Now a lorebook entry about the mill gate.";
+  $("#title").textContent = s === "hello" ? "New conversation" : "World tracker + Lyra";
+  $("#ctx").innerHTML = s === "editor"
+    ? '<span class="chip">About: Lyra <button title="Talk about anything">✕</button></span>'
+    : s === "hello" ? "" : '<span class="mini"><span class="thumb" style="display:block"></span><button class="x">✕</button></span>';
 }
 document.querySelectorAll(".states button").forEach((b) => b.onclick = () => setState(b.dataset.state));
-$("#gear").onclick = () => setState($("#settings").classList.contains("hidden") ? "settings" : "convo");
-document.querySelectorAll("[data-fold]").forEach((f) => f.onclick = () => { f.classList.toggle("open-chev"); $("#" + f.dataset.fold).classList.toggle("open"); });
-let waiting = 2;
-const done = (k, applied) => {
-  const st = $("#st-" + k);
-  if (!st || !st.classList.contains("wait")) return;
-  st.className = "status " + (applied ? "ok" : "off"); st.textContent = applied ? "Applied ✓" : "Discarded";
-  $("#p-" + k).querySelector(".prop-foot").innerHTML = applied ? '<span class="grow"></span><button class="btn sm plain">Undo (History)</button>' : "";
-  if (applied && k === "desc") { const d = $("#lyra-desc"); d.textContent = "Lyra has kept the northern woods for eleven winters: short brown hair she cuts herself, a pale scar through her left brow, a green hooded cloak gone grey at the hem. Her longbow is older than she is. She speaks little, notices everything, and when she does talk it is usually to say something dry enough to sting."; d.classList.add("flash"); }
-  waiting--; $("#applyall span").textContent = waiting ? `${waiting} change waiting` : "";
-  if (!waiting) $("#applyall").remove();
+$("#gear").onclick = () => setState("settings");
+$("#close").onclick = () => setState("talk");
+$("#new").onclick = () => setState("hello");
+document.querySelectorAll("[data-fold]").forEach((f) => f.onclick = () => $("#" + f.dataset.fold).classList.toggle("open"));
+document.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => { const r = $("#" + b.dataset.open); r.classList.toggle("open"); b.textContent = r.classList.contains("open") ? "Hide" : (b.dataset.open === "r1" ? "Details" : "See change"); });
+const decide = (applied) => {
+  for (const id of ["#s2", "#s3"]) { const s = $(id); s.className = applied ? "ok" : ""; s.textContent = applied ? "Applied · undo from its History" : "Discarded"; }
+  $("#decide").innerHTML = "";
 };
-document.querySelectorAll("[data-apply]").forEach((b) => b.onclick = () => done(b.dataset.apply, true));
-document.querySelectorAll("[data-discard]").forEach((b) => b.onclick = () => done(b.dataset.discard, false));
-$("#apply-all").onclick = () => { done("desc", true); done("pic", true); };
-$("#undo-tracker").onclick = (e) => { const st = $("#p-tracker .status"); st.className = "status off"; st.textContent = "In the Trash"; e.target.textContent = "Restore"; };
-$("#open-asst").onclick = () => setState("convo");
+$("#apply").onclick = () => decide(true);
+$("#discard").onclick = () => decide(false);
+$("#undo1").onclick = (e) => { const s = $("#r1 small"); s.className = ""; s.textContent = "Tracker · moved to the Trash"; e.target.textContent = "Restore"; };
 </script>
