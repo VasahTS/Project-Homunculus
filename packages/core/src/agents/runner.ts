@@ -378,7 +378,7 @@ export class AgentRunner {
     const started = this.deps.now();
     const usage: Usage = {};
     const forced: RunRequest = connection ? { ...req, setup: { ...req.setup, agentConnectionId: null, agentOverrides: { ...req.setup.agentOverrides, [a.id]: { ...req.setup.agentOverrides[a.id], connectionId: null } } }, mainConnection: connection, connections: {} } : req;
-    if (connection) entry = { ...entry, config: { ...entry.config, connectionId: null } };
+    if (connection) entry = { ...entry, config: { ...entry.config, connectionId: null, modelOverride: "" } };
     try {
       req.signal?.throwIfAborted();
       let raw: unknown;

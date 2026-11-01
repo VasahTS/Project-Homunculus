@@ -2,6 +2,13 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-11-01 · Five review bugfixes — direct request
+
+Fixed all five reviewed bugs after ten failing unit regressions: stale chapter summaries after edits, duplicate summary spans, missing/obsolete originals of regex edits, omitted before/parallel feedback, and ignored per-test model choices.
+Added per-session summary/write queues, late-summary validation and preserved-but-off affected chapters; kept the existing chapter path rule. Queues recover after failure; edits do not wait for model calls. No UI/schema/lockfile/workflow changes.
+Validation: typecheck/build passed; **295 unit tests passed (3 skipped); 37 affected browser flows passed** on exclusive port 1427. Added 12 unit cases and 2 browser flows. Report: `docs/REVIEW-BUGFIXES-2026-11-01.md`.
+Daniel authorized this direct bugfix request; T-001's full audit and the other Ready cards remain pending. Work only in Homunculus-gpt on gpt; no native/real-API/private-data checks. Signed: **CODEX**.
+
 ## 2026-10-30 · Agent editor Try it integrated — D-053
 
 Daniel approved the visual draft. Added the editor action and native modal using the app-owned live AgentDraft, chat/message selection, agent/per-test connection, explicit Run/Stop, typed result, actual sent input/raw answer, conditional reported reasoning and usage. Matched the approved Quiet layout and retained only production controls. Kept failed/pending autosave independent; trapped/returned focus; guarded duplicate requests, loading races, context changes, cancellation and late results. Added a theme token for the approved backdrop.

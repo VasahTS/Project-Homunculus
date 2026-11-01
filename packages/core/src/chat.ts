@@ -156,10 +156,16 @@ export class ChatService {
     // regex scripts marked "run on edit" (D-060)
     const { scripts, ctx } = await this.turns.regexForSession(m.sessionId);
     const content = applyRegexScripts(scripts, typed, { target: m.speaker.kind === "user" ? "user" : "ai", mode: "saved", edit: true }, ctx);
-    if (m.content === content) return;
-    await this.store.addRevision({ id: this.newId(), messageId, author: { kind: "user" }, before: m.content, after: content, createdAt: this.now() });
-    await this.store.updateMessageContent(messageId, content);
-    await this.store.markStaleAfter(messageId);
+    if (typed === m.content && content === m.content) return;
+    // Keep the original of this edit, rather than a previous generation/edit. CODEX.
+    const { beforeRegex: _drop, ...meta } = m.meta;
+    await this.store.updateMessage(messageId, { meta: content !== typed ? { ...meta, beforeRegex: typed } : meta });
+    if (m.content !== content) {
+      await this.store.addRevision({ id: this.newId(), messageId, author: { kind: "user" }, before: m.content, after: content, createdAt: this.now() });
+      await this.store.updateMessageContent(messageId, content);
+      await this.store.markStaleAfter(messageId);
+      await this.turns.invalidateMemoryAfter(m);
+    }
     await this.core.events.emit("message.revised", { sessionId: m.sessionId, messageId });
   }
 
@@ -173,6 +179,7 @@ export class ChatService {
     const { beforeRegex: _drop, ...meta } = m.meta;
     await this.store.updateMessage(messageId, { meta });
     await this.store.markStaleAfter(messageId);
+    await this.turns.invalidateMemoryAfter(m);
     await this.core.events.emit("message.revised", { sessionId: m.sessionId, messageId });
   }
 

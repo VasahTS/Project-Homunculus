@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Five review bugfixes (2026-11-01) — CODEX
+
+Daniel directly authorized the five reviewed fixes: chapter invalidation after message edits/regex undo, non-overlapping summary requests, originals of regex edits, before/parallel note feedback, and explicit Compare/Try it models.
+Affected chapters stay saved (including hand edits) but are switched off; corrected raw messages return to the prompt. No screen, schema, storage key or chapter path rule changed. Full memory audit T-001 remains Ready.
+Validation: typecheck/build passed; **295 unit tests passed, 3 skipped; 37 affected browser flows passed** on isolated port 1427 (12 new unit cases, 2 new browser flows).
+Report and limits: `docs/REVIEW-BUGFIXES-2026-11-01.md`. No native app, real API, private play data, workflow or lockfile changes. Work only in Homunculus-gpt, pushed only to gpt. Signed: **CODEX**.
+
 ## Regex scripts — done, tailored to the app (2026-11-01) — CLAUDE — D-060
 
 - **Engine:** SillyTavern's, ported and checked against its own code (3,000 random cases). Runs global → preset → character, where SillyTavern runs them (saved user/AI text, reasoning, first messages, edits, prompt history and lore, display).

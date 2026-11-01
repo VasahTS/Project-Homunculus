@@ -22,7 +22,8 @@ export function noteFeedback(a: AgentConfig): { on: boolean; notes: number } {
  */
 export async function noteInjections(store: SqlStore, agents: AgentConfig[], history: Message[]): Promise<PromptInjection[]> {
   const out: PromptInjection[] = [];
-  const replies = history.filter((m) => m.speaker.kind !== "user").reverse();
+  // Before/parallel agents attach notes to the user message they run on. CODEX.
+  const replies = [...history].reverse();
   for (const a of agents) {
     const f = noteFeedback(a);
     if (!f.on) continue;

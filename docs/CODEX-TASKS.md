@@ -100,4 +100,9 @@ Size: S–M.
 - Map in `docs/reference/` of SillyTavern's chat import edge cases (for Backfill in memory slice 8).
 
 ## Done
-(none yet)
+
+### Direct request · Five review bugfixes (2026-11-01)                     Status: Done
+Daniel explicitly authorized fixing the five bugs from CODEX's review, independently of the numbered queue.
+Changed: `packages/core/src/{chat,turn}.ts`, `packages/core/src/agents/{feedback,runner}.ts`; new unit/browser regressions and signed notes/report.
+Verified: typecheck/build, 295 unit tests passed (3 skipped), 37 affected browser flows passed.
+Report: `docs/REVIEW-BUGFIXES-2026-11-01.md`. T-001 remains Ready: this is not its full reliability audit. Signed: **CODEX**.

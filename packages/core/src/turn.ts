@@ -91,6 +91,8 @@ export interface TurnResult {
 
 export class TurnPipeline {
   readonly runner: AgentRunner;
+  private readonly summaryRuns = new Map<string, Promise<void>>();
+  private readonly chapterWrites = new Map<string, Promise<void>>();
   private readonly newId: () => string;
   private readonly now: () => number;
 
@@ -286,7 +288,33 @@ export class TurnPipeline {
   }
 
   async saveChapters(sessionId: string, chapters: Chapter[]): Promise<void> {
-    await this.store.setAppSetting(`memory.chapters:${sessionId}`, chapters);
+    await this.serializeMemory(this.chapterWrites, sessionId, () => this.store.setAppSetting(`memory.chapters:${sessionId}`, chapters));
+  }
+
+  /** Retain affected summaries, including hand edits, but send the corrected raw messages instead. CODEX. */
+  async invalidateMemoryAfter(message: Message): Promise<void> {
+    await this.serializeMemory(this.chapterWrites, message.sessionId, async () => {
+      const chapters = await this.chapters(message.sessionId);
+      let changed = false;
+      const next: Chapter[] = [];
+      for (const c of chapters) {
+        // Later chapters may have read an earlier chapter for continuity. Other branches remain independent.
+        const end = !c.off ? await this.store.getMessage(c.toId) : undefined;
+        const affected = end && (await this.store.pathTo(end.id)).some(m => m.id === message.id);
+        if (affected) changed = true;
+        next.push(affected ? { ...c, off: true } : c);
+      }
+      if (changed) await this.store.setAppSetting(`memory.chapters:${message.sessionId}`, next);
+    });
+  }
+
+  /** Per-session queues: model calls serialize, while short chapter writes never wait for a model. CODEX. */
+  private serializeMemory<T>(queue: Map<string, Promise<void>>, sessionId: string, run: () => Promise<T>): Promise<T> {
+    const result = (queue.get(sessionId) ?? Promise.resolve()).then(run);
+    const tail = result.then(() => {}, () => {});
+    queue.set(sessionId, tail);
+    void tail.then(() => { if (queue.get(sessionId) === tail) queue.delete(sessionId); });
+    return result;
   }
 
   /** What memory looks like at a message: the chapters on its path and how many messages wait for the next one. */
@@ -309,6 +337,12 @@ export class TurnPipeline {
    */
   async summarize(session: Session, setup: ResolvedSetup, messageId: string, main: ConnectionConfig,
     connections: Record<string, ConnectionConfig> | undefined, opts: { min: number; signal?: AbortSignal | undefined }): Promise<Chapter | undefined> {
+    return this.serializeMemory(this.summaryRuns, session.id, () => this.summarizeChapter(session, setup, messageId, main, connections, opts));
+  }
+
+  private async summarizeChapter(session: Session, setup: ResolvedSetup, messageId: string, main: ConnectionConfig,
+    connections: Record<string, ConnectionConfig> | undefined, opts: { min: number; signal?: AbortSignal | undefined }): Promise<Chapter | undefined> {
+    opts.signal?.throwIfAborted();
     const path = await this.store.pathTo(messageId);
     const all = await this.chapters(session.id);
     const span = nextChapterSpan(path, all, setup.memory, opts.min).slice(0, Math.max(opts.min, setup.memory.every));
@@ -316,7 +350,7 @@ export class TurnPipeline {
     await this.loadCharNames(session);
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const user = persona ? effectivePersona(persona, setup.personaVariantId).name : DEFAULT_USER_NAME;
-    const on = chaptersOnPath(path, all);
+    const on = chaptersOnPath(path, all).filter(x => !x.chapter.off);
     const previous = on[on.length - 1]?.chapter;
     const id = setup.agentConnectionId;
     const conn = (id ? connections?.[id] ?? this.options.connectionById?.(id) : undefined) ?? main;
@@ -327,9 +361,16 @@ export class TurnPipeline {
       id: this.newId(), fromId: span[0]!.id, toId: span[span.length - 1]!.id, title: parsed.title, summary: parsed.summary,
       messageCount: span.length, createdAt: this.now(),
     };
-    // re-read: the user may have edited a chapter while this one was being written
-    await this.saveChapters(session.id, [...(await this.chapters(session.id)), chapter]);
-    return chapter;
+    return this.serializeMemory(this.chapterWrites, session.id, async () => {
+      opts.signal?.throwIfAborted();
+      const fresh = new Map((await this.store.pathTo(messageId)).map(m => [m.id, m]));
+      // An edit can finish while the model is writing. Never hide that edit behind its late answer. CODEX.
+      if (span.some(m => fresh.get(m.id)?.content !== m.content)) return undefined;
+      const latest = await this.chapters(session.id);
+      if (previous && latest.find(c => c.id === previous.id)?.off) return undefined;
+      await this.store.setAppSetting(`memory.chapters:${session.id}`, [...latest, chapter]);
+      return chapter;
+    });
   }
 
   /** Summarize now (the Memory group's button): a chapter from whatever waits, if at least 2 messages. */
