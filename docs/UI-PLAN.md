@@ -7,6 +7,19 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
+## Cards with several characters; brief people in the Scene — CLAUDE, 2026-11-01 · 🟡 draft 1, waiting for Daniel
+
+Daniel (01/11, translated): "If I have a card that is 2+ characters together, how do I make it NOT show as one character in the trackers? The AI just takes the context and makes the cast naturally?" · "NPCs there should be a simple description; when they take information from the lorebook or a card they add all of it and things repeat for no reason. Trackers should show things simply and directly and leave complex information in its proper place. An NPC away should show only a super brief description, not the whole sheet. Look at how Aventuras does it." · After the first proposal: "it makes sense: exclude it from the cast but still send the content; we just need to show where that content is sent."
+Draft: `docs/drafts/ensemble-cards/index.html` (Henry and "Brenda & Jessica" from Daniel's screenshot; other values are examples; his database was not used).
+
+- **What it is for:** a card holding a cast is sent whole but tracked as its people; people out of the scene take one line, not a sheet.
+- **Aventuras** (`classifier.ts`, `analysis.ts` "World State Classifier", `WorldStateInjector.ts`, card import `characterCardImport/schemas.ts`): a character's description is *one sentence: who they are*; traits ≤ 8, lasting only; characters not `active` are listed without description/traits/appearance ("withheld") and the classifier may not rewrite them; a card's people become NPCs with 1–2 sentences on import.
+- **Character editor:** "This card is: One character · Several characters" under Name (on the card, all versions). Grid tag "Several".
+- **Scene:** a "several characters" card is not a row; the Characters tracker adds its people by name (existing `anyone` mode). A quiet note says so until one of them appears. **Out of the scene:** closed = name + role; open = the lead field (Description) + the presence section's fields ("Last seen", mood) + "Full sheet ›". Which fields are brief is data (lead + presence section), never field names in code.
+- **Prompt tab → Character:** the "Several characters" tag and one line ("Sent whole…"); every field shows the preset block it fills ("→ Char Description"), amber "→ not in this preset" when the preset does not send it.
+- **Tracker rules (starter data):** stop "copy it exactly" from cards/lorebook; keep fixed facts consistent in a few words; out-of-scene people get only presence, place, mood; several-characters cards are not people; Description = one sentence; appearance fields ≈ 12 words. Installed trackers get the new texts once, only where unedited (like D-024's `starterTrackersLook`).
+- **Open question:** send people out of the scene to the tracker with name/presence/mood only, or leave them out until they return?
+
 ## Agents v4 and narrators — CLAUDE, 2026-10-31 · ✅ draft 2 in the app, functional (D-059); Daniel: "not yet how I imagine it, OK for now"
 
 **Round 1 was rejected** (31/10, translated): "The UI is still weird. You are not really looking at how the two apps are; it must have the same or more options than the original app. The narrator part got VERY busy. And the narrators you made are too simple and don't serve much; remember the 3 modes of a Story — each should have its narrators — plus extras with other features that complement them." He sent screenshots of Marinara's agent editor (Prose Guardian) and v1's companion editor (Direction Menu).

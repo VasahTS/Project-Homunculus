@@ -1,0 +1,286 @@
+<title>Ensemble Cards Draft</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Homunculus 2 — draft "Cards with several characters + brief NPCs" (CLAUDE, 2026-11-01). Not code: the picture of
+   docs/UI-PLAN.md → "Cards with several characters; brief people in the Scene". Daniel (01/11, 06:41 and 06:48):
+   a card with 2+ characters must not show as one person in the trackers but its content is still sent, and it must be
+   clear where it is sent; people not in the scene show a super brief description, not the whole sheet (like Aventuras).
+   Names Henry and "Brenda & Jessica" come from Daniel's screenshot; every other value is an EXAMPLE.
+   Layout: the app's dark Quiet profile; each view puts "Today" beside "Proposed" when there is a before. */
+:root {
+  color-scheme: dark;
+  --window: #1b1c1f; --side: #17181b; --surface: #202226; --field: #24262a; --group: rgba(255,255,255,.055);
+  --label: rgba(255,255,255,.88); --label-2: rgba(235,235,245,.62); --label-3: rgba(235,235,245,.42);
+  --separator: rgba(255,255,255,.09); --fill: rgba(255,255,255,.07); --fill-hover: rgba(255,255,255,.12); --fill-sel: rgba(255,255,255,.16);
+  --accent: #62b6a4; --accent-ink: #0d2420; --accent-soft: rgba(98,182,164,.2);
+  --warn: #e3b45c; --place-character: #8db4ee; --del: rgba(255,138,128,.14); --add: rgba(127,209,155,.14);
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r-panel: 14px; --r-group: 10px; --r-control: 7px; --r-pill: 999px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--window); color: var(--label); font: 13.5px/1.5 var(--font-ui); }
+button { font: inherit; color: inherit; }
+.states { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: #121416; border-bottom: 1px solid var(--separator); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: #121416; }
+.states b { font-size: 11px; color: var(--label-3); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-right: 6px; }
+.states button { border: 1px solid var(--separator); background: none; border-radius: var(--r-pill); padding: 3px 12px; font-size: 12px; color: var(--label-2); cursor: pointer; }
+.states button.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.states button:focus-visible, .seg span:focus-visible, .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+main { padding-block: 22px 60px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.view { display: none; } .view.on { display: block; }
+.intro { max-width: 70ch; color: var(--label-2); margin: 0 0 18px; }
+.intro b { color: var(--label); }
+.cols { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+.col { flex: 0 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.col h3 { margin: 0; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--label-3); font-weight: 600; }
+.col h3.new { color: var(--accent); }
+.why { color: var(--label-2); font-size: 12.5px; margin: 0; max-width: 46ch; }
+
+/* ---- the inspector panel, like Daniel's screenshot ---- */
+.panel { background: var(--side); border: 1px solid var(--separator); border-radius: var(--r-panel); padding: 10px 12px 14px; }
+.tabs { display: flex; background: var(--fill); border-radius: 9px; padding: 3px; margin-bottom: 12px; }
+.tabs span { flex: 1; text-align: center; padding: 4px 0; border-radius: 7px; color: var(--label-2); font-size: 13px; }
+.tabs .on { background: rgba(255,255,255,.14); color: var(--label); font-weight: 600; }
+.ph { display: flex; align-items: center; gap: 8px; margin: 2px 4px 14px; color: var(--label-2); font-size: 13px; }
+.ph .sp { flex: 1; }
+.ghead { display: flex; align-items: center; justify-content: space-between; margin: 0 6px 6px; color: var(--label-2); font-size: 12.5px; }
+.ghead .r { color: var(--label-2); font-size: 12px; }
+.group { background: var(--group); border-radius: var(--r-group); overflow: hidden; }
+.person { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-top: 1px solid var(--separator); }
+.person:first-child { border-top: 0; }
+.dot { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%; background: #3a3c41; display: grid; place-items: center; font-weight: 600; font-size: 13px; color: var(--label); }
+.who { flex: 1; min-width: 0; }
+.who b { display: block; font-weight: 600; }
+.who small { display: block; color: var(--label-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chev { color: var(--label-3); }
+.drop { border: 1px dashed var(--separator); border-radius: var(--r-group); padding: 10px 12px; display: flex; justify-content: space-between; color: var(--label-2); font-size: 12.5px; }
+.drop i { font-style: normal; color: var(--label-3); }
+.gap { height: 14px; }
+.foot { margin: 14px 4px 0; display: grid; gap: 4px; font-size: 12.5px; color: var(--label-2); }
+.foot span b { color: var(--label); font-weight: 500; margin-right: 6px; }
+.foot .acc { color: var(--accent); }
+.note { display: flex; gap: 8px; align-items: flex-start; margin: 8px 4px 0; font-size: 12px; color: var(--label-2); }
+.note .i { color: var(--accent); flex: 0 0 auto; }
+.hl { outline: 1.5px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+/* opened person */
+.open { padding: 4px 12px 14px 58px; display: grid; gap: 10px; border-top: 0; }
+.lead { color: var(--label); margin: 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12.5px; }
+.kv dt { color: var(--label-3); } .kv dd { margin: 0; color: var(--label); min-width: 0; }
+.sect { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--label-3); margin-top: 4px; }
+.block { font-size: 12.5px; color: var(--label-2); }
+.block b { color: var(--label); font-weight: 500; }
+.tiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.tile { background: var(--fill); border-radius: 8px; padding: 4px 9px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tile small { color: var(--label-3); margin-right: 5px; }
+.long { max-height: 260px; overflow: hidden; position: relative; }
+.long::after { content: ""; position: absolute; inset: auto 0 0; height: 60px; background: linear-gradient(transparent, var(--side)); }
+.link { color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; font-size: 12.5px; }
+.pill { display: inline-block; background: var(--fill); border-radius: var(--r-pill); padding: 1px 9px; font-size: 11.5px; color: var(--label-2); }
+.pill.acc { background: var(--accent-soft); color: var(--accent); }
+
+/* Prompt tab character group */
+.cg { background: var(--group); border-radius: var(--r-group); padding: 10px 12px; display: grid; gap: 10px; }
+.cg-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cg-top .dot { width: 28px; height: 28px; flex-basis: 28px; font-size: 12px; }
+.cg-top b { font-weight: 600; }
+.cg-top .sp { flex: 1; }
+.fld { display: grid; gap: 3px; }
+.fld .lab { font-size: 12px; color: var(--label-2); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.fld .lab .where { color: var(--place-character); font-size: 11.5px; }
+.fld .txt { background: var(--field); border-radius: var(--r-control); padding: 7px 9px; color: var(--label); font-size: 12.5px; }
+.fld .muted { color: var(--label-3); }
+
+/* Character editor */
+.editor { background: var(--surface); border: 1px solid var(--separator); border-radius: var(--r-panel); padding: 16px; display: grid; gap: 14px; }
+.editor .lab { font-size: 12.5px; color: var(--label-2); margin-bottom: 4px; display: block; }
+.input { background: var(--field); border-radius: var(--r-control); padding: 7px 10px; }
+.seg { display: inline-flex; background: var(--fill); border-radius: 9px; padding: 3px; }
+.seg span { padding: 4px 14px; border-radius: 7px; color: var(--label-2); cursor: pointer; font-size: 13px; }
+.seg span.on { background: rgba(255,255,255,.14); color: var(--label); font-weight: 600; }
+.hint { color: var(--label-2); font-size: 12px; margin: 6px 0 0; max-width: 52ch; }
+
+/* tracker rules */
+.rules { display: grid; gap: 14px; max-width: 900px; }
+.rule { background: var(--group); border-radius: var(--r-group); padding: 12px 14px; display: grid; gap: 8px; }
+.rule h4 { margin: 0; font-size: 13px; }
+.rule .old, .rule .new { font-family: var(--font-mono); font-size: 12px; padding: 7px 9px; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rule .old { background: var(--del); color: var(--label-2); }
+.rule .new { background: var(--add); color: var(--label); }
+.q { border: 1px solid var(--warn); border-radius: var(--r-group); padding: 10px 14px; max-width: 70ch; color: var(--label); }
+.q b { color: var(--warn); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<nav class="states" aria-label="Draft views">
+  <b>Draft</b>
+  <button type="button" class="on" data-v="scene">1 · Scene</button>
+  <button type="button" data-v="away">2 · Someone not in the scene</button>
+  <button type="button" data-v="prompt">3 · Prompt tab</button>
+  <button type="button" data-v="editor">4 · Character editor</button>
+  <button type="button" data-v="rules">5 · What the tracker is told</button>
+</nav>
+
+<main>
+<!-- 1 · Scene -->
+<section class="view on" id="v-scene">
+  <p class="intro">A card can say it holds <b>several characters</b>. It still goes to the AI whole, but the Scene no longer shows it as one person: the Characters tracker adds <b>Brenda</b> and <b>Jessica</b> by themselves when the story shows them, each with their own values. Henry and “Brenda &amp; Jessica” are from your screenshot; the rest are example values.</p>
+  <div class="cols">
+    <div class="col">
+      <h3>Today</h3>
+      <div class="panel">
+        <div class="tabs"><span class="on">Scene</span><span>Prompt</span><span>Reply</span></div>
+        <div class="ph">Scene<span class="sp"></span>⟲ ⚙ ?</div>
+        <div class="ghead">In the scene · 2 <span class="r">⌄ Show All</span></div>
+        <div class="group">
+          <div class="person"><div class="dot">H</div><div class="who"><b>Henry</b></div><span class="chev">›</span></div>
+          <div class="person"><div class="dot">B</div><div class="who"><b>Brenda &amp; Jessica</b></div><span class="chev">›</span></div>
+        </div>
+        <div class="gap"></div>
+        <div class="drop">Not in the scene · 0 <i>drag someone here</i></div>
+        <div class="foot"><span><b>Characters</b>Not run at this message. <span class="acc">running…</span></span><span><b>World</b>Not run at this message. <span class="acc">Run now</span></span></div>
+      </div>
+      <p class="why">One row for two people: their mood, place and looks get mixed into one sheet.</p>
+    </div>
+    <div class="col">
+      <h3 class="new">Proposed</h3>
+      <div class="panel">
+        <div class="tabs"><span class="on">Scene</span><span>Prompt</span><span>Reply</span></div>
+        <div class="ph">Scene<span class="sp"></span>⟲ ⚙ ?</div>
+        <div class="ghead">In the scene · 3 <span class="r">⌄ Show All</span></div>
+        <div class="group">
+          <div class="person"><div class="dot">H</div><div class="who"><b>Henry</b><small>player</small></div><span class="chev">›</span></div>
+          <div class="person"><div class="dot">B</div><div class="who"><b>Brenda</b><small>older sister · teasing Henry</small></div><span class="chev">›</span></div>
+          <div class="person"><div class="dot">J</div><div class="who"><b>Jessica</b><small>younger sister · hiding behind the counter</small></div><span class="chev">›</span></div>
+        </div>
+        <p class="note hl"><span class="i">ⓘ</span><span>“Brenda &amp; Jessica” has several characters. Its card is sent whole; its people show here as the story brings them in.</span></p>
+        <div class="gap"></div>
+        <div class="drop">Not in the scene · 0 <i>drag someone here</i></div>
+        <div class="foot"><span><b>Characters</b>Updated at this message.</span><span><b>World</b>Not run at this message. <span class="acc">Run now</span></span></div>
+      </div>
+      <p class="why">The note shows only in chats that have such a card, and only until one of its people appears. After that, Brenda and Jessica are normal rows (drag, fold, Save to the Vault).</p>
+    </div>
+  </div>
+</section>
+
+<!-- 2 · Away -->
+<section class="view" id="v-away">
+  <p class="intro">Someone who left the scene shows <b>who they are in one sentence</b> and where they were last seen, like Aventuras’ “recently departed” list. The whole sheet is one click away and is no longer rewritten while they are gone. Marcus is an example NPC.</p>
+  <div class="cols">
+    <div class="col">
+      <h3>Today · opened</h3>
+      <div class="panel">
+        <div class="ghead">Not in the scene · 1 <span class="r">⌃ Fold All</span></div>
+        <div class="group">
+          <div class="person"><div class="dot">M</div><div class="who"><b>Marcus</b><small>dock foreman · irritated</small></div><span class="chev">⌄</span></div>
+          <div class="open long">
+            <div class="sect">Appearance</div>
+            <div class="block"><b>Face</b> square jaw, weathered light-brown skin, a broken nose healed crooked, deep lines around the eyes from years on the water, a short grey-black beard trimmed close along the jaw…</div>
+            <div class="block"><b>Hair</b> black going grey at the temples, cropped short…</div>
+            <div class="block"><b>Body</b> broad shoulders, heavy forearms from hauling rope, a thick waist…</div>
+            <div class="block"><b>Outfit</b> faded blue canvas work shirt with rolled sleeves, oil-stained brown trousers, a leather apron…</div>
+            <div class="sect">About</div>
+            <p class="lead">Marcus has run the harbor docks of Port Calder for twenty years after inheriting the post from his father, who drowned in the storm of 1802. He answers to the Harbor Guild, owes money to the Varga family, and is known across the quay for…</p>
+            <div class="tiles"><span class="tile"><small>Age</small>48</span><span class="tile"><small>Height</small>1.84 m</span><span class="tile"><small>Weight</small>96 kg</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="why">The same lore the lorebook already has, copied into the sheet, then updated every turn while Marcus is not even there.</p>
+    </div>
+    <div class="col">
+      <h3 class="new">Proposed · opened</h3>
+      <div class="panel">
+        <div class="ghead">Not in the scene · 1 <span class="r">⌃ Fold All</span></div>
+        <div class="group">
+          <div class="person"><div class="dot">M</div><div class="who"><b>Marcus</b><small>dock foreman</small></div><span class="chev">⌄</span></div>
+          <div class="open">
+            <p class="lead">Foreman of the Port Calder docks; owes the Varga family money.</p>
+            <dl class="kv"><dt>Last seen</dt><dd>at the harbor gate, heading to the Guild hall</dd><dt>Mood</dt><dd>irritated</dd></dl>
+            <div><button type="button" class="link">Full sheet ›</button> <span class="pill">kept as it was when he left</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="why">Closed, the row shows name and role only (mood moves inside). “Full sheet ›” opens the usual sheet. When he comes back into the scene he gets the full sheet again and the tracker continues from it.</p>
+      <p class="why">Which fields count as “brief” is data, not code: the person’s <b>lead</b> field (Description) plus the fields of the presence section (“Now”), the same rule the AI already gets for people not in the scene.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3 · Prompt tab -->
+<section class="view" id="v-prompt">
+  <p class="intro">This answers <b>“where is its content sent?”</b>. Nothing changes in the prompt: the card is still the chat’s character. The Prompt tab shows the tag next to its name and says where each field goes. The blue name is the same place color the prompt preview already uses for character blocks.</p>
+  <div class="cols">
+    <div class="col">
+      <h3 class="new">Proposed · Prompt → Character</h3>
+      <div class="panel">
+        <div class="tabs"><span>Scene</span><span class="on">Prompt</span><span>Reply</span></div>
+        <div class="cg">
+          <div class="cg-top"><div class="dot">B</div><b>Brenda &amp; Jessica</b><span class="pill acc">Several characters</span><span class="sp"></span><button type="button" class="link">Full editor</button></div>
+          <p class="hint hl" style="margin:0;padding:2px 4px">Sent whole, like any card. The Scene does not track it as one person: Brenda and Jessica appear there on their own.</p>
+          <div class="fld"><span class="lab">Description <span class="where">→ Char Description</span></span><div class="txt">Brenda (24) and Jessica (19) run the Lantern, their late father’s tea shop… <span class="muted">(click to edit)</span></div></div>
+          <div class="fld"><span class="lab">Personality <span class="where">→ Char Personality</span></span><div class="txt"><span class="muted">Empty</span></div></div>
+          <div class="fld"><span class="lab">Scenario <span class="where">→ Scenario</span></span><div class="txt">{{user}} is the shop’s first customer of the day…</div></div>
+          <div class="fld"><span class="lab">Examples of dialogue <span class="where">→ Example dialogue</span></span><div class="txt"><span class="muted">2 examples</span></div></div>
+        </div>
+      </div>
+      <p class="why">The “→ block” labels are new for <b>every</b> card, not only this kind: they name the preset block each field fills. A field the preset does not send says “→ not in this preset” in amber.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · Character editor -->
+<section class="view" id="v-editor">
+  <p class="intro">The choice lives <b>on the card</b>, under its name, so it holds in every chat and story that uses it. Imported cards start as “One character”.</p>
+  <div class="cols">
+    <div class="col">
+      <h3 class="new">Proposed · Characters → Edit</h3>
+      <div class="editor">
+        <div><span class="lab">Name</span><div class="input">Brenda &amp; Jessica</div></div>
+        <div>
+          <span class="lab">This card is</span>
+          <div class="seg" role="radiogroup" aria-label="This card is"><span role="radio" tabindex="0" aria-checked="false">One character</span><span role="radio" tabindex="0" class="on" aria-checked="true">Several characters</span></div>
+          <p class="hint">For a card with two or more people (or a whole cast). It is sent to the AI as usual; the Scene tracks each person on their own instead of the card.</p>
+        </div>
+        <div><span class="lab">Description</span><div class="input" style="min-height:70px;color:var(--label-2)">Brenda (24) and Jessica (19) run the Lantern, their late father’s tea shop…</div></div>
+      </div>
+      <p class="why">Versions (D-064) share it: it is about the card, not a version. In the Characters grid the card gets a small “Several” tag.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 · Rules -->
+<section class="view" id="v-rules">
+  <p class="intro">The repetition comes from the Characters tracker’s own rules: today they tell it to <b>copy</b> card and lorebook facts into the sheet. Following Aventuras, the sheet keeps short facts and what the story changes; long lore stays in the card and the lorebook, which the AI already reads. These are starter texts: your installed trackers get them once, only where you did not edit them.</p>
+  <div class="rules">
+    <div class="rule"><h4>Rule about canon (Scene: Characters prompt)</h4>
+      <div class="old">- Lorebook entries, character cards and cast sheets are canon for who a character is. When one of them gives a fixed fact (age, height, weight, face, hair, eyes, build, species, powers…), copy it exactly, even if the current values say something else…</div>
+      <div class="new">- Character cards, lorebook entries and cast sheets are canon and the story's AI already reads them. Never copy their text into a field. Keep fixed facts (age, height, species…) consistent with them, in a few words, and correct a value that contradicts them. Write what the story shows or changes.</div></div>
+    <div class="rule"><h4>New rule: people not in the scene</h4>
+      <div class="new">- For anyone not in the scene, only update "In the scene", where they went and their mood. Leave their other values as they are; they are not shown to you.</div></div>
+    <div class="rule"><h4>New rule: cards with several characters</h4>
+      <div class="new">- A card marked as several characters is not a person. Add each of its people by their own name when the story shows them.</div></div>
+    <div class="rule"><h4>Description field (all Characters sets)</h4>
+      <div class="old">One or two sentences on who they are: what they do and where they stand in the story.</div>
+      <div class="new">One sentence: who they are. No backstory; the card and lorebook hold it.</div></div>
+    <div class="rule"><h4>Appearance fields (face, hair, body, outfit…)</h4>
+      <div class="old">Face shape, skin tone and notable features, in concrete terms ("square jaw, light olive skin, freckles across the nose").</div>
+      <div class="new">Same text, plus one line on each: "At most about 12 words."</div></div>
+  </div>
+  <p class="q"><b>Question for you:</b> should someone not in the scene still be sent to the tracker at all (name, presence, mood only, as above), or left out entirely until they come back? Aventuras keeps them with name and description only.</p>
+</section>
+</main>
+
+<script>
+document.querySelectorAll(".states button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".states button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + b.dataset.v));
+}));
+document.querySelectorAll(".seg span").forEach(s => s.addEventListener("click", () => {
+  s.parentElement.querySelectorAll("span").forEach(x => { x.classList.toggle("on", x === s); x.setAttribute("aria-checked", String(x === s)); });
+}));
+</script>
