@@ -323,7 +323,17 @@ impl reqwest::dns::Resolve for PublicOnlyResolver {
         })
     }
 }
+/// reqwest is built without its own crypto provider (`rustls-no-provider`): install ring once, as the updater does.
+fn web_crypto() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        if rustls::crypto::CryptoProvider::get_default().is_none() {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        }
+    });
+}
 fn web_client(seconds: u64) -> Result<reqwest::Client, String> {
+    web_crypto();
     reqwest::Client::builder().no_proxy().dns_resolver(std::sync::Arc::new(PublicOnlyResolver))
         .redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(seconds))
         .user_agent(WEB_UA).build().map_err(|e| e.to_string())
@@ -523,11 +533,17 @@ mod web_tests {
             let response = reqwest::Response::from(tauri::http::Response::new(vec![0xff, b'a']));
             assert_eq!(web_body(response, "example.org").await.unwrap(), ("�a".into(), false));
         });
-    }    #[test]
+    }
+    #[test]
+    fn web_client_builds_without_the_updater_having_run() {
+        assert!(web_client(5).is_ok());
+    }
+    #[test]
     fn public_address_rules_match_the_original_pinned_flint_functions() {
         let original: serde_json::Value = serde_json::from_str(include_str!("../../src/assistant/fixtures/flint-parity.json")).unwrap();
         for case in original["ips"].as_array().unwrap() {
             let address = case["address"].as_str().unwrap();
             assert_eq!(is_public_ip(address.parse().unwrap()), case["public"].as_bool().unwrap(), "{address}");
         }
-    }}
+    }
+}

@@ -25,6 +25,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Reuse the updater's reqwest and ring-backed rustls; no new TLS provider.
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+# The provider reqwest needs: ring, as the updater uses. Installed once at start (D-067), or every web request would panic
+# until the updater had run (it only installs it on an update check).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 # Updates from GitHub Releases (D-037, CLAUDE 2026-10-29): the updater checks/installs, process restarts the app.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

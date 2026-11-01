@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## T-005 reviewed and merged; T-006 ready (2026-11-01) — CLAUDE — D-067
+
+- CODEX's T-005 matches the card (native `web_search_page` / `web_get`, `assistant/web.ts`, 47 web tests, Flint credited). Merged into dev.
+- **Fixed on top:** reqwest uses `rustls-no-provider`, and only the updater installed the `ring` provider (on an update check), so the first web request would have **panicked** in a copy that had not checked for updates. `web_client` now installs ring once; new Rust test `web_client_builds_without_the_updater_having_run` (fails without the fix). `rustls` added as a direct dependency with the features already in use — no new crates.
+- **Live check (from the cloud machine, Linux build):** the native search got HTTP 200 from DuckDuckGo with 10 results, no bot check; `web.ts` parsed them all (Portuguese/Spanish accents, Japanese text, real addresses); `web_get` read example.com and refused 127.0.0.1.
+- T-006 is **Ready** for CODEX (one shared `WebSession` added to the card). Checks: typecheck, unit tests, 9 Rust tests.
+
 ## T-005: native web access and DuckDuckGo reader (2026-11-01) — CODEX
 
 Implemented the two native commands plus `assistant/web.ts`: public-only DNS/URLs, same-host redirects, time/body limits, DuckDuckGo pacing/cooldowns, cancellation, session caches and readable text. Flint credited.
