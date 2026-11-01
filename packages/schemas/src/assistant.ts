@@ -71,6 +71,8 @@ export const AssistantSettings = z.object({
   defaultAssistantId: z.string().default(""),
   /** "" = none. */
   defaultPresetId: z.string().default(""),
+  /** Tool groups switched off for every chat: "create", "change", "files", "memory". */
+  toolsOff: z.array(z.string()).default([]),
   /** Round 1 fields (read once to fill the default assistant and preset; never written again). */
   connectionId: Id.nullable().optional(),
   model: z.string().optional(),
@@ -108,7 +110,9 @@ export const AssistantAttachment = z.discriminatedUnion("type", [
 ]);
 export type AssistantAttachment = z.infer<typeof AssistantAttachment>;
 
-export const AssistantToolStep = z.object({ id: z.string(), name: z.string(), args: z.string().default(""), result: z.string().default(""), label: z.string().default(""), error: z.boolean().default(false) });
+export const AssistantToolStep = z.object({ id: z.string(), name: z.string(), args: z.string().default(""), result: z.string().default(""), label: z.string().default(""), error: z.boolean().default(false),
+  /** How long the tool took. */
+  ms: z.number().optional() });
 export type AssistantToolStep = z.infer<typeof AssistantToolStep>;
 
 export const AssistantMessage = z.object({
@@ -131,6 +135,12 @@ export const AssistantMessage = z.object({
     assistant: z.string().optional(), preset: z.string().optional(),
     /** Estimated tokens by part of the request: instructions, preset, tools, chat. */
     parts: z.record(z.string(), z.number()).optional(),
+    /** Ids of what was really in the last request: preset rules / notes / memory lines, attachments. */
+    sent: z.array(z.string()).optional(),
+    /** Wall time of the whole reply, and of the model's writing (for tokens per second). */
+    ms: z.number().optional(), thinkMs: z.number().optional(), writeMs: z.number().optional(),
+    /** Calls to the model in this reply. */
+    calls: z.number().optional(),
   }).optional(),
   error: z.string().optional(),
   createdAt: z.number().int(),
@@ -152,6 +162,10 @@ export const AssistantChat = z.object({
   model: z.string().optional(),
   /** The model's context size, when known (from the model list). */
   contextLength: z.number().int().optional(),
+  /** Older messages summed up (Flint's compaction): messages up to `uptoId` are sent as this summary. */
+  compact: z.object({ uptoId: z.string(), summary: z.string(), at: z.number().int(), before: z.number().optional() }).optional(),
+  /** Compact by itself when the context gets full (80%). */
+  autoCompact: z.boolean().default(true),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });

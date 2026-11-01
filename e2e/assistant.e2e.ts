@@ -49,6 +49,22 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await expect(page.getByRole("dialog", { name: "Context and spending" })).toContainText("Card Smith");
   await page.keyboard.press("Escape");
 
+  // Details: context, what it is using, files, tools, activity; message actions
+  await expect(page.getByTestId("assistant-details")).toBeVisible();
+  await expect(page.getByTestId("det-using")).toContainText("Card Smith");
+  await expect(page.getByTestId("det-files")).toContainText("Lyra");
+  await expect(page.getByTestId("det-activity")).toContainText("Proposed changes");
+  await expect(page.getByTestId("assistant-usage").first()).toContainText("tokens not reported");
+  await page.getByTestId("assistant-reply").last().hover();
+  await page.getByTestId("assistant-regenerate").click();
+  await expect(page.getByTestId("assistant-reply")).toHaveCount(2);
+  await expect(page.getByTestId("assistant-send")).toBeVisible();
+  await page.getByTestId("assistant-chat-menu").click();
+  await expect(page.getByRole("dialog", { name: "Chat" })).toContainText("Export as Markdown");
+  await page.keyboard.press("Escape");
+  await page.getByTestId("assistant-details-toggle").click();
+  await expect(page.getByTestId("assistant-details")).toHaveCount(0);
+
   // Customize: a page with assistants, presets (a rule), limits and usage
   await page.getByTestId("assistant-customize").click();
   await expect(page.getByTestId("cust-assistant")).toHaveCount(5);

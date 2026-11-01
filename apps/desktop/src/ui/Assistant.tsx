@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
-import { connectionFor, deleteChat, listChats, loadChat, loadSettings, resolveFor, runAssistant, saveChat, updateResult, type ChatRow } from "../assistant/engine.ts";
+import { compactChat, connectionFor, deleteChat, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, type ChatRow } from "../assistant/engine.ts";
+import { libraryCounts } from "../assistant/tools.ts";
+import { AssistantDetails } from "./AssistantDetails.tsx";
+import { saveExport } from "../files.ts";
+import type { RichTurn } from "@homunculus/core";
 import { applyChange, applyTrash, createItem, undoCreate } from "../assistant/tools.ts";
 import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
@@ -30,11 +34,13 @@ const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "narrator", "np
 export function useAssistant(svc: AppServices | null) {
   const [chats, setChats] = useState<ChatRow[]>([]);
   const [activeId, setActiveIdRaw] = useState<string | null>(null);
-  const [page, setPage] = useState<"chat" | "customize">("chat");
-  const setActiveId = useCallback((id: string | null) => { setActiveIdRaw(id); setPage("chat"); }, []);
+  const [page, setPageRaw] = useState<"chat" | "customize">("chat");
+  const [custTab, setCustTab] = useState<"assistants" | "presets" | "limits" | "usage">("assistants");
+  const setPage = useCallback((p: "chat" | "customize", tab?: "assistants" | "presets" | "limits" | "usage") => { if (tab) setCustTab(tab); setPageRaw(p); }, []);
+  const setActiveId = useCallback((id: string | null) => { setActiveIdRaw(id); setPageRaw("chat"); }, []);
   const reload = useCallback(async () => { if (svc) setChats(await listChats(svc.store)); }, [svc]);
   useEffect(() => { void reload(); }, [reload]);
-  return { chats, activeId, setActiveId, reload, page, setPage };
+  return { chats, activeId, setActiveId, reload, page, setPage, custTab, svc };
 }
 export type AssistantState = ReturnType<typeof useAssistant>;
 
@@ -53,7 +59,26 @@ export function ModeSwitch({ mode, onMode }: { mode: AppMode; onMode: (m: AppMod
 export function AssistantSidebar({ st, onMode, status }: { st: AssistantState; onMode: (m: AppMode) => void; status: string }) {
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
-  const shown = q.trim() ? st.chats.filter((c) => `${c.title} ${c.summary}`.toLowerCase().includes(q.trim().toLowerCase())) : st.chats;
+  // search reads the chats' messages too (Flint: "search past transcripts"); a line around the first match is shown
+  const [hits, setHits] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const w = q.trim().toLowerCase();
+    if (!w || !st.svc) { setHits(new Map()); return; }
+    let live = true;
+    const t = setTimeout(() => void (async () => {
+      const out = new Map<string, string>();
+      for (const c of st.chats) {
+        const full = await loadChat(st.svc!.store, c.id);
+        for (const m of full?.messages ?? []) {
+          const i = m.text.toLowerCase().indexOf(w);
+          if (i >= 0) { out.set(c.id, `…${m.text.slice(Math.max(0, i - 30), i + 60).replace(/\s+/g, " ")}…`); break; }
+        }
+      }
+      if (live) setHits(out);
+    })(), 200);
+    return () => { live = false; clearTimeout(t); };
+  }, [q, st.chats, st.svc]);
+  const shown = q.trim() ? st.chats.filter((c) => `${c.title} ${c.summary}`.toLowerCase().includes(q.trim().toLowerCase()) || hits.has(c.id)) : st.chats;
   return (
     <nav className="sidebar glass asst-side" aria-label="Assistant" data-region="sidebar" data-testid="assistant-sidebar">
       <div className="sidebar-brand"><span className="brand">Homunculus</span><span className="status-chip">{status}</span></div>
@@ -70,7 +95,7 @@ export function AssistantSidebar({ st, onMode, status }: { st: AssistantState; o
         {shown.length === 0 && <li className="hint side-empty">{q ? "No chat matches." : "Your chats will show here."}</li>}
         {shown.map((c) => (
           <li key={c.id}><button className={`side-item${st.page === "chat" && st.activeId === c.id ? " on" : ""}`} onClick={() => st.setActiveId(c.id)}>
-            <span className="side-text"><strong>{c.title}</strong><span>{c.summary || new Date(c.updatedAt).toLocaleDateString()}</span></span>
+            <span className="side-text"><strong>{c.title}</strong><span>{(q.trim() && hits.get(c.id)) || c.summary || new Date(c.updatedAt).toLocaleDateString()}</span></span>
           </button></li>
         ))}
       </ul>
@@ -102,6 +127,11 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState("");
   const [settings, setSettings] = useState<AssistantSettings | null>(null);
+  const [compacting, setCompacting] = useState(false);
+  const [details, setDetailsRaw] = useState<boolean>(() => { try { return localStorage.getItem("homunculus.assistant.details") !== "off"; } catch { return true; } });
+  const setDetails = (on: boolean) => { setDetailsRaw(on); try { localStorage.setItem("homunculus.assistant.details", on ? "on" : "off"); } catch { /* private window */ } };
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -127,6 +157,9 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const r0 = connection.forRequest();
   const effective = resolved && r0.connection ? connectionFor(picks, resolved.assistant, r0.connection, r0.connections) : null;
   const lastUsed = [...(chat?.messages ?? [])].reverse().find((m) => m.role === "assistant" && m.used)?.used;
+  const profileOf = (id: string | null | undefined) => (id ? connection.byId.get(id) : undefined);
+  const modelLabel = effective?.model || profileOf(picks.connectionId ?? resolved?.assistant.connectionId ?? connection.defaultId)?.name || "No connection";
+  const modelFrom = `${profileOf(picks.connectionId ?? resolved?.assistant.connectionId ?? connection.defaultId)?.name ?? "No connection"} · ${picks.connectionId !== undefined || picks.model ? "this chat" : resolved?.assistant.model || resolved?.assistant.connectionId ? `${resolved?.assistant.name}'s model` : "the stories' connection"}`;
   const picksBar = settings && resolved ? (
     <PicksBar settings={settings} picks={picks} setPicks={setPicks} svc={svc} connection={connection}
       model={effective?.model || (() => { const id = picks.connectionId ?? resolved.assistant.connectionId ?? connection.defaultId; return (id ? connection.byId.get(id)?.name : undefined) ?? "No connection"; })()}
@@ -151,31 +184,66 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     setAtts((a) => [...a, ...out]);
   };
 
-  const send = async (override?: string) => {
-    const body = (override ?? text).trim();
-    if (busy || (!body && !atts.length)) return;
+  /** Runs a reply for a chat whose last message is the user's (send, edit and resend, regenerate). */
+  const runFrom = async (withUser: AssistantChat) => {
     const r = connection.forRequest();
     if (!r.connection) { setError("Set up a connection first (Settings → Connections)."); return; }
-    const now = Date.now();
-    const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: body, reasoning: "", attachments: atts, steps: [], rounds: [], results: [], createdAt: now };
-    const base = chat ?? AssistantChat.parse({ id: crypto.randomUUID(), createdAt: now, updatedAt: now, ...draft });
-    const withUser = { ...base, messages: [...base.messages, user], updatedAt: now };
-    setChat(withUser); setText(""); setAtts([]); setError("");
+    setChat(withUser); setError("");
     await saveChat(svc.store, withUser);
     st.setActiveId(withUser.id);
     const ctrl = new AbortController();
     abort.current = ctrl;
-    setLive({ id: "live", role: "assistant", text: "", reasoning: "", attachments: [], steps: [], rounds: [], results: [], createdAt: now });
+    setLive({ id: "live", role: "assistant", text: "", reasoning: "", attachments: [], steps: [], rounds: [], results: [], createdAt: Date.now() });
     try {
-      const done = await runAssistant({ core: svc.core, store: svc.store, chat: withUser, main: r.connection, connections: r.connections, signal: ctrl.signal, onUpdate: setLive });
+      let ready = withUser;
+      // the context is getting full: sum up the older messages first (Details → Context)
+      if (needsCompaction(ready)) {
+        setCompacting(true);
+        ready = await compactChat({ core: svc.core, store: svc.store, chat: ready, main: r.connection, connections: r.connections, signal: ctrl.signal }).catch(() => ready);
+        setCompacting(false);
+      }
+      const done = await runAssistant({ core: svc.core, store: svc.store, chat: ready, main: r.connection, connections: r.connections, signal: ctrl.signal, onUpdate: setLive });
       setChat(done);
       if (done.messages.at(-1)?.results.some((x) => x.type === "created")) onChanged();
     } finally {
-      setLive(null); abort.current = null;
+      setLive(null); abort.current = null; setCompacting(false);
       void st.reload();
       void loadSettings(svc.store).then(setSettings);
     }
   };
+
+  const send = async (override?: string) => {
+    const body = (override ?? text).trim();
+    if (busy || (!body && !atts.length)) return;
+    if (!connection.forRequest().connection) { setError("Set up a connection first (Settings → Connections)."); return; }
+    const now = Date.now();
+    const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: body, reasoning: "", attachments: atts, steps: [], rounds: [], results: [], createdAt: now };
+    const base = chat ?? AssistantChat.parse({ id: crypto.randomUUID(), createdAt: now, updatedAt: now, ...draft });
+    setText(""); setAtts([]);
+    await runFrom({ ...base, messages: [...base.messages, user], updatedAt: now });
+  };
+  /** Writes the last reply again (results it made stay; undo them on their cards if needed). */
+  const regenerate = () => {
+    if (!chat || busy) return;
+    const i = chat.messages.map((m) => m.role).lastIndexOf("user");
+    if (i >= 0) void runFrom({ ...chat, messages: chat.messages.slice(0, i + 1), updatedAt: Date.now() });
+  };
+  /** Changes one of the user's messages and answers again from there (later messages go). */
+  const editAndResend = (m: AssistantMessage, newText: string) => {
+    if (!chat || busy) return;
+    const i = chat.messages.findIndex((x) => x.id === m.id);
+    if (i < 0) return;
+    void runFrom({ ...chat, messages: [...chat.messages.slice(0, i), { ...m, text: newText.trim() }], ...(chat.compact && chat.messages.findIndex((x) => x.id === chat.compact!.uptoId) >= i ? { compact: undefined } : {}), updatedAt: Date.now() });
+  };
+  const compactNow = async () => {
+    const r = connection.forRequest();
+    if (!chat || !r.connection || busy) return;
+    setCompacting(true);
+    try { setChat(await compactChat({ core: svc.core, store: svc.store, chat, main: r.connection, connections: r.connections })); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setCompacting(false); }
+  };
+  const updateChat = (c: AssistantChat) => { setChat(c); void saveChat(svc.store, c).then(() => st.reload()); };
 
   const decide = async (m: AssistantMessage, i: number, next: AssistantResult) => {
     if (!chat) return;
@@ -214,12 +282,25 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
 
   const messages = chat?.messages ?? [];
   const empty = messages.length === 0 && !live;
-  if (st.page === "customize") return <AssistantCustomizePage svc={svc} connection={connection} lead={lead} onClose={() => { st.setPage("chat"); void loadSettings(svc.store).then(setSettings); }} />;
+  if (st.page === "customize") return <AssistantCustomizePage key={st.custTab} initialTab={st.custTab} svc={svc} connection={connection} lead={lead} onClose={() => { st.setPage("chat"); void loadSettings(svc.store).then(setSettings); }} />;
 
   return (
+    <div className={`asst-wrap${details ? " with-details" : ""}`}>
     <section className="asst" data-testid="assistant">
-      <header className="asst-top">{lead}<span className="asst-title">{chat && messages.length ? chat.title : ""}</span>
-        {chat && messages.length > 0 && <IconButton label="Delete this chat" onClick={() => { void deleteChat(svc.store, chat.id).then(() => { st.setActiveId(null); void st.reload(); }); }}><Icon name="trash" size={15} /></IconButton>}
+      <header className="asst-top">{lead}
+        {renaming && chat
+          ? <input className="asst-rename" autoFocus defaultValue={chat.title} aria-label="Chat name"
+              onBlur={(e) => { setRenaming(false); if (e.target.value.trim()) updateChat({ ...chat, title: e.target.value.trim() }); }}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setRenaming(false); }} />
+          : <span className="asst-title" onDoubleClick={() => chat && setRenaming(true)}>{chat && messages.length ? chat.title : ""}</span>}
+        {chat && messages.length > 0 && <Pop title="Chat" testId="assistant-chat-menu" className="down" label={<Icon name="dots" size={15} />}>
+          {(close) => <>
+            <button type="button" className="asst-pop-item" onClick={() => { close(); setRenaming(true); }}><span className="asst-pop-emoji">✎</span><span><b>Rename</b></span></button>
+            <button type="button" className="asst-pop-item" onClick={() => { close(); void saveExport({ fileName: `${chat.title.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60) || "assistant-chat"}.md`, mime: "text/markdown", bytes: new TextEncoder().encode(chatMarkdown(chat)) }); }}><span className="asst-pop-emoji">⇩</span><span><b>Export as Markdown</b></span></button>
+            <button type="button" className="asst-pop-item danger" onClick={() => { close(); void deleteChat(svc.store, chat.id).then(() => { st.setActiveId(null); void st.reload(); }); }}><span className="asst-pop-emoji">🗑</span><span><b>Delete chat</b></span></button>
+          </>}
+        </Pop>}
+        <button type="button" className={`asst-details-btn${details ? " on" : ""}`} onClick={() => setDetails(!details)} aria-pressed={details} data-testid="assistant-details-toggle"><Icon name="inspector" size={14} /> Details</button>
       </header>
       <div className="asst-scroll" ref={scroller}>
         {empty ? (
@@ -239,10 +320,13 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
           </div>
         ) : (
           <div className="asst-col asst-msgs" data-testid="assistant-messages">
-            {messages.map((m) => (m.role === "user" ? <UserBubble key={m.id} m={m} /> : (
-              <Reply key={m.id} m={m} onAct={(i, w) => void act(m, i, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit} />
+            {chat?.compact && <div className="asst-compacted">Older messages are sent as a summary · <button className="link" onClick={() => setDetails(true)}>Details</button></div>}
+            {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} /> : (
+              <Reply key={m.id} m={m} onAct={(ri, w) => void act(m, ri, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit}
+                emoji={settings?.assistants.find((a) => a.name === m.used?.assistant)?.emoji}
+                onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} />
             )))}
-            {live && <Reply m={live} live onAct={() => {}} onApplyAll={() => {}} onOpen={onOpenItem} onStartKit={onStartKit} />}
+            {live && <Reply m={live} live onAct={() => {}} onApplyAll={() => {}} onOpen={onOpenItem} onStartKit={onStartKit} emoji={resolved?.assistant.emoji} liveName={resolved?.assistant.name} compacting={compacting} />}
           </div>
         )}
       </div>
@@ -257,7 +341,12 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       {picking && <ContextPicker library={library} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
         onClose={() => setPicking(false)}
         onAdd={(items) => { setAtts((a) => [...a.filter((x) => x.type !== "item"), ...items]); setPicking(false); }} />}
+      {viewing && chat && settings && <RequestView chat={chat} messageId={viewing} settings={settings} svc={svc} onClose={() => setViewing(null)} />}
     </section>
+    {details && settings && <AssistantDetails chat={chat} live={live} settings={settings} modelName={modelLabel} modelFrom={modelFrom}
+      onSettings={(n) => { setSettings(n); void saveSettings(svc.store, n); }} onChat={updateChat} onCompact={() => void compactNow()} compacting={compacting}
+      onCustomize={(tab) => st.setPage("customize", tab)} onClose={() => setDetails(false)} />}
+    </div>
   );
 }
 
@@ -296,21 +385,37 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
   );
 }
 
-function UserBubble({ m }: { m: AssistantMessage }) {
+function UserBubble({ m, busy, onEdit, onView }: { m: AssistantMessage; busy: boolean; onEdit: (t: string) => void; onView: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(m.text);
   return (
     <div className="asst-me">
       {m.attachments.length > 0 && <div className="asst-ctx end">{m.attachments.map((a) => (
         a.type === "image" ? <img key={a.id} className="asst-thumb" src={`data:${a.mime};base64,${a.base64}`} alt={a.name} />
           : <span key={a.id} className="asst-chip"><span className="asst-k" aria-hidden>{a.type === "item" ? KIND_MARK[a.kind] : "📄"}</span><span className="asst-chip-name">{a.name}</span></span>
       ))}</div>}
-      {m.text && <div className="asst-b">{m.text}</div>}
+      {editing ? (
+        <div className="asst-edit">
+          <textarea value={draft} rows={3} autoFocus aria-label="Edit message" onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); setEditing(false); onEdit(draft); } if (e.key === "Escape") setEditing(false); }} />
+          <div className="asst-edit-row"><span className="hint">Later messages are replaced by a new answer.</span><span className="grow" />
+            <Button small variant="plain" onClick={() => setEditing(false)}>Cancel</Button><Button small variant="prominent" disabled={!draft.trim()} onClick={() => { setEditing(false); onEdit(draft); }}>Send</Button></div>
+        </div>
+      ) : m.text && <div className="asst-b">{m.text}</div>}
+      {!editing && <div className="asst-acts">
+        <button type="button" title="Copy" aria-label="Copy" onClick={() => void navigator.clipboard?.writeText(m.text)}><Icon name="link" size={12} /> Copy</button>
+        {!busy && <button type="button" onClick={() => { setDraft(m.text); setEditing(true); }} data-testid="assistant-edit"><Icon name="pencil" size={12} /> Edit</button>}
+        <button type="button" onClick={onView} title="What the model received for this message"><Icon name="eye" size={12} /> Request</button>
+        <span className="asst-time">{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+      </div>}
     </div>
   );
 }
 
-function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit }: {
+function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false }: {
   m: AssistantMessage; live?: boolean; onAct: (i: number, what: "apply" | "discard" | "undo" | "restore") => void; onApplyAll: () => void;
-  onOpen: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void;
+  onOpen: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void; onRegenerate?: (() => void) | undefined;
+  emoji?: string | undefined; liveName?: string | undefined; compacting?: boolean;
 }) {
   const [stepsOpen, setStepsOpen] = useState(false);
   const [thinkOpen, setThinkOpen] = useState(false);
@@ -319,9 +424,10 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit }: {
   const stepLine = live && last ? `${last.label}${last.label === "…" ? "" : "…"}` : m.steps.length === 1 ? m.steps[0]!.label : `${m.steps.length} steps`;
   return (
     <div className="asst-ai" data-testid="assistant-reply">
-      <span className={`asst-orb${live ? " live" : ""}`} aria-hidden>✦</span>
+      <span className={`asst-orb${live ? " live" : ""}`} aria-hidden>{emoji && emoji !== "✦" ? emoji : "✦"}</span>
       <div className="asst-body">
-        {m.reasoning && <button type="button" className="asst-quiet" onClick={() => setThinkOpen(!thinkOpen)} aria-expanded={thinkOpen}>{live && !m.text && !m.steps.length ? "Thinking…" : "Thought"} ›</button>}
+        <div className="asst-meta"><b>{m.used?.assistant ?? liveName ?? "Assistant"}</b>{m.used?.model && <span>{m.used.model}</span>}<span>{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{compacting && <span className="asst-busy">compacting older messages…</span>}</div>
+        {m.reasoning && <button type="button" className="asst-quiet" onClick={() => setThinkOpen(!thinkOpen)} aria-expanded={thinkOpen}>{live && !m.text && !m.steps.length ? "Thinking…" : m.used?.thinkMs ? `Thought for ${Math.max(1, Math.round(m.used.thinkMs / 1000))} s` : "Thought"} ›</button>}
         {thinkOpen && <div className="asst-qlist">{m.reasoning}</div>}
         {m.steps.length > 0 && <button type="button" className="asst-quiet" onClick={() => setStepsOpen(!stepsOpen)} aria-expanded={stepsOpen} data-testid="assistant-steps">{stepLine} ›</button>}
         {stepsOpen && <div className="asst-qlist">{m.steps.map((s, i) => <div key={i} className={s.error ? "bad" : ""}>{s.label}</div>)}</div>}
@@ -329,7 +435,11 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit }: {
         {m.results.map((r, i) => <ResultCard key={i} r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} />)}
         {waiting > 1 && !live && <div className="asst-decide"><Button small variant="prominent" onClick={onApplyAll} data-testid="assistant-apply-all">Apply all {waiting}</Button></div>}
         {m.error && <p className="asst-error" role="alert">{m.error === "Stopped" || /abort/i.test(m.error) ? "Stopped." : m.error}</p>}
-        {!live && m.used && (m.used.tokensIn || m.used.model) && <div className="asst-used">{m.used.model}{m.used.tokensIn ? ` · ${((m.used.tokensIn + (m.used.tokensOut ?? 0)) / 1000).toFixed(1)}k tokens` : ""}{m.used.cost ? ` · $${m.used.cost.toFixed(3)}` : ""}</div>}
+        {!live && <div className="asst-acts left">
+          {m.used && <span className="asst-usage" data-testid="assistant-usage">{usageLine(m)}</span>}
+          {m.text && <button type="button" onClick={() => void navigator.clipboard?.writeText(m.text)}><Icon name="link" size={12} /> Copy</button>}
+          {onRegenerate && <button type="button" onClick={onRegenerate} data-testid="assistant-regenerate"><Icon name="refresh" size={12} /> Again</button>}
+        </div>}
       </div>
     </div>
   );
@@ -528,5 +638,58 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
         </div>}
       </Pop>
     </span>
+  );
+}
+
+/** "28 tok/s · 1.2k in · 158 out · $0.002", or what was not reported. */
+function usageLine(m: AssistantMessage): string {
+  const u = m.used;
+  if (!u) return "";
+  const parts: string[] = [];
+  if (u.tokensOut && u.writeMs) parts.push(`${Math.round(u.tokensOut / (u.writeMs / 1000))} tok/s`);
+  parts.push(u.tokensIn || u.tokensOut ? `${fmtK(u.tokensIn ?? 0)} in · ${fmtK(u.tokensOut ?? 0)} out` : "tokens not reported");
+  if (u.cost) parts.push(`$${u.cost.toFixed(4)}`);
+  if (u.calls && u.calls > 1) parts.push(`${u.calls} calls`);
+  return parts.join(" · ");
+}
+
+/** The chat as Markdown (Export). */
+function chatMarkdown(c: AssistantChat): string {
+  const out = [`# ${c.title}`, ""];
+  for (const m of c.messages) {
+    if (m.role === "user") {
+      out.push(`## You — ${new Date(m.createdAt).toLocaleString()}`, "");
+      if (m.attachments.length) out.push(`*Attached: ${m.attachments.map((a) => a.name).join(", ")}*`, "");
+      out.push(m.text, "");
+    } else {
+      out.push(`## ${m.used?.assistant ?? "Assistant"}${m.used?.model ? ` (${m.used.model})` : ""}`, "");
+      if (m.steps.length) out.push(m.steps.map((s) => `- ${s.label}`).join("\n"), "");
+      if (m.text) out.push(m.text, "");
+      for (const r of m.results) if (r.type !== "memory") out.push(`> ${r.type === "created" ? "Created" : r.type === "change" ? "Change" : r.type === "trash" ? "Trash proposal" : "New"}: ${r.kind} “${r.name}”${"status" in r ? ` — ${r.status}` : ""}`);
+      out.push("");
+    }
+  }
+  return out.join("\n");
+}
+
+/** What the model received for one message (rebuilt from the saved chat, pictures left out). Flint: "what the model received". */
+function RequestView({ chat, messageId, settings, svc, onClose }: { chat: AssistantChat; messageId: string; settings: AssistantSettings; svc: AppServices; onClose: () => void }) {
+  const [counts, setCounts] = useState("…");
+  useEffect(() => { void libraryCounts(svc.store).then(setCounts); }, [svc]);
+  const i = chat.messages.findIndex((m) => m.id === messageId);
+  const turns = toTurns({ ...chat, messages: chat.messages.slice(0, i + 1) }, settings, counts);
+  const tools = toolsFor(settings);
+  const show = (c: RichTurn["content"]) => (typeof c === "string" ? c : c.map((p) => (p.type === "text" ? p.text : `[image ${p.mime}, ${Math.round(p.base64.length * 0.75 / 1024)} KB]`)).join("\n"));
+  return (
+    <Modal title="What the model received" onClose={onClose} className="modal-wide asst-request" testId="assistant-request">
+      <p className="hint">The request for this message, rebuilt from the chat: {turns.length} messages and {tools.length} tools (~{Math.round(JSON.stringify(turns).length / 3.6).toLocaleString()} tokens before the tools).</p>
+      {turns.map((t, k) => (
+        <details key={k} className="asst-req-turn" open={k === 0 || k === turns.length - 1}>
+          <summary><b>{t.role}</b>{t.toolCalls?.length ? ` · calls ${t.toolCalls.map((c) => c.name).join(", ")}` : ""} <span className="hint">~{Math.round(show(t.content).length / 3.6)} tokens</span></summary>
+          <pre>{show(t.content)}{t.toolCalls?.length ? `\n\n${t.toolCalls.map((c) => `→ ${c.name}(${c.arguments})`).join("\n")}` : ""}</pre>
+        </details>
+      ))}
+      <details className="asst-req-turn"><summary><b>tools</b> <span className="hint">{tools.map((t) => t.name).join(", ")}</span></summary><pre>{JSON.stringify(tools, null, 2)}</pre></details>
+    </Modal>
   );
 }

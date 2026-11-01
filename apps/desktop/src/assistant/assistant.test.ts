@@ -3,7 +3,7 @@ import initSqlJs from "sql.js";
 import { describe, expect, it } from "vitest";
 import { Character, LoreEntry, Lorebook, Narrator, Story, TrackerField, AssistantChat, type AssistantMessage } from "@homunculus/schemas";
 import { HomunculusCore, SqlJsDriver, SqlStore, coreMigrations, migrate, type GenerateRequest, type StreamChunk } from "@homunculus/core";
-import { loadChat, runAssistant, saveSettings, toTurns, loadSettings } from "./engine.ts";
+import { compactChat, loadChat, needsCompaction, runAssistant, saveSettings, toTurns, loadSettings } from "./engine.ts";
 import { applyChange, runTool, type ToolContext } from "./tools.ts";
 import { parseFile, readPart } from "./files.ts";
 import { GUIDES } from "./guides.ts";
@@ -159,6 +159,36 @@ describe("the Assistant", () => {
     expect(s.assistants.find((a) => a.id === "homunculus")).toMatchObject({ instructions: "Be terse.", model: "glm-5" });
     expect(s.presets[0]).toMatchObject({ name: "My preferences", rules: [{ text: "No W++." }], memory: [{ text: "Likes noir." }] });
     expect(((await store.getAppSetting("assistant.settings")) as Record<string, unknown>).instructions).toBeUndefined();
+  });
+
+  it("stops a tool call that keeps repeating; switched-off tools are not offered; the reply records what was sent and how long it took", async () => {
+    const { store, core, seen } = await setup((_r, i) => (i < 4 ? [call("find", { query: "x" }, `c${i}`)] : ["done"]));
+    const s0 = await loadSettings(store);
+    await saveSettings(store, { ...s0, toolsOff: ["create", "memory"], presets: s0.presets.map((p) => ({ ...p, rules: [{ id: "rule1", text: "Be brief.", on: true }] })) });
+    const out = await runAssistant({ core, store, chat: chatWith(userMsg("look")), main, connections: {}, onUpdate: () => {} });
+    const reply = out.messages.at(-1)!;
+    expect(seen[0]!.tools!.map((t) => t.name)).not.toContain("create");
+    expect(seen[0]!.tools!.map((t) => t.name)).not.toContain("remember");
+    expect(reply.steps[2]).toMatchObject({ label: "Stopped a repeated find", error: true });
+    expect(reply.text).toContain("kept repeating");
+    expect(reply.used!.sent).toContain("rule1");
+    expect(reply.steps[0]!.ms).toBeTypeOf("number");
+    expect(reply.used!.calls).toBe(4);
+  });
+
+  it("compaction sums up older messages; the request then carries the summary instead", async () => {
+    const { store, core, seen } = await setup((req) => (req.rich ? ["ok"] : ["The user is building a dark fantasy Kit; Lyra was made (character:lyra)."]));
+    let chat = chatWith();
+    for (let i = 0; i < 4; i++) chat = { ...chat, messages: [...chat.messages, userMsg(`question ${i}`), { ...userMsg(`answer ${i}`), role: "assistant" as const }] };
+    chat = await compactChat({ core, store, chat, main, connections: {} });
+    expect(chat.compact!.summary).toContain("dark fantasy");
+    const turns = toTurns(chat, await loadSettings(store), "characters: 1");
+    expect(String(turns[1]!.content)).toContain("[Summary of the earlier conversation");
+    expect(turns.map((t) => String(t.content))).not.toContain("question 0");
+    expect(turns.map((t) => String(t.content))).toContain("question 3");
+    expect(seen[0]!.messages[0]!.content).toContain("You sum up a conversation");
+    expect(needsCompaction({ ...chat, contextLength: 1000, messages: [...chat.messages, { ...userMsg(""), role: "assistant", used: { model: "", guides: [], lastPrompt: 900 } }] })).toBe(true);
+    expect(needsCompaction({ ...chat, autoCompact: false, contextLength: 1000, messages: [...chat.messages, { ...userMsg(""), role: "assistant", used: { model: "", guides: [], lastPrompt: 900 } }] })).toBe(false);
   });
 
   it("each guide only names fields the app really has", () => {

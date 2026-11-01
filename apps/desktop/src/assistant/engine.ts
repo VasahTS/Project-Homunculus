@@ -10,6 +10,7 @@ import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, ty
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
 import { BUILTIN_ASSISTANTS, CORE_RULES } from "./guides.ts";
 import { libraryCounts, runTool, TOOL_SPECS, type ToolContext } from "./tools.ts";
+export { TOOL_SPECS };
 
 const SETTINGS_KEY = "assistant.settings";
 const INDEX_KEY = "assistant.chats";
@@ -50,6 +51,7 @@ export async function loadSettings(store: SqlStore): Promise<AssistantSettings> 
     assistants, presets,
     defaultAssistantId: assistants.some((a) => a.id === raw.defaultAssistantId) ? raw.defaultAssistantId : "homunculus",
     defaultPresetId: raw.defaultPresetId === "" && raw.presets.length ? "" : presets.some((p) => p.id === raw.defaultPresetId) ? raw.defaultPresetId : presets[0]!.id,
+    toolsOff: raw.toolsOff,
   });
   if (changed) await saveSettings(store, out);
   return out;
@@ -60,6 +62,16 @@ export async function saveSettings(store: SqlStore, s: AssistantSettings): Promi
   clean.presets = clean.presets.map((p) => ({ ...p, rules: p.rules.filter((r) => r.text.trim()), memory: p.memory.filter((m) => m.text.trim()) }));
   await store.setAppSetting(SETTINGS_KEY, AssistantSettings.parse(clean));
 }
+
+/** Tool groups the user can switch off (Details → Tools). Reading tools are always on. */
+export const TOOL_GROUPS: Array<{ id: string; label: string; help: string; tools: string[] }> = [
+  { id: "read", label: "Read your library", help: "find, read, guides — always on", tools: ["find", "read", "guide"] },
+  { id: "create", label: "Create items", help: "new characters, lorebooks, trackers, Kits, narrators; imports", tools: ["create", "import_file"] },
+  { id: "change", label: "Propose changes", help: "changes, pictures and Trash proposals — you approve each", tools: ["change", "set_picture", "propose_trash"] },
+  { id: "files", label: "Read attached files", help: "parts of the files you attach", tools: ["read_file"] },
+  { id: "memory", label: "Remember", help: "adds to the preset's memory", tools: ["remember"] },
+];
+export const toolsFor = (s: AssistantSettings) => TOOL_SPECS.filter((t) => !TOOL_GROUPS.some((g) => g.id !== "read" && s.toolsOff.includes(g.id) && g.tools.includes(t.name)));
 
 /** Who answers a chat and what it knows. */
 export function resolveFor(chat: Pick<AssistantChat, "assistantId" | "presetId"> | null, s: AssistantSettings): { assistant: AssistantPersona; preset: AssistantPreset | undefined } {
@@ -133,7 +145,10 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
   const recentImages = new Set(users.slice(-2).map((m) => m.id));
   const lastUser = users.at(-1)?.id;
   let afterLastUser = false;
-  for (const m of chat.messages) {
+  // compacted: the older messages go as their summary
+  const cut = chat.compact ? chat.messages.findIndex((m) => m.id === chat.compact!.uptoId) : -1;
+  if (cut >= 0) out.push({ role: "user", content: `[Summary of the earlier conversation — the messages themselves were compacted]\n${chat.compact!.summary}` }, { role: "assistant", content: "Understood." });
+  for (const m of chat.messages.slice(cut + 1)) {
     if (m.id === lastUser) afterLastUser = true;
     if (m.role === "user") { out.push({ role: "user", content: userContent(m, recentImages.has(m.id)) }); continue; }
     let step = 0;
@@ -170,7 +185,15 @@ export async function runAssistant(o: {
   const counts = await libraryCounts(o.store);
   const est = (t: string) => Math.ceil(t.length / 3.6);
   const sys = systemParts(assistant, preset, counts);
-  const parts: Record<string, number> = { app: est(sys.app ?? ""), assistant: est(sys.assistant ?? ""), preset: est(sys.preset ?? ""), tools: est(JSON.stringify(TOOL_SPECS)) };
+  const tools = toolsFor(settings);
+  const parts: Record<string, number> = { app: est(sys.app ?? ""), assistant: est(sys.assistant ?? ""), preset: est(sys.preset ?? ""), tools: est(JSON.stringify(tools)) };
+  const sent = [
+    ...(preset ? [...preset.rules.filter((r) => r.on && r.text.trim()).map((r) => r.id), ...preset.notes.filter((n) => n.on && n.text.trim()).map((n) => n.id), ...(preset.memoryOn ? preset.memory.map((m) => m.id) : [])] : []),
+    ...o.chat.messages.slice((o.chat.compact ? o.chat.messages.findIndex((m) => m.id === o.chat.compact!.uptoId) : -1) + 1).flatMap((m) => m.attachments.map((a) => a.id)),
+  ];
+  const t0 = now();
+  let thinkMs = 0, writeMs = 0, callsMade = 0;
+  const repeats = new Map<string, number>();
   const reply: AssistantMessage = { id: newId(), role: "assistant", text: "", reasoning: "", attachments: [], steps: [], rounds: [], results: [], used: { model: conn.model, guides: [] }, createdAt: now() };
   let chat: AssistantChat = { ...o.chat, messages: [...o.chat.messages, reply] };
   const guides = new Set(o.chat.guides);
@@ -197,23 +220,38 @@ export async function runAssistant(o: {
       const turns = toTurns(chat, settings, counts);
       let text = "";
       let calls: ToolCall[] = [];
-      for await (const chunk of o.core.connections.stream(conn, [], o.signal, { tools: TOOL_SPECS, rich: turns })) {
-        if (typeof chunk === "string") { text += chunk; reply.text = text; push(); }
+      const callStart = now();
+      let firstText = 0;
+      for await (const chunk of o.core.connections.stream(conn, [], o.signal, { tools, rich: turns })) {
+        if (typeof chunk === "string") { if (!firstText) firstText = now(); text += chunk; reply.text = text; push(); }
         else if ("reasoning" in chunk) { reply.reasoning += chunk.reasoning; push(); }
         else if ("toolCalls" in chunk) calls = calls.concat(chunk.toolCalls);
         else if ("usage" in chunk) { usage.last = chunk.usage.tokensIn ?? usage.last; usage.tokensIn += chunk.usage.tokensIn ?? 0; usage.tokensOut += chunk.usage.tokensOut ?? 0; usage.cost += chunk.usage.cost ?? 0; }
       }
+      callsMade++;
+      if (firstText) { thinkMs += firstText - callStart; writeMs += now() - firstText; } else thinkMs += now() - callStart;
       if (!calls.length) { reply.text = text; break; }
       if (step >= assistant.maxSteps) { reply.text = `${text}\n\n(Stopped after ${assistant.maxSteps} steps — say “go on” to continue.)`.trim(); break; }
       reply.rounds.push({ text, calls: calls.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments })) });
       reply.text = "";
+      let looping = false;
       for (const c of calls) {
         reply.steps.push({ id: c.id, name: c.name, args: c.arguments, result: "", label: "…", error: false });
         push();
-        const out = await runTool(c.name, c.arguments, ctx);
-        reply.steps[reply.steps.length - 1] = { id: c.id, name: c.name, args: c.arguments, result: out.result, label: out.label, error: out.error ?? false };
+        const key = `${c.name}|${c.arguments}`;
+        const seen = (repeats.get(key) ?? 0) + 1;
+        repeats.set(key, seen);
+        const s0 = now();
+        const out = seen >= 3
+          ? { result: "You already made this exact call twice. Stop calling tools now and answer the user with what you have.", label: `Stopped a repeated ${c.name}`, error: true }
+          : !tools.some((t) => t.name === c.name)
+            ? { result: `The tool “${c.name}” is switched off by the user.`, label: `${c.name} is off`, error: true }
+            : await runTool(c.name, c.arguments, ctx);
+        if (seen >= 3) looping = true;
+        reply.steps[reply.steps.length - 1] = { id: c.id, name: c.name, args: c.arguments, result: out.result, label: out.label, error: out.error ?? false, ms: now() - s0 };
         push();
       }
+      if (looping && repeats.size && [...repeats.values()].some((n) => n >= 4)) { reply.text = "(Stopped: the same tool call kept repeating.)"; break; }
       chat = { ...chat, messages: [...o.chat.messages, reply] };
     }
   } catch (e) {
@@ -222,7 +260,7 @@ export async function runAssistant(o: {
   // the chat's share: from the service's count when it gave one, else estimated from the turns themselves
   const sysTotal = parts.app! + parts.assistant! + parts.preset! + parts.tools!;
   parts.chat = usage.last ? Math.max(0, usage.last - sysTotal) : est(JSON.stringify(toTurns({ ...chat, messages: [...o.chat.messages, reply] }, settings, counts).slice(1)));
-  reply.used = { model: conn.model, guides: [...guides], assistant: assistant.name, ...(preset ? { preset: preset.name } : {}), parts, ...(usage.last ? { lastPrompt: usage.last } : {}), ...(usage.tokensIn ? { tokensIn: usage.tokensIn } : {}), ...(usage.tokensOut ? { tokensOut: usage.tokensOut } : {}), ...(usage.cost ? { cost: usage.cost } : {}) };
+  reply.used = { model: conn.model, guides: [...guides], assistant: assistant.name, ...(preset ? { preset: preset.name } : {}), parts, sent, ms: now() - t0, thinkMs, writeMs, calls: callsMade, ...(usage.last ? { lastPrompt: usage.last } : {}), ...(usage.tokensIn ? { tokensIn: usage.tokensIn } : {}), ...(usage.tokensOut ? { tokensOut: usage.tokensOut } : {}), ...(usage.cost ? { cost: usage.cost } : {}) };
   push();
   const made = reply.results.filter((r) => r.type === "created" || r.type === "change").map((r) => (r as { name: string }).name);
   const first = o.chat.messages.find((m) => m.role === "user");
@@ -234,6 +272,50 @@ export async function runAssistant(o: {
   };
   await saveChat(o.store, final);
   return final;
+}
+
+/**
+ * Compaction (Flint): the older messages are summed up by the model (no tools) and sent as that summary from then on.
+ * Keeps the newest `keep` user turns word for word. Returns the chat unchanged when there is too little to compact.
+ */
+export async function compactChat(o: { core: HomunculusCore; store: SqlStore; chat: AssistantChat; main: ConnectionConfig; connections: Record<string, ConnectionConfig>; keep?: number; signal?: AbortSignal }): Promise<AssistantChat> {
+  const keep = o.keep ?? 2;
+  const userIdx = o.chat.messages.map((m, i) => (m.role === "user" ? i : -1)).filter((i) => i >= 0);
+  if (userIdx.length <= keep) return o.chat;
+  const endAt = userIdx[userIdx.length - keep]! - 1; // the last message that gets summed up
+  const upto = o.chat.messages[endAt];
+  if (!upto) return o.chat;
+  const settings = await loadSettings(o.store);
+  const { assistant } = resolveFor(o.chat, settings);
+  const conn = connectionFor(o.chat, assistant, o.main, o.connections);
+  const lines: string[] = [];
+  if (o.chat.compact) lines.push(`Earlier summary:\n${o.chat.compact.summary}`);
+  const start = o.chat.compact ? o.chat.messages.findIndex((m) => m.id === o.chat.compact!.uptoId) + 1 : 0;
+  for (const m of o.chat.messages.slice(start, endAt + 1)) {
+    if (m.role === "user") lines.push(`USER: ${m.text}${m.attachments.length ? ` [attached: ${m.attachments.map((a) => (a.type === "item" ? `${a.kind}:${a.id} ${a.name}` : a.name)).join(", ")}]` : ""}`);
+    else {
+      lines.push(`ASSISTANT: ${m.text}`);
+      for (const s of m.steps) lines.push(`  (tool ${s.name}: ${s.label})`);
+      for (const r of m.results) if (r.type !== "memory") lines.push(`  [${r.type} ${r.kind} “${r.name}”${"itemId" in r && r.itemId ? ` ${r.kind}:${r.itemId}` : ""}${"status" in r ? ` — ${r.status}` : ""}]`);
+    }
+  }
+  const out = await o.core.connections.complete(conn, [
+    { role: "system", content: "You sum up a conversation between a user and an assistant that builds roleplay material (characters, lorebooks, trackers, Kits, narrators) in an app, so it can continue without the full text. Keep: what the user wants and decided, their preferences, every item made or changed with its kind:id, proposals still waiting, open questions. Plain prose and short lists; no greetings." },
+    { role: "user", content: lines.join("\n").slice(-60_000) },
+  ], { ...(o.signal ? { signal: o.signal } : {}), maxTokens: 1200 });
+  const summary = out.text.trim();
+  if (!summary) return o.chat;
+  const next: AssistantChat = { ...o.chat, compact: { uptoId: upto.id, summary, at: Date.now(), ...(out.tokensIn ? { before: out.tokensIn } : {}) }, updatedAt: Date.now() };
+  await saveChat(o.store, next);
+  return next;
+}
+
+/** Should this chat compact by itself before the next message? (80% of the model's context, or 60k when unknown.) */
+export function needsCompaction(chat: AssistantChat): boolean {
+  if (!chat.autoCompact) return false;
+  const last = [...chat.messages].reverse().find((m) => m.role === "assistant" && m.used)?.used;
+  const used = last?.lastPrompt ?? (last?.parts ? Object.values(last.parts).reduce((a, b) => a + b, 0) : 0);
+  return used > 0.8 * (chat.contextLength ?? 75_000);
 }
 
 /** Changes a result card in a saved chat (after Apply / Discard / Undo). */
