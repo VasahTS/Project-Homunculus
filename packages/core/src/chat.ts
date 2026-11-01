@@ -106,7 +106,7 @@ export class ChatService {
     const { scripts, ctx } = await this.turns.regexForSession(session.id);
     for (const raw of openings) {
       const text = applyRegexScripts(scripts, raw, { target: "ai", mode: "saved" }, ctx);
-      const m = await this.store.addMessage({ id: this.newId(), sessionId: session.id, parentId: null, speaker, content: text, createdAt: this.now(), meta: {} });
+      const m = await this.store.addMessage({ id: this.newId(), sessionId: session.id, parentId: null, speaker, content: text, createdAt: this.now(), meta: text !== raw ? { beforeRegex: raw } : {} });
       await this.core.events.emit("message.created", { sessionId: session.id, messageId: m.id });
       firstMessage ??= m;
     }
@@ -159,6 +159,19 @@ export class ChatService {
     if (m.content === content) return;
     await this.store.addRevision({ id: this.newId(), messageId, author: { kind: "user" }, before: m.content, after: content, createdAt: this.now() });
     await this.store.updateMessageContent(messageId, content);
+    await this.store.markStaleAfter(messageId);
+    await this.core.events.emit("message.revised", { sessionId: m.sessionId, messageId });
+  }
+
+  /** Puts back the text a message had before regex scripts changed it when it was saved (D-060). */
+  async undoRegex(messageId: string): Promise<void> {
+    const m = await this.store.getMessage(messageId);
+    const before = m?.meta.beforeRegex;
+    if (!m || typeof before !== "string") return;
+    await this.store.addRevision({ id: this.newId(), messageId, author: { kind: "user" }, before: m.content, after: before, createdAt: this.now() });
+    await this.store.updateMessageContent(messageId, before);
+    const { beforeRegex: _drop, ...meta } = m.meta;
+    await this.store.updateMessage(messageId, { meta });
     await this.store.markStaleAfter(messageId);
     await this.core.events.emit("message.revised", { sessionId: m.sessionId, messageId });
   }

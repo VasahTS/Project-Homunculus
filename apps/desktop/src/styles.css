@@ -2244,3 +2244,49 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 @media (max-width: 760px) { .ae-two, .ae-toggles, .ae-phases, .ae-var { grid-template-columns: minmax(0, 1fr); } }
 .ag-item { gap: 10px; }
 .ag-ico { width: 30px; height: 30px; flex: none; border-radius: 8px; background: var(--fill); display: grid; place-items: center; font-size: 16px; }
+
+/* ---- Regex scripts (D-060) ---- */
+.rx-page { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.rx-page-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 28px; display: grid; gap: 12px; align-content: start; max-width: 860px; width: 100%; }
+.rx-list { display: grid; gap: 6px; }
+.rx-empty { margin: 4px 2px; }
+.rx-row { border-radius: var(--radius-group); background: var(--group); border: 1px solid transparent; transition: border-color var(--dur-fast), background-color var(--dur-fast); }
+.rx-row.open { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--fill); }
+.rx-row.off .rx-open { opacity: 0.5; }
+.rx-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; }
+.rx-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 4px 2px; color: var(--label); cursor: pointer; text-align: left; }
+.rx-open > svg { flex: none; margin-left: auto; color: var(--label-3); transition: transform var(--dur-fast) var(--ease-out); }
+.rx-row.open .rx-open > svg { transform: rotate(90deg); }
+.rx-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rx-where { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.rx-chip { flex: none; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--fill); color: var(--label-2); white-space: nowrap; }
+.rx-chip.bad { background: var(--danger-soft); color: var(--danger); }
+.rx-chip.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.rx-edit { display: grid; gap: 12px; padding: 4px 14px 14px; }
+.rx-field { display: grid; gap: 4px; }
+.rx-lbl { font-size: var(--size-small); color: var(--label-2); font-weight: 600; }
+.rx-field .mono, .rx-review-code { font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace); font-size: 12.5px; }
+.rx-err { color: var(--danger); font-size: var(--size-small); }
+.rx-targets { display: flex; flex-wrap: wrap; gap: 6px; }
+.rx-target { border: 1px solid var(--separator); background: none; color: var(--label-2); border-radius: var(--radius-pill); padding: 3px 10px; cursor: pointer; font-size: var(--size-small); }
+.rx-target.on { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 600; }
+.rx-more-body { display: grid; gap: 10px; padding-top: 8px; }
+.rx-check { display: flex; align-items: center; gap: 8px; }
+.rx-depth { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rx-depth input { width: 72px; }
+.rx-try { display: grid; gap: 4px; }
+.rx-try-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rx-try-out { border-radius: var(--radius-control); background: var(--field, var(--fill)); padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-prose); min-height: 60px; }
+.rx-actions { display: flex; align-items: center; gap: 8px; }
+.rx-waiting { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius-group); background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--label); }
+.rx-waiting > span { flex: 1; min-width: 0; }
+.rx-waiting > svg { color: var(--warn); flex: none; }
+.rx-chat-bar { margin: 8px auto 0; max-width: 760px; width: calc(100% - 32px); }
+.rx-review .rx-review-group { display: grid; gap: 8px; }
+.rx-review h3 { margin: 4px 0 0; font-size: var(--size-ui); }
+.rx-review-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: var(--radius-control); background: var(--group); }
+.rx-review-body { display: grid; gap: 3px; min-width: 0; }
+.rx-review-code { overflow-wrap: anywhere; color: var(--label-2); }
+.rx-undo { font-size: var(--size-small); color: var(--label-3); }
+.safe-html { display: block; width: 100%; border: 0; background: transparent; color-scheme: normal; }
+@media (max-width: 620px) { .rx-try-grid { grid-template-columns: 1fr; } .rx-where { display: none; } }

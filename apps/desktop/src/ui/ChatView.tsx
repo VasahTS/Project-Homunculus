@@ -15,7 +15,7 @@ import { AgentsPanel } from "./AgentsPanel.tsx";
 import { MemoryGroup } from "./MemoryGroup.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
-import { applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona } from "@homunculus/core";
+import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona } from "@homunculus/core";
 import { WhoPicker } from "./WhoPicker.tsx";
 import type { AppServices } from "../core-instance.ts";
 import { turns, useTurn, type LiveTurn, type StreamTo } from "../turns.ts";
@@ -28,6 +28,7 @@ import { Inspector, type InspectorTab } from "./Inspector.tsx";
 import { PromptPane } from "./ConnectionPanel.tsx";
 import { approxTokens, fmtTokens, ReplyPane } from "./ReplyPane.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
+import { RegexReview, SafeHtml, SessionRegex } from "./RegexScripts.tsx";
 import { AuthorsNoteGroup, noteMarkAt } from "./AuthorsNote.tsx";
 import { QuickConnect } from "./QuickConnect.tsx";
 import { Toolbar } from "./Toolbar.tsx";
@@ -37,7 +38,7 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex }: {
   /** Open the chat at this message (a chat search result, round 3): its branch, scrolled to it. */
   focusMessageId?: string | null;
   svc: AppServices;
@@ -92,14 +93,25 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   onOpenAgent?: (agentId: string | null) => void;
   /** Opens this story's version of its lorebook (after an agent added entries, D-049). */
   onOpenStoryLore?: (() => void) | undefined;
+  /** Regex scripts were allowed here (the Library and editors reload what is allowed). */
+  onRegexChanged?: () => void;
+  onOpenRegex?: () => void;
 }) {
   // regex scripts for drawing messages (global → preset → character, D-060)
   const [regex, setRegex] = useState<Awaited<ReturnType<typeof svc.chat.turns.regexForSession>>>({ scripts: [], ctx: { macros: (t) => t } });
+  const [regexWaiting, setRegexWaiting] = useState<Awaited<ReturnType<typeof svc.chat.turns.regexWaiting>>>([]);
+  const [regexTick, setRegexTick] = useState(0);
+  const [regexRows, setRegexRows] = useState<Awaited<ReturnType<typeof svc.chat.turns.regexRows>> | null>(null);
+  const [reviewRegex, setReviewRegex] = useState(false);
+  const [regexLater, setRegexLater] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     void svc.chat.turns.regexForSession(session.id).then((r) => { if (live) setRegex(r); }).catch(() => {});
+    void svc.chat.turns.regexWaiting(session.id).then((r) => { if (live) setRegexWaiting(r); }).catch(() => {});
+    void svc.chat.turns.regexRows(session.id).then((r) => { if (live) setRegexRows(r); }).catch(() => {});
     return () => { live = false; };
-  }, [svc, session, presets, characters, defaultPresetId]);
+  }, [svc, session, presets, characters, defaultPresetId, regexTick]);
+  const waitingKey = regexWaiting.flatMap((g) => g.scripts.map((x) => x.id)).join(",");
   const loadLorebooks = useCallback(() => svc.chat.turns.lorebooksOf(session.id), [svc, session]);
   const [headId, setHeadId] = useState<string | null | undefined>(undefined);
   const [path, setPath] = useState<Message[]>([]);
@@ -447,6 +459,15 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     return applyBasicMacros(shown, { char: char ?? leadChar?.name ?? "Narrator", user: userName });
   };
 
+  /** A message's text on screen: HTML made by display scripts goes in a safe box (D-060). */
+  const body = (m: Message, depth: number): ReactNode => {
+    const text = show(m.content, m, depth);
+    // HTML that regex scripts made (on screen, or when the message was saved) — never HTML the AI wrote by itself
+    const before = typeof m.meta.beforeRegex === "string" ? m.meta.beforeRegex : null;
+    const madeByRegex = (regex.scripts.length > 0 && !REGEX_HTML.test(m.content)) || (before !== null && !REGEX_HTML.test(before));
+    return REGEX_HTML.test(text) && madeByRegex ? <SafeHtml html={text} /> : text;
+  };
+
   const lastAi = [...visible].reverse().find((m) => m.speaker.kind !== "user");
   // what agents did on the replies on screen (the latest 30), reloaded when a turn ends or something changes
   // (+ the message before the latest reply: "before the reply" agents record their runs there)
@@ -554,6 +575,18 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         />
 
         <main className="story" data-region="story" ref={storyRef} onScroll={onStoryScroll}>
+          {regexWaiting.length > 0 && regexLater !== waitingKey && (
+            <div className="rx-waiting rx-chat-bar" role="status" data-testid="regex-waiting">
+              <Icon name="lock" size={14} />
+              <span>{(() => { const n = regexWaiting.reduce((k, g) => k + g.scripts.length, 0); return `${n} new regex script${n === 1 ? "" : "s"} in ${regexWaiting.map((g) => `“${g.ownerName}”`).join(" and ")} — not running until you allow ${n === 1 ? "it" : "them"}.`; })()}</span>
+              <Button small onClick={() => setReviewRegex(true)} data-testid="regex-review-open">Review</Button>
+              <Button small variant="plain" onClick={() => setRegexLater(waitingKey)}>Later</Button>
+            </div>
+          )}
+          {reviewRegex && (
+            <RegexReview groups={regexWaiting} sample={lastAi?.content} onClose={() => setReviewRegex(false)}
+              onAllow={(xs) => void svc.store.approveRegex(xs.map(regexKey)).then(() => { setRegexTick((t) => t + 1); onRegexChanged?.(); })} />
+          )}
           <ol className="messages-list" data-testid="messages">
             {visible.map((m, i) => {
               const versions = versionsOf(m);
@@ -576,6 +609,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} current={m.content} canWriteAgain={isLastAi && m.parentId !== null && !busy}
                       onSaveText={(t) => void saveText(m, t)} onWriteAgain={() => regenerate(m)} />}
                     {m.meta.incomplete === true && <span className="warn"> · incomplete</span>}
+                    {typeof m.meta.beforeRegex === "string" && !isEditing && (
+                      <button type="button" className="link rx-undo" title="Regex scripts changed this message when it was saved. Put the original text back."
+                        onClick={() => void svc.chat.undoRegex(m.id).then(() => showBranch(headId ?? null))} data-testid="regex-undo">&nbsp;· changed by regex · Original</button>
+                    )}
                     {hidden && <span className="hidden-tag" data-testid="hidden-tag"> · hidden from the AI</span>}
                   </div>
                   {m.reasoning && (
@@ -596,7 +633,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                       </span>
                     </div>
                   ) : (
-                    <div className={user ? "text" : "text prose"}>{show(m.content, m, visible.length - i - 1)}</div>
+                    <div className={user ? "text" : "text prose"}>{body(m, visible.length - i - 1)}</div>
                   )}
                   {!user && !isEditing && <CheckLines results={agentResults.get(m.id)} agents={agents} canWriteAgain={isLastAi && m.parentId !== null && !busy} onWriteAgain={() => regenerate(m)} />}
                   {!user && !isEditing && <NoteChips results={agentResults.get(m.id)} agents={agents} onRun={againOn(m.id)} />}
@@ -730,7 +767,11 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           prompt={<PromptPane c={connection} providers={providers} session={session} storySetup={storySetup} storyName={storyInfo?.name} director={storyInfo?.role === "director"} setupProps={setupProps} onChangeSession={onChangeSession} onOpenSettings={onOpenSettings}
             presets={presets} defaultPresetId={defaultPresetId} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} trackers={trackers}
             authorsNote={noteAbove && <AuthorsNoteGroup level="chat" inStory={!!storySetup} layer={session.setup} above={noteAbove} onChange={(setup) => onChangeSession({ ...session, setup })} />}
-            lore={<SessionLorebooks session={session} all={lorebooks} load={loadLorebooks} onChangeSession={onChangeSession} onOpen={onOpenLorebook} />}
+            lore={<>
+              <SessionLorebooks session={session} all={lorebooks} load={loadLorebooks} onChangeSession={onChangeSession} onOpen={onOpenLorebook} />
+              <SessionRegex rows={regexRows} regexOff={session.setup.regexOff ?? []} onOpenLibrary={() => onOpenRegex?.()}
+                onChange={(regexOff) => { void onChangeSession({ ...session, setup: { ...session.setup, regexOff } }); setRegexTick((t) => t + 1); }} />
+            </>}
             memory={<MemoryGroup svc={svc} session={session} headId={headId ?? null} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession} refreshKey={sceneKey} />}
             character={onSaveCharacter && onOpenCharacter ? (
               <PromptCharacter cards={session.cast.filter((m) => m.characterId && characters[m.characterId]).map((m) => ({ character: characters[m.characterId!]!, variantId: m.variantId }))}

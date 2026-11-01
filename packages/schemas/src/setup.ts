@@ -88,6 +88,8 @@ export const SetupLayer = z.object({
   /** Connection for agents and trackers that don't pick their own (null = same as the story). */
   agentConnectionId: Id.nullable().optional(),
   lorebooks: ListOverride.optional(),
+  /** Regex scripts switched off at this level (ids; D-060). Adds to the levels above. */
+  regexOff: z.array(z.string()).optional(),
   /** Agents, trackers and companions are all agents (BLUEPRINT §4). */
   agents: ListOverride.optional(),
   agentOverrides: z.record(z.string(), AgentOverride).optional(),

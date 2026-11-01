@@ -3,7 +3,7 @@
 // these check our wiring: saved replies and user messages, the prompt, display-only, lore, and the order.
 import { RegexScript, type RegexScriptInput } from "@homunculus/schemas";
 import { describe, expect, it } from "vitest";
-import { applyRegexScripts, embeddedStRegexScripts, orderRegexScripts, regexError } from "../src/index.ts";
+import { applyRegexScripts, embeddedStRegexScripts, orderRegexScripts, regexError, regexKey } from "../src/index.ts";
 import { connection, world } from "./helpers.ts";
 
 const script = (s: Partial<RegexScriptInput>) => RegexScript.parse({ id: crypto.randomUUID(), ...s });
@@ -67,5 +67,32 @@ describe("regex scripts in a turn", () => {
 
     const { scripts, ctx } = await w.chat.turns.regexForSession(session.id);
     expect(applyRegexScripts(scripts, reply.content, { target: "ai", mode: "display", depth: 0 }, ctx)).toBe("She ~draws~ her bow.");
+  });
+});
+
+describe("regex safety (D-060)", () => {
+  it("a card's scripts wait for approval, a chat can switch one off, and the text before regex comes back", async () => {
+    const w = await world(() => "She *draws* her bow.");
+    const stars = script({ name: "stars", find: "/\\*(.+?)\\*/g", replace: "_$1_", targets: ["ai"] });
+    await w.store.saveCharacter({ ...(await w.store.getCharacter("lyra"))!, regexScripts: [stars] });
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    expect(firstMessage!.content).toBe("*Lyra eyes you.* Who's there?");
+    const waiting = await w.chat.turns.regexWaiting(session.id);
+    expect(waiting).toMatchObject([{ owner: "character", ownerName: "Lyra", scripts: [{ name: "stars" }] }]);
+
+    await w.store.approveRegex(waiting[0]!.scripts.map(regexKey));
+    expect(await w.chat.turns.regexWaiting(session.id)).toEqual([]);
+    const { reply } = await w.chat.send(session.id, firstMessage!.id, "hi", connection);
+    expect(reply.content).toBe("She _draws_ her bow.");
+    expect(reply.meta.beforeRegex).toBe("She *draws* her bow.");
+    await w.chat.undoRegex(reply.id);
+    expect((await w.store.getMessage(reply.id))!.content).toBe("She *draws* her bow.");
+
+    // changed script = new approval; a chat switches it off
+    await w.store.saveCharacter({ ...(await w.store.getCharacter("lyra"))!, regexScripts: [{ ...stars, replace: "<$1>" }] });
+    expect(await w.chat.turns.regexWaiting(session.id)).toHaveLength(1);
+    await w.store.saveCharacter({ ...(await w.store.getCharacter("lyra"))!, regexScripts: [stars] });
+    await w.store.saveSession({ ...(await w.store.getSession(session.id))!, setup: { regexOff: [stars.id] } });
+    expect((await w.chat.turns.regexForSession(session.id)).scripts).toEqual([]);
   });
 });

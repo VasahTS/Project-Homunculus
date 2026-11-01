@@ -19,7 +19,9 @@ import { scanLorebooks, type LoreScope } from "./lorebook.ts";
 import { applyBasicMacros, DEFAULT_USER_NAME, expandMacros, type MacroContext } from "./macros.ts";
 import { applyPresetOverride } from "./prompt-control.ts";
 import { buildPrompt, DEFAULT_PRESET, presetParams, squashSystem, toTurns, type BuiltPrompt, type PromptInjection } from "./presets.ts";
-import { applyRegexScripts, orderRegexScripts, regexScriptsOf, type RegexRunContext } from "./regex.ts";
+import { applyRegexScripts, orderRegexScripts, regexKey, regexScriptsOf, type RegexRunContext } from "./regex.ts";
+
+type RegexOwner = { regexScripts?: RegexScript[] | undefined; original?: unknown };
 
 /** Connection choices for one read-only editor test. CODEX, D-053. */
 export interface AgentPreviewOptions {
@@ -150,9 +152,9 @@ export class TurnPipeline {
     if (req.userText !== undefined) {
       const role = (session.storyId ? (await this.store.getStory(session.storyId))?.userRole : undefined) ?? session.userRole;
       const kind = req.userKind ?? (role === "player" ? "user" : "direction");
-      const scripts = await this.regexFor(preset, speaking.character);
+      const scripts = await this.regexFor(preset, speaking.character, setup);
       const userText = applyRegexScripts(scripts, req.userText, { target: "user", mode: "saved" }, this.regexCtx(names));
-      userMessage = await this.addMessage(session.id, parentId, { kind: "user" }, userText, { kind });
+      userMessage = await this.addMessage(session.id, parentId, { kind: "user" }, userText, { kind, ...(userText !== req.userText ? { meta: { beforeRegex: req.userText } } : {}) });
       parentId = userMessage.id;
     }
     const siblings = parentId ? await this.store.childrenOf(session.id, parentId) : await this.store.childrenOf(session.id, null);
@@ -229,10 +231,11 @@ export class TurnPipeline {
       if (r.block !== null) inlineAnswers.push({ entry: e, block: r.block });
     }
     // regex scripts that change the saved reply (D-060; SillyTavern: AI_OUTPUT / REASONING when a reply arrives)
-    const scripts = await this.regexFor(preset, speaking.character);
+    const scripts = await this.regexFor(preset, speaking.character, setup);
+    const beforeRegex = clean;
     clean = applyRegexScripts(scripts, clean, { target: "ai", mode: "saved" }, this.regexCtx(names, chosen.speaker.kind === "character" ? names.char : undefined));
     if (reasoning) reasoning = applyRegexScripts(scripts, reasoning, { target: "reasoning", mode: "saved" }, this.regexCtx(names));
-    let reply = await this.addMessage(session.id, parentId, chosen.speaker, clean, { reasoning: reasoning || undefined });
+    let reply = await this.addMessage(session.id, parentId, chosen.speaker, clean, { reasoning: reasoning || undefined, ...(clean !== beforeRegex ? { meta: { beforeRegex } } : {}) });
     await this.store.saveGenerationRecord({
       messageId: reply.id, sessionId: session.id, generationType: type, providerId: main.providerId, model: main.model,
       ...(main.profileId ? { connectionId: main.profileId } : {}),
@@ -538,9 +541,49 @@ export class TurnPipeline {
 
   // ------------------------------------------------------------ helpers
 
-  /** Regex scripts that apply (D-060): global, then the preset's, then the speaking character's. */
-  async regexFor(preset: Preset, character: { regexScripts?: RegexScript[] | undefined; original?: unknown } | undefined): Promise<RegexScript[]> {
-    return orderRegexScripts({ global: await this.store.getGlobalRegex(), preset: regexScriptsOf(preset), character: regexScriptsOf(character) });
+  /**
+   * Regex scripts that apply (D-060): global, then the preset's, then the speaking character's. Scripts that came
+   * with a preset or a card run only once the user allowed them (`approveRegex`); a story or chat can switch any off.
+   */
+  async regexFor(preset: Preset, character: RegexOwner | undefined, setup?: ResolvedSetup): Promise<RegexScript[]> {
+    const approved = await this.store.getApprovedRegex();
+    const allowed = (xs: RegexScript[]) => xs.filter((x) => approved.has(regexKey(x)));
+    const off = new Set(setup?.regexOff ?? []);
+    return orderRegexScripts({ global: await this.store.getGlobalRegex(), preset: allowed(regexScriptsOf(preset)), character: allowed(regexScriptsOf(character)) })
+      .filter((x) => !off.has(x.id));
+  }
+
+  /** Every allowed script for a chat, where it comes from and whether it runs here (the Prompt tab, D-060). */
+  async regexRows(sessionId: string): Promise<Array<{ script: RegexScript; from: "global" | "preset" | "character"; on: boolean; offAbove: boolean }>> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) return [];
+    const setup = await this.setupFor(session);
+    const story = session.storyId ? await this.store.getStory(session.storyId) : undefined;
+    const above = new Set(resolveSetup({ default: await this.store.getDefaultSetup(), story: story?.setup }).regexOff);
+    const preset = await this.presetFor(setup.presetId, setup);
+    const speaking = await this.pickSpeaker(session);
+    const approved = await this.store.getApprovedRegex();
+    const off = new Set(setup.regexOff);
+    const rows = (xs: RegexScript[], from: "global" | "preset" | "character") => xs.filter((x) => x.on).map((script) => ({ script, from, on: !off.has(script.id), offAbove: above.has(script.id) }));
+    const ok = (xs: RegexScript[]) => xs.filter((x) => approved.has(regexKey(x)));
+    return [...rows(await this.store.getGlobalRegex(), "global"), ...rows(ok(regexScriptsOf(preset)), "preset"), ...rows(ok(regexScriptsOf(speaking.character)), "character")];
+  }
+
+  /** Scripts that came with this chat's preset or speaking character and wait for the user's OK (on ones only). */
+  async regexWaiting(sessionId: string): Promise<Array<{ owner: "preset" | "character"; ownerId: string; ownerName: string; scripts: RegexScript[] }>> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) return [];
+    const setup = await this.setupFor(session);
+    const preset = await this.presetFor(setup.presetId, setup);
+    const speaking = await this.pickSpeaker(session);
+    const approved = await this.store.getApprovedRegex();
+    const out: Array<{ owner: "preset" | "character"; ownerId: string; ownerName: string; scripts: RegexScript[] }> = [];
+    const waiting = (xs: RegexScript[]) => xs.filter((x) => x.on && x.find && !approved.has(regexKey(x)));
+    const p = waiting(regexScriptsOf(preset));
+    if (p.length) out.push({ owner: "preset", ownerId: preset.id, ownerName: preset.name, scripts: p });
+    const c = speaking.character ? waiting(regexScriptsOf(speaking.character)) : [];
+    if (c.length && speaking.character) out.push({ owner: "character", ownerId: speaking.character.id, ownerName: speaking.character.name, scripts: c });
+    return out;
   }
 
   /** The scripts and macros a session's screen uses to draw messages and save edits (display / edit, D-060). */
@@ -552,7 +595,7 @@ export class TurnPipeline {
     const speaking = await this.pickSpeaker(session);
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const user = persona ? effectivePersona(persona, setup.personaVariantId).name : DEFAULT_USER_NAME;
-    return { scripts: await this.regexFor(preset, speaking.character), ctx: this.regexCtx({ char: speaking.character?.name ?? "Narrator", user }) };
+    return { scripts: await this.regexFor(preset, speaking.character, setup), ctx: this.regexCtx({ char: speaking.character?.name ?? "Narrator", user }) };
   }
 
   private regexCtx(names: { char: string; user: string }, char?: string): RegexRunContext {
@@ -611,7 +654,7 @@ export class TurnPipeline {
       ...(lore ? { worldInfo: lore.prompt } : {}),
       authorsNote: { ...a.setup.authorsNote, goes: authorsNoteGoes(a.setup.authorsNote.interval, a.history) },
       macros: { model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, custom, vars },
-      regex: await this.regexFor(a.preset, a.character),
+      regex: await this.regexFor(a.preset, a.character, a.setup),
     });
     const withNotes = memory.covered ? { ...built, notes: [...built.notes, `Memory: ${memory.covered} older message(s) sent as chapter summaries.`] } : built;
     return lore ? { ...withNotes, lore: lore.report } : withNotes;

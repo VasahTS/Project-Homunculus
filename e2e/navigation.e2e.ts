@@ -8,7 +8,7 @@ test("Library distinguishes static group headings from categories and preserves 
   await openLibrary(page, "Kits");
   const navigation = page.getByRole("navigation", { name: "Library categories" });
   await expect(navigation.getByRole("heading")).toHaveText(["Story building", "Writing and context", "Around each reply", "Manage"]);
-  await expect(navigation.getByRole("button")).toHaveCount(9);
+  await expect(navigation.getByRole("button")).toHaveCount(10);
   await expect(navigation.getByRole("button", { name: "Kits", exact: true })).toHaveAttribute("aria-current", "page");
   const inactive = navigation.getByRole("button", { name: "NPCs", exact: true });
   expect(await inactive.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");

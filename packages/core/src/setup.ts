@@ -23,6 +23,8 @@ export interface ResolvedSetup {
   /** Connection for agents without their own (null = the main one). */
   agentConnectionId: string | null;
   lorebooks: string[];
+  /** Regex scripts switched off (D-060). */
+  regexOff: string[];
   agents: string[];
   agentOverrides: Record<string, AgentOverride>;
   storyStyle: Record<string, string>;
@@ -68,7 +70,7 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
   const out: ResolvedSetup = {
     presetId: null, personaId: null, personaVariantId: null, connectionId: null, agentConnectionId: null,
     presetOverrides: Object.create(null), narratorPrompt: { ...NARRATOR_PROMPT_DEFAULTS },
-    lorebooks: [], agents: [], agentOverrides: {}, storyStyle: {}, turnOrder: "natural",
+    lorebooks: [], agents: [], regexOff: [], agentOverrides: {}, storyStyle: {}, turnOrder: "natural",
     trackersOnSwipe: true, limits: {}, extra: {}, authorsNote: { ...AUTHORS_NOTE_DEFAULTS }, memory: { ...MEMORY_DEFAULTS }, sources: {},
   };
   const scalars = ["presetId", "personaId", "personaVariantId", "connectionId", "agentConnectionId", "turnOrder", "trackersOnSwipe"] as const;
@@ -90,6 +92,7 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
         for (const id of out[key]) if (!before.has(id)) out.sources[`${key}:${id}`] = level;
       }
     }
+    if (layer.regexOff?.length) { out.regexOff = [...new Set([...out.regexOff, ...layer.regexOff])]; out.sources.regexOff = level; }
     for (const [key, value] of Object.entries(layer.memory ?? {})) {
       if (value === undefined) continue;
       (out.memory as unknown as Record<string, unknown>)[key] = value;

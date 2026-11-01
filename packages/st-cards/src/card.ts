@@ -3,6 +3,7 @@
 // and only overwrite the fields Homunculus edits, so unknown fields (extensions, embedded
 // lorebook, tool-specific data) survive the round trip.
 import type { Character, CharacterInput } from "@homunculus/schemas";
+import { toStRegexScript } from "@homunculus/core";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -99,6 +100,7 @@ export function toCardV2(c: Character): Obj {
   const { top, data } = originalParts(c);
   const owned = ownedFields(c);
   const outData: Obj = { extensions: {}, ...data, ...owned };
+  if (c.regexScripts) outData.extensions = { ...(outData.extensions as Obj), regex_scripts: c.regexScripts.map(toStRegexScript) }; // D-060
   delete outData.group_only_greetings; delete outData.assets; delete outData.nickname; // V3-only
   const { alternate_greetings: _a, system_prompt: _s, post_history_instructions: _p, creator_notes: _n,
     creator: _c, character_version: _v, tags: _t, ...v1 } = owned;
@@ -110,6 +112,7 @@ export function toCardV3(c: Character): Obj {
   const { top, data } = originalParts(c);
   const owned = ownedFields(c);
   const outData: Obj = { extensions: {}, group_only_greetings: [], ...data, ...owned };
+  if (c.regexScripts) outData.extensions = { ...(outData.extensions as Obj), regex_scripts: c.regexScripts.map(toStRegexScript) }; // D-060
   const { alternate_greetings: _a, system_prompt: _s, post_history_instructions: _p, creator_notes: _n,
     creator: _c, character_version: _v, tags: _t, ...v1 } = owned;
   return { ...top, ...v1, spec: "chara_card_v3", spec_version: "3.0", data: outData };

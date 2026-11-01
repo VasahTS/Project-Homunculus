@@ -3,8 +3,8 @@
 // 2026-10-28 (slice 1, D-019): versions of characters, personas, history, the Trash; (slice 1b, D-020): Settings.
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
-import { applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
+import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript } from "@homunculus/schemas";
+import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
 import { LorebookEditor } from "./ui/LorebookEditor.tsx";
 import { PresetEditor } from "./ui/PresetEditor.tsx";
@@ -37,6 +37,8 @@ import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
 import { LibraryWorkspace } from "./ui/LibraryWorkspace.tsx";
+import { RegexPage } from "./ui/RegexScripts.tsx";
+import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
 import { applyProfile, BUILTIN_PROFILES, DEFAULT_PROFILE_ID } from "./theme/themes.ts";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, withFieldSet, withTracker, type Tracker, type TrackerDraft, sampleFor } from "./trackers.ts";
@@ -48,6 +50,7 @@ type View =
   | { kind: "presets"; id: string | null; draft?: Preset; justSaved?: boolean; block?: string }
   | { kind: "lorebooks"; id: string | null; draft?: Lorebook; justSaved?: boolean }
   | { kind: "trash" }
+  | { kind: "regex" }
   | { kind: "settings"; tab: SettingsTab }
   | { kind: "trackers"; draft?: TrackerDraft; isNew?: boolean; fromSession?: boolean }
   | { kind: "agents"; id: string | null; fromSession?: boolean }
@@ -82,6 +85,8 @@ export function App() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [lorebooks, setLorebooks] = useState<Lorebook[]>([]);
+  const [globalRegex, setGlobalRegex] = useState<RegexScript[]>([]);
+  const [approvedRegex, setApprovedRegex] = useState<Set<string>>(new Set());
   const [loreSettings, setLoreSettings] = useState<LoreSettings>(() => LoreSettings.parse({}));
   const [defaultPersonaId, setDefaultPersonaId] = useState<string | null>(null);
   const [trash, setTrash] = useState<TrashItem[]>([]);
@@ -165,6 +170,8 @@ export function App() {
     setPresets(pr);
     setLorebooks(await s.store.lorebooks.list());
     setLoreSettings(await s.store.getLoreSettings());
+    setGlobalRegex(await s.store.getGlobalRegex());
+    setApprovedRegex(await s.store.getApprovedRegex());
     const av: Record<string, Avatar> = {};
     for (const x of [...cs, ...ps]) Object.assign(av, await s.store.getAvatarsFor(x.id));
     setSessions(ss);
@@ -327,6 +334,7 @@ export function App() {
   const defaultPresetId = defaultSetup.presetId ?? DEFAULT_PRESET.id;
 
   const savePreset = async (p: Preset) => {
+    await approveEdited(presets.find((x) => x.id === p.id), p);
     await svc.store.savePreset(p);
     await refresh(svc);
     if (view.kind === "presets" && view.draft) setView({ kind: "presets", id: p.id, justSaved: true });
@@ -366,6 +374,42 @@ export function App() {
     await refresh(svc);
     if (last) setView({ kind: "presets", id: last });
     setNotice({ kind: imported.length ? (lines.length ? "warn" : "ok") : "error", title: imported.length ? `Imported ${imported.length} preset(s): ${imported.join(", ")}` : "Nothing was imported", lines });
+  };
+
+  // ---- regex scripts (D-060): the global list lives in Library → Regex
+  const regexWaiting = (x: RegexScript) => !approvedRegex.has(regexKey(x));
+  const allowRegex = async (xs: RegexScript[]) => {
+    await svc.store.approveRegex(xs.map(regexKey));
+    setApprovedRegex(await svc.store.getApprovedRegex());
+  };
+  /** Scripts the user wrote or changed in an editor are theirs: allowed when saved. Untouched imported ones still wait. */
+  const approveEdited = async (before: { regexScripts?: RegexScript[] | undefined; original?: unknown } | undefined, after: { regexScripts?: RegexScript[] | undefined }) => {
+    if (!after.regexScripts) return;
+    const old = new Set(regexScriptsOf(before).map(regexKey));
+    const mine = after.regexScripts.filter((x) => !old.has(regexKey(x)));
+    if (mine.length) await allowRegex(mine);
+  };
+  const saveGlobalRegex = async (next: RegexScript[]) => {
+    setGlobalRegex(next);
+    try { await svc.store.setGlobalRegex(next); } catch (e) { setNotice({ kind: "error", title: "The regex scripts were not saved", lines: [errorText(e)] }); }
+  };
+  const importRegex = async (files: File[]) => {
+    const added: RegexScript[] = [];
+    const lines: string[] = [];
+    for (const f of files) {
+      try {
+        const { scripts, from } = importStRegexFile(await readFileBytes(f), f.name);
+        const have = new Set(globalRegex.map((x) => x.id));
+        added.push(...scripts.map((x) => (have.has(x.id) ? { ...x, id: crypto.randomUUID() } : x)));
+        lines.push(`${f.name}: ${scripts.length} script${scripts.length === 1 ? "" : "s"}${from === "settings" ? " (SillyTavern's global scripts)" : from === "preset" ? " (from a preset)" : from === "card" ? " (from a card)" : ""}.`);
+      } catch (e) { lines.push(errorText(e)); }
+    }
+    if (added.length) await saveGlobalRegex([...globalRegex, ...added]);
+    setNotice({ kind: added.length ? "ok" : "error", title: added.length ? `${added.length} regex script${added.length === 1 ? "" : "s"} imported` : "Nothing was imported", lines });
+  };
+  const exportRegex = async () => {
+    const where = await saveExport({ fileName: "regex-scripts.json", mime: "application/json", bytes: new TextEncoder().encode(exportStRegex(globalRegex)) });
+    if (where) setNotice({ kind: "ok", title: "Regex scripts exported", lines: [where] });
   };
 
   // ---- lorebooks (slice 3, D-027/D-028)
@@ -471,6 +515,7 @@ export function App() {
   };
 
   const saveCharacter = async (c: Character) => {
+    await approveEdited(characters.find((x) => x.id === c.id), c);
     await svc.store.saveCharacter(c);
     await refresh(svc);
     if (view.kind === "characters" && view.id === "new") setView({ kind: "characters", id: c.id, edit: true, justSaved: true });
@@ -966,9 +1011,9 @@ export function App() {
       <Icon name="sidebar" size={17} />
     </IconButton>
   );
-  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "agents" ? { kind: "agents", id: null } : { kind: "trackers" }); };
+  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "regex" ? { kind: "regex" } : area === "agents" ? { kind: "agents", id: null } : { kind: "trackers" }); };
   const libraryCategory: LibraryCategory | null = view.kind === "vault" && view.tab !== "stories" ? view.tab : view.kind === "kit" ? "kits"
-    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" ? view.kind : null;
+    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" ? view.kind : null;
   const pageLead = libraryCategory ? null : lead;
   // opened a lorebook from a session (Prompt tab): a button goes straight back to it (Daniel: "me senti perdido")
   const backSession = loreBack ? sessions.find((x) => x.id === loreBack) : undefined;
@@ -1032,6 +1077,7 @@ export function App() {
             justSaved={view.justSaved ?? false}
             exporters={svc.core.characterExporters.all()}
             onSave={saveCharacter}
+            regexWaiting={regexWaiting} onAllowRegex={(xs) => void allowRegex(xs)}
             onTrash={trashCharacter}
             onChangeAvatar={changeAvatar}
             onExport={(c, id, avatar) => void exportCharacter(c, id, avatar)}
@@ -1079,6 +1125,7 @@ export function App() {
         detail={editing ? (
           <PresetEditor key={editing.id} preset={editing} isNew={!!view.draft} justSaved={view.justSaved ?? false} openBlock={view.block ?? null}
             isDefault={editing.id === defaultPresetId}
+            regexWaiting={regexWaiting} onAllowRegex={(xs) => void allowRegex(xs)}
             onSave={savePreset} onTrash={trashPreset} onExport={(p) => void exportPreset(p)}
             onDuplicate={(p) => setView({ kind: "presets", id: null, draft: Preset.parse({ ...p, id: crypto.randomUUID(), name: `${p.name} (copy)` }) })}
             onSetDefault={(id) => setDefaultSetup({ presetId: id })}
@@ -1137,6 +1184,9 @@ export function App() {
         test={(config) => svc.core.connections.complete(config, [{ role: "user", content: "Reply with just the word OK." }],
           { maxTokens: config.params?.maxTokens ?? 512 })} />
     );
+  } else if (view.kind === "regex") {
+    content = <RegexPage lead={pageLead} scripts={globalRegex} onChange={(next) => void saveGlobalRegex(next)}
+      onImport={(files) => void importRegex(files)} onExport={() => void exportRegex()} />;
   } else if (view.kind === "trash") {
     content = <TrashPage lead={pageLead} items={trash} onRestore={(it) => void restore(it)} onDeleteForever={(it) => void deleteForever(it)} onEmpty={() => void emptyTrash()} />;
   } else if (view.kind === "trackers") {
@@ -1294,6 +1344,8 @@ export function App() {
     ) : lead;
     content = (
       <ChatView
+            onOpenRegex={() => setView({ kind: "regex" })}
+            onRegexChanged={() => void svc.store.getApprovedRegex().then(setApprovedRegex)}
         key={active.id}
         svc={svc}
         session={active}
@@ -1393,7 +1445,7 @@ export function App() {
           onOpenStory={(id) => setView({ kind: "story", id })}
           onNewStory={() => setNewStoryOpen({ cardId: null })}
           onOpenCharacters={() => setView({ kind: "characters", id: null })}
-          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" ? view.kind : "kits")}
+          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "connections" })}
         />

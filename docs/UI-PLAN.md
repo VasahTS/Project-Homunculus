@@ -438,7 +438,4 @@ The engine already works (D-027): it activates entries exactly like SillyTavern 
 
 **States:** empty ("No scripts. Import from SillyTavern or make one"), normal, full (30+ scripts: search by name/pattern), error (pattern error on the row; a slow script is paused with a notice "“<name>” was too slow and was paused").
 
-**Open questions for Daniel**
-1. Global scripts in **Library → Regex** (my suggestion) or in Settings?
-2. SillyTavern asks once per card "allow this card's scripts?" (cards from the internet can carry anything). Ask once per card, or run them always?
-3. Scripts that make HTML (status boxes, colors): show them **rendered** (in a safe box) soon, or later?
+**Daniel's answers (2026-11-01):** 1. Library → Regex. 2. Ask every time there is a new script ("so it doesn't mess up the app's view"). 3. Render HTML. Built the same day (D-060 round 2; draft skipped with his OK: "do it the way you think is best").

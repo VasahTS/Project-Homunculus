@@ -2,6 +2,9 @@
 // 2026-10-28 (slice 1): versions side by side, a picture per version, history of saves, Move to Trash.
 import { LorebookChips } from "./LorePanels.tsx";
 import { useEffect, useRef, useState } from "react";
+import { regexScriptsOf as regexOf } from "@homunculus/core";
+import type { RegexScript } from "@homunculus/schemas";
+import { RegexList } from "./RegexScripts.tsx";
 import { Character, type Avatar, type HistoryEntry, type Lorebook } from "@homunculus/schemas";
 import { effectiveCharacter, variantAvatarId, type CharacterExporter } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
@@ -23,7 +26,7 @@ export const CHARACTER_HISTORY_FIELDS: HistoryField[] = [
   { key: "creatorNotes", label: "creator notes" }, { key: "tags", label: "tags" }, { key: "variants", label: "versions" },
 ];
 
-export function CharacterEditor({ character, avatars, justSaved = false, exporters, onSave, onTrash, onChangeAvatar, onExport, onStartSession, onClose, loadHistory, lorebooks, onOpenLorebook }: {
+export function CharacterEditor({ character, avatars, justSaved = false, exporters, onSave, onTrash, onChangeAvatar, onExport, onStartSession, onClose, loadHistory, lorebooks, onOpenLorebook, regexWaiting, onAllowRegex }: {
   character: Character | null; // null = new character
   /** The character's pictures: its id, and "<id>#<version>" for versions with their own. */
   avatars: Record<string, Avatar>;
@@ -39,6 +42,8 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
   loadHistory: (id: string) => Promise<HistoryEntry[]>;
   lorebooks: Lorebook[];
   onOpenLorebook: (id: string) => void;
+  regexWaiting?: (s: RegexScript) => boolean;
+  onAllowRegex?: (s: RegexScript[]) => void;
 }) {
   const isNew = character === null;
   const [draft, setDraftState] = useState<Character>(() => character ?? blank());
@@ -153,6 +158,11 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
         </label>
         <LorebookChips ids={draft.lorebookIds} books={lorebooks} onOpen={onOpenLorebook} onChange={(lorebookIds) => setDraft((d) => ({ ...d, lorebookIds }))}
           help="Lorebooks that come with this character: read in every session with them (a session can switch one off in its Prompt tab). A card's embedded lorebook is linked here, and exporting the card puts it back in." />
+        <details className="advanced" open={regexOf(draft).some((x) => regexWaiting?.(x)) || undefined}>
+          <summary>Regex scripts{regexOf(draft).length ? ` (${regexOf(draft).length})` : ""} <Help text="Find and replace that runs by itself in chats with this character, after the global and the preset's scripts. Scripts that came with a card run only after you allow them. Exporting the card puts them back in." /></summary>
+          <RegexList scripts={regexOf(draft)} onChange={(next) => setDraft((d) => ({ ...d, regexScripts: next }))} testId="character-regex-list"
+            waiting={regexWaiting} onAllow={onAllowRegex} emptyText="No scripts on this character." />
+        </details>
         <details className="advanced">
           <summary>Advanced card fields</summary>
           {text("exampleMessages", "Example dialogue", "Sample messages that show the AI how this character talks. SillyTavern format: blocks starting with <START>.", 4)}

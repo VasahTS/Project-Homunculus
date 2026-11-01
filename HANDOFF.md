@@ -4,11 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
-## Regex scripts — engine in, screens waiting for Daniel (2026-11-01) — CLAUDE — D-060
+## Regex scripts — done, tailored to the app (2026-11-01) — CLAUDE — D-060
 
-- **In the app (no screens yet):** SillyTavern's regex engine ported (`core/regex.ts`), global → preset → character, run where SillyTavern runs them (saved user/AI text, reasoning, first messages, edits, prompt history and lore, display). Presets and cards already imported bring their embedded scripts (read from `original`). Global scripts: `store.getGlobalRegex/setGlobalRegex` (nothing in the UI sets them yet). Importer: `packages/st-regex` (one script, a list, settings.json, preset or card JSON).
-- **Proof:** 3,000 random cases against SillyTavern's own engine (`packages/st-regex/test/st-parity.test.ts`). Unit tests 285.
-- **Waiting for Daniel:** `docs/UI-PLAN.md` → "Regex scripts" (3 questions). Then a draft, then the screens.
+- **Engine:** SillyTavern's, ported and checked against its own code (3,000 random cases). Runs global → preset → character, where SillyTavern runs them (saved user/AI text, reasoning, first messages, edits, prompt history and lore, display).
+- **Ours around it:** scripts from presets/cards wait for the user's OK (asked again when a script changes); a saved message keeps its text before regex ("changed by regex · Original"); a chat can switch any script off (Prompt tab); HTML made by scripts is drawn in a sandboxed box.
+- **Screens:** Library → Regex; "Regex scripts" in the preset and character editors; the chat bar "N new regex scripts … Review"; the review window. Draft skipped with Daniel's OK.
+- **Still open:** a switch per story (data exists: `SetupLayer.regexOff`), pausing slow scripts (`onSlow` exists, no UI), agents' own regex (v1 postProcess).
+- Tests: 286 unit, 153 click tests (new: `e2e/regex.e2e.ts`).
 
 ## Daniel's PC folder fixed (2026-10-31, 23h30) — CLAUDE
 

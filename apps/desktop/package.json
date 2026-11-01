@@ -17,6 +17,7 @@
     "@homunculus/st-personas": "0.0.1",
     "@homunculus/st-presets": "0.0.1",
     "@homunculus/st-lorebooks": "0.0.1",
+    "@homunculus/st-regex": "0.0.1",
     "@tauri-apps/api": "2.12.4",
     "@tauri-apps/plugin-process": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.7.2",

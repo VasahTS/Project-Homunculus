@@ -299,6 +299,18 @@ export class SqlStore implements StateRepository, MessageTree {
     return list;
   }
 
+  /** Scripts from presets and cards the user allowed (their `regexKey`), D-060. */
+  async getApprovedRegex(): Promise<Set<string>> {
+    const v = await this.getAppSetting("regex.approved");
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  }
+
+  async approveRegex(keys: string[]): Promise<void> {
+    const all = await this.getApprovedRegex();
+    for (const k of keys) all.add(k);
+    await this.setAppSetting("regex.approved", [...all]);
+  }
+
   /** How lorebooks are read (one set for the app for now). */
   async getLoreSettings(): Promise<LoreSettings> {
     return LoreSettings.parse((await this.getAppSetting("lore.settings")) ?? {});

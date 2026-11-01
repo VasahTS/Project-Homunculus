@@ -241,3 +241,17 @@ export function regexScriptsOf(item: { regexScripts?: RegexScript[] | undefined;
   if (!item) return [];
   return item.regexScripts ?? embeddedStRegexScripts(item.original);
 }
+
+/**
+ * What a script does, as a short stable key (D-060): the user approves this exact script; if what it finds,
+ * writes or where it runs changes, it needs a new approval. The name and the on/off switch are not part of it.
+ */
+export function regexKey(s: RegexScript): string {
+  const text = JSON.stringify([s.find, s.replace, s.trim, [...s.targets].sort(), s.displayOnly, s.promptOnly, s.runOnEdit, s.findMacros, s.minDepth, s.maxDepth]);
+  let h1 = 0x811c9dc5, h2 = 0x01000193;
+  for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 2246822519); }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+}
+
+/** Does a script make HTML when it changes what is shown? (Then the screen draws it in a safe box.) */
+export const REGEX_HTML = /<\/?[a-z][\w-]*(\s[^<>]*)?\/?>/i;

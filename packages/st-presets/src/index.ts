@@ -6,7 +6,7 @@
 // the prompt manager, 100000 = the default), plus samplers and format strings. Only the "border" format is read
 // here; the prompt itself is built by the core (presets.ts). The whole file is kept in `original`, so export
 // gives back everything we don't use (model choices, other characters' orders, extension settings…).
-import type { HomunculusModule } from "@homunculus/core";
+import { toStRegexScript, type HomunculusModule } from "@homunculus/core";
 import { PromptMarker, type GenerationType, type Preset, type PresetBlockInput, type PresetInput } from "@homunculus/schemas";
 
 type Obj = Record<string, unknown>;
@@ -155,6 +155,8 @@ export function exportStPreset(p: Preset): { json: Obj; warnings: string[] } {
   out.impersonation_prompt = p.prompts.impersonation;
   out.assistant_prefill = p.prompts.prefill;
   out.squash_system_messages = p.squashSystem;
+  // regex scripts edited in Homunculus go back into the file (D-060)
+  if (p.regexScripts) out.extensions = { ...(isObj(out.extensions) ? out.extensions : {}), regex_scripts: p.regexScripts.map(toStRegexScript) };
   if (p.formats.description !== "{{description}}" || p.formats.persona !== "{{persona}}" || p.formats.examples !== "{{mesExamples}}") {
     warnings.push("SillyTavern has no setting for the description, persona and example formats; they were left out.");
   }

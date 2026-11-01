@@ -1,5 +1,8 @@
 // Homunculus 2 — create / edit a preset: its blocks (order, on/off, text, place), samplers, formats, history.
 // Author: CLAUDE, 2026-10-28 (slice 2, D-021). Markers are filled by the app; text blocks take macros.
+import { regexScriptsOf as regexOf } from "@homunculus/core";
+import type { RegexScript } from "@homunculus/schemas";
+import { RegexList } from "./RegexScripts.tsx";
 import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
 import { Preset, PromptMarker, type GenerationType, type HistoryEntry, type PresetBlock } from "@homunculus/schemas";
 import { estimateTokens, MARKER_LABELS } from "@homunculus/core";
@@ -38,7 +41,7 @@ const markerName = (m: PromptMarker) => ({
   scene: "Current Scene", agentPrompts: "Agent Prompts",
 })[m];
 
-export function PresetEditor({ preset, isNew, justSaved = false, isDefault, openBlock = null, onSave, onTrash, onDuplicate, onExport, onSetDefault, onClose, loadHistory }: {
+export function PresetEditor({ preset, isNew, justSaved = false, isDefault, openBlock = null, onSave, onTrash, onDuplicate, onExport, onSetDefault, onClose, loadHistory, regexWaiting, onAllowRegex }: {
   preset: Preset;
   isNew: boolean;
   justSaved?: boolean;
@@ -52,6 +55,9 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
   onSetDefault: (id: string) => Promise<void>;
   onClose: () => void;
   loadHistory: (id: string) => Promise<HistoryEntry[]>;
+  /** Regex scripts that wait for the user's OK, and allowing them (D-060). */
+  regexWaiting?: (s: RegexScript) => boolean;
+  onAllowRegex?: (s: RegexScript[]) => void;
 }) {
   const [d, setD] = useState<Preset>(preset);
   const [saved, setSaved] = useState(justSaved);
@@ -232,6 +238,12 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
                 onChange={(e) => setParam(f.key, e.target.value, f)} />
             </Row>
           ))}
+        </Group>
+
+        <Group title={`Regex scripts${regexOf(d).length ? ` (${regexOf(d).length})` : ""}`} testId="preset-regex"
+          help="Find and replace that runs by itself while this preset is used, after the global scripts (Library → Regex). Scripts that came in a file run only after you allow them.">
+          <RegexList scripts={regexOf(d)} onChange={(next) => set({ regexScripts: next })} testId="preset-regex-list"
+            waiting={regexWaiting} onAllow={onAllowRegex} emptyText="No scripts in this preset." />
         </Group>
 
         <details className="advanced">
