@@ -4,6 +4,15 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## ⚠ Daniel's PC folder is half-updated — fix this first (2026-10-31, 23h) — CLAUDE
+
+This session had no shell on Daniel's PC (no device_bash; GitHub Desktop is not installed), so it could not run `git pull` there.
+- His local `dev` was 34 commits behind (at `4e5ec04`), but earlier sessions had written newer files straight into the folder; git saw 60 tracked files as changed (all checked: identical to committed versions, none are his own edits) and many untracked files that origin also has.
+- A helper `Pull dev.bat` (untracked, repo root; log in `.git\pull-dev.log`) was run: it put the 60 changed files in a **git stash** ("before Pull dev 31/10/2026 23:18"), then `git pull` refused because of the untracked files. The folder is now mixed (old tracked files + new untracked ones) and the app fails at start (`runMode` enum error).
+- The bat was then changed to move colliding untracked files to `_before-pull\` and `git merge --ff-only origin/dev`; Daniel says it is still broken — read `.git\pull-dev.log` first.
+- **Next session, with a shell on his PC:** `git fetch origin`, check `git status`, move or remove the untracked files that origin/dev also has (they are copies), `git merge --ff-only origin/dev` (or `git checkout -B dev origin/dev` after confirming nothing of his is lost), then `npm install` if needed and start the app. The stash and `_before-pull` are only backups; delete them and `Pull dev.bat` when Daniel confirms.
+- Everything of this session is on `origin/dev` (`467dec1` and this note). Daniel was unhappy with the token cost of this session: keep the next one short.
+
 ## Draft 2 in the app, functional (2026-10-31, night) — CLAUDE — D-059
 
 - Daniel: "not yet how I imagine it, but OK for now if it works". The agent editor is now section cards (phases **Pre-Generation / Parallel / Post-Processing**, How it runs incl. inline, context sources incl. chapters / Author's Note / previous notes / min tokens, model override, variables, use as written, hidden notes). The Narrators page is list + wide editor with blocks, one Style line and "What the AI gets" beside it; everything the narrator sends is inside `<narrator>…</narrator>`; New Narrator is blank with "Start from".
