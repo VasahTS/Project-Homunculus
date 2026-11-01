@@ -23,6 +23,8 @@ tauri-plugin-opener = "2"
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Reuse the updater's reqwest and ring-backed rustls; no new TLS provider.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
 
 # Updates from GitHub Releases (D-037, CLAUDE 2026-10-29): the updater checks/installs, process restarts the app.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
