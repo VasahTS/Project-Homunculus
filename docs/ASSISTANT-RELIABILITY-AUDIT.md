@@ -4,11 +4,11 @@ Date: 2026-11-01. Author: **CODEX**.
 
 ## Scope and outcome
 
-Daniel requested a bug check of the Assistant on dev. Audited committed local dev `b3c59e4` (D-062/D-064), imported into `Homunculus-gpt` / `gpt`. The Assistant engine, tools and view match that dev commit exactly. The existing gpt memory work was preserved.
+Daniel requested a bug check of the Assistant on dev. Audited committed local dev `b3c59e4` (D-062/D-064), imported into `Homunculus-gpt` / `gpt`. At audit time, the Assistant engine, tools and view matched that dev commit exactly. The existing gpt memory work was preserved.
 
 The merge initially conflicted only in HANDOFF.md. Daniel explicitly authorized resolving it; both complete notes were preserved and merge `33d066a` completed. The dev checkout and its uncommitted files were not changed.
 
-**Seven distinct bugs confirmed by eight reproductions: seven unit cases (including two Kit cases) and one browser case. No production fixes are included.** This is an inspection/report task; findings remain open for a follow-up fix. No screen design, schema, workflow, lockfile or release changes.
+**Original audit: seven distinct bugs confirmed by eight reproductions (seven unit cases, including two Kit cases, and one browser case). T-004 now fixes all seven.** The original evidence below is retained; each finding has a Fixed note. No screen design, schema, storage-key, token-limit, tool-definition, workflow, lockfile or release changes.
 
 ## Findings
 
@@ -20,6 +20,8 @@ Set the assistant's New items option to Ask me first, attach a character card an
 
 Evidence: the database has **1 character instead of 0** with `saveNew: false`. Respect the same approval gate for imports, including embedded lore, before writing anything.
 
+**Fixed (T-004, 2026-11-01, CODEX):** `tools.ts` → `runTool(import_file)`, `approveNew` and `importItem`: character and lorebook imports create existing new-item approval cards when Ask me first is set. The attached source is held in the existing arbitrary proposal-data field; approval uses the same import path, preserving original card metadata and embedded lore. Both kinds are covered through the existing Save button in the browser.
+
 ### A2 - P1: Stop does not guard tool writes
 
 Source: `apps/desktop/src/assistant/engine.ts:241` (tool execution loop).
@@ -27,6 +29,8 @@ Source: `apps/desktop/src/assistant/engine.ts:241` (tool execution loop).
 After the model returns a tool request, abort before that tool starts. The loop still executes it, because cancellation is passed to model streaming but is not rechecked before tools. A created item can therefore appear after Stop. Already-completed operations are a separate case and are not expected to be rolled back.
 
 Evidence: the unit case aborts from the step's initial onUpdate callback, before `runTool` starts, yet **1 character is saved instead of 0**. Recheck cancellation before each tool and before subsequent model calls; tools that contain multiple writes also need an explicit cancellation strategy.
+
+**Fixed (T-004, 2026-11-01, CODEX):** `engine.ts` → `runAssistant` checks cancellation before each model call and each tool, and preserves complete tool-call/result pairing after Stop. `tools.ts` → `write` checks every import/create/folder/move write, including the tracker save boundaries; failures report completed write references without rolling them back. The preset-memory write rechecks cancellation too. Tests cover Stop before any request/tool, between tools, during embedded imports, between tracker writes and before folder creation.
 
 ### A3 - P1: Kit proposals overwrite newer narrator and lore selections
 
@@ -36,6 +40,8 @@ Have the Assistant propose a Kit's narrator or lorebook selection, manually chan
 
 Evidence: **both narrator and lorebook cases return applied instead of stale**, allowing the old proposal to overwrite the user's latest selection. Normalize the snapshot to the tool-facing representation of actual stored fields.
 
+**Fixed (T-004, 2026-11-01, CODEX):** `tools.ts` → `currentOf` snapshots the real `narrator` and `setup.lorebooks` selections under the tool-facing keys, including narrator kind and lorebook mode/removals. Later manual selection changes now make proposals stale instead of being overwritten.
+
 ### A4 - P2: the next request omits the user's result-card decisions
 
 Source: `apps/desktop/src/assistant/engine.ts:144-168` (`toTurns`).
@@ -43,6 +49,8 @@ Source: `apps/desktop/src/assistant/engine.ts:144-168` (`toTurns`).
 Create an item, press Undo on its result card, then send another message. The saved result card records undone, but the next request still replays only the original tool result saying Created. `toTurns` never includes `m.results`, so the model is not informed of that reversal. The same omission affects approval/discard/move decisions by inspection.
 
 Evidence: serializing the request after Undo still contains `Created character:item`, with no undo/removal indication. Include concise current result-card outcomes in the request while preserving valid tool-call order. Only the Undo case was executed in this audit.
+
+**Fixed (T-004, 2026-11-01, CODEX):** `engine.ts` → `resultLines` / `toTurns` adds a short current outcome per historical result card, including Undo, approval, discard and moves. Lines follow complete tool-call/result pairs; compacted cards retain their current outcomes. In-progress tool rounds keep their original order without an extra assistant turn.
 
 ### A5 - P2: compaction removes guides that cannot be read again
 
@@ -52,6 +60,8 @@ Read a character guide, continue the conversation, compact away that exchange, t
 
 Evidence: the integration case actually compacts a chat, verifies the guide is absent from the model turns and its read flag survives, then receives the refusal instead of the full guide. Permit rereading when the full guide is no longer available, or maintain the needed content explicitly in context.
 
+**Fixed (T-004, 2026-11-01, CODEX):** `engine.ts` → `runAssistant` derives available guides from the actual request turns; `tools.ts` → `guide` suppresses a repeat only while its full text is available. Historical read metadata remains intact. Trimmed or compacted guides can be retrieved in full again.
+
 ### A6 - P2: read-more instructions loop at offset 2500
 
 Source: `apps/desktop/src/assistant/tools.ts:219-220,262-263`.
@@ -60,6 +70,8 @@ Read a 9,000-character description, then follow its continuation hint with offse
 
 Evidence: the second page says **offset 2500** and **2,500 more characters**, although the next page should start at **5000**, with **4,000 characters** remaining. This can cause repeated tool calls and prevent the model from reading the ending. Keep absolute offsets and the original total length when paginating.
 
+**Fixed (T-004, 2026-11-01, CODEX):** `tools.ts` → `compact` / `readItem` slices the original text using absolute offsets and counts the remainder from the full length. All four pages of a 9,000-character field reconstruct it exactly once; page two advances to 5000 with 4,000 remaining.
+
 ### A7 - P1: navigating during a reply leaves the wrong chat visible
 
 Source: `apps/desktop/src/ui/Assistant.tsx:142-147,207`.
@@ -67,6 +79,8 @@ Source: `apps/desktop/src/ui/Assistant.tsx:142-147,207`.
 Complete chat A, start a delayed reply in chat B, select A in Recents while B is answering, then let B finish. The sidebar selects A but the main view still shows B. Navigation's load effect returns while busy and does not rerun when busy becomes false; the completed request also unconditionally sets B as the displayed chat.
 
 Evidence: the browser confirms Recents has Make a world tracker selected, but the title is **Make a narrator** after the reply completes. A following send would use the displayed chat B. Guard request completion by chat identity and load the selected chat when navigation becomes effective; preserve the current task's isolation.
+
+**Fixed (T-004, 2026-11-01, CODEX):** `Assistant.tsx` → the chat-loading effect and `runFrom` guard asynchronous work by the selected/running chat identity, discard obsolete loads and keep live replies with their own chat. `send` rejects an unfinished selection load. The browser regression checks navigation before completion, completion afterward, a subsequent send in the selected chat and the saved background answer.
 
 ## Verification and reproduction
 
@@ -81,7 +95,7 @@ Reproduction files:
 - `apps/desktop/src/assistant/assistant-audit.test.ts`
 - `e2e/assistant-audit.e2e.ts`
 
-Known-bug assertions use Vitest `.fails` / Playwright `test.fail` so the default suite explicitly reports expected failures. They do not indicate fixes. Set `H2_AUDIT_VERIFY=1` to run them as ordinary failing tests; unset it afterward. When fixing a finding, remove its expected-failure marker and require it to pass normally.
+The original audit used expected-failure markers to keep its known-bug reproductions explicit. T-004 removes those markers: both files now run ordinary regression tests, identically with or without `H2_AUDIT_VERIFY=1`.
 
 PowerShell:
 
@@ -93,6 +107,18 @@ Remove-Item Env:H2_AUDIT_VERIFY
 ```
 
 For isolation, this audit used the ignored config `node_modules/.cache/agent-audit.config.mjs`: base URL `http://127.0.0.1:1427`, Vite on that same exclusive port, `reuseExistingServer: false`. Do not reuse an unrelated running app server. Browser tests use a fresh context and preview's in-memory database; unit tests use in-memory SQLite and scripted model responses.
+
+## T-004 verification after fixes (2026-11-01)
+
+- Before changes, `H2_AUDIT_VERIFY=1` reproduced all seven unit failures and the wrong-title browser failure.
+- `npm run typecheck`: passed. `npm test`: **352 passed, 3 skipped**, no expected failures.
+- The audit unit file has **19 passing ordinary regressions**, also verified with `H2_AUDIT_VERIFY=1`.
+- `e2e/assistant.e2e.ts` and `e2e/assistant-audit.e2e.ts`: **6 passed** on isolated port 1427, also with `H2_AUDIT_VERIFY=1`: all three existing flows, navigation/next-send isolation and character/lorebook import approval.
+- `git diff --check`: passed. Production changes remain below the card's 400-line limit.
+- No real API/model, private play data, credentials or native Tauri behavior tested. Stop preserves completed writes, so an interrupted multi-write operation can retain a partial item/schema/book; the tool reports those completed references. Native failures/restarts and complete embedded-import Undo remain outside this validation.
+- Existing duplicate attachment-key warnings remain observable in the unchanged Assistant flows; they are not one of A1–A7.
+
+Signed: **CODEX**.
 
 ## Follow-up for Claude: efficiency and request transparency
 

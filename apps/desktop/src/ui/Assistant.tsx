@@ -9,7 +9,7 @@ import { libraryCounts } from "../assistant/tools.ts";
 import { AssistantDetails } from "./AssistantDetails.tsx";
 import { saveExport } from "../files.ts";
 import type { RichTurn } from "@homunculus/core";
-import { applyChange, applyTrash, createItem, currentOf, getItem, redoMove, splitRef, undoCreate, undoMove } from "../assistant/tools.ts";
+import { applyChange, applyTrash, approveNew, createItem, currentOf, getItem, redoMove, splitRef, undoCreate, undoMove } from "../assistant/tools.ts";
 import { DRAFT_BLOCK, GUIDES } from "../assistant/guides.ts";
 import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
@@ -136,15 +136,20 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const abort = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const runningId = useRef<string | null>(null);
+  const selectedId = useRef(st.activeId);
+  selectedId.current = st.activeId;
   const busy = live !== null;
 
   useEffect(() => { void loadSettings(svc.store).then(setSettings); }, [svc]);
   useEffect(() => {
-    if (busy) return;
     setError("");
-    if (!st.activeId) { setChat(null); return; }
-    void loadChat(svc.store, st.activeId).then((c) => setChat(c ?? null));
-  }, [svc, st.activeId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (st.activeId === runningId.current && runningId.current) return;
+    let current = true;
+    setChat(null);
+    if (st.activeId) void loadChat(svc.store, st.activeId).then((c) => { if (current) setChat(c ?? null); });
+    return () => { current = false; };
+  }, [svc, st.activeId, busy]);
   useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [chat, live]);
 
   // who answers, what it knows, which model: the chat's own picks (before the first message, kept here)
@@ -190,12 +195,14 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     const r = connection.forRequest();
     if (!r.connection) { setError("Set up a connection first (Settings → Connections)."); return; }
     setChat(withUser); setError("");
-    await saveChat(svc.store, withUser);
+    runningId.current = withUser.id;
+    selectedId.current = withUser.id;
     st.setActiveId(withUser.id);
     const ctrl = new AbortController();
     abort.current = ctrl;
     setLive({ id: "live", role: "assistant", text: "", reasoning: "", attachments: [], steps: [], rounds: [], results: [], createdAt: Date.now() });
     try {
+      await saveChat(svc.store, withUser);
       let ready = withUser;
       // the context is getting full: sum up the older messages first (Details → Context)
       if (needsCompaction(ready)) {
@@ -204,10 +211,10 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
         setCompacting(false);
       }
       const done = await runAssistant({ core: svc.core, store: svc.store, chat: ready, main: r.connection, connections: r.connections, signal: ctrl.signal, onUpdate: setLive });
-      setChat(done);
+      if (selectedId.current === done.id) setChat(done);
       if (done.messages.at(-1)?.results.some((x) => x.type === "created")) onChanged();
     } finally {
-      setLive(null); abort.current = null; setCompacting(false);
+      setLive(null); abort.current = null; runningId.current = null; setCompacting(false);
       void st.reload();
       void loadSettings(svc.store).then(setSettings);
     }
@@ -215,7 +222,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
 
   const send = async (override?: string) => {
     const body = (override ?? text).trim();
-    if (busy || (!body && !atts.length)) return;
+    if (busy || (chat?.id ?? null) !== st.activeId || (!body && !atts.length)) return;
     if (!connection.forRequest().connection) { setError("Set up a connection first (Settings → Connections)."); return; }
     const now = Date.now();
     const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: body, reasoning: "", attachments: atts, steps: [], rounds: [], results: [], createdAt: now };
@@ -286,7 +293,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
         await decide(m, i, { ...r, status: "applied" }); onChanged();
       } else if (r.type === "new") {
         if (what === "discard") return void decide(m, i, { ...r, status: "discarded" });
-        const made = await createItem(svc.store, r.kind, r.data as Record<string, unknown>, () => crypto.randomUUID());
+        const made = await approveNew(svc.store, r, () => crypto.randomUUID());
         await decide(m, i, { ...r, status: "applied", itemId: made.id }); onChanged();
       } else if (r.type === "moved") {
         if (what === "undo") { await undoMove(svc.store, r); await decide(m, i, { ...r, undone: true }); }
@@ -352,7 +359,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
                 emoji={settings?.assistants.find((a) => a.name === m.used?.assistant)?.emoji}
                 onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} />
             )))}
-            {live && <Reply m={live} live onAct={() => {}} onApplyAll={() => {}} onOpen={onOpenItem} onStartKit={onStartKit} emoji={resolved?.assistant.emoji} liveName={resolved?.assistant.name} compacting={compacting} />}
+            {live && runningId.current === st.activeId && <Reply m={live} live onAct={() => {}} onApplyAll={() => {}} onOpen={onOpenItem} onStartKit={onStartKit} emoji={resolved?.assistant.emoji} liveName={resolved?.assistant.name} compacting={compacting} />}
           </div>
         )}
       </div>
@@ -369,7 +376,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
         onAdd={(items) => { setAtts((a) => [...a.filter((x) => x.type !== "item"), ...items]); setPicking(false); }} />}
       {viewing && chat && settings && <RequestView chat={chat} messageId={viewing} settings={settings} svc={svc} onClose={() => setViewing(null)} />}
     </section>
-    {details && settings && <AssistantDetails chat={chat} live={live} settings={settings} modelName={modelLabel} modelFrom={modelFrom}
+    {details && settings && <AssistantDetails chat={chat} live={runningId.current === st.activeId ? live : null} settings={settings} modelName={modelLabel} modelFrom={modelFrom}
       onSettings={(n) => { setSettings(n); void saveSettings(svc.store, n); }} onChat={updateChat} onCompact={() => void compactNow()} compacting={compacting}
       onCustomize={(tab) => st.setPage("customize", tab)} onClose={() => setDetails(false)} />}
     </div>
