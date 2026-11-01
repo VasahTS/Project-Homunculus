@@ -65,9 +65,10 @@ export async function saveSettings(store: SqlStore, s: AssistantSettings): Promi
 
 /** Tool groups the user can switch off (Details → Tools). Reading tools are always on. */
 export const TOOL_GROUPS: Array<{ id: string; label: string; help: string; tools: string[] }> = [
-  { id: "read", label: "Read your library", help: "find, read, guides — always on", tools: ["find", "read", "guide"] },
+  { id: "read", label: "Read your library", help: "find, read, folders, guides — always on", tools: ["find", "read", "folders", "guide"] },
   { id: "create", label: "Create items", help: "new characters, lorebooks, trackers, Kits, narrators; imports", tools: ["create", "import_file"] },
   { id: "change", label: "Propose changes", help: "changes, pictures and Trash proposals — you approve each", tools: ["change", "set_picture", "propose_trash"] },
+  { id: "organize", label: "Organize folders", help: "makes folders and puts items in them — Undo on the card", tools: ["move"] },
   { id: "files", label: "Read attached files", help: "parts of the files you attach", tools: ["read_file"] },
   { id: "memory", label: "Remember", help: "adds to the preset's memory", tools: ["remember"] },
 ];
@@ -298,7 +299,8 @@ export async function compactChat(o: { core: HomunculusCore; store: SqlStore; ch
     else {
       lines.push(`ASSISTANT: ${m.text}`);
       for (const s of m.steps) lines.push(`  (tool ${s.name}: ${s.label})`);
-      for (const r of m.results) if (r.type !== "memory") lines.push(`  [${r.type} ${r.kind} “${r.name}”${"itemId" in r && r.itemId ? ` ${r.kind}:${r.itemId}` : ""}${"status" in r ? ` — ${r.status}` : ""}]`);
+      for (const r of m.results) if (r.type === "moved") lines.push(`  [moved ${r.items.map((i) => `${i.kind}:${i.itemId}`).join(", ")} to the folder “${r.folder || "(top)"}”${r.undone ? " — undone" : ""}]`);
+      else if (r.type !== "memory") lines.push(`  [${r.type} ${r.kind} “${r.name}”${"itemId" in r && r.itemId ? ` ${r.kind}:${r.itemId}` : ""}${"status" in r ? ` — ${r.status}` : ""}]`);
     }
   }
   const out = await o.core.connections.complete(conn, [

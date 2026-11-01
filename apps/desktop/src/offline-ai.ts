@@ -30,6 +30,8 @@ async function* offlineAssistant(turns: RichTurn[]): AsyncGenerator<StreamChunk>
     return;
   }
   const char = added.find((m) => m[1] === "character");
+  if (char && /folder|party/i.test(ask)) { yield call("move", { items: added.map((m) => `${m[1]}:${m[2]}`), folder: "RPG/Offline Party" }); return; }
+  if (char && /version/i.test(ask)) { yield call("change", { id: `character:${char[2]}`, changes: { variants: { add: [{ label: "Modern AU", description: `${char[3]} runs a bookshop in the city.` }] } }, summary: "A modern version" }); return; }
   if (char && /describ|improve|better/i.test(ask)) { yield call("change", { id: `character:${char[2]}`, changes: { description: `${char[3]} has kept the northern woods for eleven winters.` }, summary: "A more concrete description" }); return; }
   yield "Offline test AI here: I can't really think, but try “make a world tracker”, or add characters and ask for a Kit.";
 }

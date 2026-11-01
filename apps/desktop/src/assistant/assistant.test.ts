@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { Character, LoreEntry, Lorebook, Narrator, Story, TrackerField, AssistantChat, type AssistantMessage } from "@homunculus/schemas";
 import { HomunculusCore, SqlJsDriver, SqlStore, coreMigrations, migrate, type GenerateRequest, type StreamChunk } from "@homunculus/core";
 import { compactChat, loadChat, needsCompaction, runAssistant, saveSettings, toTurns, loadSettings } from "./engine.ts";
-import { applyChange, runTool, type ToolContext } from "./tools.ts";
+import { applyChange, redoMove, runTool, undoMove, type ToolContext } from "./tools.ts";
 import { parseFile, readPart } from "./files.ts";
 import { GUIDES } from "./guides.ts";
 import { listTrackers } from "../trackers.ts";
@@ -189,6 +189,86 @@ describe("the Assistant", () => {
     expect(seen[0]!.messages[0]!.content).toContain("You sum up a conversation");
     expect(needsCompaction({ ...chat, contextLength: 1000, messages: [...chat.messages, { ...userMsg(""), role: "assistant", used: { model: "", guides: [], lastPrompt: 900 } }] })).toBe(true);
     expect(needsCompaction({ ...chat, autoCompact: false, contextLength: 1000, messages: [...chat.messages, { ...userMsg(""), role: "assistant", used: { model: "", guides: [], lastPrompt: 900 } }] })).toBe(false);
+  });
+
+  it("folders (D-064): find shows them, create and move put items in them (made when missing), Undo puts things back", async () => {
+    const { store } = await setup(() => []);
+    await store.saveFolder({ id: "rpg", kind: "character", name: "RPG", parentId: null, createdAt: 1 });
+    await store.saveCharacter(Character.parse({ id: "k1", name: "Kessa", description: "Mercenary, fantasy roleplay" }));
+    await store.saveCharacter(Character.parse({ id: "k2", name: "Kessa", description: "Detective, modern roleplay" }));
+    await store.setFolder("character", "k2", "rpg");
+    const ctx = ctxOf(store);
+    // two cards with one name are told apart by id and folder
+    const found = (await runTool("find", JSON.stringify({ query: "kessa" }), ctx)).result;
+    expect(found).toContain("character:k1 · Kessa — Mercenary");
+    expect(found).toContain("character:k2 · Kessa [RPG] — Detective");
+    expect((await runTool("find", JSON.stringify({ folder: "rpg" }), ctx)).result).not.toContain("k1");
+    // a new character straight into a party folder inside RPG (case of the existing folder does not matter)
+    const made = await runTool("create", JSON.stringify({ kind: "character", data: { name: "Bram" }, folder: "rpg/Iron Party" }), ctx);
+    expect(made.error).toBeFalsy();
+    const party = (await store.listFolders("character")).find((f) => f.name === "Iron Party")!;
+    expect(party.parentId).toBe("rpg");
+    expect((await store.listFolders("character"))).toHaveLength(2);
+    // move the two Kessas in; a tracker can't be in folders
+    const moved = await runTool("move", JSON.stringify({ items: ["character:k1", "character:k2", "tracker:x"], folder: "RPG/Iron Party" }), ctx);
+    expect(moved.result).toContain("Moved 2 item(s)");
+    expect(moved.result).toContain("Skipped: tracker:x");
+    const map = await store.folderMap("character");
+    expect([map.k1, map.k2]).toEqual([party.id, party.id]);
+    expect((await runTool("folders", "{}", ctx)).result).toContain("RPG/Iron Party (3)");
+    const card = ctx.results.find((r) => r.type === "moved")!;
+    if (card.type !== "moved") throw new Error();
+    expect(card.made).toEqual([]);
+    await undoMove(store, card);
+    expect(await store.folderMap("character")).toMatchObject({ k2: "rpg" });
+    expect((await store.folderMap("character")).k1).toBeUndefined();
+    await redoMove(store, card, () => crypto.randomUUID());
+    expect((await store.folderMap("character")).k1).toBe(party.id);
+    // a move into a new folder: Undo removes the folder it made when it is empty again
+    const ctx2 = ctxOf(store);
+    await runTool("move", JSON.stringify({ items: ["character:k1"], folder: "Drafts/Old" }), ctx2);
+    const c2 = ctx2.results[0]!;
+    if (c2.type !== "moved") throw new Error();
+    expect(c2.made).toHaveLength(2);
+    await undoMove(store, c2);
+    expect((await store.listFolders("character")).map((f) => f.name).sort()).toEqual(["Iron Party", "RPG"]);
+    // a change can't move things
+    expect((await runTool("change", JSON.stringify({ id: "character:k1", changes: { folder: "X" } }), ctx)).error).toBe(true);
+  });
+
+  it("character versions (D-064): made with the card, added and updated by change, read one by one, used by a Kit's cast", async () => {
+    const { store } = await setup(() => []);
+    const ctx = ctxOf(store);
+    const made = await runTool("create", JSON.stringify({ kind: "character", data: { name: "Ayaka", description: "A shrine maiden.", scenario: "Edo",
+      variants: [{ label: "Modern AU", description: "A barista in Tokyo.", scenario: "Edo" }] } }), ctx);
+    expect(made.result).toContain("2 versions");
+    const id = (ctx.results[0] as { itemId: string }).itemId;
+    let c = (await store.getCharacter(id))!;
+    // a version keeps only what differs from the main one
+    expect(c.variants[0]).toMatchObject({ label: "Modern AU", overrides: { description: "A barista in Tokyo." } });
+    expect(c.variants[0]!.overrides.scenario).toBeUndefined();
+    expect((await runTool("read", JSON.stringify({ id: `character:${id}` }), ctx)).result).toContain("Modern AU — changes: description");
+    expect((await runTool("read", JSON.stringify({ id: `character:${id}`, fields: ["variant:modern au"] }), ctx)).result).toContain("barista");
+    expect((await runTool("find", JSON.stringify({ query: "ayaka" }), ctx)).result).toContain("versions: Main, Modern AU");
+    // add one and update the other in one proposal
+    await runTool("change", JSON.stringify({ id: `character:${id}`, changes: { variants: { add: [{ label: "Wounded", firstMessages: ["*She limps.*"] }], update: [{ label: "Modern AU", scenario: "Shibuya, 2024" }] } }, summary: "Two versions" }), ctx);
+    const prop = ctx.results.at(-1)!;
+    if (prop.type !== "change") throw new Error();
+    expect(prop.before.variants).toEqual([{ id: c.variants[0]!.id, label: "Modern AU", description: "A barista in Tokyo." }]);
+    expect(await applyChange(store, prop, () => crypto.randomUUID())).toBe("applied");
+    c = (await store.getCharacter(id))!;
+    expect(c.variants.map((v) => v.label)).toEqual(["Modern AU", "Wounded"]);
+    expect(c.variants[0]!.overrides).toEqual({ description: "A barista in Tokyo.", scenario: "Shibuya, 2024" });
+    // adding a label that exists is refused; unknown fields are refused
+    const dup = await runTool("change", JSON.stringify({ id: `character:${id}`, changes: { variants: { add: [{ label: "wounded" }] } } }), ctx);
+    expect(dup.result).toMatch(/already a version “wounded”/);
+    expect((await runTool("change", JSON.stringify({ id: `character:${id}`, changes: { variants: { update: [{ label: "Pirate", description: "Arr" }] } } }), ctx)).result).toMatch(/No version “Pirate”/);
+    expect((await runTool("create", JSON.stringify({ kind: "character", data: { name: "X", variants: [{ label: "A", mood: "sad" }] } }), ctx)).result).toMatch(/Unknown field/);
+    // a Kit can cast a version by its label
+    await runTool("create", JSON.stringify({ kind: "kit", data: { name: "Cafe", cast: [{ id: `character:${id}`, version: "Modern AU" }] } }), ctx);
+    const kit = (await store.kits.list())[0]!;
+    expect(kit.cast[0]).toMatchObject({ characterId: id, variantId: c.variants[0]!.id });
+    expect((await runTool("create", JSON.stringify({ kind: "kit", data: { name: "Bad", cast: [{ id: `character:${id}`, version: "Pirate" }] } }), ctx)).result).toMatch(/no version “Pirate”/);
   });
 
   it("each guide only names fields the app really has", () => {

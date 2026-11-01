@@ -2400,6 +2400,15 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-pre { margin: 0; font-size: 12px; white-space: pre-wrap; max-height: 320px; overflow: auto; color: var(--label-2); }
 .asst-fld { display: grid; gap: 4px; }
 .asst-fld-n { font-size: 11.5px; color: var(--label-3); font-weight: 600; }
+/* list changes (character versions, lorebook entries) and moved items — D-064 */
+.asst-ops { display: grid; gap: 8px; }
+.asst-op { display: grid; gap: 6px; padding: 8px 10px; border-radius: 8px; background: var(--fill-quaternary, rgba(127,127,127,.06)); }
+.asst-op > b { font-size: 12.5px; font-weight: 600; }
+.asst-op > b small { color: var(--label-3); font-weight: 400; }
+.asst-op-s { display: inline-block; width: 1.1em; color: var(--green, #34c759); font-weight: 700; }
+.asst-op-s.rm { color: var(--red, #ff3b30); }
+.asst-moved { display: flex; flex-wrap: wrap; gap: 6px; }
+.asst-moved .asst-chip { cursor: pointer; border: 0; font: inherit; }
 .asst-diff { font-family: var(--font-prose); font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }
 .asst-diff del { background: color-mix(in srgb, var(--danger) 16%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 50%, transparent); border-radius: 3px; }
 .asst-diff ins { background: color-mix(in srgb, var(--ok) 16%, transparent); text-decoration: none; border-radius: 3px; }

@@ -99,6 +99,14 @@ export const AssistantResult = z.discriminatedUnion("type", [
   z.object({ type: z.literal("trash"), id: Id, kind: AssistantKind, itemId: Id, name: z.string(), reason: z.string().default(""), status: z.enum(["waiting", "applied", "discarded"]).default("waiting") }),
   z.object({ type: z.literal("new"), id: Id, kind: AssistantKind, name: z.string(), data: z.unknown(), status: z.enum(["waiting", "applied", "discarded"]).default("waiting"), itemId: Id.optional() }),
   z.object({ type: z.literal("memory"), text: z.string() }),
+  /** Items put in a folder (applied at once; Undo puts each back and removes the folders it made, if empty). D-064. */
+  z.object({
+    type: z.literal("moved"), id: Id, folder: z.string().default(""),
+    items: z.array(z.object({ kind: AssistantReadKind, itemId: Id, name: z.string(), from: Id.nullable().default(null) })).default([]),
+    /** Folders it created for this (removed again by Undo when nothing else is in them). */
+    made: z.array(Id).default([]),
+    undone: z.boolean().default(false),
+  }),
 ]);
 export type AssistantResult = z.infer<typeof AssistantResult>;
 

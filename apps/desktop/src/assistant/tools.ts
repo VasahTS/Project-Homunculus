@@ -6,8 +6,8 @@
 //
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
-import { Character, LoreEntry, Lorebook, Narrator, Story, type AssistantKind, type AssistantReadKind, type AssistantResult } from "@homunculus/schemas";
-import type { SqlStore, ToolSpec } from "@homunculus/core";
+import { Character, CharacterVariant, LoreEntry, Lorebook, Narrator, Story, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
+import { pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { adoptEmbeddedLorebook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
@@ -23,6 +23,83 @@ const LONG = 2500;
 
 export const READ_KINDS: AssistantReadKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story"];
 const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator"];
+/** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
+export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
+const inFolders = (k: string): k is FolderKind => (FOLDER_KINDS as string[]).includes(k);
+
+// ------------------------------------------------------------------ folders (D-064)
+
+/** "RPG/Iron Party" for each folder id of a kind. */
+async function folderPaths(store: SqlStore, kind: FolderKind): Promise<{ all: Folder[]; path: Map<string, string> }> {
+  const all = await store.listFolders(kind);
+  const byId = new Map(all.map((f) => [f.id, f]));
+  const path = new Map<string, string>();
+  const of = (id: string, seen = new Set<string>()): string => {
+    const known = path.get(id);
+    if (known !== undefined) return known;
+    const f = byId.get(id);
+    if (!f || seen.has(id)) return "";
+    seen.add(id);
+    const p = f.parentId ? `${of(f.parentId, seen)}/${f.name}` : f.name;
+    path.set(id, p.replace(/^\//, ""));
+    return path.get(id)!;
+  };
+  for (const f of all) of(f.id);
+  return { all, path };
+}
+
+const splitPath = (p: string) => p.split(/[/›>\\]/).map((x) => x.trim()).filter(Boolean);
+const samePath = (a: string, b: string) => splitPath(a).join("/").toLowerCase() === splitPath(b).join("/").toLowerCase();
+
+/** The folder at a path, made (with the ones above it) when missing. Returns its id (null = the top) and the ids it made. */
+export async function ensureFolder(store: SqlStore, kind: FolderKind, path: string, newId: () => string): Promise<{ id: string | null; made: string[] }> {
+  const names = splitPath(path);
+  const all = await store.listFolders(kind);
+  let parent: string | null = null;
+  const made: string[] = [];
+  for (const name of names) {
+    const found = all.find((f) => f.parentId === parent && f.name.trim().toLowerCase() === name.toLowerCase());
+    if (found) { parent = found.id; continue; }
+    const f = await store.saveFolder({ id: newId(), kind, name, parentId: parent, createdAt: Date.now() });
+    all.push(f); made.push(f.id); parent = f.id;
+  }
+  return { id: parent, made };
+}
+
+/** Puts items in a folder and returns the "moved" card (Undo needs where each one was). */
+export async function moveItems(store: SqlStore, refs: string[], folder: string, newId: () => string): Promise<{ card: Extract<AssistantResult, { type: "moved" }>; skipped: string[] }> {
+  const card: Extract<AssistantResult, { type: "moved" }> = { type: "moved", id: newId(), folder: splitPath(folder).join("/"), items: [], made: [], undone: false };
+  const skipped: string[] = [];
+  const targets = new Map<FolderKind, string | null>();
+  for (const ref of refs) {
+    const r = splitRef(ref);
+    if (!r || !inFolders(r.kind)) { skipped.push(`${ref} (${r ? `${r.kind}s can't be in folders` : "unknown"})`); continue; }
+    const item = await getItem(store, r.kind, r.id);
+    if (!item) { skipped.push(`${ref} (not found)`); continue; }
+    if (!targets.has(r.kind)) { const t = await ensureFolder(store, r.kind, folder, newId); targets.set(r.kind, t.id); card.made.push(...t.made); }
+    const from = (await store.folderMap(r.kind))[r.id] ?? null;
+    await store.setFolder(r.kind, r.id, targets.get(r.kind)!);
+    card.items.push({ kind: r.kind, itemId: r.id, name: str(item.name), from });
+  }
+  return { card, skipped };
+}
+
+/** Undo of a move: each item back where it was; folders it made go away when nothing else is in them. */
+export async function undoMove(store: SqlStore, card: Extract<AssistantResult, { type: "moved" }>): Promise<void> {
+  for (const it of card.items) if (inFolders(it.kind)) await store.setFolder(it.kind, it.itemId, it.from);
+  for (const id of [...card.made].reverse()) {
+    const f = await store.folders.get(id);
+    if (!f) continue;
+    const used = Object.values(await store.folderMap(f.kind)).includes(id) || (await store.listFolders(f.kind)).some((x) => x.parentId === id);
+    if (!used) await store.deleteFolder(id);
+  }
+}
+
+/** Redo of an undone move (the folders are made again if Undo removed them). */
+export async function redoMove(store: SqlStore, card: Extract<AssistantResult, { type: "moved" }>, newId: () => string): Promise<Extract<AssistantResult, { type: "moved" }>> {
+  const { card: again } = await moveItems(store, card.items.map((i) => `${i.kind}:${i.itemId}`), card.folder, newId);
+  return { ...again, id: card.id, items: again.items.map((i) => ({ ...i, from: card.items.find((x) => x.itemId === i.itemId)?.from ?? i.from })), made: [...new Set([...card.made, ...again.made])] };
+}
 
 export interface ToolContext {
   store: SqlStore;
@@ -44,14 +121,16 @@ export interface ToolOutcome { result: string; label: string; error?: boolean }
 
 const kindProp = (kinds: readonly string[], d: string) => ({ type: "string", enum: kinds, description: d });
 export const TOOL_SPECS: ToolSpec[] = [
-  { name: "find", description: "Find items in the user's library. Returns one short line per item (\"kind:id · name — summary\"), 25 per page. Use a query whenever you know a name or topic.",
-    parameters: { type: "object", properties: { kind: kindProp(READ_KINDS, "Only this kind (optional)."), query: { type: "string", description: "Words in the name or summary (optional)." }, page: { type: "number", description: "Page, from 1." } } } },
-  { name: "read", description: "Read one item (\"kind:id\" from find). Without `fields`, returns the item with long texts cut; a lorebook returns its entry index. Ask for `fields` to read only those, `offset` to continue a long text. For a lorebook, fields [\"entries\"] pages through entries (10 a page, use `offset` = entry number) and [\"entry:<title or id>\"] reads one.",
+  { name: "find", description: "Find items in the user's library. Returns one short line per item (\"kind:id · name [folder] — summary\"), 25 per page. Use a query whenever you know a name or topic.",
+    parameters: { type: "object", properties: { kind: kindProp(READ_KINDS, "Only this kind (optional)."), query: { type: "string", description: "Words in the name or summary (optional)." }, folder: { type: "string", description: "Only items in this folder and its subfolders, e.g. \"RPG\" (optional)." }, page: { type: "number", description: "Page, from 1." } } } },
+  { name: "folders", description: "The user's folders (each kind has its own tree), with how many items each holds.",
+    parameters: { type: "object", properties: { kind: kindProp(FOLDER_KINDS, "Only this kind (optional).") } } },
+  { name: "read", description: "Read one item (\"kind:id\" from find). Without `fields`, returns the item with long texts cut; a lorebook returns its entry index. Ask for `fields` to read only those, `offset` to continue a long text. For a lorebook, fields [\"entries\"] pages through entries (10 a page, use `offset` = entry number) and [\"entry:<title or id>\"] reads one. For a character, [\"variant:<label or id>\"] reads one version.",
     parameters: { type: "object", properties: { id: { type: "string" }, fields: { type: "array", items: { type: "string" } }, offset: { type: "number" } }, required: ["id"] } },
   { name: "guide", description: "How to write one kind of item well, and the exact fields `create`/`change` accept. Call once per kind per chat before writing it.",
     parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, "") }, required: ["kind"] } },
   { name: "create", description: "Create a new item. `data` uses the fields from `guide`. Saved right away (the user can undo) unless the user asked to approve new items.",
-    parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, ""), data: { type: "object" } }, required: ["kind", "data"] } },
+    parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, ""), data: { type: "object" }, folder: { type: "string", description: "Put it in this folder, e.g. \"RPG/Iron Party\" (made if missing; optional)." } }, required: ["kind", "data"] } },
   { name: "change", description: "Propose changes to an existing item: only the fields that change, with their new values. The user approves or discards it. `summary`: one line on what and why.",
     parameters: { type: "object", properties: { id: { type: "string" }, changes: { type: "object" }, summary: { type: "string" } }, required: ["id", "changes"] } },
   { name: "propose_trash", description: "Propose moving an item to the Trash (the user decides). You never delete.",
@@ -60,19 +139,31 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: { file: { type: "string" }, path: { type: "string" }, lines: { type: "string" }, offset: { type: "number" } }, required: ["file"] } },
   { name: "import_file", description: "Turn an attached SillyTavern card or lorebook file into a library item (as the app's own import does). Then use `change` to edit it.",
     parameters: { type: "object", properties: { file: { type: "string" }, as: { type: "string", enum: ["character", "lorebook"] } }, required: ["file", "as"] } },
-  { name: "set_picture", description: "Propose an attached image as a character's picture.",
-    parameters: { type: "object", properties: { id: { type: "string", description: "character:id" }, image: { type: "string", description: "The image id from the message." } }, required: ["id", "image"] } },
+  { name: "move", description: "Put items in a folder: \"RPG/Iron Party\" = the folder Iron Party inside RPG (missing folders are made); \"\" = out of any folder. Applied at once; the user can undo.",
+    parameters: { type: "object", properties: { items: { type: "array", items: { type: "string" }, description: "\"kind:id\" of each item." }, folder: { type: "string" } }, required: ["items", "folder"] } },
+  { name: "set_picture", description: "Propose an attached image as a character's picture (or one version's, with `variant`).",
+    parameters: { type: "object", properties: { id: { type: "string", description: "character:id" }, image: { type: "string", description: "The image id from the message." }, variant: { type: "string", description: "A version's label or id (optional)." } }, required: ["id", "image"] } },
   { name: "remember", description: "Remember a lasting fact or preference of the user for future chats (they can see and edit it).",
     parameters: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
 ];
 
 // ------------------------------------------------------------------ the library, read lightly
 
-interface Row { kind: AssistantReadKind; id: string; name: string; line: string }
+interface Row { kind: AssistantReadKind; id: string; name: string; line: string; folder?: string }
 
 async function rows(store: SqlStore, kind: AssistantReadKind): Promise<Row[]> {
+  const list = await baseRows(store, kind);
+  if (!inFolders(kind)) return list;
+  const { path } = await folderPaths(store, kind);
+  if (!path.size) return list;
+  const map = await store.folderMap(kind);
+  return list.map((r) => { const f = map[r.id]; const p = f ? path.get(f) : undefined; return p ? { ...r, folder: p } : r; });
+}
+
+async function baseRows(store: SqlStore, kind: AssistantReadKind): Promise<Row[]> {
   switch (kind) {
-    case "character": return (await store.listCharacters()).map((c) => ({ kind, id: c.id, name: c.name, line: one(c.description || c.personality || c.tags.join(", ")) }));
+    case "character": return (await store.listCharacters()).map((c) => ({ kind, id: c.id, name: c.name,
+      line: `${c.variants.length ? `versions: Main, ${c.variants.map((v) => v.label).join(", ")} · ` : ""}${one(c.description || c.personality || c.tags.join(", "))}` }));
     case "lorebook": return (await store.lorebooks.list()).map((b) => ({ kind, id: b.id, name: b.name, line: `${b.entries.length} entries${b.description ? ` · ${one(b.description, 70)}` : ""}` }));
     case "tracker": return (await listTrackers(store)).map((t) => ({ kind, id: t.agent.id, name: t.agent.name, line: `${t.sets[0]?.fields.length ?? 0} fields${t.agent.help ? ` · ${one(t.agent.help, 70)}` : ""}` }));
     case "kit": return (await store.kits.list()).map((k) => ({ kind, id: k.id, name: k.name, line: one(k.description || k.scenario) }));
@@ -156,6 +247,13 @@ async function readItem(store: SqlStore, ref: string, fields: string[], offset: 
     const idx = book.entries.slice(offset, offset + 80).map(entryLine);
     return `${book.name}${book.description ? ` — ${book.description}` : ""}\n${book.entries.length} entries:\n${idx.join("\n")}${book.entries.length > offset + 80 ? `\n(${book.entries.length - offset - 80} more; read with offset ${offset + 80})` : ""}`;
   }
+  if (r.kind === "character") {
+    const v = fields.find((f) => f.startsWith("variant:"));
+    if (v) {
+      const x = variantOf(Character.parse(item), v.slice(8));
+      return x ? JSON.stringify({ id: x.id, label: x.label, ...(compact(x.overrides, "") as Obj), ...(x.hasOwnAvatar ? { picture: "its own" } : {}) }) : `No version “${v.slice(8)}”. Read the character without fields for its versions.`;
+    }
+  }
   if (fields.length) {
     const out: Obj = {};
     for (const f of fields) {
@@ -167,14 +265,20 @@ async function readItem(store: SqlStore, ref: string, fields: string[], offset: 
     return JSON.stringify(out);
   }
   const view = compact(item, "") as Obj;
-  if (r.kind === "character" && Array.isArray((item as Obj).variants)) view.variants = ((item as Obj).variants as Obj[]).map((x) => str(x.label));
+  if (r.kind === "character" && Array.isArray((item as Obj).variants) && ((item as Obj).variants as Obj[]).length)
+    view.variants = ((item as Obj).variants as CharacterVariant[]).map((x) => `${x.id} · ${x.label} — changes: ${Object.keys(x.overrides).join(", ") || "nothing yet"} (read with fields ["variant:${x.label}"])`);
   return JSON.stringify(view);
 }
 
-async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, query: string, page: number): Promise<string> {
+async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, query: string, page: number, folder = ""): Promise<string> {
   const kinds = kind ? [kind] : READ_KINDS;
   let all: Row[] = [];
   for (const k of kinds) all = all.concat(await rows(store, k));
+  if (splitPath(folder).length) {
+    const want = splitPath(folder).join("/").toLowerCase();
+    all = all.filter((r) => r.folder && (r.folder.toLowerCase() === want || r.folder.toLowerCase().startsWith(`${want}/`) || r.folder.toLowerCase().endsWith(`/${want}`) || r.folder.toLowerCase().includes(`/${want}/`)));
+    if (!all.length) return `Nothing in a folder “${folder}”${kind ? ` of ${kind}s` : ""}. See \`folders\`.`;
+  }
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length) {
     const score = (r: Row) => {
@@ -188,13 +292,72 @@ async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, q
   const from = (Math.max(1, Math.round(page)) - 1) * 25;
   const shown = all.slice(from, from + 25);
   if (!shown.length) return words.length ? `Nothing matches “${query}”${kind ? ` in ${kind}s` : ""}.` : "Nothing here.";
-  return `${shown.map((r) => `${r.kind}:${r.id} · ${r.name}${r.line ? ` — ${r.line}` : ""}`).join("\n")}${all.length > from + 25 ? `\n(${all.length - from - 25} more; page ${Math.floor(from / 25) + 2})` : ""}`;
+  return `${shown.map((r) => `${r.kind}:${r.id} · ${r.name}${r.folder ? ` [${r.folder}]` : ""}${r.line ? ` — ${r.line}` : ""}`).join("\n")}${all.length > from + 25 ? `\n(${all.length - from - 25} more; page ${Math.floor(from / 25) + 2})` : ""}`;
 }
 
 // ------------------------------------------------------------------ writing
 
 const pick = (data: Obj, keys: string[]) => Object.fromEntries(Object.entries(data).filter(([k]) => keys.includes(k)));
-const unknownKeys = (data: Obj, kind: string) => Object.keys(data).filter((k) => !GUIDES[kind]!.fields.includes(k));
+/** "folder" is accepted with every kind that can be in folders (where to put a new item). */
+const unknownKeys = (data: Obj, kind: string) => Object.keys(data).filter((k) => !GUIDES[kind]!.fields.includes(k) && !(k === "folder" && inFolders(kind)));
+
+// ------------------------------------------------------------------ character versions (variants), D-064
+/** The fields a version can change (everything a card has but its versions). */
+export const VARIANT_FIELDS = GUIDES.character!.fields.filter((f) => f !== "variants");
+const charFields = (data: Obj) => pick(data, VARIANT_FIELDS);
+
+function variantOf(c: Character, key: string): CharacterVariant | undefined {
+  const k = key.trim().toLowerCase();
+  return c.variants.find((v) => v.id.toLowerCase() === k || v.label.trim().toLowerCase() === k);
+}
+
+function checkVariant(v: Obj) {
+  const bad = Object.keys(v).filter((k) => k !== "label" && k !== "id" && !VARIANT_FIELDS.includes(k));
+  if (bad.length) throw new Error(`Unknown field(s) for a character version: ${bad.join(", ")}. A version takes "label" and the character's fields.`);
+}
+
+function newVariant(main: Character, v: Obj, newId: () => string): CharacterVariant {
+  checkVariant(v);
+  const label = str(v.label).trim();
+  if (!label) throw new Error("A character version needs a \"label\" (e.g. \"Modern AU\").");
+  return CharacterVariant.parse({ id: newId(), label, overrides: pruneOverrides(main, charFields(v) as Partial<Character>) });
+}
+
+/**
+ * The versions after a change: { add, update, remove } (by label or id), or a plain list (each one updates the
+ * version with its label, or is added) — a list never removes a version.
+ */
+function variantsAfter(main: Character, before: CharacterVariant[], ops: unknown, newId: () => string): CharacterVariant[] {
+  let list = [...before];
+  const update = (u: Obj) => {
+    checkVariant(u);
+    const key = str(u.id) || str(u.label);
+    const old = key ? list.find((x) => x === variantOf({ ...main, variants: list }, key)) : undefined;
+    if (!old) { list.push(newVariant(main, u, newId)); return; }
+    const label = str(u.id) && str(u.label).trim() ? str(u.label).trim() : old.label;
+    list = list.map((x) => (x === old ? { ...x, label, overrides: pruneOverrides(main, { ...x.overrides, ...charFields(u) } as Partial<Character>) } : x));
+  };
+  if (Array.isArray(ops)) { for (const u of ops.filter(isObj)) update(u); return list; }
+  if (!isObj(ops)) throw new Error("\"variants\" in a change is { \"add\": [...], \"update\": [...], \"remove\": [labels or ids] }.");
+  for (const u of Array.isArray(ops.update) ? ops.update.filter(isObj) : []) {
+    if (!variantOf({ ...main, variants: list }, str(u.id) || str(u.label))) throw new Error(`No version “${str(u.id) || str(u.label)}” to update. Use "add" for a new one.`);
+    update(u);
+  }
+  const rm = strs(ops.remove);
+  list = list.filter((x) => !rm.some((t) => variantOf({ ...main, variants: [x] }, t)));
+  for (const a of Array.isArray(ops.add) ? ops.add.filter(isObj) : []) {
+    if (variantOf({ ...main, variants: list }, str(a.label))) throw new Error(`There is already a version “${str(a.label)}”. Use "update".`);
+    list.push(newVariant(main, a, newId));
+  }
+  return list;
+}
+
+/** The versions a change touches, as they are now (for the card and the stale check). */
+function touchedVariants(c: Character, ops: unknown): Obj[] {
+  const keys = Array.isArray(ops) ? ops.filter(isObj).map((u) => str(u.id) || str(u.label))
+    : isObj(ops) ? [...(Array.isArray(ops.update) ? ops.update.filter(isObj) : []).map((u) => str(u.id) || str(u.label)), ...strs(ops.remove)] : [];
+  return c.variants.filter((v) => keys.some((k) => k && variantOf({ ...c, variants: [v] }, k))).map((v) => ({ id: v.id, label: v.label, ...v.overrides }));
+}
 
 function trackerFieldsOf(list: unknown): TrackerDraft["sets"][number]["fields"] {
   return (Array.isArray(list) ? list.filter(isObj) : []).map((f, i) => ({
@@ -216,6 +379,26 @@ function narratorOf(data: Obj, id: string): Narrator {
   return Narrator.parse({ ...pick(data, ["name", "about", "modes", "style"]), id, instructions, ...(blocks ? { blocks } : {}) });
 }
 
+/** Cast as the Assistant writes it — "character:id", or { "id", "version" } for one of its versions — as cast members. */
+async function castOf(store: SqlStore, list: unknown): Promise<Array<{ characterId: string; variantId: string | null }>> {
+  const out: Array<{ characterId: string; variantId: string | null }> = [];
+  for (const x of Array.isArray(list) ? list : []) {
+    const ref = typeof x === "string" ? x : isObj(x) ? str(x.id) || str(x.characterId) : "";
+    const version = isObj(x) ? str(x.version) || str(x.variant) : "";
+    const id = splitRef(ref)?.id ?? ref;
+    if (!id) continue;
+    let variantId: string | null = null;
+    if (version && !/^main$/i.test(version.trim())) {
+      const c = await store.getCharacter(id);
+      const v = c ? variantOf(c, version) : undefined;
+      if (!v) throw new Error(`${c ? c.name : `character:${id}`} has no version “${version}”.${c ? ` Its versions: Main${c.variants.map((y) => `, ${y.label}`).join("")}.` : ""}`);
+      variantId = v.id;
+    }
+    out.push({ characterId: id, variantId });
+  }
+  return out;
+}
+
 function kitOf(data: Obj, id: string, base?: Obj): Story {
   const prev = (base ?? {}) as Obj;
   const lore = strs(data.lorebookIds).map((x) => splitRef(x)?.id ?? x);
@@ -223,7 +406,7 @@ function kitOf(data: Obj, id: string, base?: Obj): Story {
   return Story.parse({
     ...prev, id, createdAt: typeof prev.createdAt === "number" ? prev.createdAt : Date.now(),
     ...pick(data, ["name", "description", "scenario", "openings", "userRole"]),
-    ...(data.cast !== undefined ? { cast: strs(data.cast).map((c) => ({ characterId: splitRef(c)?.id ?? c })) } : {}),
+    ...(data.cast !== undefined ? { cast: data.cast } : {}),
     ...(data.npcIds !== undefined ? { npcIds: strs(data.npcIds).map((x) => splitRef(x)?.id ?? x) } : {}),
     ...(narratorId ? { narrator: { kind: "vault", id: splitRef(narratorId)?.id ?? narratorId } } : {}),
     ...(data.lorebookIds !== undefined ? { setup: { ...(isObj(prev.setup) ? prev.setup : {}), lorebooks: { mode: "add", add: lore, remove: [] } } } : {}),
@@ -236,10 +419,25 @@ export async function createItem(store: SqlStore, kind: AssistantKind, data: Obj
   if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
   const name = str(data.name).trim();
   if (!name) throw new Error(`A ${kind} needs a name.`);
+  const made = await createOnly(store, kind, data, name, newId);
+  const folder = str(data.folder);
+  if (splitPath(folder).length && inFolders(kind)) {
+    const f = await ensureFolder(store, kind, folder, newId);
+    await store.setFolder(kind, made.id, f.id);
+    made.detail += ` · in ${splitPath(folder).join("/")}`;
+  }
+  return made;
+}
+
+async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name: string, newId: () => string): Promise<{ id: string; name: string; detail: string }> {
   switch (kind) {
     case "character": {
-      const c = await store.saveCharacter(Character.parse({ ...pick(data, GUIDES.character!.fields), id: newId() }));
-      return { id: c.id, name: c.name, detail: `${c.firstMessages.length} first message(s)` };
+      const main = Character.parse({ ...charFields(data), id: newId() });
+      const list = Array.isArray(data.variants) ? data.variants.filter(isObj) : [];
+      const variants: CharacterVariant[] = [];
+      for (const v of list) { if (variantOf({ ...main, variants }, str(v.label))) throw new Error(`Two versions are called “${str(v.label)}”.`); variants.push(newVariant(main, v, newId)); }
+      const c = await store.saveCharacter({ ...main, variants });
+      return { id: c.id, name: c.name, detail: `${c.firstMessages.length} first message(s)${variants.length ? ` · ${variants.length + 1} versions` : ""}` };
     }
     case "lorebook": {
       const entries = (Array.isArray(data.entries) ? data.entries.filter(isObj) : []).map((e) => loreEntryOf(e, newId));
@@ -258,7 +456,7 @@ export async function createItem(store: SqlStore, kind: AssistantKind, data: Obj
       return { id: saved.id, name: saved.name, detail: `${saved.sets[0]!.fields.length} fields` };
     }
     case "kit": {
-      const k = await store.kits.save(kitOf(data, newId()));
+      const k = await store.kits.save(kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, newId()));
       return { id: k.id, name: k.name, detail: `${k.cast.length} in the cast · ${k.openings.length} opening(s)` };
     }
     case "narrator": {
@@ -277,7 +475,8 @@ export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
       const entries = (Array.isArray(item.entries) ? item.entries : []) as LoreEntry[];
       const touched = [...(Array.isArray(ops.update) ? ops.update.filter(isObj) : []).map((u) => str(u.id) || str(u.title)), ...strs(ops.remove)];
       out.entries = entries.filter((e) => touched.some((t) => t === e.id || t.toLowerCase() === e.title.toLowerCase())).map(entryFull);
-    } else out[k] = item[k] ?? "";
+    } else if (kind === "character" && k === "variants") out.variants = touchedVariants(Character.parse(item), changes.variants);
+    else out[k] = item[k] ?? "";
   }
   return out;
 }
@@ -290,12 +489,22 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
   const ch = r.after;
   switch (r.kind) {
     case "character": {
+      const c = Character.parse(item);
+      let variants = c.variants;
       if (typeof ch.picture === "string") {
-        const { mime, base64 } = JSON.parse(ch.picture) as { mime: string; base64: string };
-        await store.setAvatar(r.itemId, { mime, base64 });
+        const { mime, base64, variantId } = JSON.parse(ch.picture) as { mime: string; base64: string; variantId?: string };
+        if (variantId) {
+          if (!variants.some((v) => v.id === variantId)) return "missing";
+          await store.setAvatar(variantAvatarId(r.itemId, variantId), { mime, base64 });
+          variants = variants.map((v) => (v.id === variantId ? { ...v, hasOwnAvatar: true } : v));
+        } else await store.setAvatar(r.itemId, { mime, base64 });
       }
-      const { picture: _p, ...rest } = ch;
-      if (Object.keys(rest).length) await store.saveCharacter(Character.parse({ ...item, ...pick(rest, GUIDES.character!.fields) }));
+      const { picture: _p, variants: ops, ...rest } = ch;
+      const main = Character.parse({ ...c, ...charFields(rest) });
+      if (ops !== undefined) variants = variantsAfter(main, variants, ops, newId);
+      // versions keep only what still differs from the (maybe changed) main version
+      variants = variants.map((v) => ({ ...v, overrides: pruneOverrides(main, v.overrides) }));
+      if (Object.keys(rest).length || ops !== undefined || variants !== c.variants) await store.saveCharacter({ ...main, variants });
       break;
     }
     case "lorebook": {
@@ -331,7 +540,7 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
       await saveTracker(store, d);
       break;
     }
-    case "kit": await store.kits.save(kitOf(ch, r.itemId, item)); break;
+    case "kit": await store.kits.save(kitOf({ ...ch, ...(ch.cast !== undefined ? { cast: await castOf(store, ch.cast) } : {}) }, r.itemId, item)); break;
     case "narrator": {
       const n = Narrator.parse(item);
       const merged = narratorOf({ ...n, ...ch, style: { ...n.style, ...(isObj(ch.style) ? ch.style : {}) } } as Obj, n.id);
@@ -364,7 +573,28 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       case "find": {
         const kind = READ_KINDS.includes(str(a.kind) as AssistantReadKind) ? (str(a.kind) as AssistantReadKind) : undefined;
         const q = str(a.query);
-        return { result: await findItems(ctx.store, kind, q, typeof a.page === "number" ? a.page : 1), label: `Looked for ${q ? `“${q}”` : "items"}${kind ? ` in ${kind}s` : ""}` };
+        const folder = str(a.folder);
+        return { result: await findItems(ctx.store, kind, q, typeof a.page === "number" ? a.page : 1, folder), label: `Looked for ${q ? `“${q}”` : "items"}${kind ? ` in ${kind}s` : ""}${folder ? ` in “${folder}”` : ""}` };
+      }
+      case "folders": {
+        const kinds = inFolders(str(a.kind)) ? [str(a.kind) as FolderKind] : FOLDER_KINDS;
+        const out: string[] = [];
+        for (const k of kinds) {
+          const { all, path } = await folderPaths(ctx.store, k);
+          if (!all.length) continue;
+          const map = Object.values(await ctx.store.folderMap(k));
+          const lines = all.map((f) => `${path.get(f.id)} (${map.filter((x) => x === f.id).length})`).sort((x, y) => x.localeCompare(y));
+          out.push(`${k}s:\n${lines.map((l) => `  ${l}`).join("\n")}`);
+        }
+        return { result: out.join("\n") || "No folders yet. `move` or `create` with a folder makes them.", label: "Looked at the folders" };
+      }
+      case "move": {
+        const refs = strs(a.items);
+        if (!refs.length) return { result: "Give the items as \"kind:id\".", label: "move", error: true };
+        const { card, skipped } = await moveItems(ctx.store, refs, str(a.folder), ctx.newId);
+        if (card.items.length) ctx.results.push(card);
+        const where = card.folder || "the top (no folder)";
+        return { result: `${card.items.length ? `Moved ${card.items.length} item(s) to ${where}.` : "Nothing moved."}${skipped.length ? ` Skipped: ${skipped.join("; ")}.` : ""}`, label: `Moved ${card.items.length} item(s) to “${where}”`, ...(card.items.length ? {} : { error: true }) };
       }
       case "read": {
         const ref = str(a.id);
@@ -383,7 +613,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       case "create": {
         const kind = str(a.kind) as AssistantKind;
         if (!WRITE_KINDS.includes(kind)) return { result: `Can't create a “${kind}”.`, label: "create", error: true };
-        const data = isObj(a.data) ? a.data : {};
+        const data: Obj = { ...(isObj(a.data) ? a.data : {}), ...(str(a.folder) ? { folder: str(a.folder) } : {}) };
         if (!ctx.saveNew) {
           const bad = unknownKeys(data, kind);
           if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
@@ -399,12 +629,16 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         if (!r || !WRITE_KINDS.includes(r.kind as AssistantKind)) return { result: `Can't change “${str(a.id)}”.`, label: "change", error: true };
         const kind = r.kind as AssistantKind;
         const changes = isObj(a.changes) ? a.changes : {};
+        if ("folder" in changes) throw new Error("Use `move` to put an item in a folder.");
         const bad = unknownKeys(changes, kind).filter((k) => !(kind === "character" && k === "picture"));
         if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
         if (!Object.keys(changes).length) throw new Error("No changes given.");
         const item = await getItem(ctx.store, kind, r.id);
         if (!item) throw new Error(`No ${kind} with id “${r.id}”.`);
         const nm = str(item.name);
+        // check versions and cast now, so a mistake comes back to the model instead of failing when the user applies it
+        if (kind === "character" && changes.variants !== undefined) { const c = Character.parse(item); variantsAfter(Character.parse({ ...c, ...charFields(changes) }), c.variants, changes.variants, ctx.newId); }
+        if (kind === "kit" && changes.cast !== undefined) await castOf(ctx.store, changes.cast);
         ctx.results.push({ type: "change", id: ctx.newId(), kind, itemId: r.id, name: nm, summary: str(a.summary), before: currentOf(item, kind, changes), after: changes, status: "waiting" });
         return { result: "Proposed. It waits for the user's OK — don't assume it was applied.", label: `Proposed changes to “${nm}”` };
       }
@@ -444,8 +678,10 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         if (!img) return { result: `No attached image “${str(a.image)}”.`, label: "set_picture", error: true };
         const c = await ctx.store.getCharacter(r.id);
         if (!c) throw new Error(`No character with id “${r.id}”.`);
-        ctx.results.push({ type: "change", id: ctx.newId(), kind: "character", itemId: c.id, name: c.name, summary: `Use “${img.name}” as the picture`, before: { picture: "" }, after: { picture: JSON.stringify({ mime: img.mime, base64: img.base64 }) }, status: "waiting" });
-        return { result: "Proposed; the user decides.", label: `Proposed a picture for “${c.name}”` };
+        const v = str(a.variant) ? variantOf(c, str(a.variant)) : undefined;
+        if (str(a.variant) && !v) throw new Error(`No version “${str(a.variant)}” of ${c.name}. Its versions: ${c.variants.map((x) => x.label).join(", ") || "none"}.`);
+        ctx.results.push({ type: "change", id: ctx.newId(), kind: "character", itemId: c.id, name: c.name, summary: `Use “${img.name}” as the picture${v ? ` of ${v.label}` : ""}`, before: { picture: "" }, after: { picture: JSON.stringify({ mime: img.mime, base64: img.base64, ...(v ? { variantId: v.id } : {}) }) }, status: "waiting" });
+        return { result: "Proposed; the user decides.", label: `Proposed a picture for “${c.name}${v ? ` · ${v.label}` : ""}”` };
       }
       case "remember": {
         const text = str(a.text).trim();

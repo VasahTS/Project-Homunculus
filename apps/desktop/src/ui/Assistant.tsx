@@ -9,7 +9,7 @@ import { libraryCounts } from "../assistant/tools.ts";
 import { AssistantDetails } from "./AssistantDetails.tsx";
 import { saveExport } from "../files.ts";
 import type { RichTurn } from "@homunculus/core";
-import { applyChange, applyTrash, createItem, currentOf, getItem, splitRef, undoCreate } from "../assistant/tools.ts";
+import { applyChange, applyTrash, createItem, currentOf, getItem, redoMove, splitRef, undoCreate, undoMove } from "../assistant/tools.ts";
 import { DRAFT_BLOCK, GUIDES } from "../assistant/guides.ts";
 import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
@@ -288,6 +288,10 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
         if (what === "discard") return void decide(m, i, { ...r, status: "discarded" });
         const made = await createItem(svc.store, r.kind, r.data as Record<string, unknown>, () => crypto.randomUUID());
         await decide(m, i, { ...r, status: "applied", itemId: made.id }); onChanged();
+      } else if (r.type === "moved") {
+        if (what === "undo") { await undoMove(svc.store, r); await decide(m, i, { ...r, undone: true }); }
+        else await decide(m, i, { ...(await redoMove(svc.store, r, () => crypto.randomUUID())), undone: false });
+        onChanged();
       } else if (r.type === "created") {
         if (what === "undo") { await undoCreate(svc.store, r.kind, r.itemId); await decide(m, i, { ...r, undone: true }); }
         else if (what === "restore" && r.kind !== "tracker") { await svc.store.restoreFromTrash(r.kind as never, r.itemId); await decide(m, i, { ...r, undone: false }); }
@@ -471,6 +475,19 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
 function ResultCard({ r, onAct, onOpen, onStartKit }: { r: AssistantResult; onAct: (w: "apply" | "discard" | "undo" | "restore") => void; onOpen: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   if (r.type === "memory") return <div className="asst-memory">✓ Remembered: {r.text}</div>;
+  if (r.type === "moved") return (
+    <div className={`asst-res${open ? " open" : ""}`} data-testid="assistant-result">
+      <div className="asst-res-line"><span className="asst-res-ic"><Icon name="folder" size={14} /></span>
+        <span className="asst-res-t"><b>{r.folder ? r.folder.split("/").join(" › ") : "Out of folders"}</b>
+          <small className={r.undone ? "" : "ok"}>{r.undone ? "Put back where they were" : `${r.items.length} moved here${r.made.length ? ` · ${r.made.length} new folder${r.made.length > 1 ? "s" : ""}` : ""}`}</small></span>
+        <button className="asst-lnk" onClick={() => setOpen(!open)}>{open ? "Hide" : "See items"}</button>
+        <button className="asst-lnk" onClick={() => onAct(r.undone ? "restore" : "undo")}>{r.undone ? "Redo" : "Undo"}</button>
+      </div>
+      {open && <div className="asst-res-more asst-moved">{r.items.map((i) => (
+        <button key={`${i.kind}:${i.itemId}`} type="button" className="asst-chip" onClick={() => onOpen(i.kind as AssistantKind, i.itemId)}><span className="asst-k" aria-hidden>{KIND_MARK[i.kind]}</span><span className="asst-chip-name">{i.name}</span></button>
+      ))}</div>}
+    </div>
+  );
   const kindMark = KIND_MARK[r.kind];
   if (r.type === "created") return (
     <div className="asst-res" data-testid="assistant-result">
@@ -507,7 +524,7 @@ function ResultCard({ r, onAct, onOpen, onStartKit }: { r: AssistantResult; onAc
   return (
     <div className={`asst-res${open ? " open" : ""}`} data-testid="assistant-result">
       <div className="asst-res-line"><span className="asst-res-ic">✎</span>
-        <span className="asst-res-t"><b>{r.name}{fields.length ? ` · ${fields.join(", ")}` : " · picture"}</b><small className={r.status === "waiting" ? "wait" : r.status === "applied" ? "ok" : ""}>{r.summary && r.status === "waiting" ? r.summary : label}</small></span>
+        <span className="asst-res-t"><b>{r.name}{fields.length ? ` · ${fields.map((k) => (k === "variants" ? "versions" : k)).join(", ")}` : " · picture"}</b><small className={r.status === "waiting" ? "wait" : r.status === "applied" ? "ok" : ""}>{r.summary && r.status === "waiting" ? r.summary : label}</small></span>
         <button className="asst-lnk" onClick={() => setOpen(!open)} data-testid="assistant-see-change">{open ? "Hide" : "See change"}</button>
         {r.status === "waiting" && <><button className="asst-lnk strong" onClick={() => onAct("apply")} data-testid="assistant-apply">Apply</button><button className="asst-lnk" onClick={() => onAct("discard")}>Discard</button></>}
         {r.status === "applied" && <button className="asst-lnk" onClick={() => onOpen(r.kind, r.itemId)}>Open</button>}
@@ -523,10 +540,38 @@ function ChangeField({ name, before, after }: { name: string; before: unknown; a
     const p = typeof after === "string" ? (JSON.parse(after) as { mime: string; base64: string }) : null;
     return <div className="asst-fld"><span className="asst-fld-n">Picture</span>{p && <img className="asst-thumb" src={`data:${p.mime};base64,${p.base64}`} alt="" />}</div>;
   }
+  if ((name === "variants" || name === "entries") && after && typeof after === "object") return <OpsField name={name} before={before} after={after} />;
   const parts = diffWords(asText(before), asText(after));
   return (
     <div className="asst-fld"><span className="asst-fld-n">{name}</span>
       <div className="asst-diff">{parts.map((p, i) => p.kind === "same" ? <span key={i}>{p.text}</span> : <span key={i}>{p.before && <del>{p.before}</del>}{p.before && p.after ? " " : ""}{p.after && <ins>{p.after}</ins>}</span>)}</div>
+    </div>
+  );
+}
+
+/** A change to a list inside an item (a character's versions, a lorebook's entries): what is added, changed, removed. */
+function OpsField({ name, before, after }: { name: string; before: unknown; after: unknown }) {
+  type O = Record<string, unknown>;
+  const isO = (v: unknown): v is O => !!v && typeof v === "object" && !Array.isArray(v);
+  const what = name === "variants" ? "version" : "entry";
+  const titleOf = (x: O) => String(x.label ?? x.title ?? x.id ?? "");
+  const was = (Array.isArray(before) ? before.filter(isO) : []);
+  const find = (x: O) => was.find((b) => (x.id && b.id === x.id) || (titleOf(x) && titleOf(b).toLowerCase() === titleOf(x).toLowerCase()));
+  const ops: O = Array.isArray(after) ? { update: after.filter(isO) } : isO(after) ? after : {};
+  const rows: Array<{ sign: string; title: string; fields: Array<[string, unknown, unknown]> }> = [];
+  for (const a of Array.isArray(ops.add) ? ops.add.filter(isO) : []) rows.push({ sign: "+", title: titleOf(a), fields: Object.entries(a).filter(([k]) => k !== "label" && k !== "title" && k !== "id").map(([k, v]) => [k, undefined, v]) });
+  for (const u of Array.isArray(ops.update) ? ops.update.filter(isO) : []) {
+    const b = find(u);
+    rows.push({ sign: b ? "~" : "+", title: titleOf(u) || titleOf(b ?? {}), fields: Object.entries(u).filter(([k]) => k !== "label" && k !== "title" && k !== "id").map(([k, v]) => [k, b?.[k], v]) });
+  }
+  for (const r of Array.isArray(ops.remove) ? ops.remove : []) rows.push({ sign: "−", title: titleOf(find({ id: r, label: r, title: r }) ?? { label: r }), fields: [] });
+  return (
+    <div className="asst-fld"><span className="asst-fld-n">{name === "variants" ? "Versions" : "Entries"}</span>
+      <div className="asst-ops">{rows.map((r, i) => (
+        <div key={i} className="asst-op"><b><span className={`asst-op-s${r.sign === "−" ? " rm" : ""}`}>{r.sign}</span> {r.title || `(new ${what})`}<small>{r.sign === "+" ? ` new ${what}` : r.sign === "−" ? ` removed` : ""}</small></b>
+          {r.fields.map(([k, b, a]) => <ChangeField key={k} name={k} before={b} after={a} />)}
+        </div>
+      ))}</div>
     </div>
   );
 }
@@ -691,7 +736,8 @@ function chatMarkdown(c: AssistantChat): string {
       out.push(`## ${m.used?.assistant ?? "Assistant"}${m.used?.model ? ` (${m.used.model})` : ""}`, "");
       if (m.steps.length) out.push(m.steps.map((s) => `- ${s.label}`).join("\n"), "");
       if (m.text) out.push(m.text, "");
-      for (const r of m.results) if (r.type !== "memory") out.push(`> ${r.type === "created" ? "Created" : r.type === "change" ? "Change" : r.type === "trash" ? "Trash proposal" : "New"}: ${r.kind} “${r.name}”${"status" in r ? ` — ${r.status}` : ""}`);
+      for (const r of m.results) if (r.type === "moved") out.push(`> Moved to ${r.folder || "no folder"}: ${r.items.map((i) => i.name).join(", ")}${r.undone ? " — undone" : ""}`);
+      else if (r.type !== "memory") out.push(`> ${r.type === "created" ? "Created" : r.type === "change" ? "Change" : r.type === "trash" ? "Trash proposal" : "New"}: ${r.kind} “${r.name}”${"status" in r ? ` — ${r.status}` : ""}`);
       out.push("");
     }
   }

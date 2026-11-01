@@ -623,3 +623,14 @@ Daniel: "Characters don't have the Character's Note" (SillyTavern's `depth_promp
 - Editor: "Character's Note" under First message, with @ Depth, Role and tokens, like SillyTavern. The Assistant's character guide knows the field.
 
 Signed: **CLAUDE**.
+
+## D-064 — The Assistant organizes folders and makes character versions (2026-11-01)
+
+Daniel: "can the Assistant put characters in folders? I make a party, it goes into my RPG folder, makes the party's folder and puts everyone in it"; "characters with the same name — it finds them by id, right? I keep several versions of one character (different cards for different roleplays)"; "make it able to create the versions we built (Main, Modern…), one card".
+- **Folders:** new tools `folders` (the trees, with counts; always on, in "Read") and `move` (items into a path like "RPG/Iron Party"; missing folders are made, an existing name matches without case; "" = out of folders). `create` takes `folder` too, and draft JSON may have `"folder"`. A move is applied at once (it changes no content) with a card: **Undo** puts each item back where it was and removes the folders it made if they are empty; **Redo**. New tool group "Organize folders" can be switched off. Trackers, personas and presets have no folders (skipped with a note). `change` refuses `folder` (use `move`).
+- **Same names:** everything already works by `kind:id`. Now `find` lines show the folder (`[RPG/Iron Party]`) and a character's versions, `find` can look inside a folder, the rules tell the Assistant to tell items apart by folder and summary or ask, and the Add context picker shows the folder and "N versions" under each name.
+- **Versions (variants, BLUEPRINT §2.5):** the character guide has `variants`: on `create` a list of `{ label, …fields that differ }`; on `change` `{ add, update, remove }` by label or id (a plain list updates or adds, never removes). Versions keep only what differs from the main one (`pruneOverrides`, also after the main version changes). Mistakes (duplicate label, unknown version, unknown field) come back to the model when it proposes, not when the user applies. `read` lists versions and reads one with `["variant:<label>"]`; `set_picture` takes `variant`; a Kit's cast can name `{ id, version }`. Asking for "another version of X" adds a variant (a change the user approves) unless the user wants a separate card.
+- "See change" shows list changes (versions, lorebook entries) as + new / ~ changed / − removed with word diffs, not JSON.
+
+Signed: **CLAUDE**.
+

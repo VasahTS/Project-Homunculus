@@ -1014,14 +1014,16 @@ export function App() {
     .sort((a, b) => b.when - a.when);
 
   const short = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 90);
+  /** The folder an item is in, before its line (two cards with one name are told apart by it, D-064). */
+  const inFolder = (kind: FolderKind, id: string, line: string) => { const f = folderLabel(folders, mapOf(kind)[id]); return f ? `${f} · ${line}` : line; };
   const assistantLibrary: LibraryEntry[] = mode !== "assistant" ? [] : [
-    ...characters.map((c) => ({ kind: "character" as const, id: c.id, name: c.name, line: short(c.description || c.personality), avatar: avatars[c.id] })),
+    ...characters.map((c) => ({ kind: "character" as const, id: c.id, name: c.name, line: inFolder("character", c.id, `${c.variants.length ? `${c.variants.length + 1} versions · ` : ""}${short(c.description || c.personality)}`), avatar: avatars[c.id] })),
     ...personas.map((p) => ({ kind: "persona" as const, id: p.id, name: p.name, line: short(p.description), avatar: avatars[p.id] })),
-    ...narrators.map((n) => ({ kind: "narrator" as const, id: n.id, name: n.name, line: short(n.about || n.instructions) })),
-    ...npcs.map((n) => ({ kind: "npc" as const, id: n.id, name: n.name, line: short(n.notes) })),
-    ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, line: short(x.description || x.scenario) })),
-    ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, line: short(x.description || x.scenario) })),
-    ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: `${b.entries.length} entries` })),
+    ...narrators.map((n) => ({ kind: "narrator" as const, id: n.id, name: n.name, line: inFolder("narrator", n.id, short(n.about || n.instructions)) })),
+    ...npcs.map((n) => ({ kind: "npc" as const, id: n.id, name: n.name, line: inFolder("npc", n.id, short(n.notes)) })),
+    ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, line: inFolder("story", x.id, short(x.description || x.scenario)) })),
+    ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, line: inFolder("kit", x.id, short(x.description || x.scenario)) })),
+    ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${b.entries.length} entries`) })),
     ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help) })),
     ...presets.map((x) => ({ kind: "preset" as const, id: x.id, name: x.name, line: `${x.blocks.length} blocks` })),
   ];

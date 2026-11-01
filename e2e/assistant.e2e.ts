@@ -85,6 +85,53 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await expect(page.getByTestId("place-list")).toBeVisible();
 });
 
+test("Folders and versions (D-064): the Assistant puts a character in a party folder (Undo, Redo) and proposes a new version", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  await page.getByTestId("assistant-add-context").click();
+  await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();
+  await page.getByTestId("assistant-picker-add").click();
+  await page.getByRole("textbox", { name: "Message to the Assistant" }).fill("Put her in a party folder inside RPG");
+  await page.getByTestId("assistant-send").click();
+  const moved = page.getByTestId("assistant-result").first();
+  await expect(moved).toContainText("RPG › Offline Party");
+  await expect(moved).toContainText("1 moved here · 2 new folders");
+  await moved.getByRole("button", { name: "See items" }).click();
+  await expect(moved).toContainText("Lyra");
+  await moved.getByRole("button", { name: "Undo" }).click();
+  await expect(moved).toContainText("Put back where they were");
+  await moved.getByRole("button", { name: "Redo" }).click();
+  await expect(moved).toContainText("1 moved here");
+  await expect(page.getByTestId("assistant-send")).toBeVisible();
+
+  // another version of her, in the same card
+  await page.getByTestId("assistant-add-context").click();
+  await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();
+  await page.getByTestId("assistant-picker-add").click();
+  await page.getByRole("textbox", { name: "Message to the Assistant" }).fill("Make a modern version of her");
+  await page.getByTestId("assistant-send").click();
+  await expect(page.getByTestId("assistant-reply")).toHaveCount(2);
+  await expect(page.getByTestId("assistant-send")).toBeVisible();
+  await expect(page.getByTestId("assistant-result").last()).toContainText("Lyra · versions");
+  const change = page.getByTestId("assistant-result").last();
+  await change.getByTestId("assistant-see-change").click();
+  await expect(change).toContainText("Modern AU");
+  await expect(change).toContainText("new version");
+  await expect(change).toContainText("bookshop");
+  await change.getByTestId("assistant-apply").click();
+  await expect(change).toContainText("Applied");
+
+  // the picker now shows where she is and that she has two versions
+  await page.getByTestId("assistant-add-context").click();
+  await expect(page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first()).toContainText("RPG › Offline Party · 2 versions");
+  await page.keyboard.press("Escape");
+
+  // and the Library has the folders
+  await page.getByTestId("mode-switch").getByRole("tab", { name: "Play" }).click();
+  await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click();
+  await expect(page.getByText("1 character · 1 folder")).toBeVisible();
+});
+
 test("Draft first: drafts show as cards with Save; nothing is saved until the user does; code blocks have Copy", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
