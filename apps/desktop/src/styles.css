@@ -2925,3 +2925,11 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .ce-tabline { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; border-bottom: 2px solid var(--accent); opacity: 0;
   transition: transform 420ms cubic-bezier(0.77, 0, 0.175, 1), width 420ms cubic-bezier(0.77, 0, 0.175, 1), height 420ms cubic-bezier(0.77, 0, 0.175, 1); }
 @media (prefers-reduced-motion: reduce) { .rise-l { animation: none; } }
+
+/* A message never makes the story wider than its column (Daniel, 2026-11-01: a story chat scrolled sideways and every
+ * line ran past the window). A grid track grows to its widest child by default, so one long unbreakable line (a status
+ * block, a long link) widened every message; now the track is capped and such a line wraps or scrolls inside itself. */
+.messages-list { grid-template-columns: minmax(0, 1fr); }
+.messages-list > li, .msg, .msg-body { min-width: 0; }
+.msg .prose pre { max-width: 100%; overflow-x: auto; }
+.msg .prose { overflow-wrap: anywhere; overflow-x: auto; }
