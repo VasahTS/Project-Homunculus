@@ -93,7 +93,25 @@ export function formatMessage(text: string, look: MessageLook, allowHtml: boolea
     ? (marked.parse(src, { breaks: true, gfm: true, async: false }) as string)
     : src.replace(/\n/g, "<br>");
   const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS: TAGS, ALLOWED_ATTR: ATTRS, ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false });
-  return webParts(clean, look);
+  return codeCopy(webParts(clean, look));
+}
+
+/** Every code block gets a Copy button (made after the filter, so it is ours; MessageText handles the click). */
+function codeCopy(html: string): string {
+  if (!/<pre\b/i.test(html)) return html;
+  const t = document.createElement("template");
+  t.innerHTML = html;
+  for (const pre of [...t.content.querySelectorAll("pre")]) {
+    const wrap = document.createElement("div");
+    wrap.className = "code-wrap";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "code-copy";
+    btn.textContent = "Copy";
+    pre.replaceWith(wrap);
+    wrap.append(btn, pre);
+  }
+  return t.innerHTML;
 }
 
 const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };

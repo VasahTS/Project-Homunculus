@@ -37,6 +37,7 @@ import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
 import { LibraryWorkspace } from "./ui/LibraryWorkspace.tsx";
+import { AssistantSidebar, AssistantView, useAssistant, type AppMode, type LibraryEntry } from "./ui/Assistant.tsx";
 import { RegexPage } from "./ui/RegexScripts.tsx";
 import { loadMessageLook } from "./messageLook.ts";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
@@ -135,6 +136,10 @@ export function App() {
   const [sidebarOpen, toggleSidebar] = usePanel("homunculus.ui.sidebar", true);
   const [inspectorOpen, toggleInspector] = usePanel("homunculus.ui.inspector", true);
   const connection = useConnections(svc?.store ?? null);
+  // the Assistant mode (D-062): its own sidebar and chats; Play is everything else
+  const [mode, setModeState] = useState<AppMode>(() => { try { return localStorage.getItem("homunculus.mode") === "assistant" ? "assistant" : "play"; } catch { return "play"; } });
+  const setMode = (m: AppMode) => { setModeState(m); try { localStorage.setItem("homunculus.mode", m); } catch { /* private window */ } };
+  const asst = useAssistant(svc);
   // a newer version on GitHub (D-037): a quiet bar on top + Settings → About
   const updates = useUpdates();
 
@@ -1008,6 +1013,20 @@ export function App() {
     })
     .sort((a, b) => b.when - a.when);
 
+  const short = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 90);
+  /** The folder an item is in, before its line (two cards with one name are told apart by it, D-064). */
+  const inFolder = (kind: FolderKind, id: string, line: string) => { const f = folderLabel(folders, mapOf(kind)[id]); return f ? `${f} · ${line}` : line; };
+  const assistantLibrary: LibraryEntry[] = mode !== "assistant" ? [] : [
+    ...characters.map((c) => ({ kind: "character" as const, id: c.id, name: c.name, line: inFolder("character", c.id, `${c.variants.length ? `${c.variants.length + 1} versions · ` : ""}${short(c.description || c.personality)}`), avatar: avatars[c.id] })),
+    ...personas.map((p) => ({ kind: "persona" as const, id: p.id, name: p.name, line: short(p.description), avatar: avatars[p.id] })),
+    ...narrators.map((n) => ({ kind: "narrator" as const, id: n.id, name: n.name, line: inFolder("narrator", n.id, short(n.about || n.instructions)) })),
+    ...npcs.map((n) => ({ kind: "npc" as const, id: n.id, name: n.name, line: inFolder("npc", n.id, short(n.notes)) })),
+    ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, line: inFolder("story", x.id, short(x.description || x.scenario)) })),
+    ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, line: inFolder("kit", x.id, short(x.description || x.scenario)) })),
+    ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${b.entries.length} entries`) })),
+    ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help) })),
+    ...presets.map((x) => ({ kind: "preset" as const, id: x.id, name: x.name, line: `${x.blocks.length} blocks` })),
+  ];
   const lead = (
     <IconButton label={sidebarOpen ? "Hide Sidebar" : "Show Sidebar"} onClick={toggleSidebar} aria-pressed={sidebarOpen}>
       <Icon name="sidebar" size={17} />
@@ -1417,8 +1436,12 @@ export function App() {
 
   return (
     <div className="app" data-region="app">
-      {sidebarOpen && (
+      {sidebarOpen && mode === "assistant" && (
+        <AssistantSidebar st={asst} onMode={setMode} status={svc.isDesktop ? "saved on this PC" : "preview · not saved"} />
+      )}
+      {sidebarOpen && mode === "play" && (
         <Sidebar
+          mode={mode} onMode={setMode}
           navigation={COLLECTION_NAVIGATION}
           searchItems={[
             ...characters.map((c) => ({ id: `character:${c.id}`, name: c.name, kind: "Character", onOpen: () => setView({ kind: "characters", id: c.id }) })),
@@ -1455,7 +1478,13 @@ export function App() {
       <div className="content">
         <UpdateBar u={updates} />
         {noticeBar}
-        {libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
+        {mode === "assistant" ? (
+          <AssistantView svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary}
+            userName={personas.find((p) => p.id === defaultPersonaId)?.name ?? ""}
+            onChanged={() => void refresh(svc)}
+            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
+            onStartKit={(id) => { const k = kits.find((x) => x.id === id); if (k) { setMode("play"); void startFromKit(k); } }} />
+        ) : libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
           counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, agents: agents.length, trash: trash.length }}
           onOpen={openLibrary}>{content}</LibraryWorkspace> : content}
       </div>

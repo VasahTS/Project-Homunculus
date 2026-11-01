@@ -50,7 +50,7 @@ import { resolveSetup, type ResolvedSetup } from "./setup.ts";
 import { readStatePath } from "./state.ts";
 import { trackerPeople, trackerSummary } from "./trackers.ts";
 import type { SqlStore } from "./storage/store.ts";
-import { effectiveCharacter, effectivePersona } from "./variants.ts";
+import { characterNoteOf, effectiveCharacter, effectivePersona } from "./variants.ts";
 import { castPart, narratorAsCharacter, SIMPLE_NARRATOR } from "./stories.ts";
 import { applyLorePatch } from "./lore-versions.ts";
 import { applyChapters, chapterRequest, chaptersOnPath, nextChapterSpan, parseChapter, type Chapter } from "./memory.ts";
@@ -208,7 +208,7 @@ export class TurnPipeline {
       for await (const chunk of this.core.connections.stream(main, toTurns(preset.squashSystem ? squashSystem(prompt) : prompt), req.signal)) {
         if (typeof chunk === "string") { text += chunk; req.onToken?.(chunk, text); }
         else if ("reasoning" in chunk) { reasoning += chunk.reasoning; req.onReasoning?.(reasoning); }
-        else Object.assign(usage, chunk.usage);
+        else if ("usage" in chunk) Object.assign(usage, chunk.usage);
       }
     } catch (error) {
       const reason = isAbort(error, req.signal) ? "Stopped" : error instanceof Error ? error.message : String(error);
@@ -748,13 +748,12 @@ export class TurnPipeline {
       .filter((m) => m.visibility.ai === "full" && m.kind !== "event")
       .map((m) => (settings.includeNames ? `${a.names.bySpeaker(m)}: ${said(m)}` : said(m)))
       .reverse();
-    const original = (a.character?.original ?? {}) as { data?: { extensions?: { depth_prompt?: { prompt?: unknown } } } };
-    const depthPrompt = original.data?.extensions?.depth_prompt?.prompt;
+    const depthPrompt = characterNoteOf(a.character)?.text ?? "";
     const r = scanLorebooks({
       books, chat, chatLength: a.history.length, trigger: a.type,
       global: {
         personaDescription: a.persona?.description ?? "", characterDescription: a.character?.description ?? "",
-        characterPersonality: a.character?.personality ?? "", characterDepthPrompt: typeof depthPrompt === "string" ? depthPrompt : "",
+        characterPersonality: a.character?.personality ?? "", characterDepthPrompt: depthPrompt,
         scenario: a.macroCtx.scenario ?? "", creatorNotes: a.character?.creatorNotes ?? "",
       },
       ...(a.character ? { character: { name: a.character.name, tags: a.character.tags } } : {}),

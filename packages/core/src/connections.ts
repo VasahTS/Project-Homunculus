@@ -1,7 +1,7 @@
 // Homunculus 2 — calling providers safely: limits, fallback, Stop. Author: CLAUDE, 2026-10-27.
 // BLUEPRINT §7.3. Agents run in parallel; without limits a cheap tracker model would hit rate limits.
 import type { ConnectionProfile } from "@homunculus/schemas";
-import type { ChatTurn, Completion, ConnectionConfig, ExtensionPoint, ProviderDefinition, StreamChunk } from "./extensions.ts";
+import type { ChatTurn, Completion, ConnectionConfig, ExtensionPoint, ProviderDefinition, RichTurn, StreamChunk, ToolSpec } from "./extensions.ts";
 
 /** One gate per connection (provider + address + model). */
 class Gate {
@@ -74,26 +74,47 @@ export class ConnectionService {
    * Streams a reply. If the connection fails before any text arrived and it has a
    * fallback, the fallback is tried (and so on). Once text arrived, errors are thrown.
    */
-  async *stream(connection: ConnectionConfig, messages: ChatTurn[], signal?: AbortSignal): AsyncGenerator<StreamChunk & {}, void> {
+  async *stream(connection: ConnectionConfig, messages: ChatTurn[], signal?: AbortSignal, extra: { tools?: ToolSpec[]; rich?: RichTurn[] } = {}): AsyncGenerator<StreamChunk & {}, void> {
     let current: ConnectionConfig | undefined = connection;
     let lastError: unknown;
     while (current) {
       const provider = this.provider(current);
-      const release = await this.gateFor(current).acquire(signal);
-      let sentText = false;
-      try {
-        for await (const chunk of provider.stream({ connection: current, messages, signal })) {
-          if (typeof chunk === "string" && chunk) sentText = true;
-          yield chunk;
+      const retries = Math.max(0, current.limits?.retries ?? 0);
+      for (let attempt = 0; ; attempt++) {
+        const release = await this.gateFor(current).acquire(signal);
+        let sentText = false;
+        // "nothing arrived for N seconds" ends the call (each chunk restarts the clock)
+        const timeoutMs = (current.limits?.timeoutSec ?? 0) * 1000;
+        const own = timeoutMs ? new AbortController() : undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const arm = () => { if (own) { clearTimeout(timer); timer = setTimeout(() => own.abort(new Error(`No answer for ${current!.limits!.timeoutSec} s (timeout).`)), timeoutMs); } };
+        const onOuter = () => own?.abort(signal?.reason);
+        signal?.addEventListener("abort", onOuter);
+        try {
+          arm();
+          for await (const chunk of provider.stream({ connection: current, messages, signal: own?.signal ?? signal, ...extra })) {
+            arm();
+            if ((typeof chunk === "string" && chunk) || (typeof chunk === "object" && "toolCalls" in chunk)) sentText = true;
+            yield chunk;
+          }
+          return;
+        } catch (e) {
+          const err = own?.signal.aborted && !signal?.aborted && own.signal.reason instanceof Error ? own.signal.reason : e;
+          if (sentText || isAbort(err, signal)) throw err;
+          lastError = err;
+          if (attempt < retries && isBusy(err)) {
+            release();
+            await sleep(2000 * 2 ** attempt, signal);
+            continue;
+          }
+          break;
+        } finally {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", onOuter);
+          release();
         }
-        return;
-      } catch (e) {
-        if (sentText || isAbort(e, signal)) throw e;
-        lastError = e;
-        current = current.fallback;
-      } finally {
-        release();
       }
+      current = current.fallback;
     }
     throw lastError;
   }
@@ -107,7 +128,7 @@ export class ConnectionService {
     for await (const chunk of this.stream(conn, messages, options.signal)) {
       if (typeof chunk === "string") out.text += chunk;
       else if ("reasoning" in chunk) out.reasoning += chunk.reasoning;
-      else Object.assign(out, chunk.usage);
+      else if ("usage" in chunk) Object.assign(out, chunk.usage);
     }
     return out;
   }
@@ -143,3 +164,10 @@ export function profileToConfig(
   if (next && !seen.has(next.id) && seen.size < 4) config.fallback = profileToConfig(next, all, keyFor, seen);
   return config;
 }
+
+/** The service said it is busy or rate-limited (worth trying again later). */
+export function isBusy(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e);
+  return /\b(429|500|502|503|504|529)\b|rate.?limit|too many requests|overloaded|timeout/i.test(m);
+}
+

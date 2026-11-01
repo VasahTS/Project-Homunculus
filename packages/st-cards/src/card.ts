@@ -26,6 +26,21 @@ export function detectVersion(card: unknown): CardVersion {
   throw new Error("This file is not a SillyTavern character card (unknown format).");
 }
 
+/** SillyTavern's Character's Note (data.extensions.depth_prompt) → ours (D-063). */
+function noteOf(d: Obj): { characterNote?: { text: string; depth: number; role: "system" | "user" | "assistant" } } {
+  const ext = isObj(d.extensions) ? d.extensions : {};
+  const dp = isObj(ext.depth_prompt) ? ext.depth_prompt : undefined;
+  if (!dp || typeof dp.prompt !== "string") return {};
+  return { characterNote: { text: dp.prompt, depth: typeof dp.depth === "number" && dp.depth >= 0 ? Math.floor(dp.depth) : 4, role: dp.role === "user" || dp.role === "assistant" ? dp.role : "system" } };
+}
+
+/** Writes the note back into depth_prompt, keeping its other fields (lossless: no "role" added when it was not there). */
+function withNote(ext: unknown, n: { text: string; depth: number; role: string }): Obj {
+  const e = isObj(ext) ? ext : {};
+  const prev = isObj(e.depth_prompt) ? e.depth_prompt : {};
+  return { ...e, depth_prompt: { ...prev, prompt: n.text, depth: n.depth, ...("role" in prev || n.role !== "system" ? { role: n.role } : {}) } };
+}
+
 export function parseCard(card: unknown): ParsedCard {
   const version = detectVersion(card);
   const c = card as Obj;
@@ -56,6 +71,7 @@ export function parseCard(card: unknown): ParsedCard {
       systemPrompt: str(d.system_prompt),
       postHistoryInstructions: str(d.post_history_instructions),
       creatorNotes: str(d.creator_notes),
+      ...noteOf(d),
       creator: str(d.creator),
       characterVersion: str(d.character_version),
       tags: strArr(d.tags),
@@ -101,6 +117,7 @@ export function toCardV2(c: Character): Obj {
   const owned = ownedFields(c);
   const outData: Obj = { extensions: {}, ...data, ...owned };
   if (c.regexScripts) outData.extensions = { ...(outData.extensions as Obj), regex_scripts: c.regexScripts.map(toStRegexScript) }; // D-060
+  if (c.characterNote) outData.extensions = withNote(outData.extensions, c.characterNote); // D-063
   delete outData.group_only_greetings; delete outData.assets; delete outData.nickname; // V3-only
   const { alternate_greetings: _a, system_prompt: _s, post_history_instructions: _p, creator_notes: _n,
     creator: _c, character_version: _v, tags: _t, ...v1 } = owned;
@@ -113,6 +130,7 @@ export function toCardV3(c: Character): Obj {
   const owned = ownedFields(c);
   const outData: Obj = { extensions: {}, group_only_greetings: [], ...data, ...owned };
   if (c.regexScripts) outData.extensions = { ...(outData.extensions as Obj), regex_scripts: c.regexScripts.map(toStRegexScript) }; // D-060
+  if (c.characterNote) outData.extensions = withNote(outData.extensions, c.characterNote); // D-063
   const { alternate_greetings: _a, system_prompt: _s, post_history_instructions: _p, creator_notes: _n,
     creator: _c, character_version: _v, tags: _t, ...v1 } = owned;
   return { ...top, ...v1, spec: "chara_card_v3", spec_version: "3.0", data: outData };

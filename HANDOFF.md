@@ -12,12 +12,33 @@ To check: Prompt → Memory; edit title/summary, toggle/send chapters, branch or
 Validation: typecheck/build passed; **309 unit tests passed (3 skipped); 20 affected browser flows passed**. Added 14 unit and 6 browser cases.
 Report/limits: `docs/MEMORY-RELIABILITY-AUDIT.md`. No real API/native/private-data checks; no open design questions. T-002/T-003 remain Ready. Signed: **CODEX**.
 
+## Where we are and what is next (2026-11-01, 04h40) — CLAUDE
+
+Order agreed with Daniel (01/11: "finish the app first, then come back to details"):
+1. ✅ Regex scripts (D-060) · ✅ message formatting, links and pictures (D-061) · ✅ the Assistant, rounds 1–4 (D-062) · ✅ Character's Note (D-063) · ✅ the Assistant organizes folders and makes character versions (D-064).
+2. **Now: Daniel tries the Assistant with a real model** (GLM 5.3 on nano-gpt). Things to watch: tool calls work, tokens/cost reported, drafts, compaction.
+3. **Next big ones:** Customize screen (themes/layouts, slice 10) — then **import a whole SillyTavern / v1 folder (moved to the END by Daniel)**.
+4. **Detail round after that:** agents' ⏳ items (D-059); a regex switch per story; pausing slow regex scripts; agents' own regex; "Ask the assistant" buttons in editors; a fallback for models without tool calling; **Director's notes** (Daniel's OOC idea: instructions outside the chat, permanent or for N turns, injected after the history, gone when they expire; the Assistant can manage them).
+5. CODEX: T-001/T-002/T-003 in `docs/CODEX-TASKS.md` (Daniel said CODEX is working on them).
+
 ## Five review bugfixes (2026-11-01) — CODEX
 
 Daniel directly authorized the five reviewed fixes: chapter invalidation after message edits/regex undo, non-overlapping summary requests, originals of regex edits, before/parallel note feedback, and explicit Compare/Try it models.
 Affected chapters stay saved (including hand edits) but are switched off; corrected raw messages return to the prompt. No screen, schema, storage key or chapter path rule changed. Full memory audit T-001 remains Ready.
 Validation: typecheck/build passed; **295 unit tests passed, 3 skipped; 37 affected browser flows passed** on isolated port 1427 (12 new unit cases, 2 new browser flows).
 Report and limits: `docs/REVIEW-BUGFIXES-2026-11-01.md`. No native app, real API, private play data, workflow or lockfile changes. Work only in Homunculus-gpt, pushed only to gpt. Signed: **CODEX**.
+
+## The Assistant — built (2026-11-01) — CLAUDE — D-062
+
+- **Play | Assistant** switch at the top of the sidebar. Assistant mode: own chats (Recents, Search), Customize (Rules, Memory, Instructions, Model), welcome with Quick start, **@ Add context** (browse every kind, search, multi-select), attach files (.json/.jsonl/.md/.txt/PNG cards) and images.
+- Real **tool calling** in the provider; ten general tools; write kinds: characters, lorebooks, trackers, Kits, **narrators**. Token budget rules in D-062 (library never sent; find/read light; files as summaries; old tool results trimmed).
+- Changes wait for an OK (stale check); new items save with Undo; it never deletes.
+- Tests: 306 unit (7 Assistant, 1 provider tool-call); `e2e/assistant.e2e.ts` with the offline AI's tool script. Not tried with a real model by Claude (no keys): **Daniel, try it with nano-gpt/OpenRouter and a model that supports tools.**
+- **Round 2 (same night):** Assistants as "characters" (5 built in, Flint-style), Presets (style, rules, notes/lore, memory), Assistant/Preset/Model picks and a context meter under the message box, Customize as a page with Limits (retries, timeout — for every call in the app) and Usage.
+- **Round 3 (same night):** Details panel (Context with compaction, What it is using with "in the last request" marks, Files, Tools switches, Activity timeline), message meta/usage/actions (Copy, Again, Edit, Request), chat menu (Rename, Export Markdown, Delete), search inside messages, loop guard. D-062.
+- **Round 4:** Copy on code blocks; **✎ Drafts** (draft first: drafts as cards with Save/Apply to library). **D-063:** the Character's Note is a real field (editor, import/export, prompt).
+- **D-064:** folders (`folders`, `move`, `create` with `folder`; card with Undo/Redo), same-name items told apart by folder, character versions (`variants` in create/change/read, picture per version, Kit cast by version). 313 unit, `e2e/assistant.e2e.ts` 3 tests.
+- Next for the Assistant: "Ask the assistant" from editors; fallback for models without tools; Director's notes (OOC idea).
 
 ## Message formatting (2026-11-01) — CLAUDE — D-061
 

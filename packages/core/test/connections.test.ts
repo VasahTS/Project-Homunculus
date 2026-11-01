@@ -1,6 +1,6 @@
 // Tests of connection profiles (slice 1b): from profile to call, backups, the story's and agents'
 // connections picked by the setup, and deleting a profile. Author: CLAUDE, 2026-10-28.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ConnectionProfile } from "@homunculus/schemas";
 import { profileToConfig } from "../src/index.ts";
 import { connection, isAgentCall, world } from "./helpers.ts";
@@ -53,5 +53,29 @@ describe("connection profiles", () => {
     expect((await store.getDefaultSetup()).agentOverrides).toEqual({ t: { schemaId: "s" } });
     expect((await store.connections.get("other"))?.fallbackId).toBeNull();
     expect((await store.connections.list()).map((p) => p.id)).toEqual(["main", "other"]);
+  });
+});
+
+describe("busy services and timeouts (D-062)", () => {
+  it("tries again when the service is busy, and gives up after the timeout", async () => {
+    const { ConnectionService: ConnectionManager } = await import("../src/connections.ts");
+    const { ExtensionPoint } = await import("../src/extensions.ts");
+    const providers = new ExtensionPoint<import("../src/extensions.ts").ProviderDefinition>("provider");
+    let calls = 0;
+    providers.add("busy", { id: "busy", name: "", help: "", async *stream() { if (++calls < 3) throw new Error("The AI service answered 429: rate limit"); yield "ok"; } }, "t");
+    providers.add("slow", { id: "slow", name: "", help: "", async *stream(req) { await new Promise((r, j) => { const t = setTimeout(r, 60_000); req.signal?.addEventListener("abort", () => { clearTimeout(t); j(new Error("aborted")); }); }); yield "late"; } }, "t");
+    const m = new ConnectionManager(providers);
+    vi.useFakeTimers();
+    const out: string[] = [];
+    const run = (async () => { for await (const c of m.stream({ providerId: "busy", model: "x", limits: { retries: 3 } }, [])) if (typeof c === "string") out.push(c); })();
+    await vi.runAllTimersAsync();
+    await run;
+    expect(out).toEqual(["ok"]);
+    expect(calls).toBe(3);
+    const slow = (async () => { for await (const _ of m.stream({ providerId: "slow", model: "x", limits: { timeoutSec: 5 } }, [])) { /* nothing */ } })();
+    const caught = slow.catch((e: Error) => e.message);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(await caught).toMatch(/No answer for 5 s/);
+    vi.useRealTimers();
   });
 });

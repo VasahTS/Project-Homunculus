@@ -12,6 +12,7 @@ import { Preset, type Character, type RegexScript, type GenerationType, type Mes
 import type { ResolvedNarratorPrompt } from "./setup.ts";
 import type { ChatTurn } from "./extensions.ts";
 import { expandMacros, type MacroContext } from "./macros.ts";
+import { characterNoteOf } from "./variants.ts";
 import { applyRegexScripts, type RegexRunContext } from "./regex.ts";
 
 /** A rough token count (about 3.6 characters per token for English prose). Exact counts come from the service. */
@@ -282,12 +283,8 @@ ${content}`;
   }
 
   // the card's Character's Note (SillyTavern's depth_prompt): always, at its own depth and role
-  const dp = ((c?.original ?? {}) as { data?: { extensions?: { depth_prompt?: { prompt?: unknown; depth?: unknown; role?: unknown } } } }).data?.extensions?.depth_prompt;
-  if (typeof dp?.prompt === "string" && dp.prompt.trim()) {
-    const depth = typeof dp.depth === "number" && dp.depth >= 0 ? Math.floor(dp.depth) : 4;
-    const role = dp.role === "user" || dp.role === "assistant" ? dp.role : "system";
-    depthItems.push({ depth, order: 100, role, content: m(dp.prompt), source: "card:note" });
-  }
+  const note = characterNoteOf(c);
+  if (note) depthItems.push({ depth: note.depth, order: 100, role: note.role, content: m(note.text), source: "card:note" });
 
   // ours, when the preset has no place for them: right before the chat history, with a note
   const historyAt = segs.findIndex((s) => s.kind === "history");

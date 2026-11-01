@@ -2,10 +2,10 @@
 // 2026-10-28 (slice 1): versions side by side, a picture per version, history of saves, Move to Trash.
 import { LorebookChips } from "./LorePanels.tsx";
 import { useEffect, useRef, useState } from "react";
-import { regexScriptsOf as regexOf } from "@homunculus/core";
+import { characterNoteOf, regexScriptsOf as regexOf } from "@homunculus/core";
 import type { RegexScript } from "@homunculus/schemas";
 import { RegexList } from "./RegexScripts.tsx";
-import { Character, type Avatar, type HistoryEntry, type Lorebook } from "@homunculus/schemas";
+import { Character, type Avatar, type CharacterNote, type HistoryEntry, type Lorebook } from "@homunculus/schemas";
 import { effectiveCharacter, variantAvatarId, type CharacterExporter } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
@@ -17,7 +17,7 @@ const blank = (): Character => ({
   exampleMessages: "", systemPrompt: "", postHistoryInstructions: "", creatorNotes: "", creator: "", characterVersion: "", tags: [], variants: [], lorebookIds: [],
 });
 
-type Fields = Pick<Character, "name" | "description" | "personality" | "scenario" | "firstMessages" | "exampleMessages" | "systemPrompt" | "postHistoryInstructions" | "creatorNotes" | "tags">;
+type Fields = Pick<Character, "name" | "description" | "personality" | "scenario" | "firstMessages" | "exampleMessages" | "systemPrompt" | "postHistoryInstructions" | "creatorNotes" | "tags" | "characterNote">;
 
 export const CHARACTER_HISTORY_FIELDS: HistoryField[] = [
   { key: "name", label: "name" }, { key: "description", label: "description" }, { key: "personality", label: "personality" },
@@ -156,6 +156,8 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
           <textarea rows={4} aria-label="First message" value={v.get("firstMessages")[0] ?? ""}
             onChange={(e) => v.set("firstMessages", [e.target.value, ...v.get("firstMessages").slice(1)])} />
         </label>
+        <CharacterNoteField value={v.get("characterNote") ?? characterNoteOf(draft) ?? { text: "", depth: 4, role: "system" }}
+          changed={v.isChanged("characterNote")} onReset={() => v.reset("characterNote")} onChange={(n) => v.set("characterNote", n)} />
         <LorebookChips ids={draft.lorebookIds} books={lorebooks} onOpen={onOpenLorebook} onChange={(lorebookIds) => setDraft((d) => ({ ...d, lorebookIds }))}
           help="Lorebooks that come with this character: read in every session with them (a session can switch one off in its Prompt tab). A card's embedded lorebook is linked here, and exporting the card puts it back in." />
         <details className="advanced" open={regexOf(draft).some((x) => regexWaiting?.(x)) || undefined}>
@@ -192,6 +194,25 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
           <span className="spacer" />
           {!isNew && <Button variant="destructive" onClick={() => void trash()}>Move to Trash</Button>}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** The Character's Note (SillyTavern's "Character's Note", D-063): sent in every reply, at a depth, with a role. */
+function CharacterNoteField({ value, onChange, changed, onReset }: { value: CharacterNote; onChange: (n: CharacterNote) => void; changed: boolean; onReset: () => void }) {
+  return (
+    <div className="char-note">
+      <label className="char-note-text">
+        <FieldLabel label="Character's Note" help="Put into the chat in every reply with this character, a few messages from the end — good for things the AI forgets (how they talk, a secret, a rule). SillyTavern's Character's Note; imported and exported with the card." changed={changed} onReset={onReset} />
+        <textarea rows={3} aria-label="Character's Note" placeholder="(Text put into the chat at the depth and role on the right)" value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} />
+      </label>
+      <div className="char-note-side">
+        <label><span className="hint">@ Depth</span><input type="number" min={0} max={999} aria-label="Character's Note depth" value={value.depth}
+          onChange={(e) => onChange({ ...value, depth: Math.max(0, Math.min(999, Math.round(Number(e.target.value) || 0))) })} /></label>
+        <label><span className="hint">Role</span><select aria-label="Character's Note role" value={value.role} onChange={(e) => onChange({ ...value, role: e.target.value as CharacterNote["role"] })}>
+          <option value="system">System</option><option value="user">User</option><option value="assistant">AI</option></select></label>
+        <span className="hint tabular">~{Math.ceil(value.text.length / 3.6)} tokens</span>
       </div>
     </div>
   );

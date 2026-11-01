@@ -221,7 +221,7 @@ Notes per message are for "what happened here". For things that **last** (long-t
 
 Module `homunculus-v1-agents`: translates `phase`, `execution`, `injection`, `postProcess.extract/regex`, `conditions`, `companion` into the format above. v1's inline trackers become `state` with a **schema inferred** from the block they extracted (when possible). The ones that do not fit show a notice of what was left out.
 
-### 4.9 Library Assistant (Daniel's idea, 2026-10-27 — **to build later**)
+### 4.9 Library Assistant (Daniel's idea, 2026-10-27 — **built 2026-11-01 as the Assistant mode, D-062**: plan in `docs/UI-PLAN.md` → "Library Assistant", draft `docs/drafts/library-assistant/index.html`)
 
 A chat with an AI that **creates and edits library things for you**, in the style of **Aventuras' VaultAssistant** (studied at commit `d98ad752`, see `docs/reference/aventuras.md` §2). Example requests: "make a world tracker with time, weather and place", "make a per-character tracker the way I describe", "improve Lyra's description", "write a lorebook entry about the guild".
 
@@ -426,7 +426,7 @@ Each slice ends with: tests passing, Daniel testing on Windows, a check against 
 | 4 ✅ | **Stories + Vault (Narrators, NPCs)** + the "story" setup layer (2026-10-29, D-029); Kits came later (D-036) | narrated stories with a narrator and reusable NPCs; Director mode |
 | 5 | **Full agents**: triggers, inject/intercept/rewrite/check/choices outputs, dependencies, limits; import of v1's templates | Prose Polisher, Don't write for user, CYOA as buttons… |
 | 6 | **Trackers + Scene panel** (World, Characters, Plot, RPG/Drama packs) | play with the Scene panel |
-| 6b | **Library Assistant** (§4.9) — a chat that proposes and edits characters, lorebooks, **trackers** etc.; its own API profile, model and effort | ask "make a per-character tracker like…" and approve |
+| 6b ✅ | **Library Assistant** (§4.9) — a chat that proposes and edits characters, lorebooks, **trackers** etc.; its own API profile, model and effort (done 2026-11-01 as the Assistant mode, D-062) | ask "make a per-character tracker like…" and approve |
 | 7 | **Groups and narrator**: full cast, roles, who speaks, let them act, auto-play, style | narrated adventures |
 | 8 | **Companions**, **memory** (chapters, agents' memory), **proposals**, **Style Reviewer** | companions, chapters, Story Director, style review |
 | 9 | **Vault**, **Card Browser**, Quick Connection, **import the ST/v1 folder**, campaign packages | bring everything from v1 at once |

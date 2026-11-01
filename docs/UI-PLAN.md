@@ -439,3 +439,55 @@ The engine already works (D-027): it activates entries exactly like SillyTavern 
 **States:** empty ("No scripts. Import from SillyTavern or make one"), normal, full (30+ scripts: search by name/pattern), error (pattern error on the row; a slow script is paused with a notice "“<name>” was too slow and was paused").
 
 **Daniel's answers (2026-11-01):** 1. Library → Regex. 2. Ask every time there is a new script ("so it doesn't mess up the app's view"). 3. Render HTML. Built the same day (D-060 round 2; draft skipped with his OK: "do it the way you think is best").
+
+---
+
+## Library Assistant (BLUEPRINT §4.9) — step 1, text plan (2026-11-01)
+
+> **Status:** built the same day (D-062), then extended in three more rounds from Daniel's tests — **Assistants** as "characters" and **Presets** (style, rules, notes, memory) instead of one Customize window; Customize as a **page** (Assistants · Presets · Limits · Usage); Assistant / Preset / Model picks and a context meter under the message box; a **Details** panel (Context + compaction, What it is using, Files, Tools, Activity); message actions (Copy, Again, Edit, Request); **✎ Drafts** with draft cards. D-062 has the details; the text below is the round-3 plan it started from.
+
+**Built 2026-11-01 (D-062).** **Daniel's answers (01/11):** first version = trackers, characters, lorebooks (presets, regex, narrators, NPCs later); it works only on the Library for now (no reading chats); new items may be saved directly, changes to existing items need an OK; draft first. Also asked for: **real tool calling** and **attaching images** (e.g. a character made from a visual reference).
+
+**What it is for:** describe what you want ("a world tracker with time, weather and place", "a cynical mercenary, dark fantasy") or what to fix ("Lyra's description is generic") and get it built or changed, ready to use. **When Daniel looks at it:** while building a story's material; when an imported card or book needs work.
+
+**How it knows what to do** (Daniel: "will it have a doc of how the app works?") — five layers, none of them a giant manual:
+1. **Tool definitions made from the app's own data shapes** (the Zod schemas in `packages/schemas`, with their field notes): the assistant sees exactly which fields a tracker, a card or a lorebook entry has, what each means and which values are allowed. Same source as the app, so it never goes stale. Whatever it proposes is checked against the same shapes; a mistake goes back to it as a tool error ("field `scope`: expected one of …") and it fixes it.
+2. **A short guide per kind, loaded only when that toolset is loaded** (`docs/assistant/*.md`, like the existing `docs/FIELD-SET-AI-GUIDE.md`): what makes a good card (description vs personality vs scenario, token size, first message), how lorebook keywords and placement work, how trackers fill and what "send to the AI" does. A test fails when a schema field is missing from its guide.
+3. **Reading tools:** it lists, searches and reads your real Library (your style, your existing trackers and books) and the built-in starters, and copies their patterns.
+4. **The system prompt** (editable): its job, "propose, never delete", answer in the user's language, keep cards in the language they are written in.
+5. **House rules** (a note the user writes once, also editable by asking it): "cards always in English", "descriptions in prose, never W++", "lorebook keywords lowercase"… sent with every request.
+
+**Where it lives** (round 3, after Daniel's reference picture of a chat app; round 1 was "very busy", four columns at once)
+- **A mode of the app: "Play | Assistant"** (a switch at the top of the sidebar). In Assistant mode the sidebar is the Assistant's own: **New chat**, **Search**, **Customize**, then **Recents** (its chats: title + one line of what was made), and the user at the bottom. Play mode is today's sidebar (Stories, Characters, Library…).
+- **Its own chats**, saved, searchable, renamable, deletable (⋯ in the top bar).
+- **Welcome** (new chat): "Good evening, Daniel" in the display font, a pill "Knows your library · 214 items", the composer right under it, and **Quick start** (Build a Kit · Make a character · Write a lorebook · Make a tracker) as a 2×2 grid. A soft accent glow in the background.
+- **From an editor:** "✦ Ask the assistant" switches to Assistant mode with that item already added as context.
+
+**Context: "@ Add context"** (button in the composer; typing @ also opens it)
+- A big window to **browse the whole app**: kinds on the left (Characters, Personas, Narrators, NPCs, Stories, Kits, Lorebooks, Trackers, Presets) with counts, cards with picture + one line on the right, **search across everything**, multi-select (picked ones listed at the bottom), "Add N".
+- Picked items show as chips in the composer and on the user's message ("◯ Lyra · ◯ Kessa · ▤ Northern Woods"). The assistant reads them with its tools (whole item), so several characters can be combined: "a Kit with X and Y, a scenario and an opening where they fit together" — it says what it had to settle when the cards disagree, and never changes the picked items unless asked.
+
+**The conversation**
+- Its answers are plain text beside a small ✦ orb; the user's messages are soft bubbles on the right with their context chips above. Tool steps and reasoning: one quiet grey line that unfolds.
+- **Composer**: rounded, floating; "@ Add context", attach image (also paste/drag), the model (switchable), round send.
+
+**Result cards** (compact: one line; details on demand)
+- **Created:** icon · name · "Kit · created" (green) · Details / Open / Undo. A Kit's details: cast, lorebooks (with new entries), scenario, opening, and **Start a story with this Kit**.
+- **Change waiting:** "Lyra · Description" · "Change waiting for you" (amber) · See change (diff; Edit first). Several changes of one answer share one "Apply all / Discard". Applied → "Applied · undo from its History".
+- Move to Trash is only ever a proposal. A stale proposal says so and offers "Ask again".
+
+**Customize** (sidebar → a window with tabs)
+- **Rules**: a list, each with a switch ("Cards in English…", "never W++"), + Add a rule. Always sent.
+- **Memory**: what it remembers about the user and their worlds across chats; it adds things when told "remember…" (each line shows where it came from); edit/delete; a switch to turn memory off.
+- **Instructions**: its main prompt (editable, token count, Reset to default). The app adds tools, guides, rules and memory around it.
+- **Model**: connection (empty = the story's), thinking, temperature, steps per message, new items "Save right away / Ask first".
+
+**Tool calling:** native OpenAI-style `tools` in the provider (nano-gpt, OpenRouter, most local servers support it), streamed; fallback for models without it: the same tools described in the prompt and called as JSON blocks. Toolsets loaded on demand (`load_toolset`: trackers / characters / lorebooks), so the prompt stays small.
+
+**Kinds in v1** (Daniel, round 3): characters, lorebooks, trackers **and Kits** (a Kit ties characters, lorebooks, a scenario and an opening; "Start a story with this Kit"). Reading: every kind (for context).
+
+**First tools:** `load_toolset`, `read_guide`, `remember`; per kind `list_*`, `search_*`, `read_*`, `create_*`, `propose_update_*`, `propose_trash`; trackers also `preview_scene`; characters also `set_picture` (from an attached image).
+
+**States:** empty ("Ask for a tracker, a character or a lorebook" + 3 example requests as chips), streaming, tool error (red line, it retries), steps limit reached, connection error (Retry), model without images (notice before sending), long conversation (older tool steps folded).
+
+**Later (noted, not in v1):** reading chats ("make lore entries from the last 40 turns"); presets, regex, narrators, NPCs, Kits; **Director's notes** (Daniel's idea): instructions kept *outside* the chat, each permanent or for N turns, injected after the history and gone from the prompt when they expire — the assistant can create and edit them.

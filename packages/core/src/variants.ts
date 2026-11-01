@@ -1,6 +1,6 @@
 // Homunculus 2 — variants of characters and personas (BLUEPRINT §2.5). Author: CLAUDE, 2026-10-27.
 // A variant stores only what differs from the main version; this gives the version a session uses.
-import type { Character, Persona } from "@homunculus/schemas";
+import type { Character, CharacterNote, Persona } from "@homunculus/schemas";
 
 /** The character as a session sees it with the chosen variant (null/unknown = main version). */
 export function effectiveCharacter(c: Character, variantId: string | null | undefined): Character {
@@ -31,4 +31,13 @@ export function pruneOverrides<T extends object>(main: T, overrides: Partial<T>)
     if (JSON.stringify(v) !== JSON.stringify(main[k])) out[k] = v;
   }
   return out;
+}
+
+/** The Character's Note (D-063): its own field, else the one in the imported SillyTavern card. Empty text = none. */
+export function characterNoteOf(c: { characterNote?: CharacterNote | undefined; original?: unknown } | undefined): CharacterNote | undefined {
+  if (!c) return undefined;
+  if (c.characterNote) return c.characterNote.text.trim() ? c.characterNote : undefined;
+  const dp = (c.original as { data?: { extensions?: { depth_prompt?: { prompt?: unknown; depth?: unknown; role?: unknown } } } } | undefined)?.data?.extensions?.depth_prompt;
+  if (typeof dp?.prompt !== "string" || !dp.prompt.trim()) return undefined;
+  return { text: dp.prompt, depth: typeof dp.depth === "number" && dp.depth >= 0 ? Math.floor(dp.depth) : 4, role: dp.role === "user" || dp.role === "assistant" ? dp.role : "system" };
 }

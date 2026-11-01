@@ -115,3 +115,31 @@ describe("OpenAI-compatible provider", () => {
     await expect(listModels({ providerId: "x", model: "" }, bad)).rejects.toThrow(/answered 401 to the model list/);
   });
 });
+
+describe("tool calling and images (D-062)", () => {
+  it("sends tools, images and tool results, and puts streamed tool calls back together", async () => {
+    let body: Record<string, any> = {};
+    const lines = [
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "find", arguments: "{\"qu" } }] } }] })}`,
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: "ery\":\"Lyra\"}" } }, { index: 1, id: "c2", function: { name: "guide", arguments: "{}" } }] } }] })}`,
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] })}`,
+      "data: [DONE]",
+    ];
+    const fetchFn = async (_u: string, init: RequestInit) => { body = JSON.parse(String(init.body)); return sseResponse(lines); };
+    const out: StreamChunk[] = [];
+    for await (const c of streamChat({
+      connection: { providerId: "x", model: "m" }, messages: [],
+      tools: [{ name: "find", description: "d", parameters: { type: "object" } }],
+      rich: [
+        { role: "user", content: [{ type: "text", text: "look" }, { type: "image", mime: "image/png", base64: "QUJD" }] },
+        { role: "assistant", content: "", toolCalls: [{ id: "c0", name: "read", arguments: "{}" }] },
+        { role: "tool", toolCallId: "c0", content: "result" },
+      ],
+    }, fetchFn)) out.push(c);
+    expect(body.tools[0]).toEqual({ type: "function", function: { name: "find", description: "d", parameters: { type: "object" } } });
+    expect(body.messages[0].content[1]).toEqual({ type: "image_url", image_url: { url: "data:image/png;base64,QUJD" } });
+    expect(body.messages[1]).toMatchObject({ role: "assistant", content: null, tool_calls: [{ id: "c0", type: "function", function: { name: "read", arguments: "{}" } }] });
+    expect(body.messages[2]).toEqual({ role: "tool", tool_call_id: "c0", content: "result" });
+    expect(out).toEqual([{ toolCalls: [{ id: "c1", name: "find", arguments: "{\"query\":\"Lyra\"}" }, { id: "c2", name: "guide", arguments: "{}" }] }]);
+  });
+});

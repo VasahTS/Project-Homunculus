@@ -36,17 +36,38 @@ export interface ChatTurn {
   content: string;
 }
 
-/** What a provider streams: text, reasoning of thinking models, or usage numbers at the end. */
+/** What a provider streams: text, reasoning of thinking models, usage numbers at the end, or the tools the model called. */
 export type StreamChunk =
   | string
   | { reasoning: string }
-  | { usage: { tokensIn?: number; tokensOut?: number; cost?: number } };
+  | { usage: { tokensIn?: number; tokensOut?: number; cost?: number } }
+  | { toolCalls: ToolCall[] };
+
+// ---- tool calling and images (the Library Assistant, D-062) ----
+
+/** A tool the model may call: a name, what it does, and its arguments as JSON Schema. */
+export interface ToolSpec { name: string; description: string; parameters: Record<string, unknown> }
+/** A call the model made: `arguments` is the JSON text the model wrote (may be invalid). */
+export interface ToolCall { id: string; name: string; arguments: string }
+export type ContentPart = { type: "text"; text: string } | { type: "image"; mime: string; base64: string };
+/** A turn that can carry images, tool calls and tool results (only used where `GenerateRequest.rich` is). */
+export interface RichTurn {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | ContentPart[];
+  toolCalls?: ToolCall[];
+  /** For role "tool": the call this answers. */
+  toolCallId?: string;
+}
 
 export interface ConnectionLimits {
   /** At most this many calls at the same time on this connection (agents run in parallel). */
   maxConcurrent?: number;
   /** Wait at least this long between the start of two calls. */
   minIntervalMs?: number;
+  /** Tries again (2 s, 4 s, 8 s…) when the service is busy (429 / 5xx / "rate limit") before any text arrived. */
+  retries?: number;
+  /** Gives up when nothing arrives for this many seconds. */
+  timeoutSec?: number;
 }
 
 /** Which provider/model to use and how to reach it. The API key never goes in the database (D-011). */
@@ -72,6 +93,10 @@ export interface GenerateRequest {
   connection: ConnectionConfig;
   messages: ChatTurn[];
   signal?: AbortSignal;
+  /** Tools the model may call (providers that cannot, ignore them). */
+  tools?: ToolSpec[];
+  /** Turns with images / tool calls; when set, providers send these instead of `messages`. */
+  rich?: RichTurn[];
 }
 
 /** One model a service offers (for the model picker). Prices are USD per million tokens. */
