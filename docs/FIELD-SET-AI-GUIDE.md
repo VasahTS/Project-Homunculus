@@ -91,6 +91,11 @@ Optional. Pick a **top-level, per-character `status`** field and the option that
 Characters with another value are sent to the story AI by name only, and the panel lists them last. Leave it out
 when the person does not need it.
 
+While someone is out of the scene, only their **brief fields** stay live: the presence field and the other fields of
+its section, the field shown under the name (`display: "subtitle"`) and the short "who they are" text
+(`display: "lead"`, type text). The tracker sees and changes only those; their other values wait until they come back.
+So put "where they went" and "mood" in the presence field's section, and give the set one short `lead` text.
+
 ## A complete example
 
 ```json

@@ -9,7 +9,7 @@ import { Character, type Avatar, type CharacterNote, type HistoryEntry, type Lor
 import { effectiveCharacter, variantAvatarId, type CharacterExporter } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
-import { Button } from "./kit.tsx";
+import { Button, Segmented } from "./kit.tsx";
 import { FieldLabel, HistoryList, pruneVariants, useVersionedDraft, VersionBar, type HistoryField } from "./Versions.tsx";
 
 const blank = (): Character => ({
@@ -148,6 +148,12 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
           <FieldLabel label="Name" help="What the character is called. {{char}} in prompts becomes this name. A version can use another name." changed={v.isChanged("name")} onReset={() => v.reset("name")} />
           <input aria-label="Name" value={v.get("name")} onChange={(e) => v.set("name", e.target.value)} placeholder="e.g. Lyra" />
         </label>
+        <div className="card-kind" data-testid="card-kind">
+          <span className="label-row">This card is <Help text="For a card with two or more people (or a whole cast). It is sent to the AI as usual; the Scene follows each of its people on their own instead of the card. Holds for every version and every chat that uses this card." /></span>
+          <Segmented small label="This card is" value={draft.ensemble ? "several" : "one"}
+            options={[{ value: "one", label: "One character" }, { value: "several", label: "Several characters" }]}
+            onChange={(k) => setDraft((d) => ({ ...d, ensemble: k === "several" }))} />
+        </div>
         {text("description", "Description", "Who the character is: looks, background, important facts. This is the main thing the AI reads.", 6)}
         {text("personality", "Personality", "How they think and behave, in a few lines. Optional — many people put this inside the description.", 3)}
         {text("scenario", "Scenario", "Where and how the story starts. Optional.", 3)}

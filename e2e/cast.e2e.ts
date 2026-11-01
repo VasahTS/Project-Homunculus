@@ -57,6 +57,7 @@ test("cast: people open in place, Show All / Fold All, drag out of the scene and
   await scene.screenshot({ path: "e2e/.results/cast-away.png" });
   // the change is the user's at this message (the tracker's value says "away")
   await card(page, "Lyra").getByTestId("who-block").click();
+  await card(page, "Lyra").getByTestId("full-sheet").click(); // out of the scene she opens as a brief (D-065)
   await expect(card(page, "Lyra").locator('[data-field="present"]')).toContainText("away");
   await card(page, "Lyra").getByTestId("who-block").click();
 

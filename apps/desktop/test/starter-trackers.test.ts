@@ -62,3 +62,37 @@ describe("Daniel's database (28/10): the fixes were marked done by an app left o
     expect((await store.trackerSchemas.get("scene-world"))!.fields.find((f) => f.key === "clock")!.display).toBe("header");
   });
 });
+
+describe("shorter Characters texts (D-065)", () => {
+  const OLD_RULE = "- Lorebook entries, character cards and cast sheets are canon for who a character is. When one of them gives a fixed fact (age, height, weight, face, hair, eyes, build, species, powers…), copy it exactly, even if the current values say something else: correct them to match. Things the story changes (clothes, wounds, dirt, mood) follow the story. When the lorebook has rules for new characters (species, height ranges, naming, power limits…), every character you add must follow them. Only invent what none of them and the story give, and keep it inside those rules.";
+  const OLD_DESC = "One or two sentences on who they are: what they do and where they stand in the story.";
+  const SUFFIX = " Keep it short (about 12 words).";
+
+  it("reach installed trackers once, only where the starter's old text is still word for word", async () => {
+    const { store } = await newTestStore();
+    await installStarterTrackers(store);
+    // put back what version 3 installed, and one help the user rewrote
+    const agent = (await store.agentConfigs.get("scene-characters"))!;
+    const NEW_RULE = agent.prompt.slice(agent.prompt.indexOf("- Lorebook entries"), agent.prompt.indexOf("\n- Be concrete"));
+    await store.saveAgentConfig({ ...agent, prompt: agent.prompt.replace(NEW_RULE, OLD_RULE) });
+    const set = (await store.trackerSchemas.get("scene-characters"))!;
+    await store.saveTrackerSchema({ ...set, fields: set.fields.map((f) => f.key === "description" ? { ...f, help: OLD_DESC }
+      : f.key === "hair" ? { ...f, help: "My own words." } : f.help.endsWith(SUFFIX) ? { ...f, help: f.help.slice(0, -SUFFIX.length) } : f) });
+    await store.setAppSetting("starterTrackersBrevity", 0);
+
+    await installStarterTrackers(store);
+    const prompt = (await store.agentConfigs.get("scene-characters"))!.prompt;
+    expect(prompt).not.toContain("copy it exactly");
+    expect(prompt).toContain("never copy their text into a field");
+    const after = (await store.trackerSchemas.get("scene-characters"))!;
+    const help = (k: string) => after.fields.find((f) => f.key === k)!.help;
+    expect(help("description")).toBe("One sentence: who they are and their place in the story. No backstory: the card and the lorebook hold it.");
+    expect(help("face").endsWith(SUFFIX)).toBe(true);
+    expect(help("hair")).toBe("My own words.");
+
+    // runs once: a later edit back to the old text is the user's and stays
+    await store.saveTrackerSchema({ ...after, fields: after.fields.map((f) => f.key === "description" ? { ...f, help: OLD_DESC } : f) });
+    await installStarterTrackers(store);
+    expect((await store.trackerSchemas.get("scene-characters"))!.fields.find((f) => f.key === "description")!.help).toBe(OLD_DESC);
+  });
+});

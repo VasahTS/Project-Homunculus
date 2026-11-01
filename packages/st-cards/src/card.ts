@@ -41,6 +41,20 @@ function withNote(ext: unknown, n: { text: string; depth: number; role: string }
   return { ...e, depth_prompt: { ...prev, prompt: n.text, depth: n.depth, ...("role" in prev || n.role !== "system" ? { role: n.role } : {}) } };
 }
 
+/** Our own card flags, kept in data.extensions.homunculus so a card exported and imported again keeps them (D-065). */
+function flagsOf(d: Obj): { ensemble?: boolean } {
+  const ext = isObj(d.extensions) ? d.extensions : {};
+  const h = isObj(ext.homunculus) ? ext.homunculus : {};
+  return h.ensemble === true ? { ensemble: true } : {};
+}
+
+function withFlags(ext: unknown, c: Character): Obj {
+  const e = isObj(ext) ? ext : {};
+  if (c.ensemble === undefined) return e;
+  const prev = isObj(e.homunculus) ? e.homunculus : {};
+  return { ...e, homunculus: { ...prev, ensemble: c.ensemble } };
+}
+
 export function parseCard(card: unknown): ParsedCard {
   const version = detectVersion(card);
   const c = card as Obj;
@@ -72,6 +86,7 @@ export function parseCard(card: unknown): ParsedCard {
       postHistoryInstructions: str(d.post_history_instructions),
       creatorNotes: str(d.creator_notes),
       ...noteOf(d),
+      ...flagsOf(d),
       creator: str(d.creator),
       characterVersion: str(d.character_version),
       tags: strArr(d.tags),
@@ -118,6 +133,7 @@ export function toCardV2(c: Character): Obj {
   const outData: Obj = { extensions: {}, ...data, ...owned };
   if (c.regexScripts) outData.extensions = { ...(outData.extensions as Obj), regex_scripts: c.regexScripts.map(toStRegexScript) }; // D-060
   if (c.characterNote) outData.extensions = withNote(outData.extensions, c.characterNote); // D-063
+  outData.extensions = withFlags(outData.extensions, c); // D-065
   delete outData.group_only_greetings; delete outData.assets; delete outData.nickname; // V3-only
   const { alternate_greetings: _a, system_prompt: _s, post_history_instructions: _p, creator_notes: _n,
     creator: _c, character_version: _v, tags: _t, ...v1 } = owned;
@@ -131,6 +147,7 @@ export function toCardV3(c: Character): Obj {
   const outData: Obj = { extensions: {}, group_only_greetings: [], ...data, ...owned };
   if (c.regexScripts) outData.extensions = { ...(outData.extensions as Obj), regex_scripts: c.regexScripts.map(toStRegexScript) }; // D-060
   if (c.characterNote) outData.extensions = withNote(outData.extensions, c.characterNote); // D-063
+  outData.extensions = withFlags(outData.extensions, c); // D-065
   const { alternate_greetings: _a, system_prompt: _s, post_history_instructions: _p, creator_notes: _n,
     creator: _c, character_version: _v, tags: _t, ...v1 } = owned;
   return { ...top, ...v1, spec: "chara_card_v3", spec_version: "3.0", data: outData };

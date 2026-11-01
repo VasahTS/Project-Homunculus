@@ -171,3 +171,15 @@ describe("Character's Note (D-063)", async () => {
     expect(characterNoteOf(Character.parse({ id: "x", name: "X", original: card, characterNote: { text: "", depth: 4, role: "system" } }))).toBeUndefined();
   });
 });
+
+describe("Several characters (D-065)", () => {
+  it("is kept in extensions.homunculus through export and import, beside the card's other extensions", () => {
+    const c = asCharacter({ ...importCardPng(pngWithCard(v2Card)).character, ensemble: true });
+    const out = toCardV2(c) as { data: { extensions: Record<string, unknown> } };
+    expect(out.data.extensions.homunculus).toEqual({ ensemble: true });
+    expect(out.data.extensions.custom_tool).toEqual({ x: 1 });
+    expect(importCardPng(exportCardPng(c)).character.ensemble).toBe(true);
+    // a card that never had it exports without it (lossless)
+    expect((toCardV2(asCharacter(importCardPng(pngWithCard(v2Card)).character)) as typeof out).data.extensions.homunculus).toBeUndefined();
+  });
+});

@@ -52,6 +52,47 @@ export function trackerPeople(schema: TrackerSchema, values: Record<string, unkn
   return people;
 }
 
+// ---------------------------------------------------------------- people out of the scene (D-065)
+// Like Aventuras' "withheld" characters: someone who left keeps only a few live fields — the ones that say who they are
+// in a line and where they went — so the tracker knows when to bring them back, without rewriting (and growing) their
+// whole sheet while they are gone. Which fields those are comes from the field set's data, never from field names.
+
+/** Ids whose presence field says they are out of the scene (empty when the set has no presence field). */
+export function awayIds(schema: TrackerSchema, values: Record<string, unknown> | undefined): Set<string> {
+  const out = new Set<string>();
+  const pres = schema.presence;
+  const map = pres ? values?.[pres.field] : undefined;
+  if (!pres || !isObj(map)) return out;
+  for (const [id, v] of Object.entries(map)) if (String(v).toLowerCase() !== pres.value.toLowerCase()) out.add(id);
+  return out;
+}
+
+/**
+ * The per-character fields that stay live for someone out of the scene: the presence field and the rest of its
+ * section (where they went, mood…), the line under the name ("subtitle") and the short "who they are" text
+ * ("lead", text only). Empty when the set has no presence field: then nobody is ever out of the scene.
+ */
+export function briefFields(schema: TrackerSchema): TrackerField[] {
+  const pf = schema.presence ? schema.fields.find((f) => f.key === schema.presence!.field) : undefined;
+  if (!pf) return [];
+  return schema.fields.filter((f) => f.scope === "perCharacter"
+    && (f === pf || f.section === pf.section || f.display === "subtitle" || (f.display === "lead" && f.type === "text")));
+}
+
+/** A tracker's own values as its AI sees them: people out of the scene keep only their brief fields (D-065). */
+export function valuesForTracker(schema: TrackerSchema, values: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  const away = awayIds(schema, values);
+  if (!values || !away.size) return values;
+  const brief = new Set(briefFields(schema).map((f) => f.key));
+  const out: Record<string, unknown> = { ...values };
+  for (const f of schema.fields) {
+    const v = values[f.key];
+    if (f.scope === "global" || brief.has(f.key) || !isObj(v)) continue;
+    out[f.key] = Object.fromEntries(Object.entries(v).filter(([k]) => !(f.scope === "perPair" ? k.split(PAIR) : [k]).some((id) => away.has(id))));
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- what the AI is told
 
 function simpleExample(f: TrackerField): unknown {
@@ -111,9 +152,15 @@ export function trackerInstruction(schema: TrackerSchema, people: TrackerCastMem
     else example[f.key] = v;
   }
   const hasPeople = schema.fields.some((f) => f.scope !== "global");
+  const brief = briefFields(schema);
+  const pf = brief.find((f) => f.key === schema.presence?.field);
+  const awayLine = pf
+    ? `People out of the scene ("${pf.key}" is not "${schema.presence!.value}") show only ${brief.map((f) => `"${f.key}"`).join(", ")}; only those may change for them. Their other values are kept for when they come back: when the story brings someone back, set "${pf.key}" to "${schema.presence!.value}".`
+    : "";
   return [
     `## Fields of "${schema.name}"`,
     ...(hasPeople ? [who] : []),
+    ...(hasPeople && awayLine ? [awayLine] : []),
     ...lines,
     readOnly.length ? `Read-only (the user sets these; read them, never write them): ${readOnly.join(", ")}.` : "",
     "Write only the fields whose value changed (and REQUIRED fields that are still empty). If nothing changed, answer {}.",
@@ -234,6 +281,24 @@ export function normalizeTrackerAnswer(schema: TrackerSchema, answer: Record<str
       changed = true;
     }
     if (changed) values[f.key] = merged;
+  }
+  // people who are still out of the scene after this answer keep their withheld values (D-065)
+  const pres = schema.presence;
+  if (pres) {
+    const away = awayIds(schema, { ...current, ...values });
+    const brief = new Set(briefFields(schema).map((f) => f.key));
+    for (const f of schema.fields) {
+      const next = values[f.key];
+      if (f.scope === "global" || brief.has(f.key) || !isObj(next)) continue;
+      const prev = isObj(current?.[f.key]) ? current![f.key] as Record<string, unknown> : {};
+      for (const k of Object.keys(next)) {
+        if (!(f.scope === "perPair" ? k.split(PAIR) : [k]).some((id) => away.has(id))) continue;
+        if (JSON.stringify(next[k]) === JSON.stringify(prev[k])) continue;
+        if (k in prev) next[k] = prev[k]; else delete next[k];
+        ignored.push(`"${f.key}" for ${known.find((p) => p.id === k)?.name ?? k}: not in the scene (kept as it was)`);
+      }
+      if (JSON.stringify(next) === JSON.stringify(prev)) delete values[f.key];
+    }
   }
   return { values, ignored };
 }

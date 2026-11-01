@@ -7,7 +7,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
-## Cards with several characters; brief people in the Scene — CLAUDE, 2026-11-01 · 🟡 draft 1, waiting for Daniel
+## Cards with several characters; brief people in the Scene — CLAUDE, 2026-11-01 · ✅ approved ("do what you think is best") and in the app (D-065)
 
 Daniel (01/11, translated): "If I have a card that is 2+ characters together, how do I make it NOT show as one character in the trackers? The AI just takes the context and makes the cast naturally?" · "NPCs there should be a simple description; when they take information from the lorebook or a card they add all of it and things repeat for no reason. Trackers should show things simply and directly and leave complex information in its proper place. An NPC away should show only a super brief description, not the whole sheet. Look at how Aventuras does it." · After the first proposal: "it makes sense: exclude it from the cast but still send the content; we just need to show where that content is sent."
 Draft: `docs/drafts/ensemble-cards/index.html` (Henry and "Brenda & Jessica" from Daniel's screenshot; other values are examples; his database was not used).
@@ -18,7 +18,7 @@ Draft: `docs/drafts/ensemble-cards/index.html` (Henry and "Brenda & Jessica" fro
 - **Scene:** a "several characters" card is not a row; the Characters tracker adds its people by name (existing `anyone` mode). A quiet note says so until one of them appears. **Out of the scene:** closed = name + role; open = the lead field (Description) + the presence section's fields ("Last seen", mood) + "Full sheet ›". Which fields are brief is data (lead + presence section), never field names in code.
 - **Prompt tab → Character:** the "Several characters" tag and one line ("Sent whole…"); every field shows the preset block it fills ("→ Char Description"), amber "→ not in this preset" when the preset does not send it.
 - **Tracker rules (starter data):** stop "copy it exactly" from cards/lorebook; keep fixed facts consistent in a few words; out-of-scene people get only presence, place, mood; several-characters cards are not people; Description = one sentence; appearance fields ≈ 12 words. Installed trackers get the new texts once, only where unedited (like D-024's `starterTrackersLook`).
-- **Open question:** send people out of the scene to the tracker with name/presence/mood only, or leave them out until they return?
+- **Answered:** send the minimum (presence section, subtitle, lead) so the AI knows when to bring them back. The amber "→ not in this preset" was left out (D-065).
 
 ## Agents v4 and narrators — CLAUDE, 2026-10-31 · ✅ draft 2 in the app, functional (D-059); Daniel: "not yet how I imagine it, OK for now"
 

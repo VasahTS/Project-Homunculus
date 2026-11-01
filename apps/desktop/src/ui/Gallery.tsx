@@ -142,7 +142,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
           {shown.map((c) => (
             <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={c.id}
               by={searching && folderOf?.(c) ? `in ${folderOf(c)}` : chatsOf ? chatsOf(c) : c.variants.length ? `${c.variants.length + 1} versions: Main, ${c.variants.map((v) => v.label).join(", ")}` : c.creator ? `by ${c.creator}` : undefined}
-              summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.tags} size={shortTokens(cardTokens(c))} />
+              summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.ensemble ? ["Several characters", ...c.tags] : c.tags} size={shortTokens(cardTokens(c))} />
           ))}
           </div>
           {characters.length === 0 && <button type="button" className="gallery-card add" onClick={() => fileInput.current?.click()}>
@@ -181,7 +181,7 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
   const [vid, setVid] = useState<string | null>(null);
   const shown = effectiveCharacter(c, vid);
   const pic = (vid ? avatars[`${c.id}#${vid}`] : undefined) ?? avatar;
-  const facts = [c.creator && `by ${c.creator}`, shown.firstMessages.length > 1 && `${shown.firstMessages.length} greetings`,
+  const facts = [c.ensemble && "several characters", c.creator && `by ${c.creator}`, shown.firstMessages.length > 1 && `${shown.firstMessages.length} greetings`,
     lorebookNames.length && `lorebook ${lorebookNames.join(", ")}`].filter(Boolean);
   return (
     <div className="view-sheet" data-testid="character-sheet">

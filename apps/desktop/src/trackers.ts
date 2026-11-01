@@ -262,6 +262,7 @@ export async function installStarterTrackers(store: SqlStore): Promise<void> {
   await addStarterLook(store);
   await addStarterOrder(store);
   await addStarterNotes(store);
+  await addStarterBrevity(store);
 }
 
 const LOOK_KEY = "starterTrackersLook";
@@ -382,4 +383,42 @@ async function addStarterNotes(store: SqlStore): Promise<void> {
     }
   }
   await store.setAppSetting(NOTES_KEY, NOTES_VERSION);
+}
+
+const BREVITY_KEY = "starterTrackersBrevity";
+/** Starter data version 4 carries the shorter texts. */
+const BREVITY_VERSION = 4;
+/** The texts version 3 shipped, replaced only where they are still exactly these (an edited text is left alone). */
+const OLD_CANON_RULE = "- Lorebook entries, character cards and cast sheets are canon for who a character is. When one of them gives a fixed fact (age, height, weight, face, hair, eyes, build, species, powers…), copy it exactly, even if the current values say something else: correct them to match. Things the story changes (clothes, wounds, dirt, mood) follow the story. When the lorebook has rules for new characters (species, height ranges, naming, power limits…), every character you add must follow them. Only invent what none of them and the story give, and keep it inside those rules.";
+const NEW_CANON_RULE = "- Lorebook entries, character cards and cast sheets are canon for who a character is, and the story's AI already reads them: never copy their text into a field. The fixed facts they give (age, height, weight, face, hair, eyes, build, species, powers…) must match them, in a few words: correct a value that says otherwise. Things the story changes (clothes, wounds, dirt, mood) follow the story. When the lorebook has rules for new characters (species, height ranges, naming, power limits…), every character you add must follow them. Only invent what none of them and the story give, and keep it inside those rules.\n- Keep values short: the panel is a quick reference, not a character sheet. Backstory, relationships and lore stay in the cards and the lorebook.";
+const OLD_DESCRIPTION_HELP = "One or two sentences on who they are: what they do and where they stand in the story.";
+const SHORT_SUFFIX = " Keep it short (about 12 words).";
+
+/**
+ * 2026-11-01 (D-065, Daniel: "trackers should show things simply and directly and leave complex information in its
+ * proper place"): the Characters tracker no longer copies card and lorebook text into its fields, its Description is
+ * one sentence and its appearance fields are short. Installed trackers get the new texts once, only where they still
+ * have the starter's old text word for word.
+ */
+async function addStarterBrevity(store: SqlStore): Promise<void> {
+  if (((await store.getAppSetting<number>(BREVITY_KEY)) ?? 0) >= BREVITY_VERSION || starter.version < BREVITY_VERSION) return;
+  for (const t of starter.trackers) {
+    const agent = await store.agentConfigs.get(t.agent.id);
+    if (agent?.prompt.includes(OLD_CANON_RULE)) await store.saveAgentConfig({ ...agent, prompt: agent.prompt.replace(OLD_CANON_RULE, NEW_CANON_RULE) });
+    for (const s of t.sets) {
+      const saved = await store.trackerSchemas.get(s.id);
+      if (!saved) continue;
+      let touched = false;
+      const fields = saved.fields.map((f) => {
+        const from = (s.fields as Array<Partial<TrackerField>>).find((x) => x.key === f.key);
+        if (!from?.help || f.help === from.help) return f;
+        const wasStarter = f.help === OLD_DESCRIPTION_HELP || (from.help.endsWith(SHORT_SUFFIX) && f.help === from.help.slice(0, -SHORT_SUFFIX.length));
+        if (!wasStarter) return f;
+        touched = true;
+        return { ...f, help: from.help };
+      });
+      if (touched) await store.saveTrackerSchema({ ...saved, fields });
+    }
+  }
+  await store.setAppSetting(BREVITY_KEY, BREVITY_VERSION);
 }

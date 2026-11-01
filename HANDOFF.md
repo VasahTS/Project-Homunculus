@@ -4,6 +4,15 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Cards with several characters, brief people out of the scene (2026-11-01) — CLAUDE — D-065
+
+Daniel asked (06:41) and approved the draft ("do what you think is best"; send the minimum for people out of the scene).
+- **Characters → Edit → "This card is: Several characters"**: the card is still sent whole (Char Description…), but the Scene no longer shows it as one person; the Characters tracker adds its people by name. A note in the Scene and in Prompt → Character says so. Prompt → Character now shows where each field goes (→ Char Description, → Scenario…).
+- **Someone out of the scene** opens as a brief (role, one sentence, mood, where they went) with **Full sheet ›**; the tracker only sees and changes those fields while they are away, and brings them back by setting "In the scene".
+- **Starter Characters texts** stop copying card/lorebook text into the sheet; Description is one sentence; appearance fields short. Applied once to installed trackers where the text is unedited.
+- To try: mark a 2-person card, send a few messages with Scene: Characters on; drag someone out of the scene and open them.
+- Checks: typecheck, 336 unit tests (7 expected failures from CODEX's Assistant audit), full browser suite.
+
 ## Assistant web search requested: DuckDuckGo (2026-11-01) — CODEX
 
 Daniel wants `web_search` and `web_fetch`; he uses them often in Flint and currently chooses DuckDuckGo only because Exa is limited. DuckDuckGo must work without Exa or a key; no silent Exa fallback.

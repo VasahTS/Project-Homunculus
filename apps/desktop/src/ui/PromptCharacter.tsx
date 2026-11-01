@@ -11,13 +11,14 @@ import { AvatarDot } from "./Sidebar.tsx";
 import { Collapse, Icon } from "./kit.tsx";
 
 type Field = "description" | "personality" | "scenario" | "exampleMessages" | "systemPrompt" | "postHistoryInstructions";
-const FIELDS: Array<{ key: Field; label: string; help: string }> = [
-  { key: "description", label: "Description", help: "Who they are: looks, background, how they act. Sent with every reply." },
-  { key: "personality", label: "Personality", help: "A short summary of their personality." },
-  { key: "scenario", label: "Scenario", help: "The situation of the chat, from the card." },
-  { key: "exampleMessages", label: "Examples of dialogue", help: "How they talk (<START> separates examples)." },
-  { key: "systemPrompt", label: "Card system prompt", help: "The card's own system prompt; replaces the preset's main prompt when the preset allows it." },
-  { key: "postHistoryInstructions", label: "Post-history instructions", help: "Sent after the chat history, right before the reply (jailbreak / reminder)." },
+// `to`: the preset block each field fills (D-065, Daniel: "show where this content is sent")
+const FIELDS: Array<{ key: Field; label: string; help: string; to: string }> = [
+  { key: "description", label: "Description", help: "Who they are: looks, background, how they act. Sent with every reply.", to: "Char Description" },
+  { key: "personality", label: "Personality", help: "A short summary of their personality.", to: "Char Personality" },
+  { key: "scenario", label: "Scenario", help: "The situation of the chat, from the card.", to: "Scenario" },
+  { key: "exampleMessages", label: "Examples of dialogue", help: "How they talk (<START> separates examples).", to: "Chat Examples" },
+  { key: "systemPrompt", label: "Card system prompt", help: "The card's own system prompt; replaces the preset's main prompt when the preset allows it.", to: "Main Prompt" },
+  { key: "postHistoryInstructions", label: "Post-history instructions", help: "Sent after the chat history, right before the reply (jailbreak / reminder).", to: "Post-History Instructions" },
 ];
 
 const OPEN_KEY = "h2.promptCharacterOpen";
@@ -90,7 +91,7 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
         <button type="button" className="pc-toggle" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="prompt-character-toggle">
           <span className="chev" aria-hidden><Icon name="chevron" size={12} /></span>
           <AvatarDot name={shown.name} avatar={pic} size={24} />
-          <span className="pc-title"><strong>{shown.name}</strong><small>{version ? `${version} version` : "Main version"} · ~{tokens} tokens{state === "saving" ? " · saving…" : state === "saved" ? " · saved" : ""}</small></span>
+          <span className="pc-title"><strong>{shown.name}</strong><small>{card.character.ensemble ? "Several characters · " : ""}{version ? `${version} version` : "Main version"} · ~{tokens} tokens{state === "saving" ? " · saving…" : state === "saved" ? " · saved" : ""}</small></span>
         </button>
         {cards.length > 1 && (
           <select className="link-select" aria-label="Which character" value={card.character.id} onChange={(e) => setWhich(e.target.value)}>
@@ -101,6 +102,7 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
       </div>
       <Collapse open={open}>
         <div className="group pc-fields">
+          {card.character.ensemble && <p className="hint pc-note" data-testid="prompt-ensemble-note">A card with several characters: sent whole, like any card. The Scene does not follow it as one person; its people appear there on their own.</p>}
           <p className="hint pc-note">Edits go to {version ? `the “${version}” version` : "the main version"} of the card: every chat with that version sees them.</p>
           {FIELDS.map((f) => {
             const on = editing.includes(f.key);
@@ -108,7 +110,7 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
             return (
               <div key={f.key} className={`pc-field${on ? " on" : ""}`} data-testid="prompt-character-field">
                 <button type="button" className="pc-field-head" onClick={() => toggle(f.key)} aria-expanded={on} title={f.help}>
-                  <span className="pc-label">{f.label}</span>
+                  <span className="pc-label">{f.label}<span className="pc-to" title={`Sent in the preset's “${f.to}” block`}> → {f.to}</span></span>
                   {!on && <span className={`pc-line${v.trim() ? "" : " empty"}`}>{v.trim() ? v.replace(/\s+/g, " ") : "Empty"}</span>}
                   <span className="pc-edit" aria-hidden>{on ? "Done" : <Icon name="pencil" size={12} />}</span>
                 </button>

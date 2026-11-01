@@ -4,7 +4,7 @@ import type { AgentConfig, AgentOutputKind } from "@homunculus/schemas";
 import { z } from "zod";
 import type { AgentRunContext, ChatTurn } from "../extensions.ts";
 import { applyBasicMacros } from "../macros.ts";
-import { trackerInstruction, valuesWithNames } from "../trackers.ts";
+import { trackerInstruction, valuesForTracker, valuesWithNames } from "../trackers.ts";
 
 const JsonObject = z.record(z.string(), z.unknown());
 
@@ -112,7 +112,7 @@ export function buildAgentMessages(ctx: AgentRunContext): ChatTurn[] {
     // a tracker reads its own values with character names, not ids
     const own = a.state?.namespace;
     if (ctx.tracker && own) {
-      const named = valuesWithNames(ctx.tracker.schema, ctx.state[own], ctx.tracker.people);
+      const named = valuesWithNames(ctx.tracker.schema, valuesForTracker(ctx.tracker.schema, ctx.state[own]), ctx.tracker.people);
       if (Object.keys(named).length) state[own] = named; else delete state[own];
     }
     if (Object.keys(state).length) parts.push(`## Current state\n${JSON.stringify(state, null, 1)}`);

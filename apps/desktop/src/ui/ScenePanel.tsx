@@ -17,7 +17,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { AgentRun, Avatar, Npc, Session, SetupLayer, StateDelta, TrackerField, TrackerSchema } from "@homunculus/schemas";
 import {
-  applyBasicMacros, applyInto, castOf, userInStory, DEFAULT_USER_NAME, formatFieldValue, PAIR, trackerPeople, USER_ID, type ListItem, type ResolvedState, type TrackerCastMember,
+  applyBasicMacros, applyInto, briefFields, castOf, ensembleCards, userInStory, DEFAULT_USER_NAME, formatFieldValue, PAIR, trackerPeople, USER_ID, type ListItem, type ResolvedState, type TrackerCastMember,
 } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
@@ -42,6 +42,8 @@ interface View {
   /** NPCs added to this chat (they can be taken out of it) and the names of the story's NPCs (those stay: Story Page). */
   chatNpcs: Npc[];
   storyNpcNames: string[];
+  /** Cards of this chat that hold several characters (D-065): sent to the AI, followed as their people. */
+  ensembles: string[];
 }
 
 /** One line of the cast list: a group's title (a place to drop people) or a person. */
@@ -103,7 +105,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
     (async () => {
       const message = messageId ? await svc.store.getMessage(messageId) : undefined;
       const story = session.storyId ? await svc.store.getStory(session.storyId) : undefined;
-      const [state, before, userDelta, runs, cast, withUser, chatNpcs, storyNpcs, agentDelta] = await Promise.all([
+      const [state, before, userDelta, runs, cast, withUser, chatNpcs, storyNpcs, agentDelta, ensembles] = await Promise.all([
         svc.core.state.resolve(session.id, messageId),
         message ? svc.core.state.resolve(session.id, message.parentId) : Promise.resolve(null),
         messageId ? svc.store.getUserDelta(messageId).then((d) => d ?? {}) : Promise.resolve({}),
@@ -113,11 +115,12 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
         svc.store.npcsForUse(session.npcIds),
         story ? svc.store.npcsForUse(story.npcIds) : Promise.resolve([]),
         messageId ? svc.store.getDelta(messageId) : Promise.resolve(undefined),
+        ensembleCards(svc.store, session),
       ]);
       // (a whole field is saved when you change one person's value in it, so "yours" is checked per person)
       const agents = before ? structuredClone(before) : {};
       if (agentDelta) applyInto(agents, agentDelta);
-      if (!cancelled) setView({ state, before, agents, userDelta, runs, cast, withUser, chatNpcs, storyNpcNames: storyNpcs.map((n) => n.name) });
+      if (!cancelled) setView({ state, before, agents, userDelta, runs, cast, withUser, chatNpcs, storyNpcNames: storyNpcs.map((n) => n.name), ensembles });
     })();
     return () => { cancelled = true; };
   }, [svc, session, messageId, refreshKey, tick]);
@@ -395,6 +398,13 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
             </section>
           )}
 
+          {view.ensembles.length > 0 && (active === "cast" || !hasCast) && (
+            <p className="q-ensemble-note" data-testid="ensemble-note">
+              <Icon name="info" size={13} />
+              <span>{view.ensembles.map((n) => `“${n}”`).join(", ")} {view.ensembles.length === 1 ? "has" : "have"} several characters. {view.ensembles.length === 1 ? "Its card is" : "Their cards are"} sent whole; the people show here as the story brings them in.</span>
+            </p>
+          )}
+
           {enabled.map((t) => (
             <section key={t.agent.id} data-testid="tracker-card" data-tracker={t.agent.id} aria-label={t.agent.name} className="q-tracker">
               {bodyGroups.filter((g) => g.t === t && groupId(g) === active).map((g) => (
@@ -581,7 +591,8 @@ function PersonCard({ p, avatar, handle, edge, open, disabled, onToggle, onRemov
 /** What a person is doing now: the last filled "line" value, else a pill, else the line under the name. */
 function nowLine(p: Person): string {
   const filled = (d: string) => p.cells.filter((c) => c.f.display === d && !isEmpty(c.f, c.value));
-  const pick = filled("line").at(-1) ?? filled("pill")[0] ?? filled("subtitle")[0];
+  // out of the scene: who they are (the line under the name), not what they were last doing (D-065)
+  const pick = p.here || p.pair ? filled("line").at(-1) ?? filled("pill")[0] ?? filled("subtitle")[0] : filled("subtitle")[0] ?? filled("line").at(-1) ?? filled("pill")[0];
   if (pick) return cap(formatFieldValue(pick.f, pick.value));
   const any = p.cells.find((c) => c.f.type === "text" && !isEmpty(c.f, c.value) && c.f.key !== p.schema.presence?.field);
   return any ? cap(formatFieldValue(any.f, any.value)) : "";
@@ -590,6 +601,9 @@ function nowLine(p: Person): string {
 /** Everything the tracker knows about a person, in groups, shown open under their row (was a page of its own, D-025). */
 function PersonDetails({ p, disabled, avatar, withTitle = false }: { p: Person; disabled: boolean; avatar?: Avatar | undefined; withTitle?: boolean }) {
   const [shown, setShown] = useState<string[]>([]);
+  const [full, setFull] = useState(false);
+  // someone out of the scene: one line of who they are and where they went; the whole sheet on request (D-065)
+  if (!p.here && !p.pair && !withTitle && !full) return <BriefDetails p={p} disabled={disabled} onFull={() => setFull(true)} />;
   const visible = (c: Cell) => !isEmpty(c.f, c.value) || shown.includes(c.f.key);
   const cells = p.cells.filter(visible);
   const of = (...d: Array<string | undefined>) => cells.filter((c) => d.includes(c.f.display ?? "auto"));
@@ -674,6 +688,28 @@ function PersonDetails({ p, disabled, avatar, withTitle = false }: { p: Person; 
           {unused.map((c, i) => <span key={c.f.key}>{i > 0 && ", "}<button className="link quiet" title={`Write ${userMacro(c.f.label)} yourself`} onClick={() => setShown((s) => [...s, c.f.key])}>{userMacro(c.f.label)}</button></span>)}
         </p>
       )}
+    </section>
+  );
+}
+
+/** A person out of the scene: the line under the name, who they are, their mood and where they went (D-065). */
+function BriefDetails({ p, disabled, onFull }: { p: Person; disabled: boolean; onFull: () => void }) {
+  const keys = new Set(briefFields(p.schema).map((f) => f.key));
+  const filled = p.cells.filter((c) => keys.has(c.f.key) && c.f.key !== p.schema.presence?.field && !isEmpty(c.f, c.value));
+  const sub = filled.filter((c) => c.f.display === "subtitle");
+  const lead = filled.filter((c) => c.f.display === "lead");
+  // of the "Now" fields: the pills (mood) and the first line (where they went), not posture or what they were doing
+  const firstLine = p.schema.fields.find((f) => keys.has(f.key) && f.display === "line")?.key;
+  const rest = filled.filter((c) => !sub.includes(c) && !lead.includes(c) && (c.f.display === "pill" || c.f.key === firstLine));
+  return (
+    <section className="q-page q-inline q-brief" data-testid="person-brief" aria-label={p.name}>
+      {sub.map((c) => <div key={c.f.key} className="q-sub" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
+      {lead.map((c) => <div key={c.f.key} className="q-lead" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
+      {rest.length > 0 && <div className="q-group">{rest.map((c) => <KeyValue key={c.f.key} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>}
+      <p className="q-brief-foot">
+        <button type="button" className="link" data-testid="full-sheet" onClick={onFull}>Full sheet ›</button>
+        <span className="hint">kept as it was when they left</span>
+      </p>
     </section>
   );
 }

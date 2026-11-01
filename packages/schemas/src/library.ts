@@ -58,6 +58,9 @@ export const Character = z.object({
   creator: z.string().default(""),
   characterVersion: z.string().default(""),
   tags: z.array(z.string()).default([]),
+  /** The card holds several characters (or a whole cast): sent to the AI as usual, but trackers follow each of its
+   * people by name instead of the card (D-065). Shared by all versions; missing = one character. */
+  ensemble: z.boolean().optional(),
   /** Extra versions of this character, chosen per session. The fields above are the main version. */
   variants: z.array(CharacterVariant).default([]),
   /** Lorebooks that come with this character (SillyTavern: the card's linked world + its embedded book). */
