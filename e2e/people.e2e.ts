@@ -119,7 +119,7 @@ test("the Trash: restore, then delete forever", async ({ page }) => {
   await page.getByRole("button", { name: "New Character" }).click();
   await editor(page).getByLabel("Name", { exact: true }).fill("Temp");
   await page.getByRole("button", { name: "Create Character" }).click();
-  await expect(page.getByText("2 in the library")).toBeVisible(); // the editor has the whole width (D-071)
+  await expect(page.getByText("2 in the library")).toBeVisible(); 
   await page.getByRole("button", { name: "Move to Trash" }).click();
   await expect(page.getByTestId("character-list")).not.toContainText("Temp");
 

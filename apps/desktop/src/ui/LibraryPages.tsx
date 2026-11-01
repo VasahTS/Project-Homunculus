@@ -7,19 +7,28 @@ import { useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character, Lorebook, Persona, Preset, TrashItem } from "@homunculus/schemas";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { LorebookChips } from "./LorePanels.tsx";
-import { Button, Icon } from "./kit.tsx";
+import { Button, Icon, IconButton } from "./kit.tsx";
 import { AvatarDot } from "./Sidebar.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import type { Tracker } from "../trackers.ts";
 
-export function MasterDetail({ list, detail, solo = false }: { list: ReactNode; detail: ReactNode; solo?: boolean }) {
+export function MasterDetail({ list, detail, collapsed = false, onExpand }: {
+  list: ReactNode; detail: ReactNode;
+  /** The list folded into a thin strip (D-071: by hand only, never automatically); `onExpand` brings it back. */
+  collapsed?: boolean; onExpand?: () => void;
+}) {
   return (
-    <div className={`master-detail${solo ? " solo" : ""}`}>
-      {!solo && <div className="master" data-region="library">{list}</div>}
+    <div className="master-detail">
+      {collapsed
+        ? <div className="master-rail" data-region="library"><IconButton label="Show the list" onClick={onExpand}><Icon name="sidebar" size={15} /></IconButton></div>
+        : <div className="master" data-region="library">{list}</div>}
       <div className="detail" data-region="editor">{detail}</div>
     </div>
   );
 }
+
+const LIST_KEY = "h2.characters.listCollapsed";
+const readCollapsed = () => { try { return localStorage.getItem(LIST_KEY) === "1"; } catch { return false; } };
 
 export function SearchBox({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
   return (
@@ -44,6 +53,8 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
   detail: ReactNode;
 }) {
   const [q, setQ] = useState("");
+  const [collapsed, setCollapsedState] = useState(readCollapsed);
+  const setCollapsed = (v: boolean) => { setCollapsedState(v); try { localStorage.setItem(LIST_KEY, v ? "1" : "0"); } catch { /* a convenience only */ } };
   const fileInput = useRef<HTMLInputElement>(null);
   const shown = characters.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
@@ -58,7 +69,8 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
         </>} />
       <MasterDetail
         list={<>
-          <SearchBox value={q} onChange={setQ} label="Search characters" />
+          <div className="master-head"><SearchBox value={q} onChange={setQ} label="Search characters" />
+            <IconButton label="Hide the list" onClick={() => setCollapsed(true)}><Icon name="sidebar" size={15} /></IconButton></div>
           <ul className="master-list" data-testid="character-list">
             {shown.map((c) => (
               <li key={c.id}>
@@ -72,7 +84,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
           </ul>
         </>}
         detail={detail ?? <EmptyDetail text="Pick a character on the left, or create or import one." />}
-        solo={detail !== null} /* editing: the editor gets the whole width (D-071; the list was a third column) */
+        collapsed={collapsed} onExpand={() => setCollapsed(false)}
       />
     </div>
   );

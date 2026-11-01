@@ -18,7 +18,7 @@ test("create a character, then start a session with them", async ({ page }) => {
   await page.getByLabel("Greeting 1", { exact: true }).fill("*Corvin wipes a mug.* \"Room's two silver.\"");
   await page.getByRole("button", { name: "Create Character" }).click();
   await expect(page.getByText("✓ Saved")).toBeVisible();
-  await expect(page.getByText("2 in the library")).toBeVisible(); // the editor has the whole width (D-071): no list beside it
+  await expect(page.getByText("2 in the library")).toBeVisible(); 
 
   await page.getByLabel("Character editor").getByRole("button", { name: "Chat Now" }).click();
   await expect(sessions(page)).toHaveCount(2);

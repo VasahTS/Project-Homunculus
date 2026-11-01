@@ -7,7 +7,7 @@ Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`,
 ## Character editor full width; Text mode draft (2026-11-01) — CLAUDE — D-071
 
 Daniel: "again that 1 2 3 problem" (four columns) and "can we start the built-in text editor for characters?"
-- **D-071 (in the app):** editing a character hides the list beside it (the editor gets the whole width; × goes back); the Sheet's greetings are a row of cards above the editor; the identity column no longer scrolls sideways.
+- **D-071 (in the app):** the character list beside the editor can be folded by hand (button beside its search; remembered; shown by default — Daniel didn't want it hidden); the Sheet's greetings are a row of cards above the editor; the identity column no longer scrolls sideways.
 - **Text mode:** plan moved into `docs/UI-PLAN.md` ("Text mode") and a working draft in `docs/drafts/text-mode/` (4th layout "Text": one document, Find/Replace with regex, Compare with Put back). Waiting for Daniel's OK; then CodeMirror 6 in the app.
 - Checks: typecheck, unit tests, full browser suite (library/people tests read the toolbar count now).
 

@@ -95,3 +95,18 @@ test("a new character: Greeting 1 can stay empty while an alternate exists, and 
   await editor(page).getByRole("button", { name: "Show greeting 2", exact: true }).click();
   await expect(greeting(page, 2)).toHaveValue("Only an alternate.");
 });
+
+test("the character list stays beside the editor; it folds only by hand and stays folded", async ({ page }) => {
+  await page.goto("/");
+  await openLibrary(page, "Characters");
+  await editCharacter(page, "Lyra");
+  await expect(page.getByTestId("character-list")).toBeVisible();
+  await page.getByRole("button", { name: "Hide the list" }).click();
+  await expect(page.getByTestId("character-list")).toHaveCount(0);
+  await page.reload();
+  await openLibrary(page, "Characters");
+  await editCharacter(page, "Lyra");
+  await expect(page.getByTestId("character-list")).toHaveCount(0);
+  await page.getByRole("button", { name: "Show the list" }).click();
+  await expect(page.getByTestId("character-list")).toBeVisible();
+});
