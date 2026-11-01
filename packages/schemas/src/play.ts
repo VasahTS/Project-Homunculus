@@ -29,6 +29,10 @@ export type CastMemberInput = z.input<typeof CastMember>;
 /** Who tells a story: a narrator kept in the Vault, one of the user's cards, or one written only for this story. */
 export const NarratorFields = z.object({
   name: z.string().min(1).default("Narrator"),
+  /** One line for you (cards, pickers): what kind of storytelling this is (D-058). Not sent to the AI. */
+  about: z.string().default(""),
+  /** The story modes it is written for (D-058): empty = any. Only a hint when picking a narrator. */
+  modes: z.array(UserRole).default([]),
   /** What the narrator is told: voice, rules, what to do and not do. {{user}} and {{char}} work. */
   instructions: z.string().default(""),
   /** Story style (BLUEPRINT §3 storyStyle): empty = not said. */

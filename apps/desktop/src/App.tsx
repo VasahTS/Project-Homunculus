@@ -886,7 +886,7 @@ export function App() {
     key: "narrators", label: "Narrators", action: "Use", onPick, exclude: current ? [current] : [], excludeNote: "Tells it now",
     folders: foldersOf("narrator"), map: mapOf("narrator"),
     items: narrators.map((n) => ({ id: n.id, name: n.name, avatar: avatars[n.id], line: n.builtin ? "Comes with Homunculus" : [n.style.pov, n.style.tone].filter(Boolean).join(" · "),
-      detail: <>{clip(n.instructions) || <span className="hint">No instructions.</span>}</> })),
+      detail: <>{n.about.trim() || clip(n.instructions) || <span className="hint">No instructions.</span>}</> })),
   });
 
   /** Save to the Vault, from a chat's Scene (round 3, D-036). */

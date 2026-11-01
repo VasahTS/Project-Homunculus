@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Narrators for the 3 modes + draft 2 of the agent and narrator screens (2026-10-31, late) — CLAUDE — D-058
+
+- **Draft 1 rejected** ("still weird, you didn't really look at the two apps; it needs the same or more options than v1; the narrator part is VERY busy; the narrators are too simple"). **Draft 2** (`docs/drafts/agents-v4/index.html`) is built from Daniel's screenshots of Marinara's and v1's editors; `docs/UI-PLAN.md` → "Agents v4 and narrators" has a table of every v1/Marinara option and where it goes (✓ / ➕ / ⏳), and 4 open questions. No screen code until he approves.
+- **In the app (D-058):** nine starter narrators from his v1 role presets — Storyteller, Game Master (player), Co-author, Director's Pen, plus Mystery Keeper, Slow Burn, Dread, Living World, Slice of Life — and `about` / `modes` on narrators.
+- The repo is now attached to the cloud session (push works).
+
 ## Agents round 4 + a plan for the agent screens and the narrator editor (2026-10-31) — CLAUDE — D-057
 
 - **In the app (D-057):** note agents' latest notes go back to the story's AI (switch in the editor; on for labels/cards, off for views/panel notes); **↻ Run again** on notes/cards/views and **↻ New options** on choices, each with an optional **direction for that run** (also in the ✦ panel); a **Model** row per agent (connection profile); the model shows beside a note; Styles text is generic; run failures are no longer silent.

@@ -315,7 +315,7 @@ export const storyCard = (st: Story, narratorName: string, sessions: number, ava
 });
 
 export const narratorCard = (n: Narrator, used: number, avatar?: Avatar) => ({
-  id: n.id, name: n.name, by: n.builtin ? "Comes with Homunculus" : undefined, summary: n.instructions.slice(0, 220) || "No instructions",
+  id: n.id, name: n.name, by: n.builtin ? "Comes with Homunculus" : undefined, summary: n.about.trim() || n.instructions.slice(0, 220) || "No instructions",
   tags: [n.style.pov, n.style.tone].filter(Boolean), size: used ? `${used} stor${used === 1 ? "y" : "ies"}` : "",
   picture: avatar ? <CardPicture name={n.name} avatar={avatar} /> : <span className="card-pic letter narrator" aria-hidden><Icon name="scroll" size={26} /></span>,
 });

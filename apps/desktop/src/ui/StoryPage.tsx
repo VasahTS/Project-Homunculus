@@ -151,7 +151,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   const pickNarrator = (v: string) => {
     if (v === "own") {
       const base: NarratorFields = vaultNarrator ?? SIMPLE_NARRATOR;
-      change({ narrator: { kind: "own", narrator: { name: base.name === SIMPLE_NARRATOR.name ? "Narrator" : base.name, instructions: base.instructions, style: { ...base.style }, mayAddNpcs: base.mayAddNpcs, turnInstruction: base.turnInstruction } } });
+      change({ narrator: { kind: "own", narrator: { name: base.name === SIMPLE_NARRATOR.name ? "Narrator" : base.name, about: base.about, modes: [...base.modes], instructions: base.instructions, style: { ...base.style }, mayAddNpcs: base.mayAddNpcs, turnInstruction: base.turnInstruction } } });
     } else if (v.startsWith("vault:")) change({ narrator: { kind: "vault", id: v.slice(6) } });
     else change({ narrator: { kind: "card", characterId: v.slice(5), variantId: null } });
   };
@@ -268,7 +268,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                       </select>
                     </label>
                     {pickers && <button type="button" className="link align-start" onClick={() => pickers.narrator(vaultNarrator?.id ?? null, (id) => pickNarrator(`vault:${id}`))}>Browse the Library's narrators…</button>}
-                    {vaultNarrator && <p className="hint">{vaultNarrator.instructions.slice(0, 180)}{vaultNarrator.instructions.length > 180 ? "…" : ""} <button className="link" onClick={() => onOpenNarrator(vaultNarrator.id)}>Edit in the Library</button></p>}
+                    {vaultNarrator && <p className="hint">{vaultNarrator.about.trim() || `${vaultNarrator.instructions.slice(0, 180)}${vaultNarrator.instructions.length > 180 ? "…" : ""}`} <button className="link" onClick={() => onOpenNarrator(vaultNarrator.id)}>Edit in the Library</button></p>}
                     {narratorCard && narratorCard.variants.length > 0 && (
                       <label className="row-line"><span className="field-label label-row">Version <Help text="Which version of the card tells this story. Main = the card as imported." /></span>
                         <VersionSelect c={narratorCard} value={narratorVariant} label="Narrator card version"

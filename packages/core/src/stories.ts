@@ -14,6 +14,8 @@ export const SIMPLE_NARRATOR: Narrator = {
   id: SIMPLE_NARRATOR_ID,
   name: "Simple Narrator",
   builtin: true,
+  about: "A short, plain narrator to start from.",
+  modes: [],
   instructions:
     "You are the narrator of this story. Describe the scene and voice every other character in it. Keep the story moving, " +
     "show what happens through action and dialogue, and end each reply at a moment where {{user}} can respond.",

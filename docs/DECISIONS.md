@@ -529,3 +529,11 @@ Daniel (31/10): "the notes are not sent back to the AI; I can't regenerate an ag
 - **Styles are generic**: no example text about any one agent in the editor ("Optional versions of the same agent…"; placeholder "What this version changes in the instructions"). The Group Chat starter keeps its six styles as its own data.
 - The screens' bigger rework (three families Before / On / Beside the reply, a new-agent window, a summary sentence in the editor) and the narrator editor with ready choices are **a plan and a draft only**: `docs/UI-PLAN.md` → "Agents v4 and the narrator editor", `docs/drafts/agents-v4/index.html`. Waiting for Daniel.
 Signed: **CLAUDE**.
+
+## D-058 — Narrators for the three story modes, plus extras (2026-10-31)
+
+Daniel (31/10): "the narrators you made are very simple and basically don't serve much; remember the 3 modes we have in the Story — each should serve them — and extras with other features that complement them."
+- **Nine starter narrators** (`apps/desktop/src/starter/narrators.json`, installed once each by `installStarterNarrators`, key `starterNarrators.v2`; editable, deletable, never brought back): **Storyteller** and **Game Master** (you play a character), **Co-author** (written together), **Director's Pen** (director mode); extras for any mode: **Mystery Keeper**, **Slow Burn**, **Dread**, **Living World**, **Slice of Life**. Their texts come from Daniel's own Homunculus v1 role presets (Roleplay / Co-author / Director / Game Master main prompts and the Story, NPCs, Dialogue, Narration and Input expansion blocks), rewritten for a narrator; the extras add one genre block each (fixed hidden truth and fair clues; earned romance; horror rules; a world that moves on its own; daily life).
+- **`NarratorFields.about`** (one line for cards and pickers, not sent) and **`NarratorFields.modes`** (the story modes it is written for; empty = any; a hint only). Cards and the story's narrator line show `about` when set.
+- The Simple Narrator stays. The block editor, the single Style line and the grouped Narrators page are draft 2 (`docs/UI-PLAN.md` → "Agents v4 and narrators"), waiting for Daniel.
+Signed: **CLAUDE**.

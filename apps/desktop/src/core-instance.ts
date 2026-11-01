@@ -8,6 +8,7 @@ import { createSillyTavernPersonasModule } from "@homunculus/st-personas";
 import { createSillyTavernPresetsModule } from "@homunculus/st-presets";
 import { adoptAllEmbeddedLorebooks, createSillyTavernLorebooksModule } from "@homunculus/st-lorebooks";
 import { DEFAULT_PRESET, SIMPLE_NARRATOR } from "@homunculus/core";
+import { installStarterNarrators } from "./starter/narrators.ts";
 import { backupBeforeMigrate, isDesktop, openDatabase } from "./db.ts";
 import { offlineAiModule } from "./offline-ai.ts";
 import { installStarterTrackers } from "./trackers.ts";
@@ -55,6 +56,7 @@ async function boot(): Promise<AppServices> {
     await adoptAllEmbeddedLorebooks(store);
     await store.setAppSetting("embeddedLorebooksAdopted", true);
   }
+  await installStarterNarrators(store); // once each: narrators for the three story modes + extras (D-058)
   // First run: a starter character and a first session, created here (once) and not in
   // React, which may run effects twice in development (that created 2 sessions — caught by e2e).
   const isFirstRun = (await store.listCharacters()).length === 0 && (await store.listSessions()).length === 0;
