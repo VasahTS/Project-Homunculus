@@ -3,7 +3,7 @@
 // a List grouped by what each agent does, beside the editor. The view is remembered on this computer.
 import { useState, type ReactNode } from "react";
 import type { AgentConfig, Session, Story } from "@homunculus/schemas";
-import { AGENT_KINDS, kindOf, onInText, whenText } from "../agents.ts";
+import { AGENT_KINDS, PHASES, kindOf, onInText, whenOf, whenText } from "../agents.ts";
 import { Button, Icon, Segmented } from "./kit.tsx";
 import { EmptyDetail, MasterDetail, SearchBox } from "./LibraryPages.tsx";
 import { Toolbar } from "./Toolbar.tsx";
@@ -92,17 +92,19 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
             <SearchBox value={q} onChange={setQ} label="Search agents" />
             {filters}
             <div className="ag-groups" data-testid="agent-list">
-              {AGENT_KINDS.map((k) => {
-                const items = filtered.filter((a) => a.output === k.output);
-                if (!items.length) return null;
+              {/* grouped by phase (D-059: Pre-Generation / Parallel / Post-Processing; every-N and manual agents last) */}
+              {[...PHASES.map((p) => ({ id: p.id as string, label: p.label, items: filtered.filter((a) => whenOf(a).when === p.id) })),
+                { id: "other", label: "Every N messages or when I ask", items: filtered.filter((a) => whenOf(a).when === "everyN" || whenOf(a).when === "manual") }].map((g) => {
+                if (!g.items.length) return null;
                 return (
-                  <div key={k.output} className="ag-group">
-                    <span className="ag-group-title"><span className="kind-dot" style={{ background: k.color }} />{k.label}</span>
+                  <div key={g.id} className="ag-group">
+                    <span className="ag-group-title">{g.label} <span className="hint">({g.items.length})</span></span>
                     <ul className="master-list">
-                      {items.map((a) => (
+                      {g.items.map((a) => (
                         <li key={a.id}>
-                          <button className={`master-item${a.id === selectedId ? " on" : ""}`} onClick={() => onSelect(a.id)}>
-                            <span className="side-text"><strong>{a.name}</strong><span>{whenText(a)} · on in {onInText(a.id, stories, sessions)}</span></span>
+                          <button className={`master-item ag-item${a.id === selectedId ? " on" : ""}`} onClick={() => onSelect(a.id)}>
+                            <span className="ag-ico" aria-hidden>{a.icon || <span className="kind-dot" style={{ background: kindOf(a)?.color }} />}</span>
+                            <span className="side-text"><strong>{a.name}</strong><span>{a.help || kindOf(a)?.label} · on in {onInText(a.id, stories, sessions)}</span></span>
                           </button>
                         </li>
                       ))}

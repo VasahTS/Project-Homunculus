@@ -224,7 +224,7 @@ export function RunAgainButton({ name, label = "Run again", onRun }: { name: str
 export function NoteChips({ results, agents, onRun }: { results: MessageAgentResults | undefined; agents: AgentConfig[]; onRun?: ((agentId: string) => RunAgain) | undefined }) {
   const [open, setOpen] = useState<string | null>(null);
   const notes = agents.filter((a) => a.output === "note").map((a) => ({ a, how: a.display?.note ?? "message", note: latestNote(results, a.id) }))
-    .filter((x) => x.note && x.note.content.trim() && x.how !== "menu");
+    .filter((x) => x.note && x.note.content.trim() && x.how !== "menu" && x.how !== "hidden");
   const chips = notes.filter((x) => x.how === "message");
   const cards = notes.filter((x) => x.how === "card");
   const views = notes.filter((x) => x.how === "view");

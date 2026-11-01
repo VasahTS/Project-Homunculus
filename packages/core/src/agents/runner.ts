@@ -18,7 +18,8 @@ import { separateExecutor, shapeFor, type LoreProposal } from "./outputs.ts";
 import { applyLorePatch, patchWithEntry } from "../lore-versions.ts";
 import { normalizeTrackerAnswer, trackerPeople, type TrackerCastMember } from "../trackers.ts";
 import { applyBasicMacros, expandMacros } from "../macros.ts";
-import { withStyle } from "./styles.ts";
+import { prepared } from "./styles.ts";
+import { applyChapters, type Chapter } from "../memory.ts";
 import { effectiveCharacter } from "../variants.ts";
 
 /** An agent ready to run: its config, and its code if it is built in. */
@@ -137,6 +138,11 @@ export class AgentRunner {
     if (c.generationTypes.length && !c.generationTypes.includes(req.generationType)) return false;
     if (c.roles.length && !c.roles.includes(req.session.userRole)) return false;
     if (path.length < c.minMessages) return false;
+    // "at least N tokens" (D-059): the messages it would read, about 3.6 characters a token
+    if (a.input.minTokens > 0) {
+      const read = path.slice(-Math.max(1, a.input.messages)).reduce((n, m) => n + m.content.length, 0) / 3.6;
+      if (read < a.input.minTokens) return false;
+    }
     for (const s of c.state) if (JSON.stringify(readStatePath(state, s.path)) !== JSON.stringify(s.equals)) return false;
     if (c.keywords.length) {
       const recent = [...path.slice(-Math.max(1, a.input.messages)).map((m) => m.content), req.text].join("\n").toLowerCase();
@@ -182,7 +188,7 @@ export class AgentRunner {
 
   /** Runs one agent and applies its answer. Returns undefined when it failed. */
   async runOne(entry: AgentEntry, req: RunRequest, owners: Map<string, string>, preset?: { answer: unknown }): Promise<AgentOutcome | undefined> {
-    entry = { ...entry, config: withDirection(withStyle(entry.config, req.setup), req.direction) };
+    entry = { ...entry, config: withDirection(prepared(entry.config, req.setup), req.direction) };
     const { core, store } = this.deps;
     const a = entry.config;
     const started = this.deps.now();
@@ -261,7 +267,8 @@ export class AgentRunner {
     const override = req.setup.agentOverrides[a.id];
     // this story's/chat's pick for the agent, else the agent's own (D-057), else the setup's connection for agents, else the story's
     const wanted = override?.connectionId ?? a.connectionId ?? req.setup.agentConnectionId;
-    const connection = (wanted ? req.connections?.[wanted] : undefined) ?? this.deps.resolveConnection(wanted, req.mainConnection);
+    const base = (wanted ? req.connections?.[wanted] : undefined) ?? this.deps.resolveConnection(wanted, req.mainConnection);
+    const connection = a.modelOverride?.trim() ? { ...base, model: a.modelOverride.trim() } : base;
     const ownValues = a.state?.namespace ? state[a.state.namespace] : undefined;
     const cards = a.input.cards ? await this.cardsText(req) : "";
     const persona = a.input.persona && this.deps.persona ? (await this.deps.persona(req.session, req.setup)).trim() : "";
@@ -269,6 +276,10 @@ export class AgentRunner {
     const scenario = a.input.scenario ? (req.session.scenario.trim() || story?.scenario?.trim() || "") : "";
     const lore = a.input.lorebooks ? await this.loreText(path) : "";
     const loreBook = a.output === "proposal" && a.proposal?.target === "lorebook" ? await this.storyLorebook(req.session, false) : undefined;
+    const authorsNote = a.input.authorsNote ? (req.setup.authorsNote.text ?? "").trim() : "";
+    const chapters = a.input.chapters ? applyChapters(path, (await store.getAppSetting<Chapter[]>(`memory.chapters:${req.session.id}`)) ?? []).text.trim() : "";
+    const previousNotes = a.input.previousNotes > 0 ? await this.previousNotes(a, path) : [];
+    const variableKeys = new Set((a.variables ?? []).map((v) => v.key));
     const loreIndex = loreBook ? loreBook.book.entries.map((e) => `- ${e.title || e.keys[0] || e.id}${e.keys.length ? ` (${e.keys.join(", ")})` : ""}`).join("\n") : undefined;
     return {
       agent: a,
@@ -280,7 +291,8 @@ export class AgentRunner {
       messages: a.input.messages > 0 ? transcriptPath.slice(-a.input.messages) : [],
       text: req.text,
       results: Object.fromEntries(a.input.readsAgents.filter((id) => req.results.has(id)).map((id) => [id, req.results.get(id)])),
-      settings: { ...(override?.settings ?? {}) },
+      // variables are already written into the instructions (D-059); the rest of the story's settings are sent as data
+      settings: Object.fromEntries(Object.entries(override?.settings ?? {}).filter(([k]) => !variableKeys.has(k))),
       names: req.names,
       signal: req.signal,
       ...(tracker ? { tracker: { schema: tracker.schema, people: trackerPeople(tracker.schema, ownValues, tracker.cast, req.names.user, tracker.withUser) } } : {}),
@@ -289,6 +301,9 @@ export class AgentRunner {
       ...(scenario ? { scenario } : {}),
       ...(lore ? { lore } : {}),
       ...(loreIndex !== undefined ? { loreIndex } : {}),
+      ...(authorsNote ? { authorsNote } : {}),
+      ...(chapters ? { chapters } : {}),
+      ...(previousNotes.length ? { previousNotes } : {}),
       complete: async (messages, options) => {
         usage.prompt = [...(usage.prompt ?? []), ...messages.map((m) => ({ role: m.role, content: m.content }))];
         const c = await core.connections.complete(connection, messages, { signal: req.signal, maxTokens: options?.maxTokens ?? a.limits.maxTokens });
@@ -301,6 +316,17 @@ export class AgentRunner {
         return c;
       },
     };
+  }
+
+  /** This agent's own latest notes on this branch (one per message, up to this one), oldest first (D-059). */
+  private async previousNotes(a: AgentConfig, path: Message[]): Promise<string[]> {
+    const out: string[] = [];
+    for (const m of [...path].reverse()) {
+      if (out.length >= a.input.previousNotes) break;
+      const text = (await this.deps.store.listNotes(m.id, a.id)).at(-1)?.content.trim();
+      if (text) out.push(text);
+    }
+    return out.reverse();
   }
 
   /** The character cards of the session's cast, short, for agents with input.cards (who the characters are). */
@@ -347,7 +373,7 @@ export class AgentRunner {
    * notes, revisions, records or events. Returns what it answered and why.
    */
   async dryRun(entry: AgentEntry, req: RunRequest, connection?: ConnectionConfig): Promise<DryRun> {
-    entry = { ...entry, config: withDirection(withStyle(entry.config, req.setup), req.direction) };
+    entry = { ...entry, config: withDirection(prepared(entry.config, req.setup), req.direction) };
     const a = entry.config;
     const started = this.deps.now();
     const usage: Usage = {};

@@ -34,9 +34,21 @@ describe("NPC sheets", () => {
 
 describe("the narrator and the role", () => {
   it("the narrator's style and 'may bring in new people' become text", () => {
-    const t = narratorText({ ...SIMPLE_NARRATOR, style: { pov: "second person", tense: "present", length: "", tone: "" }, mayAddNpcs: false });
-    expect(t).toContain("Style — point of view: second person; tense: present.");
+    const t = narratorText({ ...SIMPLE_NARRATOR, style: { pov: "second person", tense: "present", length: "", tone: "", pacing: "slow burn", dialogue: "", mature: "" }, mayAddNpcs: false });
+    expect(t).toContain("Style — point of view: second person; tense: present; pacing: slow burn.");
     expect(t).toContain("Do not bring in new named people");
+    // everything inside one <narrator> block (D-059)
+    expect(t.startsWith("<narrator>\n")).toBe(true);
+    expect(t.endsWith("\n</narrator>")).toBe(true);
+  });
+
+  it("blocks are sent in order and a switched-off block is left out (D-059)", () => {
+    const t = narratorText({ ...SIMPLE_NARRATOR, instructions: "old text", blocks: [
+      { id: "a", name: "Role", on: true, text: "<role>A</role>" }, { id: "b", name: "Dialogue", on: false, text: "<dialogue>B</dialogue>" },
+      { id: "c", name: "Story", on: true, text: "<story>C</story>" }] });
+    expect(t).toContain("<role>A</role>\n\n<story>C</story>");
+    expect(t).not.toContain("<dialogue>");
+    expect(t).not.toContain("old text");
   });
 
   it("a player in a 1:1 chat gets no role note (prompts stay as before stories)", () => {

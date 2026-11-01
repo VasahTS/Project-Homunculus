@@ -23,3 +23,24 @@ export function withStyle(a: AgentConfig, setup?: Pick<ResolvedSetup, "agentOver
   const prompt = a.prompt.includes("{{style}}") ? a.prompt.split("{{style}}").join(s.text) : `${a.prompt.trim()}\n\nStyle: ${s.text}`;
   return { ...a, prompt };
 }
+
+/**
+ * The agent with its variables written into its instructions (D-059): `{{key}}` becomes the story's/chat's value
+ * (agentOverrides[id].settings[key]) or the agent's own default.
+ */
+export function withVariables(a: AgentConfig, setup?: Pick<ResolvedSetup, "agentOverrides">): AgentConfig {
+  const vars = a.variables ?? [];
+  if (!vars.length) return a;
+  const own = setup?.agentOverrides[a.id]?.settings ?? {};
+  let prompt = a.prompt;
+  for (const v of vars) {
+    const value = typeof own[v.key] === "string" ? (own[v.key] as string) : v.value;
+    prompt = prompt.split(`{{${v.key}}}`).join(value);
+  }
+  return { ...a, prompt };
+}
+
+/** The agent ready to send: its picked style, then its variables. */
+export function prepared(a: AgentConfig, setup?: Pick<ResolvedSetup, "agentOverrides">): AgentConfig {
+  return withVariables(withStyle(a, setup), setup);
+}

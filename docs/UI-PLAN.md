@@ -7,7 +7,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
-## Agents v4 and narrators — CLAUDE, 2026-10-31 · 🟡 draft 2 for Daniel's review (`docs/drafts/agents-v4/index.html`)
+## Agents v4 and narrators — CLAUDE, 2026-10-31 · ✅ draft 2 in the app, functional (D-059); Daniel: "not yet how I imagine it, OK for now"
 
 **Round 1 was rejected** (31/10, translated): "The UI is still weird. You are not really looking at how the two apps are; it must have the same or more options than the original app. The narrator part got VERY busy. And the narrators you made are too simple and don't serve much; remember the 3 modes of a Story — each should have its narrators — plus extras with other features that complement them." He sent screenshots of Marinara's agent editor (Prose Guardian) and v1's companion editor (Direction Menu).
 The functional fixes of D-057 (notes back to the AI, Run again with a direction, model beside notes, a connection per agent) are in the app and stay.

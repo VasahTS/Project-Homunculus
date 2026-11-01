@@ -101,6 +101,8 @@ export function buildAgentMessages(ctx: AgentRunContext): ChatTurn[] {
   if (ctx.persona) parts.push(`## The user's character (persona)\n${ctx.persona}`);
   if (ctx.scenario) parts.push(`## Scenario\n${ctx.scenario}`);
   if (ctx.lore) parts.push(`## Lorebook entries active now\n${ctx.lore}`);
+  if (ctx.chapters) parts.push(`## The story so far (chapter summaries)\n${ctx.chapters}`);
+  if (ctx.authorsNote) parts.push(`## Author's Note\n${ctx.authorsNote}`);
   if (ctx.loreIndex !== undefined) parts.push(`## The story's lorebook already has\n${ctx.loreIndex || "(nothing yet)"}`);
   if (ctx.messages.length) parts.push(`## Recent messages\n${transcript(ctx)}`);
   if (a.input.state !== false) {
@@ -120,8 +122,10 @@ export function buildAgentMessages(ctx: AgentRunContext): ChatTurn[] {
   }
   if (Object.keys(ctx.settings).length) parts.push(`## Settings\n${JSON.stringify(ctx.settings, null, 1)}`);
   if (ctx.text) parts.push(ctx.trigger === "turn.before" ? `## The user's message\n${ctx.text}` : `## The reply\n${ctx.text}`);
+  if (ctx.previousNotes?.length) parts.push(`## Your previous notes (oldest first)\n${ctx.previousNotes.join("\n\n---\n\n")}`);
   if (ctx.tracker) parts.push(applyBasicMacros(trackerInstruction(ctx.tracker.schema, ctx.tracker.people), ctx.names));
-  parts.push(formatFor(a));
+  // "use as written" (D-059): the user's instructions already say how to answer
+  if (!a.rawPrompt) parts.push(formatFor(a));
   return [
     { role: "system", content: applyBasicMacros(a.prompt, ctx.names) },
     { role: "user", content: parts.join("\n\n") },

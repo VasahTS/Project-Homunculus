@@ -114,7 +114,8 @@ test("the Vault: edit the Simple Narrator, a loose NPC joins a 1:1 chat", async 
   await vault(page, "Narrators");
   await page.getByTestId("vault-narrators").getByRole("button", { name: "Simple Narrator" }).click();
   const n = page.getByTestId("narrator-sheet");
-  await n.getByLabel("Point of view").fill("second person");
+  await n.getByRole("button", { name: "Change…" }).click();
+  await n.getByLabel("Point of view").fill("second person, close");
   await n.getByRole("button", { name: "Save" }).click();
   await expect(n.getByText("✓ Saved")).toBeVisible();
   await expect(n.getByRole("button", { name: "Move to Trash" })).toHaveCount(0); // the built-in one stays

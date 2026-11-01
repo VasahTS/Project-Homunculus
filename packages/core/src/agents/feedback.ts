@@ -13,7 +13,7 @@ export function noteFeedback(a: AgentConfig): { on: boolean; notes: number } {
   if (a.output !== "note") return { on: false, notes: 1 };
   if (a.feedback) return { on: a.feedback.on, notes: a.feedback.notes };
   const how = a.display?.note ?? "message";
-  return { on: how === "message" || how === "card", notes: 1 };
+  return { on: how === "message" || how === "card" || how === "hidden", notes: 1 };
 }
 
 /**

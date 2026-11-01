@@ -6,18 +6,18 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react
 import { AgentDraft } from "../agent-draft.ts";
 import type { AgentConfig, AgentConfigInput, AgentOutputKind } from "@homunculus/schemas";
 import { noteFeedback } from "@homunculus/core";
-import { AGENT_KINDS, WHEN_LABELS, triggersFor, whenOf, withKind, type AgentWhen } from "../agents.ts";
+import { AGENT_KINDS, PHASES, phaseOf, triggersFor, whenOf, withKind, type AgentPhase } from "../agents.ts";
 import { ConfirmButton, Help } from "./Help.tsx";
-import { Collapse, Icon, Segmented, Switch } from "./kit.tsx";
+import { Switch } from "./kit.tsx";
 
 const GEN_TYPES = [{ value: "normal", label: "New replies" }, { value: "swipe", label: "New versions" }, { value: "continue", label: "Continue" }] as const;
 
 export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, onSave, onDelete, onClose }: {
   agent: AgentConfig;
-  /** Saved connection profiles, to pick the one this agent uses (D-057). */
-  profiles?: Array<{ id: string; name: string }>;
   /** All agents, to pick the ones whose results this one reads. */
   agents?: AgentConfig[];
+  /** Saved connection profiles, to pick the one this agent uses (D-057). */
+  profiles?: Array<{ id: string; name: string }>;
   drafts: Map<string, AgentDraft>;
   onTry: (draft: AgentDraft) => void;
   onSave: (a: AgentConfigInput) => Promise<AgentConfig>;
@@ -32,24 +32,35 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
   });
   draft.save = onSave;
   const { value: d, status, error } = useSyncExternalStore(draft.subscribe, draft.snapshot, draft.snapshot);
-  const [open, setOpen] = useState<Record<string, boolean>>({ text: true });
   useEffect(() => () => { void draft.flush(); }, [draft]);
   const set = (patch: Partial<AgentConfig>) => draft.update({ ...draft.snapshot().value, ...patch } as AgentConfig);
-  const toggle = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const when = whenOf(d);
+  const runs: "every" | "everyN" | "manual" = when.when === "everyN" ? "everyN" : when.when === "manual" ? "manual" : "every";
+  const phase = phaseOf(d);
   const out = d.output;
-  const conditionsSum = [d.conditions.probability < 100 ? `${d.conditions.probability}% chance` : "always",
-    d.conditions.keywords.length ? `${d.conditions.keywords.length} keyword${d.conditions.keywords.length === 1 ? "" : "s"}` : "",
-    d.conditions.minMessages ? `after ${d.conditions.minMessages} messages` : ""].filter(Boolean).join(" · ");
-  const readsSum = out === "inject" && d.runMode === "text" ? "nothing (sent as written)"
-    : [`last ${d.input.messages} messages`, d.input.cards ? "the cast" : "", d.input.persona ? "your persona" : "", d.input.lorebooks ? "active lore" : "",
-      d.input.state !== false ? "Scene values" : "", d.input.scenario ? "scenario" : "", d.input.readsAgents.length ? `${d.input.readsAgents.length} agent result${d.input.readsAgents.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
-  const inp = (patch: Partial<AgentConfig["input"]>) => set({ input: { ...d.input, ...patch } });
+  const textMode = d.runMode === "text";
+  // drafts made before D-059 may miss the new sources until saved
+  const input: AgentConfig["input"] = Object.assign({ authorsNote: false, chapters: false, previousNotes: 0, minTokens: 0 }, d.input);
+  const inp = (patch: Partial<AgentConfig["input"]>) => set({ input: { ...input, ...patch } });
   const disp = (patch: NonNullable<AgentConfig["display"]>) => set({ display: { ...d.display, ...patch } });
+  const fb = noteFeedback(d);
+  const setPhase = (p: AgentPhase) => {
+    const allowed = PHASES.find((x) => x.id === p)!.kinds;
+    const base = allowed.includes(out) ? draft.snapshot().value : (withKind(draft.snapshot().value, allowed[0]!) as AgentConfig);
+    draft.update({ ...base, triggers: triggersFor(p, when.n) } as AgentConfig);
+  };
+  const setKind = (k: AgentOutputKind) => {
+    if (k === out) return;
+    const next = withKind(draft.snapshot().value, k) as AgentConfig;
+    draft.update({ ...next, triggers: runs === "every" ? triggersFor(phase, when.n) : draft.snapshot().value.triggers } as AgentConfig);
+  };
+  const setRuns = (r: typeof runs) => set({ triggers: triggersFor(r === "every" ? phase : r, when.n) });
+  const inlineOk = phase === "after" && (out === "note" || out === "choices" || out === "check");
 
   return (
-    <div className="editor agent-editor" aria-label="Agent editor" data-testid="agent-editor">
+    <div className="editor agent-editor ae" aria-label="Agent editor" data-testid="agent-editor">
       <div className="session-bar">
+        <input className="ae-icon" aria-label="Agent icon" maxLength={4} placeholder="✦" value={d.icon ?? ""} onChange={(e) => set({ icon: e.target.value || undefined })} />
         <input className="ag-title" aria-label="Agent name" placeholder="Agent name" value={d.name} onChange={(e) => set({ name: e.target.value })} />
         <span className="spacer" />
         <span className={status === "error" ? "error-text" : "hint"} role="status" data-testid="agent-save-state">
@@ -58,193 +69,255 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
         <button type="button" className="btn btn-bordered btn-small" onClick={() => onTry(draft)}>Try it</button>
         {onClose && <button className="btn btn-bordered btn-small" onClick={() => { void draft.flush().then((saved) => { if (saved) onClose(); }); }}>Close</button>}
       </div>
-      <div className="editor-body ag-body">
+      <div className="editor-body ae-body">
         {error && <div className="error-bar inline" role="alert">{error}</div>}
-        <input className="ag-help" aria-label="Agent description" placeholder="What it is for, in one line (optional)" value={d.help} onChange={(e) => set({ help: e.target.value })} />
 
-        <div className="ag-field">
-          <span className="ag-label">What it does</span>
-          <div className="ag-kinds" role="radiogroup" aria-label="What it does">
-            {AGENT_KINDS.map((k) => (
-              <button key={k.output} type="button" role="radio" aria-checked={out === k.output} className={`ag-kind${out === k.output ? " on" : ""}`}
-                onClick={() => { if (out !== k.output) set(withKind(draft.snapshot().value, k.output as AgentOutputKind) as AgentConfig); }}>
-                <span className="kind-dot" style={{ background: k.color }} />{k.label}
-              </button>
+        <Sec title="Description">
+          <div className="ae-two">
+            <label className="ae-fld"><span>What it is for</span><input aria-label="Agent description" placeholder="One line, shown in lists and the ✦ panel" value={d.help} onChange={(e) => set({ help: e.target.value })} /></label>
+            <label className="ae-fld"><span>Author</span><input aria-label="Agent author" placeholder="Optional" value={d.author ?? ""} onChange={(e) => set({ author: e.target.value || undefined })} /></label>
+          </div>
+        </Sec>
+
+        <Sec title="Phase" help="When it acts, compared with the reply (v1 Pre / Post; Marinara Pipeline Phase).">
+          <div className="ae-phases" role="radiogroup" aria-label="Phase">
+            {PHASES.map((p) => (
+              <button key={p.id} type="button" role="radio" aria-checked={phase === p.id} disabled={runs !== "every" && p.id !== "after"}
+                className={`ae-phase${phase === p.id ? " on" : ""}`} onClick={() => setPhase(p.id)}><b>{p.label}</b><span>{p.sub}</span></button>
             ))}
           </div>
-        </div>
-
-        {out !== "inject" && <div className="ag-field row-line wrap">
-          <span className="ag-label">When</span>
-          <select aria-label="When it runs" value={when.when} onChange={(e) => set({ triggers: triggersFor(e.target.value as AgentWhen, when.n) })}>
-            {(Object.keys(WHEN_LABELS) as AgentWhen[]).map((w) => <option key={w} value={w}>{WHEN_LABELS[w]}</option>)}
-          </select>
-          {when.when === "everyN" && <NumberBox label="Every how many messages" value={when.n} min={1} max={500} onCommit={(n) => set({ triggers: triggersFor("everyN", n) })} />}
-        </div>}
-        {!(out === "inject" && d.runMode === "text") && (
-          <div className="ag-field row-line wrap">
-            <span className="ag-label">Model <Help text="The connection this agent uses. “Agents connection” follows the story's setup (Setup → Agents connection), else the story's own. A cheaper or faster model is often enough for agents." /></span>
-            <select aria-label="Connection for this agent" value={d.connectionId ?? ""} onChange={(e) => set({ connectionId: e.target.value || undefined })}>
-              <option value="">The story's agents connection</option>
-              {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              {d.connectionId && !profiles.some((p) => p.id === d.connectionId) && <option value={d.connectionId}>(a deleted connection)</option>}
+          <div className="row-line wrap">
+            <span>Runs</span>
+            <select aria-label="When it runs" value={runs} onChange={(e) => setRuns(e.target.value as typeof runs)}>
+              <option value="every">on every reply</option>
+              {out !== "inject" && out !== "intercept" && <option value="everyN">every N messages</option>}
+              {out !== "inject" && <option value="manual">only when I ask (✦ panel, ↻)</option>}
             </select>
+            {runs === "everyN" && <><NumberBox label="Every how many messages" value={when.n} min={1} max={500} onCommit={(n) => set({ triggers: triggersFor("everyN", n) })} /><span className="hint">messages · after the reply</span></>}
+            {runs === "manual" && <span className="hint">on the message you pick, after the reply</span>}
           </div>
-        )}
-        {out === "inject" && <p className="hint">Its text goes into the prompt before each reply, like a preset block or the Author's Note — but you switch it per story or chat, it can have a chance, trigger words or a random pick, and an AI can write it from the latest messages.</p>}
+        </Sec>
 
-        {out === "inject" && (
-          <div className="ag-field">
-            <span className="ag-label">How the text is made <Help text="Sent as written: no AI call, free and instant; {{random::a::b}} picks one option each time. Written by an AI: a separate call writes the text from the recent messages (costs a call)." /></span>
-            <Segmented small label="How the text is made" value={d.runMode === "text" ? "text" : "separate"}
-              options={[{ value: "text", label: "Sent as written" }, { value: "separate", label: "Written by an AI" }]}
-              onChange={(v) => set({ runMode: v, input: { ...d.input, messages: v === "text" ? 0 : Math.max(4, d.input.messages) } })} />
+        <Sec title="What it does" help="Results that don't fit the phase are greyed out.">
+          <div className="ae-tiles" role="radiogroup" aria-label="What it does">
+            {AGENT_KINDS.map((k) => {
+              const ok = runs !== "every" ? !["inject", "intercept"].includes(k.output) || k.output === out : PHASES.find((p) => p.id === phase)!.kinds.includes(k.output);
+              return (
+                <button key={k.output} type="button" role="radio" aria-checked={out === k.output} disabled={!ok} className={`ae-tile${out === k.output ? " on" : ""}`}
+                  onClick={() => setKind(k.output)}><b><span className="kind-dot" style={{ background: k.color }} />{k.label}</b><span>{KIND_SUB[k.output]}</span></button>
+              );
+            })}
           </div>
+        </Sec>
+
+        <Sec title="How it runs" help="v1 Execution: Companion (its own call) or Inline (inside the main reply).">
+          <div className="ae-tiles" role="radiogroup" aria-label="How it runs">
+            <button type="button" role="radio" aria-checked={d.runMode === "separate"} className={`ae-tile${d.runMode === "separate" ? " on" : ""}`}
+              onClick={() => set({ runMode: "separate", input: { ...input, messages: Math.max(4, input.messages) } })}><b>Its own AI call</b><span>A separate request; can use another model (v1 companion)</span></button>
+            <button type="button" role="radio" aria-checked={d.runMode === "inline"} disabled={!inlineOk} className={`ae-tile${d.runMode === "inline" ? " on" : ""}`}
+              onClick={() => set({ runMode: "inline" })}><b>Inside the main reply</b><span>The story's AI writes it in a hidden block; no extra call (v1 inline)</span></button>
+            <button type="button" role="radio" aria-checked={textMode} disabled={out !== "inject"} className={`ae-tile${textMode ? " on" : ""}`}
+              onClick={() => set({ runMode: "text", input: { ...input, messages: 0 } })}><b>No AI call</b><span>Sends its own text as written; {"{{random::a::b}}"} picks one</span></button>
+          </div>
+        </Sec>
+
+        {d.runMode === "separate" && (
+          <Sec title="Context sources" help="Only what this agent needs: every source makes its request longer.">
+            <div className="ae-toggles">
+              <div className="ae-tg on"><b>Chat history</b><p>The latest messages of this branch, oldest first.</p>
+                <div className="ae-extra"><NumberBox label="Messages it reads" value={input.messages} min={0} max={100} onCommit={(n) => inp({ messages: n })} /> messages · runs only from
+                  <NumberBox label="Runs only from this many tokens" value={input.minTokens} min={0} max={1_000_000} onCommit={(n) => inp({ minTokens: n })} /> tokens</div></div>
+              <Tg on={input.cards} onChange={(v) => inp({ cards: v })} title="The cast" text="Cards in the chat, the story's narrator and the NPC sheets." />
+              <Tg on={input.persona} onChange={(v) => inp({ persona: v })} title="Your persona" text="Who you play, as the AI sees it." />
+              <Tg on={input.lorebooks} onChange={(v) => inp({ lorebooks: v })} title="Active lorebook entries" text="The entries that went into the latest reply's prompt." />
+              <Tg on={input.chapters} onChange={(v) => inp({ chapters: v })} title="Chapter summaries" text="The chat's memory (Prompt → Memory) on this branch." />
+              <Tg on={input.authorsNote} onChange={(v) => inp({ authorsNote: v })} title="Author's Note" text="This chat's Author's Note text." />
+              <Tg on={input.state !== false} onChange={(v) => inp({ state: v })} title="Scene values" text="What the trackers hold right now." />
+              <Tg on={input.scenario} onChange={(v) => inp({ scenario: v })} title="Scenario" text="The chat's scenario, else the story's." />
+              <Tg on={input.previousNotes > 0} onChange={(v) => inp({ previousNotes: v ? 3 : 0 })} title="Its previous notes" text="So it updates instead of starting over (v1 Include prior notes)."
+                extra={input.previousNotes > 0 ? <>last <NumberBox label="How many previous notes" value={input.previousNotes} min={1} max={20} onCommit={(n) => inp({ previousNotes: n })} /></> : undefined} />
+              <div className={`ae-tg${input.readsAgents.length ? " on" : ""}`}><b>Other agents' results</b><p>They run first; this one reads what they answered.</p>
+                <div className="ae-extra">
+                  {input.readsAgents.map((id) => <span key={id} className="tag">{agents.find((x) => x.id === id)?.name ?? id} <button type="button" className="link quiet" aria-label="Stop reading it" onClick={() => inp({ readsAgents: input.readsAgents.filter((x) => x !== id) })}>×</button></span>)}
+                  <select aria-label="Add an agent it reads" value="" onChange={(e) => { if (e.target.value) inp({ readsAgents: [...input.readsAgents, e.target.value] }); }}>
+                    <option value="">+ Add…</option>
+                    {agents.filter((x) => x.id !== d.id && !input.readsAgents.includes(x.id) && x.output !== "inject").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                </div></div>
+            </div>
+          </Sec>
         )}
-        {out === "note" && (
-          <div className="ag-field">
-            <span className="ag-label">How it shows</span>
+
+        {d.runMode === "separate" && (
+          <Sec title="Connection and budget">
+            <div className="ae-two">
+              <label className="ae-fld"><span>Connection <Help text="“The story's agents connection” follows the story's setup (Setup → Agents connection), else the story's own. A story or chat can still pick another for this agent." /></span>
+                <select aria-label="Connection for this agent" value={d.connectionId ?? ""} onChange={(e) => set({ connectionId: e.target.value || undefined })}>
+                  <option value="">The story's agents connection</option>
+                  {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {d.connectionId && !profiles.some((p) => p.id === d.connectionId) && <option value={d.connectionId}>(a deleted connection)</option>}
+                </select></label>
+              <label className="ae-fld"><span>Model override <small className="hint">(optional)</small></span>
+                <input aria-label="Model override" placeholder="the connection's model" value={d.modelOverride ?? ""} onChange={(e) => set({ modelOverride: e.target.value || undefined })} /></label>
+            </div>
+            <div className="row-line wrap"><span>Longest answer</span>
+              <NumberBox label="Longest answer in tokens" value={d.limits.maxTokens ?? 0} min={0} max={200000} onCommit={(n) => set({ limits: { ...d.limits, maxTokens: n || undefined } })} /><span className="hint">tokens (0 = no limit)</span></div>
+          </Sec>
+        )}
+
+        <Sec title="Result">
+          {out === "note" && <>
             <ShowPicker label="How the note shows" value={d.display?.note ?? "message"}
-              options={[{ value: "message", label: "Label under the reply", pic: "note-message" }, { value: "card", label: "Open card", pic: "note-card" }, { value: "view", label: "A view", pic: "note-view" }, { value: "menu", label: "Only in the ✦ panel", pic: "panel" }]}
+              options={[{ value: "message", label: "Label under the reply", pic: "note-message" }, { value: "card", label: "Open card", pic: "note-card" }, { value: "view", label: "A view", pic: "note-view" }, { value: "menu", label: "Only in the ✦ panel", pic: "panel" }, { value: "hidden", label: "Hidden: only for the AI", pic: "silent" }]}
               onChange={(v) => disp({ note: v })} />
             {d.display?.note === "view" && <div className="ag-field">
               <span className="hint">Drawn as</span>
               <ShowPicker label="View" value={d.display.view ?? "feed"} onChange={(v) => disp({ view: v })}
                 options={[{ value: "feed", label: "A feed of posts", pic: "view-feed" }, { value: "phone", label: "Phone messages", pic: "view-phone" }, { value: "sheet", label: "A stat sheet", pic: "view-sheet" }, { value: "cards", label: "Cards", pic: "view-cards" }]} />
-              <Help text="The agent answers in a fixed JSON shape (the app tells it which) and the app draws it with its own parts, in your theme. The agent never sends HTML or code." />
             </div>}
-          </div>
-        )}
-        {out === "note" && (() => {
-          const fb = noteFeedback(d);
-          return (
-            <div className="ag-field row-line wrap">
-              <Switch label="The story's AI reads it" checked={fb.on} onChange={(v) => set({ feedback: { on: v, notes: fb.notes } })} />
-              <span className="label-row">The story's AI reads {fb.notes === 1 ? "its latest note" : "its latest notes"} <Help text="On: the next replies get this agent's latest notes on this branch, in the chat just before your message (or where “Where the notes go” says). Off: notes stay for you only. Views and panel-only notes start off." /></span>
-              {fb.on && <><NumberBox label="How many notes the story's AI reads" value={fb.notes} min={1} max={20} onCommit={(n) => set({ feedback: { on: true, notes: n } })} /><span className="hint">latest</span></>}
+            <div className="ae-toggles">
+              <Tg on={fb.on} onChange={(v) => set({ feedback: { on: v, notes: fb.notes } })} title="The story's AI reads it" text="Its latest notes go into the next replies (v1 Feed notes into future generations)."
+                extra={fb.on ? <>latest <NumberBox label="How many notes the story's AI reads" value={fb.notes} min={1} max={20} onCommit={(n) => set({ feedback: { on: true, notes: n } })} /> · <Where d={d} set={set} /></> : undefined} />
             </div>
-          );
-        })()}
-        {out === "proposal" && <p className="hint">New facts go into this story's own version of its lorebook (the first one it uses; a story without one gets its own). The Library's book is never changed. See them in Library → Lorebooks → the book → “{"<story>"}'s version”.</p>}
-        {out === "choices" && (
-          <div className="ag-field">
-            <span className="ag-label">How it shows</span>
-            <ShowPicker label="How the choices show" value={d.display?.choices ?? "buttons"}
-              options={[{ value: "buttons", label: "Buttons under the reply", pic: "choices-buttons" }, { value: "list", label: "Numbered list", pic: "choices-list" }, { value: "composer", label: "Above the message box", pic: "choices-composer" }, { value: "menu", label: "Only in the ✦ panel", pic: "panel" }]}
-              onChange={(v) => disp({ choices: v })} />
-          </div>
-        )}
-        {out === "rewrite" && (
-          <div className="ag-field">
-            <span className="ag-label">How it shows</span>
-            <ShowPicker label="How the rewrite shows" value={d.display?.rewrite ?? "mark"}
-              options={[{ value: "mark", label: "A mark beside the name", pic: "mark-rewrite" }, { value: "silent", label: "Nothing in the chat", pic: "silent" }]} onChange={(v) => disp({ rewrite: v })} />
-          </div>
-        )}
-        {out === "check" && (
-          <div className="ag-field">
-            <span className="ag-label">How it shows</span>
+          </>}
+          {out === "choices" && <ShowPicker label="How the choices show" value={d.display?.choices ?? "buttons"}
+            options={[{ value: "buttons", label: "Buttons under the reply", pic: "choices-buttons" }, { value: "list", label: "Numbered list", pic: "choices-list" }, { value: "composer", label: "Above the message box", pic: "choices-composer" }, { value: "menu", label: "Only in the ✦ panel", pic: "panel" }]}
+            onChange={(v) => disp({ choices: v })} />}
+          {out === "rewrite" && <ShowPicker label="How the rewrite shows" value={d.display?.rewrite ?? "mark"}
+            options={[{ value: "mark", label: "A mark beside the name", pic: "mark-rewrite" }, { value: "silent", label: "Nothing in the chat", pic: "silent" }]} onChange={(v) => disp({ rewrite: v })} />}
+          {out === "check" && <>
             <ShowPicker label="How a failed check shows" value={d.display?.check ?? "mark"}
               options={[{ value: "mark", label: "A mark beside the name", pic: "mark-check" }, { value: "line", label: "A line under the reply", pic: "check-line" }, { value: "silent", label: "Only in the ✦ panel", pic: "panel" }]}
               onChange={(v) => disp({ check: v })} />
-          </div>
-        )}
-        {out === "check" && (
-          <div className="ag-field row-line wrap">
-            <span className="ag-label">When it fails</span>
-            <select aria-label="When the check fails" value={d.check?.onFail ?? "warn"} onChange={(e) => set({ check: { onFail: e.target.value as "warn" | "regenerate", maxRetries: d.check?.maxRetries ?? 1 } })}>
-              <option value="warn">Just warn me</option>
-              <option value="regenerate">Write the reply again</option>
-            </select>
-            {d.check?.onFail === "regenerate" && <NumberBox label="Tries" value={d.check.maxRetries} min={1} max={5} onCommit={(n) => set({ check: { onFail: "regenerate", maxRetries: n } })} />}
-          </div>
-        )}
-
-        <Card id="text" title="Instructions" sub={out === "inject" && d.runMode === "text" ? "the text that goes into the prompt" : "what the AI is told to do"} open={!!open.text} onToggle={toggle}>
-          <textarea rows={8} aria-label="Agent instructions" value={d.prompt} onChange={(e) => set({ prompt: e.target.value })}
-            placeholder={out === "inject" ? "e.g. Never write {{user}}'s actions." : "e.g. Point out contradictions with earlier messages."} />
-          <p className="hint">{"{{char}}"} and {"{{user}}"} become the names. {"{{random::a::b::c}}"} picks one option. The answer format is added by the app.</p>
-        </Card>
-
-        <Card id="styles" title="Styles" sub={d.styles?.length ? `${d.styles.length} · default: ${(d.styles.find((x) => x.id === d.styleId) ?? d.styles[0])!.name}` : "none"} open={!!open.styles} onToggle={toggle}>
-          <StylesEditor styles={d.styles ?? []} styleId={d.styleId} onChange={(styles, styleId) => set({ styles: styles.length ? styles : undefined, styleId: styles.length ? styleId : undefined })} />
-        </Card>
-
-        {(out === "inject" || (out === "note" && noteFeedback(d).on)) && (
-          <Card id="where" title={out === "note" ? "Where the notes go" : "Where it goes"} sub={d.injection?.position === "marker" ? "with the other agents' text" : `in the chat, ${d.injection?.depth ?? 1} back, as ${roleName(d.injection?.role)}`} open={!!open.where} onToggle={toggle}>
-            <div className="row-line wrap">
-              <select aria-label="Where the text goes" value={d.injection?.position ?? "depth"}
-                onChange={(e) => set({ injection: { position: e.target.value as "marker" | "depth", depth: d.injection?.depth ?? 1, role: d.injection?.role ?? "system" } })}>
-                <option value="depth">In the chat</option><option value="marker">With the other agents' text</option>
+            <div className="row-line wrap"><span>When it fails</span>
+              <select aria-label="When the check fails" value={d.check?.onFail ?? "warn"} onChange={(e) => set({ check: { onFail: e.target.value as "warn" | "regenerate", maxRetries: d.check?.maxRetries ?? 1 } })}>
+                <option value="warn">Just warn me</option><option value="regenerate">Write the reply again</option>
               </select>
-              {(d.injection?.position ?? "depth") === "depth" && <>
-                <NumberBox label="Messages from the end" value={d.injection?.depth ?? 1} min={0} max={999} onCommit={(n) => set({ injection: { position: "depth", depth: n, role: d.injection?.role ?? "system" } })} />
-                <span className="hint">back, as</span>
-                <select aria-label="Sent as" value={d.injection?.role ?? "system"} onChange={(e) => set({ injection: { position: "depth", depth: d.injection?.depth ?? 1, role: e.target.value as "system" | "user" | "assistant" } })}>
-                  <option value="system">System</option><option value="user">User</option><option value="assistant">AI</option>
-                </select>
-              </>}
+              {d.check?.onFail === "regenerate" && <NumberBox label="Tries" value={d.check.maxRetries} min={1} max={5} onCommit={(n) => set({ check: { onFail: "regenerate", maxRetries: n } })} />}
             </div>
-          </Card>
+          </>}
+          {out === "inject" && <div className="row-line wrap"><span>Goes</span><Where d={d} set={set} /></div>}
+          {out === "intercept" && <p className="hint">Your message is replaced by the rewritten one (the original is kept as a revision).</p>}
+          {out === "proposal" && <p className="hint">New facts go into this story's own version of its lorebook (the first one it uses; a story without one gets its own). The Library's book never changes.</p>}
+        </Sec>
+
+        {!textMode && (
+          <Sec title="Variables" help="Fields its instructions use as {{name}}. A story or chat can change their values (Marinara's agent Defaults).">
+            <VariablesEditor vars={d.variables ?? []} onChange={(v) => set({ variables: v.length ? v : undefined })} />
+          </Sec>
         )}
 
-        {!(out === "inject" && d.runMode === "text") && (
-          <Card id="reads" title="What it reads" sub={readsSum} open={!!open.reads} onToggle={toggle}>
-            <div className="ag-reads">
-              <div className="ag-read"><span><b>Recent messages</b><small>The latest messages of this branch, oldest first (0 = none)</small></span>
-                <NumberBox label="Messages it reads" value={d.input.messages} min={0} max={100} onCommit={(n) => inp({ messages: n })} /></div>
-              <Read on={d.input.cards} onChange={(v) => inp({ cards: v })} title="The cast" text="Cards of the characters in the chat, the story's narrator and the NPCs (description, personality, their sheets)" />
-              <Read on={d.input.persona} onChange={(v) => inp({ persona: v })} title="Your persona" text="Who you play, as the AI sees it" />
-              <Read on={d.input.lorebooks} onChange={(v) => inp({ lorebooks: v })} title="Lorebook entries active now" text="The entries that went into the latest reply's prompt" />
-              <Read on={d.input.state !== false} onChange={(v) => inp({ state: v })} title="Scene values" text="What the trackers hold right now" />
-              <Read on={d.input.scenario} onChange={(v) => inp({ scenario: v })} title="The scenario" text="The chat's scenario, else the story's" />
-              <div className="ag-read"><span><b>Other agents' results</b><small>They run first and this one reads what they answered (e.g. Continuity → a director)</small></span>
-                <select aria-label="Add an agent it reads" value="" onChange={(e) => { if (e.target.value) inp({ readsAgents: [...d.input.readsAgents, e.target.value] }); }}>
-                  <option value="">+ Add…</option>
-                  {agents.filter((x) => x.id !== d.id && !d.input.readsAgents.includes(x.id) && x.output !== "inject").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                </select></div>
-              {d.input.readsAgents.length > 0 && <div className="row-line wrap">{d.input.readsAgents.map((id) => (
-                <span key={id} className="tag">{agents.find((x) => x.id === id)?.name ?? id} <button type="button" className="link quiet" aria-label="Stop reading it" onClick={() => inp({ readsAgents: d.input.readsAgents.filter((x) => x !== id) })}>×</button></span>))}</div>}
-            </div>
-          </Card>
-        )}
+        <Sec title="Instructions" help={textMode ? "The text that goes into the prompt." : "What the AI is told to do."}>
+          <textarea rows={10} className="ae-prompt" aria-label="Agent instructions" value={d.prompt} onChange={(e) => set({ prompt: e.target.value })}
+            placeholder={out === "inject" ? "e.g. Never write {{user}}'s actions." : "e.g. Point out contradictions with earlier messages."} />
+          <p className="hint">{"{{char}}"} and {"{{user}}"} become the names · {"{{random::a::b}}"} picks one · your variables as {"{{name}}"} · {"{{style}}"} is the picked version's text.{textMode ? "" : " The answer format is added by the app."}</p>
+          {!textMode && <div className="row-line"><Switch label="Use as written" checked={!!d.rawPrompt} onChange={(v) => set({ rawPrompt: v || undefined })} /><span>Use as written: add no answer format</span><span className="hint">(v1 Use agent prompt as-is)</span></div>}
+          <details className="ae-versions" open={!!d.styles?.length}>
+            <summary>Versions {d.styles?.length ? `· ${d.styles.length} · default: ${(d.styles.find((x) => x.id === d.styleId) ?? d.styles[0])!.name}` : "· none"}</summary>
+            <StylesEditor styles={d.styles ?? []} styleId={d.styleId} onChange={(styles, styleId) => set({ styles: styles.length ? styles : undefined, styleId: styles.length ? styleId : undefined })} />
+          </details>
+        </Sec>
 
-        <Card id="fires" title="When it fires" sub={conditionsSum} open={!!open.fires} onToggle={toggle}>
-          <div className="row-line wrap"><span>Chance</span>
-            <NumberBox label="Chance in percent" value={d.conditions.probability} min={0} max={100} onCommit={(n) => set({ conditions: { ...d.conditions, probability: n } })} /><span>%</span>
-            {d.conditions.probability < 100 && <label className="check"><input type="checkbox" checked={d.randomness === "stable"} onChange={(e) => set({ randomness: e.target.checked ? "stable" : "perSwipe" })} />Same roll on every new version</label>}
+        <Sec title="Only if" help="Leave as it is to run every time.">
+          <div className="ae-toggles">
+            <div className="ae-tg"><b>Trigger words</b><p>Runs only if one is in the latest messages. One per line; /regex/ works.</p>
+              <textarea rows={2} aria-label="Trigger words" value={d.conditions.keywords.join("\n")}
+                onChange={(e) => set({ conditions: { ...d.conditions, keywords: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) } })} /></div>
+            <div className="ae-tg"><b>Chance</b><p>Some replies only.</p>
+              <div className="ae-extra"><NumberBox label="Chance in percent" value={d.conditions.probability} min={0} max={100} onCommit={(n) => set({ conditions: { ...d.conditions, probability: n } })} />%
+                {d.conditions.probability < 100 && <label className="check"><input type="checkbox" checked={d.randomness === "stable"} onChange={(e) => set({ randomness: e.target.checked ? "stable" : "perSwipe" })} />Same roll on every new version</label>}</div></div>
+            <div className="ae-tg"><b>On</b><p>Which generations.</p>
+              <div className="ae-extra">{GEN_TYPES.map((g) => {
+                const all = d.conditions.generationTypes.length === 0;
+                const on = all || d.conditions.generationTypes.includes(g.value);
+                return <label key={g.value} className="check"><input type="checkbox" checked={on} onChange={(e) => {
+                  const current = all ? GEN_TYPES.map((x) => x.value) as string[] : [...d.conditions.generationTypes];
+                  const next = e.target.checked ? [...current, g.value] : current.filter((x) => x !== g.value);
+                  set({ conditions: { ...d.conditions, generationTypes: (next.length === GEN_TYPES.length ? [] : next) as AgentConfig["conditions"]["generationTypes"] } });
+                }} />{g.label}</label>;
+              })}</div></div>
+            <div className="ae-tg"><b>Only after</b><p>Messages in the chat.</p>
+              <div className="ae-extra"><NumberBox label="Only after this many messages" value={d.conditions.minMessages} min={0} max={9999} onCommit={(n) => set({ conditions: { ...d.conditions, minMessages: n } })} /> messages</div></div>
           </div>
-          <label className="ag-stack"><span>Only when one of these words is in the latest messages <Help text="One per line. Empty = always. /regex/ works too." /></span>
-            <textarea rows={2} aria-label="Trigger words" value={d.conditions.keywords.join("\n")}
-              onChange={(e) => set({ conditions: { ...d.conditions, keywords: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) } })} /></label>
-          <div className="row-line wrap"><span>Only after</span>
-            <NumberBox label="Only after this many messages" value={d.conditions.minMessages} min={0} max={9999} onCommit={(n) => set({ conditions: { ...d.conditions, minMessages: n } })} /><span>messages</span></div>
-          <div className="row-line wrap"><span>On</span>
-            {GEN_TYPES.map((g) => {
-              const all = d.conditions.generationTypes.length === 0;
-              const on = all || d.conditions.generationTypes.includes(g.value);
-              return <label key={g.value} className="check"><input type="checkbox" checked={on} onChange={(e) => {
-                const current = all ? GEN_TYPES.map((x) => x.value) as string[] : [...d.conditions.generationTypes];
-                const next = e.target.checked ? [...current, g.value] : current.filter((x) => x !== g.value);
-                set({ conditions: { ...d.conditions, generationTypes: (next.length === GEN_TYPES.length ? [] : next) as AgentConfig["conditions"]["generationTypes"] } });
-              }} />{g.label}</label>;
-            })}
-          </div>
-        </Card>
+        </Sec>
 
-        <Card id="adv" title="Advanced" sub={`order ${d.order}${d.limits.maxTokens ? ` · up to ${d.limits.maxTokens} tokens` : ""}`} open={!!open.adv} onToggle={toggle}>
+        <Sec title="Advanced">
           <div className="row-line wrap"><span>Order <Help text="Lower runs first. Matters for agents that rewrite: they run one after the other." /></span>
-            <NumberBox label="Order" value={d.order} min={-9999} max={9999} onCommit={(n) => set({ order: n })} /></div>
-          {!(out === "inject" && d.runMode === "text") && <div className="row-line wrap"><span>Longest answer</span>
-            <NumberBox label="Longest answer in tokens" value={d.limits.maxTokens ?? 0} min={0} max={200000} onCommit={(n) => set({ limits: { ...d.limits, maxTokens: n || undefined } })} /><span className="hint">tokens (0 = no limit)</span></div>}
-        </Card>
-
-        <div className="editor-actions">
+            <NumberBox label="Order" value={d.order} min={-9999} max={9999} onCommit={(n) => set({ order: n })} />
+            <span className="spacer" />
+            <ConfirmButton label="Delete Agent" confirmLabel="Click Again to Delete" onConfirm={() => { void draft.remove(() => onDelete(d.id)).then((deleted) => { if (deleted) drafts.delete(d.id); }); }} />
+          </div>
           <p className="hint">Switch it on per story or chat in their setup, or from the ✦ button in a chat.</p>
-          <span className="spacer" />
-          <ConfirmButton label="Delete Agent" confirmLabel="Click Again to Delete" onConfirm={() => { void draft.remove(() => onDelete(d.id)).then((deleted) => { if (deleted) drafts.delete(d.id); }); }} />
-        </div>
+        </Sec>
       </div>
+    </div>
+  );
+}
+
+const KIND_SUB: Record<string, string> = {
+  inject: "A rule, a random pick, or guidance it writes", intercept: "Changes your message before the AI reads it",
+  rewrite: "Edits the reply; Undo brings the original back", check: "Pass or fail: warn you, or write it again",
+  choices: "What you could do next, as buttons", note: "A note, card, view or ✦ panel; the AI can read it",
+  proposal: "Adds facts to this story's own lorebook",
+};
+
+function Sec({ title, help, children }: { title: string; help?: string; children: ReactNode }) {
+  return (
+    <section className="ae-sec" aria-label={title}>
+      <h3 className="ae-sec-h">{title}{help && <Help text={help} />}</h3>
+      {children}
+    </section>
+  );
+}
+
+function Tg({ on, onChange, title, text, extra }: { on: boolean; onChange: (v: boolean) => void; title: string; text: string; extra?: ReactNode }) {
+  return (
+    <div className={`ae-tg${on ? " on" : ""}`}>
+      <b>{title}</b>
+      <Switch label={title} checked={on} onChange={onChange} />
+      <p>{text}</p>
+      {extra && <div className="ae-extra">{extra}</div>}
+    </div>
+  );
+}
+
+/** Where an injection (or a note sent back) goes in the prompt. */
+function Where({ d, set }: { d: AgentConfig; set: (p: Partial<AgentConfig>) => void }) {
+  const i = { position: "depth" as "marker" | "depth", depth: 1, role: "system" as "system" | "user" | "assistant", ...d.injection };
+  return (
+    <span className="row-line wrap">
+      <select aria-label="Where the text goes" value={i.position} onChange={(e) => set({ injection: { ...i, position: e.target.value as "marker" | "depth" } })}>
+        <option value="depth">in the chat</option><option value="marker">with the other agents' text</option>
+      </select>
+      {i.position === "depth" && <>
+        <NumberBox label="Messages from the end" value={i.depth} min={0} max={999} onCommit={(n) => set({ injection: { ...i, depth: n } })} />
+        <span className="hint">back, as</span>
+        <select aria-label="Sent as" value={i.role} onChange={(e) => set({ injection: { ...i, role: e.target.value as "system" | "user" | "assistant" } })}>
+          <option value="system">System</option><option value="user">User</option><option value="assistant">AI</option>
+        </select>
+      </>}
+    </span>
+  );
+}
+
+/** Variables (D-059): `{{key}}` fields with a default text; a story or chat can change the value. */
+function VariablesEditor({ vars, onChange }: { vars: NonNullable<AgentConfig["variables"]>; onChange: (v: NonNullable<AgentConfig["variables"]>) => void }) {
+  const patch = (i: number, p: Partial<(typeof vars)[number]>) => onChange(vars.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const keyOf = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^(\d)/, "v$1") || "value";
+  return (
+    <div className="ae-vars">
+      {vars.length === 0 && <p className="hint">None. Add one when part of the instructions should change per story, e.g. {"{{banned}}"} for banned words.</p>}
+      {vars.map((v, i) => (
+        <div key={i} className="ae-var">
+          <span className="ae-var-name">
+            <input aria-label="Variable name" value={v.label} placeholder="Banned words" onChange={(e) => patch(i, { label: e.target.value, key: v.key === keyOf(v.label) || !v.key ? keyOf(e.target.value) : v.key })} />
+            <code>{`{{${v.key}}}`}</code>
+          </span>
+          <textarea rows={2} aria-label={`${v.label || v.key} value`} value={v.value} onChange={(e) => patch(i, { value: e.target.value })} />
+          <button type="button" className="link quiet" onClick={() => onChange(vars.filter((_, j) => j !== i))}>Remove</button>
+        </div>
+      ))}
+      <button type="button" className="link" onClick={() => { let k = "value"; let n = 1; while (vars.some((x) => x.key === k)) k = `value_${++n}`; onChange([...vars, { key: k, label: "", value: "" }]); }}>+ Add a variable</button>
     </div>
   );
 }
@@ -273,23 +346,11 @@ function StylesEditor({ styles, styleId, onChange }: { styles: NonNullable<Agent
             <input className="grow" aria-label="Style name" value={x.name} onChange={(e) => patch(i, { name: e.target.value })} />
             <button type="button" className="link quiet" onClick={() => { const rest = styles.filter((_, j) => j !== i); onChange(rest, x.id === def ? rest[0]?.id : def); }}>Remove</button>
           </div>
-          <textarea rows={2} aria-label={`${x.name} text`} placeholder="What this version changes in the instructions" value={x.text} onChange={(e) => patch(i, { text: e.target.value })} />
+          <textarea rows={2} aria-label={`${x.name} text`} placeholder="What this version changes (replaces {{style}} in the instructions)" value={x.text} onChange={(e) => patch(i, { text: e.target.value })} />
         </div>
       ))}
       <button type="button" className="link" onClick={add}>+ Add a style</button>
     </div>
-  );
-}
-
-function Card({ id, title, sub, open, onToggle, children }: { id: string; title: string; sub: string; open: boolean; onToggle: (id: string) => void; children: ReactNode }) {
-  return (
-    <section className={`te-card${open ? " open" : ""}`}>
-      <button type="button" className="te-card-head" aria-expanded={open} onClick={() => onToggle(id)}>
-        <span className="grow"><b>{title}</b><span className="te-sub">{sub}</span></span>
-        <span className={`te-chev${open ? " open" : ""}`}><Icon name="chevron" size={14} /></span>
-      </button>
-      <Collapse open={open}><div className="te-card-body">{children}</div></Collapse>
-    </section>
   );
 }
 
@@ -304,13 +365,4 @@ function NumberBox({ label, value, min, max, onCommit }: { label: string; value:
   };
   return <input type="number" className="num" aria-label={label} min={min} max={max} value={text} onChange={(e) => setText(e.target.value)}
     onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setText(String(value)); }} />;
-}
-
-function Read({ on, onChange, title, text }: { on: boolean; onChange: (v: boolean) => void; title: string; text: string }) {
-  return (
-    <label className="ag-read check-row">
-      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
-      <span><b>{title}</b><small>{text}</small></span>
-    </label>
-  );
 }

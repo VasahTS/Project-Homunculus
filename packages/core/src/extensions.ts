@@ -144,6 +144,12 @@ export interface AgentRunContext {
   lore?: string;
   /** For lorebook proposals: the entries the story's version already has (title and keywords), so it adds only what is new. */
   loreIndex?: string;
+  /** This chat's Author's Note text (input.authorsNote, D-059). */
+  authorsNote?: string;
+  /** The chat's chapter summaries on this branch (input.chapters, D-059). */
+  chapters?: string;
+  /** This agent's own latest notes on this branch, oldest first (input.previousNotes, D-059). */
+  previousNotes?: string[];
 }
 
 /** A built-in agent: its data plus code. User agents are only data (AgentConfig) and run through an executor. */

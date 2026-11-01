@@ -441,7 +441,20 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   // what this chat has spent (D-055, Daniel short on credits): reloaded when a turn ends or the chat changes
   const [usage, setUsage] = useState<{ tokensIn: number; tokensOut: number; cost: number; calls: number } | null>(null);
   useEffect(() => { let off = false; void svc.store.sessionUsage(session.id).then((u) => { if (!off) setUsage(u); }).catch(() => {}); return () => { off = true; }; }, [svc, session.id, busy, sceneKey]);
-  const agentResults = useAgentResults(svc, [...visible.filter((m) => m.speaker.kind !== "user").slice(-30).map((m) => m.id), ...(latestParentId ? [latestParentId] : [])], sceneKey);
+  const aiShown = visible.filter((m) => m.speaker.kind !== "user").slice(-30);
+  const rawResults = useAgentResults(svc, [...new Set([...aiShown.map((m) => m.id), ...aiShown.flatMap((m) => (m.parentId ? [m.parentId] : [])), ...(latestParentId ? [latestParentId] : [])])], sceneKey);
+  // Parallel agents (D-059) run beside the reply and record on the message it answers: show their notes with the reply
+  const parallelIds = new Set(agents.filter((a) => a.triggers.some((t) => t.on === "turn" && t.phase === "parallel")).map((a) => a.id));
+  const agentResults = {
+    get: (id: string) => {
+      const own = rawResults.get(id);
+      const m = aiShown.find((x) => x.id === id);
+      const parent = m?.parentId ? rawResults.get(m.parentId) : undefined;
+      if (!parent || !parallelIds.size) return own;
+      const pick = <T extends { agentId: string }>(xs: T[]) => xs.filter((x) => parallelIds.has(x.agentId));
+      return { runs: [...(own?.runs ?? []), ...pick(parent.runs)], notes: [...(own?.notes ?? []), ...pick(parent.notes)], revisions: own?.revisions ?? [] };
+    },
+  };
   /** Undo all / the mix chosen in the rewrite comparison: the message gets that text (the old one is kept as a revision). */
   const saveText = async (m: Message, text: string) => {
     if (text === m.content) return;

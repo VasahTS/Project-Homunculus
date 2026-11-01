@@ -41,7 +41,16 @@ export const NarratorFields = z.object({
     tense: z.string().default(""),
     length: z.string().default(""),
     tone: z.string().default(""),
-  }).default({ pov: "", tense: "", length: "", tone: "" }),
+    /** D-059: more style rows (empty = not said). */
+    pacing: z.string().default(""),
+    dialogue: z.string().default(""),
+    mature: z.string().default(""),
+  }).default({ pov: "", tense: "", length: "", tone: "", pacing: "", dialogue: "", mature: "" }),
+  /**
+   * The instructions as named blocks sent in order (D-059: Role, Story, NPCs, Dialogue…), each can be switched off.
+   * Empty = the plain `instructions` text (older narrators). When blocks exist, `instructions` keeps their joined text.
+   */
+  blocks: z.array(z.object({ id: z.string().min(1), name: z.string().default(""), on: z.boolean().default(true), text: z.string().default("") })).default([]),
   /** The narrator may bring in new people (NPCs) when the story needs them. */
   mayAddNpcs: z.boolean().default(true),
   /** Sent last, every reply (SillyTavern's post-history instructions). Empty = none. */

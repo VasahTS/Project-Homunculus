@@ -764,7 +764,8 @@ export function App() {
   const saveNarrator = async (n: Narrator) => { await svc.store.saveNarrator(n); await refreshVault(svc); };
   const newNarrator = async () => {
     const id = crypto.randomUUID();
-    await svc.store.saveNarrator({ ...SIMPLE_NARRATOR, id, name: "New narrator", builtin: false });
+    // a blank narrator (Daniel, 31/10: "bring back Blank"); its editor offers "Start from" any other narrator
+    await svc.store.saveNarrator({ ...SIMPLE_NARRATOR, id, name: "New narrator", about: "", modes: [], instructions: "", blocks: [], builtin: false });
     await refreshVault(svc);
     setView({ kind: "vault", tab: "narrators", id });
   };
@@ -1210,10 +1211,13 @@ export function App() {
     } else if (tab === "narrators") {
       const n = narrators.find((x) => x.id === view.id);
       items = narrators.map((x) => ({ id: x.id, name: x.name, avatar: avatars[x.id] }));
-      cards = shown(narrators).map((x) => withFolder(narratorCard(x, stories.filter((st) => st.narrator.kind === "vault" && st.narrator.id === x.id).length, avatars[x.id])));
+      // grouped by the story mode they are written for (D-059): You play a character, Written together, Director mode, Any mode
+      const order = ["You play a character", "Written together", "Director mode", "Any mode"];
+      cards = shown(narrators).map((x) => withFolder(narratorCard(x, stories.filter((st) => st.narrator.kind === "vault" && st.narrator.id === x.id).length, avatars[x.id])))
+        .sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
       sheet = n ? (
         <NarratorEditor narrator={n} usedBy={stories.filter((st) => st.narrator.kind === "vault" && st.narrator.id === n.id).map((st) => st.name)}
-          avatar={avatars[n.id]} onImage={(f) => void changeAvatar(n.id, f)} folder={folderPick("narrator", n.id)}
+          avatar={avatars[n.id]} onImage={(f) => void changeAvatar(n.id, f)} folder={folderPick("narrator", n.id)} starts={narrators}
           onSave={saveNarrator} onTrash={async () => { await toTrash("narrator", n.id, n.name); setView({ kind: "vault", tab, id: null }); }}
           onDuplicate={() => { const id = crypto.randomUUID(); void svc.store.saveNarrator({ ...n, id, name: `${n.name} (copy)`, builtin: false }).then(() => refreshVault(svc)).then(() => select(id)); }} />
       ) : null;
@@ -1250,7 +1254,7 @@ export function App() {
         activity={Object.fromEntries(stories.map((st) => [st.id, storyChatRows(st.id)[0]?.when ?? 0]))} selectedId={view.id ?? (tab === "stories" ? cards[0]?.id ?? null : null)} onSelect={select}
         newButton={newButton} search={vaultQuery} onSearch={setVaultQuery} cards={cards} emptyText={emptyText}
         folders={folderView(fkind, page, tab === "stories" ? "stories" : tab === "kits" ? "kits" : tab === "narrators" ? "narrators" : "NPCs", items, extra, currentName)}
-        sheet={sheet ?? <div className="empty-detail"><p>Pick one to see it here.</p></div>} />
+        sheet={sheet ?? <div className="empty-detail"><p>Pick one to see it here.</p></div>} wide={tab === "narrators"} />
     );
   } else if (view.kind === "kit") {
     const k = kits.find((x) => x.id === view.id);

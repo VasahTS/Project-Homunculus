@@ -2,10 +2,10 @@
 // Same shape as Library → Characters: cards on the left, the selected one's sheet on the right. Narrators and NPCs
 // are small, so their sheet IS their editor (Save); a story opens its own page (StoryPage.tsx).
 // A new story starts from "How do you want to play?" (NewStorySheet).
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, TrackerField, TrackerSchema, UserRole } from "@homunculus/schemas";
-import { npcSheetFields, npcTagline, type ListItem } from "@homunculus/core";
+import { blocksText, narratorBlocks, narratorText, npcSheetFields, npcTagline, type ListItem } from "@homunculus/core";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
 import { CardPicture, GalleryCard, SheetSection, type VaultTab } from "./Gallery.tsx";
@@ -24,11 +24,13 @@ export const ROLE_LABEL: Record<UserRole, string> = { player: "You play a charac
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // ------------------------------------------------------------------------------------------------ the Vault page
-export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, onSearch, cards, sheet, emptyText, folders, title = "Library", activity = {} }: {
+export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, onSearch, cards, sheet, emptyText, folders, title = "Library", activity = {}, wide = false }: {
   title?: string; activity?: Record<string, number>;
+  /** A narrow list beside a wide editor (narrators, D-059): everything to edit and compare without scrolling the page. */
+  wide?: boolean;
   lead: ReactNode; tab: VaultTab; selectedId: string | null; onSelect: (id: string) => void;
   newButton: ReactNode; search: string; onSearch: (q: string) => void;
-  cards: Array<{ id: string; name: string; by?: string | undefined; summary?: string; tags?: string[]; size?: string; picture?: ReactNode; dragId?: string }>;
+  cards: Array<{ id: string; name: string; by?: string | undefined; summary?: string; tags?: string[]; size?: string; picture?: ReactNode; dragId?: string; group?: string }>;
   sheet: ReactNode; emptyText: string;
   /** The folders (round 3): shown when not searching; `cards` are then the open folder's. */
   folders?: ReactNode;
@@ -44,12 +46,15 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
           {newButton}
         </>} />
       {isStories && <CollectionTools label="stories" query={search} onQuery={onSearch} recent={recent} onRecent={setRecent} />}
-      <div className="gallery-layout">
+      <div className={`gallery-layout${wide ? " wide-sheet" : ""}`}>
         <div className="gallery-grid">
           {!search.trim() && folders}
           <div className="gallery-cards" data-testid={`vault-${tab}`}>
             {isStories && <div className="collection-heading"><h2>{search ? "Search results" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
-            {visible.map((c) => <GalleryCard key={c.id} {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />)}
+            {visible.map((c, i) => <Fragment key={c.id}>
+              {c.group && c.group !== visible[i - 1]?.group && <div className="gallery-group" role="heading" aria-level={3}>{c.group}</div>}
+              <GalleryCard {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />
+            </Fragment>)}
           </div>
           {visible.length === 0 && <p className="hint gallery-empty">{search ? "Nothing matches, in any folder." : emptyText}</p>}
         </div>
@@ -140,67 +145,157 @@ export function KitSheet({ kit, narratorName, npcNames, cardNames, avatar, onIma
 }
 
 // ------------------------------------------------------------------------------------------------ narrators
-/** The fields of a narrator, for the Vault and for a narrator written for one story. */
-export function NarratorForm({ value, onChange }: { value: NarratorFields; onChange: (n: NarratorFields) => void }) {
+// D-059 (Daniel, 31/10): less busy, nothing below the fold to edit or compare. The narrator is its blocks (Role, Story,
+// NPCs, Dialogue… each with a switch), one Style line whose choices open only on "Change…", and what the AI gets beside
+// it. A blank narrator offers "Start from" any other narrator.
+
+const MODE_LABEL: Record<UserRole, string> = { player: "You play a character", coauthor: "Written together", director: "Director mode" };
+const STYLE_CHOICES: Array<{ key: keyof NarratorFields["style"]; label: string; options: string[] }> = [
+  { key: "pov", label: "Point of view", options: ["first person", "second person", "third person", "third person omniscient"] },
+  { key: "tense", label: "Tense", options: ["past", "present"] },
+  { key: "length", label: "Length", options: ["short, about 150 words", "about 300–500 words", "long, about 700 words"] },
+  { key: "tone", label: "Tone", options: ["dark", "adventurous", "light", "literary", "horror", "romantic", "comedic"] },
+  { key: "pacing", label: "Pacing", options: ["slow burn", "steady", "fast"] },
+  { key: "dialogue", label: "Dialogue", options: ["mostly dialogue", "balanced", "mostly narration"] },
+  { key: "mature", label: "Mature scenes", options: ["fade out", "shown when the story leads there"] },
+];
+const firstLine = (t: string) => t.replace(/<\/?[a-z_]+>/gi, "").trim().split("\n").find((l) => l.trim())?.trim() ?? "";
+const newBlockId = () => `block-${Math.random().toString(36).slice(2, 9)}`;
+
+/** The fields of a narrator, for the Library and for a narrator written for one story. `starts` = narrators a blank one can start from. */
+export function NarratorForm({ value, onChange, starts = [] }: { value: NarratorFields; onChange: (n: NarratorFields) => void; starts?: Narrator[] }) {
   const set = <K extends keyof NarratorFields>(k: K, v: NarratorFields[K]) => onChange({ ...value, [k]: v });
-  const style = (k: keyof NarratorFields["style"], label: string, placeholder: string) => (
-    <label><span className="field-label">{label}</span>
-      <input aria-label={label} value={value.style[k]} placeholder={placeholder} onChange={(e) => onChange({ ...value, style: { ...value.style, [k]: e.target.value } })} />
-    </label>
-  );
+  const blocks = narratorBlocks(value);
+  const setBlocks = (b: NarratorFields["blocks"]) => onChange({ ...value, blocks: b, instructions: blocksText(b) });
+  const [open, setOpen] = useState<string | null>(null);
+  const [styling, setStyling] = useState(false);
+  const style = (k: keyof NarratorFields["style"], v: string) => onChange({ ...value, style: { ...value.style, [k]: v } });
+  const move = (i: number, d: -1 | 1) => { const b = [...blocks]; const j = i + d; if (j < 0 || j >= b.length) return; [b[i], b[j]] = [b[j]!, b[i]!]; setBlocks(b); };
   return (
-    <div className="narrator-form">
-      <label><span className="field-label">Name</span><input aria-label="Narrator name" value={value.name} onChange={(e) => set("name", e.target.value)} /></label>
-      <label>
-        <span className="field-label label-row">Instructions <Help text="How this narrator tells a story: what it describes, how it voices people, what it never does. Sent where a character's description would go. {{user}} becomes your name." /></span>
-        <textarea rows={6} aria-label="Narrator instructions" value={value.instructions} onChange={(e) => set("instructions", e.target.value)} />
-      </label>
-      <div className="form-grid">
-        {style("pov", "Point of view", "e.g. second person")}
-        {style("tense", "Tense", "e.g. present")}
-        {style("length", "Length", "e.g. 2–4 paragraphs")}
-        {style("tone", "Tone", "e.g. grim, wry")}
+    <div className="narrator-form nf">
+      <div className="form-grid nf-top">
+        <label><span className="field-label">Name</span><input aria-label="Narrator name" value={value.name} onChange={(e) => set("name", e.target.value)} /></label>
+        <label><span className="field-label">What kind of storytelling <small className="hint">(for you, not sent)</small></span>
+          <input aria-label="What kind of storytelling" value={value.about} placeholder="e.g. A fair-play mystery with real clues" onChange={(e) => set("about", e.target.value)} /></label>
       </div>
+      <div className="row-line wrap nf-modes"><span className="hint">Written for</span>
+        {(Object.keys(MODE_LABEL) as UserRole[]).map((m) => (
+          <button key={m} type="button" className={`fchip${value.modes.includes(m) ? " on" : ""}`} aria-pressed={value.modes.includes(m)}
+            onClick={() => set("modes", value.modes.includes(m) ? value.modes.filter((x) => x !== m) : [...value.modes, m])}>{MODE_LABEL[m]}</button>))}
+        {!value.modes.length && <span className="hint">any mode</span>}
+      </div>
+
+      <div className="nf-style">
+        <span className="hint">Style</span>
+        {STYLE_CHOICES.map((c) => value.style[c.key]?.trim()
+          ? <span key={c.key} className="nf-pill" title={c.label}>{value.style[c.key]}</span>
+          : <span key={c.key} className="nf-pill empty">{c.label}: —</span>)}
+        <span className="spacer" />
+        <button type="button" className="link" aria-expanded={styling} onClick={() => setStyling((v) => !v)}>{styling ? "Done" : "Change…"}</button>
+      </div>
+      {styling && (
+        <div className="nf-style-rows" role="group" aria-label="Style">
+          {STYLE_CHOICES.map((c) => {
+            const cur = value.style[c.key] ?? "";
+            const custom = cur && !c.options.includes(cur);
+            return (
+              <div key={c.key} className="nf-srow"><b>{c.label}</b>
+                <span className="nf-opts">
+                  <button type="button" className={`fchip${!cur ? " on" : ""}`} onClick={() => style(c.key, "")}>Not set</button>
+                  {c.options.map((o) => <button key={o} type="button" className={`fchip${cur === o ? " on" : ""}`} onClick={() => style(c.key, o)}>{o}</button>)}
+                  <input aria-label={c.label} placeholder="or your words" value={custom ? cur : ""} onChange={(e) => style(c.key, e.target.value)} />
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="row-line nf-blocks-head"><b>Instructions</b><span className="hint">blocks, sent in this order inside &lt;narrator&gt;</span><span className="spacer" />
+        <button type="button" className="link" onClick={() => { const id = newBlockId(); setBlocks([...blocks, { id, name: "New block", on: true, text: "" }]); setOpen(id); }}>+ Add a block</button></div>
+      {blocks.length === 0 && (
+        <div className="nf-blank">
+          <p className="hint">A blank narrator. Write a block, or start from one of these (it copies their blocks and style; change anything after):</p>
+          <div className="row-line wrap">{starts.filter((s) => narratorBlocks(s).length).map((s) => (
+            <button key={s.id} type="button" className="fchip" title={s.about} onClick={() => onChange({ ...value, blocks: narratorBlocks(s).map((b) => ({ ...b })), instructions: blocksText(narratorBlocks(s)), style: { ...s.style }, modes: [...s.modes], about: value.about || s.about })}>{s.name}</button>))}</div>
+        </div>
+      )}
+      <div className="nf-blocks">
+        {blocks.map((b, i) => (
+          <div key={b.id} className={`nf-block${open === b.id ? " open" : ""}${b.on ? "" : " off"}`} data-testid="narrator-block">
+            <div className="nf-block-head">
+              <Switch label={`${b.name || "Block"} on`} checked={b.on} onChange={(v) => setBlocks(blocks.map((x) => (x.id === b.id ? { ...x, on: v } : x)))} />
+              <button type="button" className="nf-block-title" aria-expanded={open === b.id} onClick={() => setOpen(open === b.id ? null : b.id)}>
+                <b>{b.name || "Block"}</b><small>{firstLine(b.text) || "empty"}</small></button>
+              <span className="nf-block-acts">
+                <IconButton label={`Move ${b.name} up`} disabled={i === 0} onClick={() => move(i, -1)}><span className="flip"><Icon name="chevron" size={12} /></span></IconButton>
+                <IconButton label={`Move ${b.name} down`} disabled={i === blocks.length - 1} onClick={() => move(i, 1)}><Icon name="chevron" size={12} /></IconButton>
+              </span>
+            </div>
+            {open === b.id && (
+              <div className="nf-block-body">
+                <div className="row-line"><input aria-label="Block name" value={b.name} onChange={(e) => setBlocks(blocks.map((x) => (x.id === b.id ? { ...x, name: e.target.value } : x)))} />
+                  <span className="spacer" /><button type="button" className="link quiet" onClick={() => setBlocks(blocks.filter((x) => x.id !== b.id))}>Remove block</button></div>
+                <textarea rows={12} aria-label={`${b.name || "Block"} text`} className="mono" value={b.text} onChange={(e) => setBlocks(blocks.map((x) => (x.id === b.id ? { ...x, text: e.target.value } : x)))} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
       <div className="row-line">
         <Switch checked={value.mayAddNpcs} onChange={(v) => set("mayAddNpcs", v)} label="May bring in new people" />
         <span className="label-row">May bring in new people <Help text="On: the narrator may invent new named people when the story needs them. Off: only the people of the story." /></span>
       </div>
       <label>
-        <span className="field-label label-row">Every turn <Help text="A short reminder sent right before each reply (like a card's post-history instructions), e.g. 'Keep replies under 300 words.'" /></span>
+        <span className="field-label label-row">Reminder before each reply <Help text="A short reminder sent right before each reply (like a card's post-history instructions), e.g. 'Keep replies under 300 words.'" /></span>
         <textarea rows={2} aria-label="Turn instruction" value={value.turnInstruction} onChange={(e) => set("turnInstruction", e.target.value)} />
       </label>
     </div>
   );
 }
 
-export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTrash, onDuplicate, folder }: {
+export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTrash, onDuplicate, folder, starts = [] }: {
   narrator: Narrator; usedBy: string[]; avatar?: Avatar | undefined; onImage?: ((file: File | null) => void) | undefined; folder?: ReactNode;
-  onSave: (n: Narrator) => Promise<void>; onTrash: () => Promise<void>; onDuplicate: () => void;
+  onSave: (n: Narrator) => Promise<void>; onTrash: () => Promise<void>; onDuplicate: () => void; starts?: Narrator[];
 }) {
   const [draft, setDraft] = useState(narrator);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  // "What the AI gets" beside the form on wide windows, as a tab on narrow ones (D-059: no scrolling to compare)
+  const [tab, setTab] = useState<"edit" | "sent">("edit");
   useEffect(() => { setDraft(narrator); setSaved(false); setError(""); }, [narrator]);
   const save = async () => {
     if (!draft.name.trim()) { setError("The narrator needs a name."); return; }
     try { await onSave({ ...draft, name: draft.name.trim() }); setSaved(true); setError(""); } catch (e) { setError(errorText(e)); }
   };
   return (
-    <div className="view-sheet" data-testid="narrator-sheet">
-      <div className="vs-head">
-        <ImagePicker name={draft.name} avatar={avatar} onChange={onImage} size={56} testId="narrator-image" />
+    <div className={`view-sheet narrator-editor tab-${tab}`} data-testid="narrator-sheet">
+      <div className="ne-head">
+        <ImagePicker name={draft.name} avatar={avatar} onChange={onImage} size={44} testId="narrator-image" />
         <div className="vs-title"><h2>{draft.name || "Narrator"}</h2>
           <span className="hint">{narrator.builtin ? "Comes with Homunculus. " : ""}{usedBy.length ? `Tells ${usedBy.map((n) => `“${n}”`).join(", ")}` : "Not used by a story yet"}</span></div>
-      </div>
-      {folder}
-      <NarratorForm value={draft} onChange={(n) => { setDraft({ ...draft, ...n }); setSaved(false); }} />
-      {error && <div className="error-bar inline" role="alert">{error}</div>}
-      <div className="vs-actions">
-        <Button variant="prominent" onClick={() => void save()}>Save</Button>
-        {saved && <span className="ok-text">✓ Saved</span>}
-        <Button onClick={onDuplicate}>Duplicate</Button>
         <span className="spacer" />
+        {saved && <span className="ok-text">✓ Saved</span>}
+        <Button variant="prominent" onClick={() => void save()}>Save</Button>
+        <Button onClick={onDuplicate}>Duplicate</Button>
         {!narrator.builtin && <Button variant="destructive" small onClick={() => void onTrash().catch((e) => setError(errorText(e)))}>Move to Trash</Button>}
+      </div>
+      {error && <div className="error-bar inline" role="alert">{error}</div>}
+      <div className="ne-tabs" role="tablist" aria-label="Narrator">
+        <button type="button" role="tab" aria-selected={tab === "edit"} className={`fchip${tab === "edit" ? " on" : ""}`} onClick={() => setTab("edit")}>Edit</button>
+        <button type="button" role="tab" aria-selected={tab === "sent"} className={`fchip${tab === "sent" ? " on" : ""}`} onClick={() => setTab("sent")}>What the AI gets</button>
+      </div>
+      <div className="ne-body">
+        <div className="ne-form">
+          {folder}
+          <NarratorForm value={draft} starts={starts.filter((s) => s.id !== draft.id)} onChange={(n) => { setDraft({ ...draft, ...n }); setSaved(false); }} />
+        </div>
+        <aside className="ne-preview" aria-label="What the AI gets">
+          <b>What the AI gets</b>
+          <pre className="ne-aigets" data-testid="narrator-preview">{narratorText(draft)}</pre>
+          <p className="hint">Sent where a character's description goes. The story's mode adds one line of its own (who writes you).</p>
+        </aside>
       </div>
     </div>
   );
@@ -314,8 +409,10 @@ export const storyCard = (st: Story, narratorName: string, sessions: number, ava
   picture: <StoryMark name={st.name} avatar={avatar} size={64} />,
 });
 
+/** Which group a narrator is listed under (D-059): the one mode it is written for, else "Any mode". */
+export const narratorGroup = (n: Narrator) => (n.modes.length === 1 ? MODE_LABEL[n.modes[0]!] : "Any mode");
 export const narratorCard = (n: Narrator, used: number, avatar?: Avatar) => ({
-  id: n.id, name: n.name, by: n.builtin ? "Comes with Homunculus" : undefined, summary: n.about.trim() || n.instructions.slice(0, 220) || "No instructions",
+  id: n.id, name: n.name, group: narratorGroup(n), by: n.builtin ? "Comes with Homunculus" : undefined, summary: n.about.trim() || n.instructions.slice(0, 220) || "No instructions",
   tags: [n.style.pov, n.style.tone].filter(Boolean), size: used ? `${used} stor${used === 1 ? "y" : "ies"}` : "",
   picture: avatar ? <CardPicture name={n.name} avatar={avatar} /> : <span className="card-pic letter narrator" aria-hidden><Icon name="scroll" size={26} /></span>,
 });

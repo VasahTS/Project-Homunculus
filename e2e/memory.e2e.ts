@@ -35,5 +35,5 @@ test("an agent's style is picked in the ✦ panel and How it shows is drawn", as
   await expect(menu.getByTestId("agents-menu-item").filter({ hasText: "Group Chat" })).toContainText("4chan");
   await menu.getByRole("button", { name: "Edit Group Chat" }).click();
   await expect(page.getByRole("radiogroup", { name: "View" }).getByRole("radio", { name: "A feed of posts" })).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("radiogroup", { name: "How the note shows" }).locator("svg")).toHaveCount(4);
+  await expect(page.getByRole("radiogroup", { name: "How the note shows" }).locator("svg")).toHaveCount(5);
 });

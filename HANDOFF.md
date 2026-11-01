@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Draft 2 in the app, functional (2026-10-31, night) — CLAUDE — D-059
+
+- Daniel: "not yet how I imagine it, but OK for now if it works". The agent editor is now section cards (phases **Pre-Generation / Parallel / Post-Processing**, How it runs incl. inline, context sources incl. chapters / Author's Note / previous notes / min tokens, model override, variables, use as written, hidden notes). The Narrators page is list + wide editor with blocks, one Style line and "What the AI gets" beside it; everything the narrator sends is inside `<narrator>…</narrator>`; New Narrator is blank with "Start from".
+- Still ⏳ (see D-059): shared requests, keep notes in history, lorebook scan, preset block, hold until rewritten, append rewrites, format, pin, agent folders, per-story variables screen.
+- Tests: 276 unit tests; agents, try-it, memory, stories, round2/3, reliability and prompt-control click tests pass (61).
+
 ## Narrators for the 3 modes + draft 2 of the agent and narrator screens (2026-10-31, late) — CLAUDE — D-058
 
 - **Draft 1 rejected** ("still weird, you didn't really look at the two apps; it needs the same or more options than v1; the narrator part is VERY busy; the narrators are too simple"). **Draft 2** (`docs/drafts/agents-v4/index.html`) is built from Daniel's screenshots of Marinara's and v1's editors; `docs/UI-PLAN.md` → "Agents v4 and narrators" has a table of every v1/Marinara option and where it goes (✓ / ➕ / ⏳), and 4 open questions. No screen code until he approves.

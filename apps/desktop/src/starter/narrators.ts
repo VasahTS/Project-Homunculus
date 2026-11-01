@@ -23,4 +23,15 @@ export async function installStarterNarrators(store: SqlStore): Promise<void> {
     changed = true;
   }
   if (changed) await store.setAppSetting(KEY, [...installed]);
+  // D-059: copies installed before narrators had blocks get them once, only when their text is still the starter's
+  if (!(await store.getAppSetting<boolean>(BLOCKS_KEY))) {
+    for (const n of STARTER_NARRATORS) {
+      const have = await store.narrators.get(n.id);
+      if (have && !have.blocks.length && have.instructions.trim() === (n.instructions ?? "").trim()) {
+        await store.saveNarrator({ ...have, blocks: n.blocks ?? [], style: { ...have.style, ...n.style } });
+      }
+    }
+    await store.setAppSetting(BLOCKS_KEY, true);
+  }
 }
+const BLOCKS_KEY = "starterNarratorBlocks.v1";

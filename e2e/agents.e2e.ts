@@ -30,7 +30,7 @@ test("Library → Agents: the starter examples in a table, a list view, and an e
   await editor.getByRole("button", { name: "Close" }).click();
   await expect(table.getByTestId("agent-row").filter({ hasText: "Line Editor" })).toHaveCount(1);
   await page.getByTestId("agents-view-list").click();
-  await expect(page.getByTestId("agent-list")).toContainText("Rewrites the reply");
+  await expect(page.getByTestId("agent-list")).toContainText("Post-Processing");
   await expect(page.getByTestId("agent-list")).toContainText("Line Editor");
 });
 

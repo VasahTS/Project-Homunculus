@@ -87,8 +87,16 @@ export const AgentConfig = z.object({
       persona: z.boolean().default(false),
       /** The story's / chat's scenario (D-048). */
       scenario: z.boolean().default(false),
+      /** This chat's Author's Note text (D-059). */
+      authorsNote: z.boolean().default(false),
+      /** The chat's memory: chapter summaries on this branch (D-059). */
+      chapters: z.boolean().default(false),
+      /** Its own latest notes on this branch, so it updates instead of starting over (D-059; v1 "Include prior notes"). 0 = none. */
+      previousNotes: z.number().int().min(0).max(20).default(0),
+      /** Runs only when the messages it would read reach about this many tokens (D-059; v1 "Min Context Tokens"). */
+      minTokens: z.number().int().min(0).default(0),
     })
-    .default({ messages: 6, lorebooks: false, cards: true, state: true, readsAgents: [], persona: false, scenario: false }),
+    .default({ messages: 6, lorebooks: false, cards: true, state: true, readsAgents: [], persona: false, scenario: false, authorsNote: false, chapters: false, previousNotes: 0, minTokens: 0 }),
   conditions: AgentConditions.default({
     keywords: [], probability: 100, generationTypes: [], roles: [], minMessages: 0, state: [],
   }),
@@ -120,8 +128,9 @@ export const AgentConfig = z.object({
     .optional(),
   /** How the app shows the result (D-047, D-048). Each kind has a default; nothing here changes what the agent does. */
   display: z.object({
-    /** Notes: a closed label under the reply, an open card under it, only in the agents panel, or a view (D-049). */
-    note: z.enum(["message", "card", "menu", "view"]).default("message"),
+    /** Notes: a closed label under the reply, an open card under it, only in the agents panel, a view (D-049), or hidden: only
+     * the story's AI reads it (D-059; v1 "Hidden feedback note"). */
+    note: z.enum(["message", "card", "menu", "view", "hidden"]).default("message"),
     /** For note = "view": how the app draws the agent's structured answer, with its own parts (never the agent's HTML). */
     view: z.enum(["feed", "phone", "sheet", "cards"]).default("feed"),
     /** Choices: buttons under the reply, a numbered list in the reply, above the message box, or only in the panel. */
@@ -142,6 +151,18 @@ export const AgentConfig = z.object({
    * Override). Unset = the setup's connection for agents, else the story's. A story/chat override still wins.
    */
   connectionId: Id.nullable().optional(),
+  /** A model name used instead of the connection's (D-059; v1 "Model Override"). Empty = the connection's model. */
+  modelOverride: z.string().optional(),
+  /** Its instructions are sent as written, without the answer format the app adds (D-059; v1 "Use agent prompt as-is"). */
+  rawPrompt: z.boolean().optional(),
+  /** A small picture for lists (an emoji) and who wrote it (D-059, like Marinara's Description + Author). */
+  icon: z.string().optional(),
+  author: z.string().optional(),
+  /**
+   * Variables (D-059; Marinara's agent "Defaults" like {{banned}}): `{{key}}` in the instructions becomes the value.
+   * A story or chat can change a value (SetupLayer.agentOverrides[id].settings[key]).
+   */
+  variables: z.array(z.object({ key: z.string().regex(/^[a-z][a-z0-9_]*$/), label: z.string().default(""), value: z.string().default("") })).optional(),
   /**
    * Notes only (D-057): the story's AI sees this agent's latest notes on the next replies (v1 "Feed recent notes into
    * future generations"). Unset = on for notes shown in the chat (label / card), off for views and panel-only notes.

@@ -27,16 +27,29 @@ export const AGENT_KINDS: AgentKind[] = [
 export const kindOf = (a: AgentConfig): AgentKind | undefined => AGENT_KINDS.find((k) => k.output === a.output);
 export const isAgent = (a: AgentConfig): boolean => !!kindOf(a);
 
+/** The three phases around a reply (D-059: Marinara's names, Daniel's pick), and the kinds that fit each. */
+export type AgentPhase = "before" | "parallel" | "after";
+export const PHASES: Array<{ id: AgentPhase; label: string; sub: string; kinds: AgentOutputKind[] }> = [
+  { id: "before", label: "Pre-Generation", sub: "Before the reply: shapes what the AI writes", kinds: ["inject", "intercept"] },
+  { id: "parallel", label: "Parallel", sub: "At the same time as the reply; can't change it", kinds: ["note", "proposal"] },
+  { id: "after", label: "Post-Processing", sub: "After the reply: reads or edits it", kinds: ["rewrite", "check", "choices", "note", "proposal"] },
+];
+/** The phase of an agent that runs on every reply; "after" for every-N and manual agents. */
+export function phaseOf(a: AgentConfig): AgentPhase {
+  const t = a.triggers.find((x) => x.on === "turn");
+  return t?.on === "turn" ? (t.phase === "parallel" ? "parallel" : t.phase) : "after";
+}
+
 /** When it runs, in plain words. */
-export type AgentWhen = "before" | "after" | "everyN" | "manual";
+export type AgentWhen = "before" | "parallel" | "after" | "everyN" | "manual";
 export const WHEN_LABELS: Record<AgentWhen, string> = {
-  before: "Before every reply", after: "After every reply", everyN: "Every N messages", manual: "Only when I ask",
+  before: "Pre-Generation · every reply", parallel: "Parallel · every reply", after: "Post-Processing · every reply", everyN: "Every N messages", manual: "Only when I ask",
 };
 export function whenOf(a: AgentConfig): { when: AgentWhen; n: number } {
   const t = a.triggers[0];
   if (t?.on === "everyN") return { when: "everyN", n: t.n };
   if (t?.on === "manual") return { when: "manual", n: 10 };
-  if (t?.on === "turn") return { when: t.phase === "before" ? "before" : "after", n: 10 };
+  if (t?.on === "turn") return { when: t.phase, n: 10 };
   return { when: "after", n: 10 };
 }
 export function triggersFor(when: AgentWhen, n: number): AgentConfig["triggers"] {
@@ -59,7 +72,7 @@ export function blankAgent(output: AgentOutputKind = "inject"): AgentConfigInput
     id: `agent-${crypto.randomUUID()}`, name: "", help: "", triggers: triggersFor(kind.when, output === "proposal" ? 4 : 10), output,
     ...(output === "proposal" ? { proposal: { target: "lorebook" as const } } : {}),
     runMode: output === "inject" ? "text" : "separate", prompt: "",
-    input: { messages: output === "inject" ? 0 : 4, lorebooks: false, cards: output !== "inject", state: false, readsAgents: [], persona: false, scenario: false },
+    input: { messages: output === "inject" ? 0 : 4, lorebooks: false, cards: output !== "inject", state: false, readsAgents: [], persona: false, scenario: false, authorsNote: false, chapters: false, previousNotes: 0, minTokens: 0 },
     ...(output === "inject" ? { injection: { position: "depth" as const, depth: 1, role: "system" as const } } : {}),
     ...(output === "check" ? { check: { onFail: "warn" as const, maxRetries: 1 } } : {}),
     ...(output === "note" ? { display: { note: "message" as const } } : {}),

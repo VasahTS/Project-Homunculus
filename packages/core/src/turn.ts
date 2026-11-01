@@ -10,7 +10,7 @@ import { AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
 import type { Character, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, Session, Story } from "@homunculus/schemas";
 import { AgentRunner, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
 import { extractInline, inlineInstruction, parseAnswer } from "./agents/outputs.ts";
-import { withStyle } from "./agents/styles.ts";
+import { prepared } from "./agents/styles.ts";
 import { noteInjections } from "./agents/feedback.ts";
 import { isAbort } from "./connections.ts";
 import type { HomunculusCore } from "./core.ts";
@@ -451,7 +451,7 @@ export class TurnPipeline {
     // agents that only add their own text cost nothing: the preview shows them (D-047); the others would need an AI call
     const textAgents = await this.runner.select(entries, { ...base, trigger: "turn.before" }, (a) => isTurn(a, "before") && a.runMode === "text" && a.output === "inject");
     const injections: PromptInjection[] = [];
-    for (const e of textAgents) injections.push(injectionOf({ agentId: e.config.id, kind: "inject", config: e.config, output: await this.runner.textAnswer(withStyle(e.config, setup), { ...base, text: options.userText ?? "" }) }));
+    for (const e of textAgents) injections.push(injectionOf({ agentId: e.config.id, kind: "inject", config: e.config, output: await this.runner.textAnswer(prepared(e.config, setup), { ...base, text: options.userText ?? "" }) }));
     // notes already written cost nothing either (D-057)
     if (parentId) injections.push(...await noteInjections(this.store, entries.map((e) => e.config), await this.store.pathTo(parentId)).catch(() => []));
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: speaking.character, persona: effPersona,
@@ -577,7 +577,7 @@ export class TurnPipeline {
       persona: a.persona ? { name: a.persona.name, description: a.persona.description, placement: a.persona.placement } : undefined,
       sessionScenario: a.session.scenario, history: memory.history, names: { char: a.names.char, user: a.names.user }, scene,
       injections,
-      inline: a.inlineAgents.map((e) => ({ agentId: e.config.id, text: inlineInstruction(e.config, a.names) })),
+      inline: a.inlineAgents.map((e) => ({ agentId: e.config.id, text: inlineInstruction(prepared(e.config, a.setup), a.names) })),
       reserve: a.main.params?.maxTokens ?? 1024,
       ...(lore ? { worldInfo: lore.prompt } : {}),
       authorsNote: { ...a.setup.authorsNote, goes: authorsNoteGoes(a.setup.authorsNote.interval, a.history) },

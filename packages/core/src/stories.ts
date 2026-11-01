@@ -19,26 +19,38 @@ export const SIMPLE_NARRATOR: Narrator = {
   instructions:
     "You are the narrator of this story. Describe the scene and voice every other character in it. Keep the story moving, " +
     "show what happens through action and dialogue, and end each reply at a moment where {{user}} can respond.",
-  style: { pov: "", tense: "", length: "", tone: "" },
+  style: { pov: "", tense: "", length: "", tone: "", pacing: "", dialogue: "", mature: "" },
+  blocks: [],
   mayAddNpcs: true,
   turnInstruction: "",
 };
 
-/** The narrator's text, sent where a card's description goes. */
+/** The narrator's blocks (D-059): its own, else its plain instructions as one block. */
+export function narratorBlocks(n: Pick<NarratorFields, "blocks" | "instructions">): NarratorFields["blocks"] {
+  if (n.blocks?.length) return n.blocks;
+  return n.instructions.trim() ? [{ id: "instructions", name: "Instructions", on: true, text: n.instructions }] : [];
+}
+
+/** The joined text of the blocks that are on (kept in `instructions` so older readers still see it). */
+export const blocksText = (blocks: NarratorFields["blocks"]) => blocks.filter((b) => b.on && b.text.trim()).map((b) => b.text.trim()).join("\n\n");
+
+/** The narrator's style rows in plain words (D-059). */
+export const NARRATOR_STYLE_ROWS = [["pov", "point of view"], ["tense", "tense"], ["length", "length"], ["tone", "tone"], ["pacing", "pacing"], ["dialogue", "dialogue"], ["mature", "mature scenes"]] as const;
+
+/**
+ * The narrator's text, sent where a card's description goes. Everything is wrapped in <narrator>…</narrator> (Daniel,
+ * 31/10: "so the narrator's things aren't thrown around loose"): its blocks, its style, and whether it may add people.
+ */
 export function narratorText(n: NarratorFields): string {
-  const style = [
-    n.style.pov && `point of view: ${n.style.pov}`,
-    n.style.tense && `tense: ${n.style.tense}`,
-    n.style.length && `length: ${n.style.length}`,
-    n.style.tone && `tone: ${n.style.tone}`,
-  ].filter(Boolean);
-  return [
-    n.instructions.trim(),
+  const style = NARRATOR_STYLE_ROWS.map(([k, label]) => (n.style[k] ?? "").trim() && `${label}: ${n.style[k]!.trim()}`).filter(Boolean);
+  const body = [
+    blocksText(narratorBlocks(n)),
     style.length ? `Style — ${style.join("; ")}.` : "",
     n.mayAddNpcs
       ? "You may bring in new people when the story needs them."
       : "Do not bring in new named people: use only the people you were given.",
   ].filter((x) => x.trim()).join("\n\n");
+  return `<narrator>\n${body}\n</narrator>`;
 }
 
 /** A narrator as the prompt builder sees a card (name, description, post-history instructions). */

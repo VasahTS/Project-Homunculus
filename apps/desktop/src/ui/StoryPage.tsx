@@ -151,7 +151,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   const pickNarrator = (v: string) => {
     if (v === "own") {
       const base: NarratorFields = vaultNarrator ?? SIMPLE_NARRATOR;
-      change({ narrator: { kind: "own", narrator: { name: base.name === SIMPLE_NARRATOR.name ? "Narrator" : base.name, about: base.about, modes: [...base.modes], instructions: base.instructions, style: { ...base.style }, mayAddNpcs: base.mayAddNpcs, turnInstruction: base.turnInstruction } } });
+      change({ narrator: { kind: "own", narrator: { name: base.name === SIMPLE_NARRATOR.name ? "Narrator" : base.name, about: base.about, modes: [...base.modes], blocks: base.blocks.map((b) => ({ ...b })), instructions: base.instructions, style: { ...base.style }, mayAddNpcs: base.mayAddNpcs, turnInstruction: base.turnInstruction } } });
     } else if (v.startsWith("vault:")) change({ narrator: { kind: "vault", id: v.slice(6) } });
     else change({ narrator: { kind: "card", characterId: v.slice(5), variantId: null } });
   };
@@ -278,7 +278,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                     {narratorCard && <p className="hint">The card {narratorCard.name} is sent as it is (its system prompt, description and lorebooks).</p>}
                     {draft.narrator.kind === "own" && (
                       <>
-                        <NarratorForm value={draft.narrator.narrator} onChange={(n) => change({ narrator: { kind: "own", narrator: n } })} />
+                        <NarratorForm value={draft.narrator.narrator} starts={narrators} onChange={(n) => change({ narrator: { kind: "own", narrator: n } })} />
                         <Button small onClick={() => void saveOwnToVault()}>Save to the Library</Button>
                       </>
                     )}

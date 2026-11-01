@@ -174,7 +174,7 @@ test("a context-read failure retries without a model call; an empty before-turn 
  await expect(dialog.getByRole("status")).toHaveText("Ready to run");expect(await count(page)).toBe(0);
  await page.keyboard.press("Escape");await ed.getByRole("button",{name:"Close",exact:true}).click();
  await page.getByRole("button",{name:"New Agent",exact:true}).click();
- await ed.getByRole("radio",{name:"Written by an AI",exact:true}).click();
+ await ed.getByRole("radio",{name:/^Its own AI call/}).click();
  await ed.getByRole("button",{name:"Try it",exact:true}).click();
  await expect(dialog.getByTestId("agent-try-run")).toBeDisabled();
  await expect(dialog).toContainText("This chat has no user message to test yet.");
