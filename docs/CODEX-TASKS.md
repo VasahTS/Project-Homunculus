@@ -38,6 +38,26 @@ Report: questions for Daniel go in the HANDOFF entry, not in code.
 
 ## Queue
 
+### T-004 · Fix the seven Assistant audit bugs (A1–A7)                    Status: Ready
+Goal: every finding in `docs/ASSISTANT-RELIABILITY-AUDIT.md` is fixed, and its reproduction passes as an ordinary test (no `.fails` / `test.fail`). Daniel is about to try the Assistant with a real model, so this goes first.
+Context: D-062, D-064, your own report `docs/ASSISTANT-RELIABILITY-AUDIT.md` (A1–A7, sources and evidence), reproductions in `apps/desktop/src/assistant/assistant-audit.test.ts` and `e2e/assistant-audit.e2e.ts`.
+Files you may change: `apps/desktop/src/assistant/{tools,engine}.ts`, `apps/desktop/src/ui/Assistant.tsx` (behavior only), the two audit test files, `e2e/assistant.e2e.ts` (only if a fix changes a step it checks), `docs/ASSISTANT-RELIABILITY-AUDIT.md` (add a "Fixed" line per finding).
+Do not touch: schemas, stored data, the Assistant's UI layout or text, its token budget rules and defaults (D-062), the tool list or tool descriptions the model sees (except A6's continuation hint numbers), prompt assembly outside the Assistant.
+The fix for each, as your report says:
+- A1: `import_file` (character and lorebook, embedded lore too) obeys "Ask me first" like `create`: a waiting proposal, nothing written before the OK.
+- A2: recheck the signal before each tool and before the next model call; a tool with several writes stops between writes and reports what it already did. Finished writes are not rolled back.
+- A3: the Kit stale snapshot reads the stored fields (`narrator`, `setup.lorebooks`) in the tool-facing shape, so an old proposal becomes stale after a manual change.
+- A4: `toTurns` tells the model the current outcome of each result card (undone, approved, discarded, moved) in one short line, keeping valid tool-call order.
+- A5: a guide can be read again when its full text is no longer in the request (after compaction or trimming); otherwise the "already have it" answer stays.
+- A6: paging keeps absolute offsets and the original total: second page of 9,000 chars says offset 5000 and 4,000 more.
+- A7: a reply that finishes only updates the chat it belongs to; selecting another chat during a reply shows that chat once loaded; the next send goes to the chat on screen.
+Done when:
+- [ ] each of A1–A7 has its expected-failure marker removed and passes normally (also with `H2_AUDIT_VERIFY=1`)
+- [ ] the report has a "Fixed" line per finding (file/function), and what was not tested (real API, native app)
+- [ ] npm run typecheck · npm test · npx playwright test e2e/assistant.e2e.ts e2e/assistant-audit.e2e.ts
+Size: M (if it grows past ~400 lines, stop after A1–A3 + A7, mark the card "In progress", and say so in HANDOFF).
+Report: questions for Daniel go in the HANDOFF entry, not in code.
+
 ### T-002 · Tests for the late-30/10 additions                           Status: Ready
 Goal: the things Claude added on the night of 30/10 have click tests, so later changes cannot break them silently.
 Context: HANDOFF "Small round (2026-10-30, late)", D-055, and the last commits on folder views (Ctrl+click picking, group drag, Ctrl+Z after a drag, Ctrl+A / Delete to Trash).
