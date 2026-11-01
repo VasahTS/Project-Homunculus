@@ -3,7 +3,7 @@
 // reported clearly instead of breaking the UI later. Data from older versions is
 // upgraded on read (schemas/legacy.ts), so no data migration is needed (D-008).
 import {
-  AgentConfig, AgentNote, AgentRun, Avatar, Branch, type BranchInput, Character, Folder, type FolderInput, type FolderKind, Kit, Narrator, Npc, Story, ConnectionProfile, GenerationRecord, Lorebook, LoreSettings, Preset, HistoryEntry, Message, MessageKind,
+  AgentConfig, AgentNote, AgentRun, Avatar, Branch, type BranchInput, Character, Folder, type FolderInput, type FolderKind, Kit, Narrator, Npc, Story, ConnectionProfile, GenerationRecord, Lorebook, LoreSettings, Preset, RegexScript, HistoryEntry, Message, MessageKind,
   MessageRevision, MessageVisibility, Persona, Session, SetupLayer, StateDelta, TrackerSchema, TrashItem, upgradeSession,
   type HistoryKind, type TrashKind,
   type AgentConfigInput, type AgentRunInput, type LorebookInput, type LoreTimers, type ConnectionProfileInput, type PresetInput, type CharacterInput, type MessageInput, type PersonaInput,
@@ -285,6 +285,18 @@ export class SqlStore implements StateRepository, MessageTree {
       `SELECT id, data FROM lorebooks WHERE trashed_at IS NULL AND id IN (${unique.map(() => "?").join(", ")})`, unique);
     const byId = new Map(rows.map((r) => [r.id, Lorebook.parse(JSON.parse(r.data))]));
     return unique.map((id) => byId.get(id)).filter((b): b is Lorebook => !!b);
+  }
+
+  /** Regex scripts that apply everywhere (SillyTavern's global scripts), in order. D-060. */
+  async getGlobalRegex(): Promise<RegexScript[]> {
+    const v = await this.getAppSetting("regex.global");
+    return Array.isArray(v) ? v.map((s) => RegexScript.parse(s)) : [];
+  }
+
+  async setGlobalRegex(scripts: RegexScript[]): Promise<RegexScript[]> {
+    const list = scripts.map((s) => RegexScript.parse(s));
+    await this.setAppSetting("regex.global", list);
+    return list;
   }
 
   /** How lorebooks are read (one set for the app for now). */

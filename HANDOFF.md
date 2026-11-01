@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Regex scripts — engine in, screens waiting for Daniel (2026-11-01) — CLAUDE — D-060
+
+- **In the app (no screens yet):** SillyTavern's regex engine ported (`core/regex.ts`), global → preset → character, run where SillyTavern runs them (saved user/AI text, reasoning, first messages, edits, prompt history and lore, display). Presets and cards already imported bring their embedded scripts (read from `original`). Global scripts: `store.getGlobalRegex/setGlobalRegex` (nothing in the UI sets them yet). Importer: `packages/st-regex` (one script, a list, settings.json, preset or card JSON).
+- **Proof:** 3,000 random cases against SillyTavern's own engine (`packages/st-regex/test/st-parity.test.ts`). Unit tests 285.
+- **Waiting for Daniel:** `docs/UI-PLAN.md` → "Regex scripts" (3 questions). Then a draft, then the screens.
+
 ## Daniel's PC folder fixed (2026-10-31, 23h30) — CLAUDE
 
 - `Pull dev.bat` (untracked, repo root) now stashes the regenerated lockfiles, moves untracked copies to `_before-pull\`, fast-forwards to `origin/dev` and runs `npm install`. Daniel ran it: the app works.

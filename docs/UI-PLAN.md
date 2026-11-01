@@ -413,3 +413,32 @@ The engine already works (D-027): it activates entries exactly like SillyTavern 
 3. Do you want **"Try it"** (L1b)? It is the fastest way to understand why an entry did not go in.
 4. In the chat, do you want a sign **on the message itself** that lorebooks went in (e.g. in the receipt under the reply: "· 3 lore") besides the Reply tab?
 5. Do you have a big lorebook of yours from ST (or v1) that I could use in the drafts? I need access to the `data/default-user/worlds` folder (the access request was blocked in this session).
+
+---
+
+## Regex scripts (D-060) — step 1, text plan (2026-11-01)
+
+**What it is for:** text that changes by itself — hide tags, format actions, clean up what the AI writes, change what the AI is sent. **When Daniel looks at it:** when importing a SillyTavern preset or card that brings scripts, and when a reply shows something odd.
+
+**Where it lives**
+- **Library → Regex** (new, beside Lorebooks): the global scripts, in order (drag to reorder; order matters). "Import" (SillyTavern: one script, a list, or settings.json) and "New script".
+- **Preset editor → Regex** and **Character editor → Regex**: the same list for the scripts that came with them (these run after the global ones).
+- **Prompt tab** (inspector): one line "Regex: Global 3 · Preset 2 · Character 1", each opens its list.
+
+**A script, closed (one row):** switch · name · what it touches in words ("AI replies, Lore") · a chip only when it is not the default ("Only on screen", "Only for the AI", "Not on edit", "Depth 0–3") · broken pattern = red "Pattern error".
+
+**A script, open (in place, like lorebook entries):**
+1. **Name**
+2. **Find** (monospace; `/pattern/flags`; the error is named under it, live) · **Replace with** (help line: `$1`, `{{match}}`, macros)
+3. **Applies to:** chips — User messages · AI replies · Lorebook entries · Reasoning · Commands
+4. **It changes:** one choice — *The saved message* (default) · *Only what I see* · *Only what the AI gets* · *What I see and what the AI gets*
+5. **More** (closed shows a one-line summary): Run on edit · Macros in Find (No / Yes / Yes, escaped) · Only messages from depth __ to __ · Remove from groups (trim strings)
+6. **Try it:** a text box (starts with the last AI reply) → the result beside it, matches highlighted.
+7. Duplicate · Delete · Export for SillyTavern
+
+**States:** empty ("No scripts. Import from SillyTavern or make one"), normal, full (30+ scripts: search by name/pattern), error (pattern error on the row; a slow script is paused with a notice "“<name>” was too slow and was paused").
+
+**Open questions for Daniel**
+1. Global scripts in **Library → Regex** (my suggestion) or in Settings?
+2. SillyTavern asks once per card "allow this card's scripts?" (cards from the internet can carry anything). Ask once per card, or run them always?
+3. Scripts that make HTML (status boxes, colors): show them **rendered** (in a safe box) soon, or later?

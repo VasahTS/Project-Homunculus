@@ -15,7 +15,7 @@ import { AgentsPanel } from "./AgentsPanel.tsx";
 import { MemoryGroup } from "./MemoryGroup.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
-import { applyBasicMacros, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona } from "@homunculus/core";
+import { applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona } from "@homunculus/core";
 import { WhoPicker } from "./WhoPicker.tsx";
 import type { AppServices } from "../core-instance.ts";
 import { turns, useTurn, type LiveTurn, type StreamTo } from "../turns.ts";
@@ -93,6 +93,13 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   /** Opens this story's version of its lorebook (after an agent added entries, D-049). */
   onOpenStoryLore?: (() => void) | undefined;
 }) {
+  // regex scripts for drawing messages (global → preset → character, D-060)
+  const [regex, setRegex] = useState<Awaited<ReturnType<typeof svc.chat.turns.regexForSession>>>({ scripts: [], ctx: { macros: (t) => t } });
+  useEffect(() => {
+    let live = true;
+    void svc.chat.turns.regexForSession(session.id).then((r) => { if (live) setRegex(r); }).catch(() => {});
+    return () => { live = false; };
+  }, [svc, session, presets, characters, defaultPresetId]);
   const loadLorebooks = useCallback(() => svc.chat.turns.lorebooksOf(session.id), [svc, session]);
   const [headId, setHeadId] = useState<string | null | undefined>(undefined);
   const [path, setPath] = useState<Message[]>([]);
@@ -428,10 +435,16 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const visible = path.slice(0, cut);
   const last = visible[visible.length - 1];
   const leadChar = charAsCast(session.cast[0]?.characterId ?? "");
-  /** Messages are stored raw; {{char}}/{{user}} are filled in for display (and in the prompt). */
-  const show = (text: string, m?: Message) => {
+  /**
+   * Messages are stored raw; {{char}}/{{user}} are filled in for display (and in the prompt). Display-only regex
+   * scripts run first (D-060; depth 0 = the newest message on screen).
+   */
+  const show = (text: string, m?: Message, depth?: number) => {
     const char = m?.speaker.kind === "character" ? charAsCast(m.speaker.characterId)?.name : leadChar?.name;
-    return applyBasicMacros(text, { char: char ?? leadChar?.name ?? "Narrator", user: userName });
+    const shown = regex.scripts.length
+      ? applyRegexScripts(regex.scripts, text, { target: m?.speaker.kind === "user" ? "user" : "ai", mode: "display", depth: depth ?? 0 }, { ...regex.ctx, ...(char ? { char } : {}) })
+      : text;
+    return applyBasicMacros(shown, { char: char ?? leadChar?.name ?? "Narrator", user: userName });
   };
 
   const lastAi = [...visible].reverse().find((m) => m.speaker.kind !== "user");
@@ -568,7 +581,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                   {m.reasoning && (
                     <details className="reasoning" data-testid="reasoning">
                       <summary>Reasoning</summary>
-                      <div className="reasoning-text">{m.reasoning}</div>
+                      <div className="reasoning-text">{regex.scripts.length ? applyRegexScripts(regex.scripts, m.reasoning, { target: "reasoning", mode: "display", depth: visible.length - i - 1 }, regex.ctx) : m.reasoning}</div>
                     </details>
                   )}
                   {isEditing ? (
@@ -583,7 +596,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                       </span>
                     </div>
                   ) : (
-                    <div className={user ? "text" : "text prose"}>{show(m.content, m)}</div>
+                    <div className={user ? "text" : "text prose"}>{show(m.content, m, visible.length - i - 1)}</div>
                   )}
                   {!user && !isEditing && <CheckLines results={agentResults.get(m.id)} agents={agents} canWriteAgain={isLastAi && m.parentId !== null && !busy} onWriteAgain={() => regenerate(m)} />}
                   {!user && !isEditing && <NoteChips results={agentResults.get(m.id)} agents={agents} onRun={againOn(m.id)} />}

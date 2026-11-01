@@ -1,6 +1,7 @@
 // Homunculus 2 — library items: characters (with variants), personas, avatars. Author: CLAUDE.
 // BLUEPRINT §2.1 and §2.5. Variants store only what differs from the main version.
 import { z } from "zod";
+import { RegexScript } from "./regex.ts";
 import { Id, Json } from "./common.ts";
 
 /** Card fields a variant may change. Same names as on Character. */
@@ -47,6 +48,8 @@ export const Character = z.object({
   variants: z.array(CharacterVariant).default([]),
   /** Lorebooks that come with this character (SillyTavern: the card's linked world + its embedded book). */
   lorebookIds: z.array(Id).default([]),
+  /** Regex scripts that come with it (SillyTavern: embedded scripts). Missing = the ones in `original`, if any. D-060. */
+  regexScripts: z.array(RegexScript).optional(),
   /** The original imported file (e.g. a SillyTavern V2/V3 card), kept intact for lossless export. */
   original: Json.optional(),
 });

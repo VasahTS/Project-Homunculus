@@ -27,3 +27,4 @@ export * from "./storage/sqljs-driver.ts";
 export * from "./chatExport.ts";
 export * from "./lore-versions.ts";
 export * from "./memory.ts";
+export * from "./regex.ts";

@@ -548,3 +548,16 @@ Daniel on draft 2: "still not how I imagine it, but if it works, it's OK for now
 - **Narrators**: everything inside `<narrator>…</narrator>`; **blocks** (`NarratorFields.blocks`: name, on/off, text; `instructions` keeps their joined text) and more style rows (`pacing`, `dialogue`, `mature`). The Narrators page is a narrow list grouped by mode beside a wide editor: header with Save always visible, one Style line (choices under "Change…"), blocks folded to one line each, "What the AI gets" beside it (a tab when the sheet is narrow). **New Narrator is blank** and offers "Start from" any narrator. Installed starter narrators get their blocks once if unchanged.
 - Not done yet (marked ⏳ in the plan): sharing one request between agents, keep notes in the chat history, lorebook scan of agent text, agent output as a preset block, hold the reply until rewritten, append-mode rewrites, format choice, pin to the ✦ panel, folders for agents, the per-story screen for variables.
 Signed: **CLAUDE**.
+
+## D-060 — Regex scripts, engine first (2026-11-01)
+
+Daniel (31/10): "finish the app first, then go back to details; the regex is still missing". Regex scripts did not exist; SillyTavern presets and cards that carry them were imported without them.
+- **Engine** (`core/regex.ts`): a port of SillyTavern's regex extension (`extensions/regex/engine.js` + `regexFromString`): find/replace with `$1`, `$<name>`, `{{match}}`, trim strings, macros in the pattern (none / raw / escaped), min/max depth, run on edit, display-only / prompt-only / neither (= changes the saved text). Priority as SillyTavern: **global → preset → character**. **Proof:** `packages/st-regex/test/st-parity.test.ts` runs SillyTavern's own engine next to ours on 3,000 random cases (same text). One difference on purpose: SillyTavern throws when `$N` points past the groups and a trim string is set; ours keeps going.
+- **Data:** `RegexScript` (`schemas/regex.ts`, plain names, table of SillyTavern's names in the file). Global scripts in the app setting `regex.global` (`getGlobalRegex` / `setGlobalRegex`); `Preset.regexScripts` and `Character.regexScripts` (optional). Missing = the scripts inside the imported SillyTavern file (`original`), so presets and cards imported before today already bring theirs.
+- **Where it runs** (like SillyTavern): user message when sent and AI reply when it arrives (saved), reasoning when it arrives, first messages, edits (only "run on edit" scripts); the prompt (history with depth, lorebook entries with the entry's depth when "in the chat"); the screen (display-only, depth 0 = newest; reasoning too). Agents' own regex (v1 postProcess) is not this yet.
+- **No "allow this card's scripts" step yet** (SillyTavern asks once per card): open question for Daniel in `docs/UI-PLAN.md` → "Regex scripts".
+- **Not stoppable:** JavaScript cannot interrupt a running regex. `onSlow` reports a script slower than 150 ms on one text so the screen can pause it (not wired to the UI yet).
+- **HTML** made by display scripts shows as text for now (messages are plain text). Rendering it in a sandboxed box is BLUEPRINT's `regex-render` module — later.
+- Screens: none yet ("draft before code"); plan in `docs/UI-PLAN.md`.
+
+Signed: **CLAUDE**.

@@ -4,6 +4,7 @@ import type { CastMemberInput, Message, Session, SetupLayer, StateDelta, UserRol
 import type { HomunculusCore } from "./core.ts";
 import type { ConnectionConfig } from "./extensions.ts";
 import type { SqlStore } from "./storage/store.ts";
+import { applyRegexScripts } from "./regex.ts";
 import { TurnPipeline, type TurnOptions, type TurnResult } from "./turn.ts";
 import { effectiveCharacter } from "./variants.ts";
 
@@ -101,7 +102,10 @@ export class ChatService {
     openings = openings.filter((t) => t.trim());
     if (!openings.length) return { session };
     let firstMessage: Message | undefined;
-    for (const text of openings) {
+    // regex scripts on first messages (D-060; SillyTavern: AI_OUTPUT when a chat starts)
+    const { scripts, ctx } = await this.turns.regexForSession(session.id);
+    for (const raw of openings) {
+      const text = applyRegexScripts(scripts, raw, { target: "ai", mode: "saved" }, ctx);
       const m = await this.store.addMessage({ id: this.newId(), sessionId: session.id, parentId: null, speaker, content: text, createdAt: this.now(), meta: {} });
       await this.core.events.emit("message.created", { sessionId: session.id, messageId: m.id });
       firstMessage ??= m;
@@ -146,9 +150,12 @@ export class ChatService {
   }
 
   /** The user edits a message. The old text is kept as a revision; later records are marked out of date. */
-  async editMessage(messageId: string, content: string): Promise<void> {
+  async editMessage(messageId: string, typed: string): Promise<void> {
     const m = await this.store.getMessage(messageId);
     if (!m) throw new Error(`Message "${messageId}" not found`);
+    // regex scripts marked "run on edit" (D-060)
+    const { scripts, ctx } = await this.turns.regexForSession(m.sessionId);
+    const content = applyRegexScripts(scripts, typed, { target: m.speaker.kind === "user" ? "user" : "ai", mode: "saved", edit: true }, ctx);
     if (m.content === content) return;
     await this.store.addRevision({ id: this.newId(), messageId, author: { kind: "user" }, before: m.content, after: content, createdAt: this.now() });
     await this.store.updateMessageContent(messageId, content);

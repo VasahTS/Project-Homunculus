@@ -3,6 +3,7 @@
 // MARKER that the app fills (the character's description, the chat history, the current scene…).
 // SillyTavern Chat Completion presets import into this shape and export back without loss (`original`).
 import { z } from "zod";
+import { RegexScript } from "./regex.ts";
 import { GenerationType, Id, Json } from "./common.ts";
 
 /**
@@ -79,6 +80,8 @@ export const Preset = z.object({
   }).default({ newChat: "", newExampleChat: "", continueNudge: "", impersonation: "", prefill: "" }),
   /** Join system messages that follow each other into one (some models want a single system message). */
   squashSystem: z.boolean().default(false),
+  /** Regex scripts that come with it (SillyTavern: embedded scripts). Missing = the ones in `original`, if any. D-060. */
+  regexScripts: z.array(RegexScript).optional(),
   /** The original imported file (SillyTavern preset), kept for lossless export. */
   original: Json.optional(),
 });

@@ -7,7 +7,7 @@
 //
 // Only step 5 is fatal: an agent failing never loses the reply.
 import { AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
-import type { Character, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, Session, Story } from "@homunculus/schemas";
+import type { Character, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, RegexScript, Session, Story } from "@homunculus/schemas";
 import { AgentRunner, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
 import { extractInline, inlineInstruction, parseAnswer } from "./agents/outputs.ts";
 import { prepared } from "./agents/styles.ts";
@@ -19,6 +19,7 @@ import { scanLorebooks, type LoreScope } from "./lorebook.ts";
 import { applyBasicMacros, DEFAULT_USER_NAME, expandMacros, type MacroContext } from "./macros.ts";
 import { applyPresetOverride } from "./prompt-control.ts";
 import { buildPrompt, DEFAULT_PRESET, presetParams, squashSystem, toTurns, type BuiltPrompt, type PromptInjection } from "./presets.ts";
+import { applyRegexScripts, orderRegexScripts, regexScriptsOf, type RegexRunContext } from "./regex.ts";
 
 /** Connection choices for one read-only editor test. CODEX, D-053. */
 export interface AgentPreviewOptions {
@@ -149,7 +150,9 @@ export class TurnPipeline {
     if (req.userText !== undefined) {
       const role = (session.storyId ? (await this.store.getStory(session.storyId))?.userRole : undefined) ?? session.userRole;
       const kind = req.userKind ?? (role === "player" ? "user" : "direction");
-      userMessage = await this.addMessage(session.id, parentId, { kind: "user" }, req.userText, { kind });
+      const scripts = await this.regexFor(preset, speaking.character);
+      const userText = applyRegexScripts(scripts, req.userText, { target: "user", mode: "saved" }, this.regexCtx(names));
+      userMessage = await this.addMessage(session.id, parentId, { kind: "user" }, userText, { kind });
       parentId = userMessage.id;
     }
     const siblings = parentId ? await this.store.childrenOf(session.id, parentId) : await this.store.childrenOf(session.id, null);
@@ -225,6 +228,10 @@ export class TurnPipeline {
       clean = r.text;
       if (r.block !== null) inlineAnswers.push({ entry: e, block: r.block });
     }
+    // regex scripts that change the saved reply (D-060; SillyTavern: AI_OUTPUT / REASONING when a reply arrives)
+    const scripts = await this.regexFor(preset, speaking.character);
+    clean = applyRegexScripts(scripts, clean, { target: "ai", mode: "saved" }, this.regexCtx(names, chosen.speaker.kind === "character" ? names.char : undefined));
+    if (reasoning) reasoning = applyRegexScripts(scripts, reasoning, { target: "reasoning", mode: "saved" }, this.regexCtx(names));
     let reply = await this.addMessage(session.id, parentId, chosen.speaker, clean, { reasoning: reasoning || undefined });
     await this.store.saveGenerationRecord({
       messageId: reply.id, sessionId: session.id, generationType: type, providerId: main.providerId, model: main.model,
@@ -531,6 +538,28 @@ export class TurnPipeline {
 
   // ------------------------------------------------------------ helpers
 
+  /** Regex scripts that apply (D-060): global, then the preset's, then the speaking character's. */
+  async regexFor(preset: Preset, character: { regexScripts?: RegexScript[] | undefined; original?: unknown } | undefined): Promise<RegexScript[]> {
+    return orderRegexScripts({ global: await this.store.getGlobalRegex(), preset: regexScriptsOf(preset), character: regexScriptsOf(character) });
+  }
+
+  /** The scripts and macros a session's screen uses to draw messages and save edits (display / edit, D-060). */
+  async regexForSession(sessionId: string): Promise<{ scripts: RegexScript[]; ctx: RegexRunContext }> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) return { scripts: [], ctx: { macros: (t) => t } };
+    const setup = await this.setupFor(session);
+    const preset = await this.presetFor(setup.presetId, setup);
+    const speaking = await this.pickSpeaker(session);
+    const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
+    const user = persona ? effectivePersona(persona, setup.personaVariantId).name : DEFAULT_USER_NAME;
+    return { scripts: await this.regexFor(preset, speaking.character), ctx: this.regexCtx({ char: speaking.character?.name ?? "Narrator", user }) };
+  }
+
+  private regexCtx(names: { char: string; user: string }, char?: string): RegexRunContext {
+    const base: MacroContext = { char: names.char, user: names.user, vars: new Map() };
+    return { macros: (t, override) => expandMacros(t, override ? { ...base, char: override } : base), ...(char ? { char } : {}) };
+  }
+
   private async loadCharNames(session: Session) {
     this.charNames = new Map((await Promise.all(session.cast.map(async (c) => c.characterId ? this.store.getCharacter(c.characterId) : undefined)))
       .filter((c): c is NonNullable<typeof c> => !!c).map((c) => [c.id, effectiveCharacter(c, session.cast.find((x) => x.characterId === c.id)?.variantId).name]));
@@ -582,6 +611,7 @@ export class TurnPipeline {
       ...(lore ? { worldInfo: lore.prompt } : {}),
       authorsNote: { ...a.setup.authorsNote, goes: authorsNoteGoes(a.setup.authorsNote.interval, a.history) },
       macros: { model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, custom, vars },
+      regex: await this.regexFor(a.preset, a.character),
     });
     const withNotes = memory.covered ? { ...built, notes: [...built.notes, `Memory: ${memory.covered} older message(s) sent as chapter summaries.`] } : built;
     return lore ? { ...withNotes, lore: lore.report } : withNotes;

@@ -8,10 +8,11 @@
 // - the context budget leaves out the OLDEST messages first, and says so.
 // Ours on top: `scene` and `agentPrompts` markers; when a preset has no place for them they are put right
 // before the chat history, with a note ("placed automatically"), never dropped in silence.
-import { Preset, type Character, type GenerationType, type Message, type PresetBlock, type PromptPart } from "@homunculus/schemas";
+import { Preset, type Character, type RegexScript, type GenerationType, type Message, type PresetBlock, type PromptPart } from "@homunculus/schemas";
 import type { ResolvedNarratorPrompt } from "./setup.ts";
 import type { ChatTurn } from "./extensions.ts";
 import { expandMacros, type MacroContext } from "./macros.ts";
+import { applyRegexScripts, type RegexRunContext } from "./regex.ts";
 
 /** A rough token count (about 3.6 characters per token for English prose). Exact counts come from the service. */
 export const estimateTokens = (text: string) => Math.ceil(text.length / 3.6) + 4;
@@ -57,6 +58,8 @@ export interface BuildPromptInput {
   reserve: number;
   /** Extra things macros can read (model, state, seed, registered macros…). */
   macros?: Partial<MacroContext>;
+  /** Regex scripts that apply (global → preset → character, D-060): "prompt" ones change history and lore here. */
+  regex?: RegexScript[];
 }
 
 /** What the lorebook scan gives the prompt (see `scanLorebooks`). */
@@ -128,7 +131,8 @@ export const MARKER_LABELS: Record<NonNullable<PresetBlock["marker"]>, string> =
 interface DepthItem { depth: number; order: number; role: PromptPart["role"]; content: string; source: string }
 const ROLE_ORDER = { system: 0, user: 1, assistant: 2 } as const;
 
-export function buildPrompt(input: BuildPromptInput): BuiltPrompt {
+export function buildPrompt(rawInput: BuildPromptInput): BuiltPrompt {
+  const input = withPromptRegex(rawInput);
   const { preset, names } = input;
   const narratorCard = input.character;
   const movedNarrator = input.narrator && input.narrator.position !== "card";
@@ -391,4 +395,35 @@ export const toTurns = (parts: PromptPart[]): ChatTurn[] => parts.map(({ role, c
 /** The preset's samplers that are set (they win over the connection's). */
 export function presetParams(p: Preset): Record<string, number> {
   return Object.fromEntries(Object.entries(p.params).filter(([, v]) => v !== undefined)) as Record<string, number>;
+}
+
+/**
+ * Regex scripts on what the AI is sent (SillyTavern: Generate → getRegexedString with isPrompt, D-060).
+ * History: depth 0 = the newest message that is sent (1 for "continue"). Lore: the entry's depth when it goes
+ * "in the chat", none elsewhere. Macros in the scripts see the speaking character's and the user's names.
+ */
+function withPromptRegex(input: BuildPromptInput): BuildPromptInput {
+  const scripts = input.regex ?? [];
+  if (!scripts.length) return input;
+  const macroCtx: MacroContext = { ...input.macros, ...input.names, vars: input.macros?.vars ?? new Map() };
+  const ctx: RegexRunContext = { macros: (t, char) => expandMacros(t, char ? { ...macroCtx, char } : macroCtx) };
+  const sent = input.history.filter((msg) => msg.visibility.ai === "full" && msg.kind !== "event");
+  const shift = input.generationType === "continue" ? 2 : 1;
+  const depthOf = new Map(sent.map((msg, i) => [msg.id, sent.length - i - shift]));
+  const history = input.history.map((msg) => {
+    const depth = depthOf.get(msg.id);
+    if (depth === undefined) return msg;
+    const content = applyRegexScripts(scripts, msg.content, { target: msg.speaker.kind === "user" ? "user" : "ai", mode: "prompt", depth }, ctx);
+    return content === msg.content ? msg : { ...msg, content };
+  });
+  const lore = (xs: string[] | undefined) => xs?.map((x) => applyRegexScripts(scripts, x, { target: "lore", mode: "prompt", depth: null }, ctx));
+  const wi = input.worldInfo;
+  const worldInfo: LoreForPrompt | undefined = wi && {
+    ...wi,
+    before: lore(wi.before) ?? [], after: lore(wi.after) ?? [],
+    examplesTop: lore(wi.examplesTop), examplesBottom: lore(wi.examplesBottom), noteTop: lore(wi.noteTop), noteBottom: lore(wi.noteBottom),
+    outlets: wi.outlets && Object.fromEntries(Object.entries(wi.outlets).map(([k, v]) => [k, lore(v) ?? []])),
+    depth: wi.depth?.map((d) => ({ ...d, content: applyRegexScripts(scripts, d.content, { target: "lore", mode: "prompt", depth: d.depth }, ctx) })),
+  };
+  return { ...input, history, worldInfo };
 }
