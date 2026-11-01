@@ -2,6 +2,14 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## Release 0.2.0 preparation (2026-11-01) — CODEX
+
+Daniel directly requested dev → main, current README screenshots, English changelogs and Windows/Linux installers; this explicitly authorizes the release/branch exception to D-050.
+Prepared on Homunculus-gpt/gpt from dev 955b1c2: README feature refresh, three current UI captures and the 0.2.0 changelog. Screenshots use only the isolated browser demo/offline AI.
+Validation: typecheck; **420 unit passes (3 skips), 174 browser passes, 9 Rust passes**. Regenerated draft-test images restored; no app code, workflow or manual lockfile edits.
+Next: fast-forward dev and main to this documentation commit, then run the existing Publish release workflow for 0.2.0 (Windows NSIS, Linux deb/AppImage, updater signatures).
+The workflow owns version bumps, publication and syncing the version back to dev. Native installation and real-provider behavior are not certified by these checks. Signed: **CODEX**.
+
 ## 2026-11-01 · T-005 native web access and DuckDuckGo reader
 
 Added only T-005's native commands, web module, synthetic fixtures/tests and Flint credit; no Assistant UI/tools, schemas, settings keys or roleplay changes.

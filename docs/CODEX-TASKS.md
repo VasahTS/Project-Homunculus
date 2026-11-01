@@ -18,6 +18,11 @@ Take the **first card marked Ready** unless Daniel names another. One card per s
 
 Why the split: CODEX's reliability work (D-051, D-053) was excellent and well tested; its own UX choices (D-044/D-045) had to be redone in D-046.
 
+### Release 0.2.0 documentation and screenshots · Status: Done
+Direct request from Daniel on 2026-11-01: refresh README/screenshots and English changelog, promote dev to main and build Windows/Linux installers.
+Files: README.md, CHANGELOG.md, docs/images/{app,assistant,library}.png, HANDOFF.md, CODEX-LOG.md and this card. No application or workflow changes.
+Documentation/captures complete; typecheck, 420 unit tests (3 skipped), 174 click tests and 9 native Rust tests pass. Publication proceeds through the existing release workflow. Signed: **CODEX**.
+
 ## Card template (Claude fills this in)
 
 ```

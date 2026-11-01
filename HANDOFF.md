@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Release 0.2.0 preparation (2026-11-01) — CODEX
+
+Daniel directly requested dev → main, current README screenshots, English changelogs and Windows/Linux installers; this explicitly authorizes the release/branch exception to D-050.
+Prepared on Homunculus-gpt/gpt from dev 955b1c2: README feature refresh, three current UI captures and the 0.2.0 changelog. Screenshots use only the isolated browser demo/offline AI.
+Validation: typecheck; **420 unit passes (3 skips), 174 browser passes, 9 Rust passes**. Regenerated draft-test images restored; no app code, workflow or manual lockfile edits.
+Next: fast-forward dev and main to this documentation commit, then run the existing Publish release workflow for 0.2.0 (Windows NSIS, Linux deb/AppImage, updater signatures).
+The workflow owns version bumps, publication and syncing the version back to dev. Native installation and real-provider behavior are not certified by these checks. Signed: **CODEX**.
+
 ## Library tabs on top + Ctrl+K (2026-11-01) — CLAUDE — D-069
 
 Daniel: the Library was "too busy, many stacked menus". Drafts A–G on the canvas "Library – barra no topo"; he chose **B + Ctrl+K**.
