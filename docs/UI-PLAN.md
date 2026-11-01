@@ -439,3 +439,43 @@ The engine already works (D-027): it activates entries exactly like SillyTavern 
 **States:** empty ("No scripts. Import from SillyTavern or make one"), normal, full (30+ scripts: search by name/pattern), error (pattern error on the row; a slow script is paused with a notice "“<name>” was too slow and was paused").
 
 **Daniel's answers (2026-11-01):** 1. Library → Regex. 2. Ask every time there is a new script ("so it doesn't mess up the app's view"). 3. Render HTML. Built the same day (D-060 round 2; draft skipped with his OK: "do it the way you think is best").
+
+---
+
+## Library Assistant (BLUEPRINT §4.9) — step 1, text plan (2026-11-01)
+
+**Daniel's answers (01/11):** first version = trackers, characters, lorebooks (presets, regex, narrators, NPCs later); it works only on the Library for now (no reading chats); new items may be saved directly, changes to existing items need an OK; draft first. Also asked for: **real tool calling** and **attaching images** (e.g. a character made from a visual reference).
+
+**What it is for:** describe what you want ("a world tracker with time, weather and place", "a cynical mercenary, dark fantasy") or what to fix ("Lyra's description is generic") and get it built or changed, ready to use. **When Daniel looks at it:** while building a story's material; when an imported card or book needs work.
+
+**How it knows what to do** (Daniel: "will it have a doc of how the app works?") — five layers, none of them a giant manual:
+1. **Tool definitions made from the app's own data shapes** (the Zod schemas in `packages/schemas`, with their field notes): the assistant sees exactly which fields a tracker, a card or a lorebook entry has, what each means and which values are allowed. Same source as the app, so it never goes stale. Whatever it proposes is checked against the same shapes; a mistake goes back to it as a tool error ("field `scope`: expected one of …") and it fixes it.
+2. **A short guide per kind, loaded only when that toolset is loaded** (`docs/assistant/*.md`, like the existing `docs/FIELD-SET-AI-GUIDE.md`): what makes a good card (description vs personality vs scenario, token size, first message), how lorebook keywords and placement work, how trackers fill and what "send to the AI" does. A test fails when a schema field is missing from its guide.
+3. **Reading tools:** it lists, searches and reads your real Library (your style, your existing trackers and books) and the built-in starters, and copies their patterns.
+4. **The system prompt** (editable): its job, "propose, never delete", answer in the user's language, keep cards in the language they are written in.
+5. **House rules** (a note the user writes once, also editable by asking it): "cards always in English", "descriptions in prose, never W++", "lorebook keywords lowercase"… sent with every request.
+
+**Where it lives**
+- **✦ Assistant** button in the Library header → a panel on the right (380 px; the editor stays beside it). Opened from an editor, it is already about that item ("About: Lyra" chip; × to talk about anything).
+- **Library → Assistant** page: saved conversations (title, date, items touched, cost), rename, delete, continue.
+
+**The conversation**
+- Messages stream; reasoning folded ("Thought for 6 s"); **tool steps** as one quiet line each ("Read 3 trackers", "Loaded: trackers guide") folded into "4 steps" when there are many.
+- **Composer:** text, **attach images** (button, paste, drag; thumbnails above the box, × to remove). Images go to the model only if the connection's model sees images; otherwise a notice says so before sending. Attached images can be used in proposals ("use this as Lyra's picture").
+- Footer: model name · this conversation's tokens and cost · settings (gear).
+
+**Proposal cards** (in the conversation, where the assistant made them)
+- **New item:** saved right away (Daniel's choice), card says "Created ✓" with **Open**, **Undo** (moves it to the Trash). For a tracker: field list + a small Scene preview + **Turn on in a chat…**.
+- **Change to an existing item:** field-by-field before → after (only changed fields; long texts as a diff) with **Apply**, **Edit first** (opens the editor with the change filled in, not saved), **Discard**. Several pending → **Apply all** at the bottom. Applied changes go into the item's History (undo there).
+- **Move to Trash** is only ever a proposal.
+- A stale proposal (the item changed since) says so and offers "Ask again".
+
+**Settings (gear):** connection (empty = the story's), model, reasoning effort, temperature, steps limit per message (default 25), "Save new items right away" (on), system prompt, house rules.
+
+**Tool calling:** native OpenAI-style `tools` in the provider (nano-gpt, OpenRouter, most local servers support it), streamed; fallback for models without it: the same tools described in the prompt and called as JSON blocks. Toolsets loaded on demand (`load_toolset`: trackers / characters / lorebooks), so the prompt stays small.
+
+**First tools:** `load_toolset`, `read_guide`; per kind `list_*`, `search_*`, `read_*`, `create_*`, `propose_update_*`, `propose_trash`; trackers also `preview_scene`; characters also `set_picture` (from an attached image).
+
+**States:** empty ("Ask for a tracker, a character or a lorebook" + 3 example requests as chips), streaming, tool error (red line, it retries), steps limit reached, connection error (Retry), model without images (notice before sending), long conversation (older tool steps folded).
+
+**Later (noted, not in v1):** reading chats ("make lore entries from the last 40 turns"); presets, regex, narrators, NPCs, Kits; **Director's notes** (Daniel's idea): instructions kept *outside* the chat, each permanent or for N turns, injected after the history and gone from the prompt when they expire — the assistant can create and edit them.

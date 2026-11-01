@@ -11,6 +11,12 @@ Affected chapters stay saved (including hand edits) but are switched off; correc
 Validation: typecheck/build passed; **295 unit tests passed, 3 skipped; 37 affected browser flows passed** on isolated port 1427 (12 new unit cases, 2 new browser flows).
 Report and limits: `docs/REVIEW-BUGFIXES-2026-11-01.md`. No native app, real API, private play data, workflow or lockfile changes. Work only in Homunculus-gpt, pushed only to gpt. Signed: **CODEX**.
 
+## Library Assistant — plan and draft, waiting for Daniel (2026-11-01) — CLAUDE
+
+- **Order changed by Daniel:** Library Assistant now; importing a whole SillyTavern/v1 folder moved to the **end**.
+- Plan: `docs/UI-PLAN.md` → "Library Assistant" (his answers: v1 = trackers, characters, lorebooks; Library only; new items saved right away, changes need an OK; **real tool calling**; **image attachments**). Draft: `docs/drafts/library-assistant/index.html`. No code until he approves.
+- His idea for later, noted in the plan: **Director's notes** — OOC instructions outside the chat, permanent or for N turns, injected after the history, gone when they expire; the assistant can manage them.
+
 ## Message formatting (2026-11-01) — CLAUDE — D-061
 
 - Daniel thought regex did *narration*/"dialogue": in SillyTavern the app does it. Now ours too: Markdown (`marked`), dialogue color, the AI's `<font>`/`<span style>` colors, all filtered by DOMPurify (text styles only; no scripts, links, outside images or app restyling). **Settings → Messages**: switches and the two colors, with a preview; **Links** open in the system browser; **Images from links**: click to show (default) / always / never.

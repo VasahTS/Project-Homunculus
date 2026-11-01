@@ -221,7 +221,7 @@ Notes per message are for "what happened here". For things that **last** (long-t
 
 Module `homunculus-v1-agents`: translates `phase`, `execution`, `injection`, `postProcess.extract/regex`, `conditions`, `companion` into the format above. v1's inline trackers become `state` with a **schema inferred** from the block they extracted (when possible). The ones that do not fit show a notice of what was left out.
 
-### 4.9 Library Assistant (Daniel's idea, 2026-10-27 — **to build later**)
+### 4.9 Library Assistant (Daniel's idea, 2026-10-27 — **next, 2026-11-01**: plan and draft in `docs/UI-PLAN.md` → "Library Assistant", `docs/drafts/library-assistant/index.html`)
 
 A chat with an AI that **creates and edits library things for you**, in the style of **Aventuras' VaultAssistant** (studied at commit `d98ad752`, see `docs/reference/aventuras.md` §2). Example requests: "make a world tracker with time, weather and place", "make a per-character tracker the way I describe", "improve Lyra's description", "write a lorebook entry about the guild".
 
