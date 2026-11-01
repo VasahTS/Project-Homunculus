@@ -3,7 +3,7 @@ import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { Character } from "@homunculus/schemas";
 import {
-  base64ToBytes, bytesToBase64, exportCardJson, exportCardPng, importCardJson, importCardPng,
+  parseCard, toCardV2, base64ToBytes, bytesToBase64, exportCardJson, exportCardPng, importCardJson, importCardPng,
   readChunks, readTextChunks, setTextChunks, solidPng, utf8,
 } from "../src/index.ts";
 
@@ -148,5 +148,26 @@ describe("export (lossless round trip)", () => {
 
     const c2 = asCharacter(importCardJson(utf8.encode(JSON.stringify(v2Card))).character);
     expect(JSON.parse(utf8.decode(exportCardJson(c2))).spec).toBe("chara_card_v2");
+  });
+});
+
+describe("Character's Note (D-063)", async () => {
+  const { buildPrompt, DEFAULT_PRESET, characterNoteOf } = await import("@homunculus/core");
+  it("is read from depth_prompt, edited as a field, written back, and sent at its depth and role", () => {
+    const card = { spec: "chara_card_v2", spec_version: "2.0", data: { name: "Lyra", description: "", personality: "", scenario: "", first_mes: "", mes_example: "",
+      extensions: { depth_prompt: { prompt: "Lyra never says thank you.", depth: 2, role: "system" }, talkativeness: "0.5" } } };
+    const parsed = parseCard(card);
+    expect(parsed.character.characterNote).toEqual({ text: "Lyra never says thank you.", depth: 2, role: "system" });
+    const c = Character.parse({ ...parsed.character, id: "lyra", original: card, characterNote: { text: "{{char}} never thanks anyone.", depth: 3, role: "user" } });
+    const out = toCardV2(c) as { data: { extensions: Record<string, unknown> } };
+    expect(out.data.extensions.depth_prompt).toEqual({ prompt: "{{char}} never thanks anyone.", depth: 3, role: "user" });
+    expect(out.data.extensions.talkativeness).toBe("0.5");
+    const prompt = buildPrompt({ preset: DEFAULT_PRESET, generationType: "normal", character: c, sessionScenario: "", names: { char: "Lyra", user: "Ann" }, scene: [], injections: [], inline: [], reserve: 100,
+      history: [0, 1, 2, 3, 4].map((i) => ({ id: `m${i}`, sessionId: "s", parentId: null, speaker: { kind: i % 2 ? "user" as const : "character" as const, characterId: "lyra" }, kind: "reply" as const, visibility: { ai: "full" as const, user: true }, content: `msg ${i}`, createdAt: i, meta: {} })) as never });
+    const note = prompt.parts.findIndex((p) => p.source === "card:note");
+    expect(prompt.parts[note]).toMatchObject({ role: "user", content: "Lyra never thanks anyone." });
+    // an older character without the field still uses the one in its imported card
+    expect(characterNoteOf(Character.parse({ id: "x", name: "X", original: card }))?.text).toBe("Lyra never says thank you.");
+    expect(characterNoteOf(Character.parse({ id: "x", name: "X", original: card, characterNote: { text: "", depth: 4, role: "system" } }))).toBeUndefined();
   });
 });

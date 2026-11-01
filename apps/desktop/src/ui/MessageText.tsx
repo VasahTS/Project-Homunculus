@@ -18,6 +18,13 @@ export function MessageText({ text, htmlFromRegex = false }: { text: string; htm
 /** Links open in the system browser; "Show image" loads that one picture (D-061). */
 function onClick(e: MouseEvent<HTMLDivElement>) {
   const el = e.target as HTMLElement;
+  const copy = el.closest<HTMLButtonElement>("button.code-copy");
+  if (copy) {
+    e.preventDefault();
+    const code = copy.parentElement?.querySelector("pre")?.textContent ?? "";
+    void navigator.clipboard?.writeText(code).then(() => { copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy"; }, 1500); }).catch(() => {});
+    return;
+  }
   const gate = el.closest<HTMLButtonElement>("button.img-gate");
   if (gate?.dataset.src) {
     e.preventDefault();

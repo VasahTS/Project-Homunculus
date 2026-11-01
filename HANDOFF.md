@@ -19,6 +19,7 @@ Report and limits: `docs/REVIEW-BUGFIXES-2026-11-01.md`. No native app, real API
 - Tests: 306 unit (7 Assistant, 1 provider tool-call); `e2e/assistant.e2e.ts` with the offline AI's tool script. Not tried with a real model by Claude (no keys): **Daniel, try it with nano-gpt/OpenRouter and a model that supports tools.**
 - **Round 2 (same night):** Assistants as "characters" (5 built in, Flint-style), Presets (style, rules, notes/lore, memory), Assistant/Preset/Model picks and a context meter under the message box, Customize as a page with Limits (retries, timeout — for every call in the app) and Usage.
 - **Round 3 (same night):** Details panel (Context with compaction, What it is using with "in the last request" marks, Files, Tools switches, Activity timeline), message meta/usage/actions (Copy, Again, Edit, Request), chat menu (Rename, Export Markdown, Delete), search inside messages, loop guard. D-062.
+- **Round 4:** Copy on code blocks; **✎ Drafts** (draft first: drafts as cards with Save/Apply to library). **D-063:** the Character's Note is a real field (editor, import/export, prompt).
 - Next for the Assistant: "Ask the assistant" from editors; fallback for models without tools; Director's notes (OOC idea).
 
 ## Message formatting (2026-11-01) — CLAUDE — D-061

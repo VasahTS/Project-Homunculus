@@ -15,6 +15,12 @@ async function* offlineAssistant(turns: RichTurn[]): AsyncGenerator<StreamChunk>
   await new Promise((r) => setTimeout(r, 120));
   if (last.role === "tool") { yield "Done (offline test AI) — have a look at the card below."; return; }
   const ask = text(last);
+  if (/DRAFT FIRST is on/.test(text(turns[0]!)) && /character/i.test(ask)) {
+    const name = /colder|again|change/i.test(ask) ? "Kessa (colder)" : "Kessa";
+    const draft = JSON.stringify({ name, description: "A mercenary who travels light and alone; a scar across her knuckles.", personality: "Cynical, loyal to coin.", firstMessages: ["*Kessa counts the coins twice.* \"You're short.\""], tags: ["mercenary", "fantasy"] }, null, 1);
+    for (const piece of [`Here's a first draft — tell me what to change.\n\n`, "```homunculus-character\n", draft, "\n```\n\nWant her colder, or with a different first line?"]) { yield piece; await new Promise((r) => setTimeout(r, 40)); }
+    return;
+  }
   const added = [...ask.matchAll(/\[Added: (\w+):([^ \]]+) · ([^\]]+)\]/g)];
   const call = (name: string, args: unknown) => ({ toolCalls: [{ id: `off_${Date.now()}`, name, arguments: JSON.stringify(args) }] });
   if (/tracker/i.test(ask)) { yield call("create", { kind: "tracker", data: { name: "World", help: "Time, weather and place", fields: [{ label: "Time of day", type: "text" }, { label: "Weather", type: "text" }, { label: "Place", type: "text" }] } }); return; }

@@ -166,6 +166,8 @@ export const AssistantChat = z.object({
   compact: z.object({ uptoId: z.string(), summary: z.string(), at: z.number().int(), before: z.number().optional() }).optional(),
   /** Compact by itself when the context gets full (80%). */
   autoCompact: z.boolean().default(true),
+  /** Draft first: it shows drafts in the chat (```homunculus-<kind> blocks) and saves nothing until the user does. */
+  draftFirst: z.boolean().default(false),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });

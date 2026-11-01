@@ -4,6 +4,17 @@ import { z } from "zod";
 import { RegexScript } from "./regex.ts";
 import { Id, Json } from "./common.ts";
 
+/**
+ * The Character's Note (SillyTavern's `depth_prompt`, D-063): text put into the chat at a depth (messages from the end)
+ * with a role, in every reply with this character.
+ */
+export const CharacterNote = z.object({
+  text: z.string().default(""),
+  depth: z.number().int().min(0).max(999).default(4),
+  role: z.enum(["system", "user", "assistant"]).default("system"),
+});
+export type CharacterNote = z.infer<typeof CharacterNote>;
+
 /** Card fields a variant may change. Same names as on Character. */
 export const CharacterFields = z.object({
   name: z.string().min(1),
@@ -16,6 +27,7 @@ export const CharacterFields = z.object({
   postHistoryInstructions: z.string(),
   creatorNotes: z.string(),
   tags: z.array(z.string()),
+  characterNote: CharacterNote,
 });
 
 export const CharacterVariant = z.object({
@@ -40,6 +52,8 @@ export const Character = z.object({
   /** Card-level system prompt / post-history instructions (SillyTavern card fields). */
   systemPrompt: z.string().default(""),
   postHistoryInstructions: z.string().default(""),
+  /** Missing = the one in the imported card (`original`), if any. D-063. */
+  characterNote: CharacterNote.optional(),
   creatorNotes: z.string().default(""),
   creator: z.string().default(""),
   characterVersion: z.string().default(""),

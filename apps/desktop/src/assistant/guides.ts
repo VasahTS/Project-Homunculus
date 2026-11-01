@@ -46,7 +46,7 @@ export interface Guide { kind: string; fields: string[]; text: string }
 export const GUIDES: Record<string, Guide> = {
   character: {
     kind: "character",
-    fields: ["name", "description", "personality", "scenario", "firstMessages", "exampleMessages", "systemPrompt", "postHistoryInstructions", "creatorNotes", "tags"],
+    fields: ["name", "description", "personality", "scenario", "firstMessages", "exampleMessages", "systemPrompt", "postHistoryInstructions", "creatorNotes", "tags", "characterNote"],
     text: `A character card (SillyTavern-compatible). Fields:
 - name.
 - description: who they are — looks, background, habits, how they speak. Prose (unless the user's rules say otherwise). Usually 300–1,500 tokens.
@@ -55,6 +55,7 @@ export const GUIDES: Record<string, Guide> = {
 - firstMessages: list of opening messages; the first is the default, the others are alternatives. Written as the character, *actions in asterisks*, "speech in quotes", {{user}} for the user, {{char}} for the character.
 - exampleMessages: sample dialogue in SillyTavern format: blocks that start with <START>, lines "{{user}}: …" and "{{char}}: …".
 - systemPrompt, postHistoryInstructions: only if the card needs its own instructions (usually empty).
+- characterNote: { "text", "depth" (messages from the end, default 4), "role" ("system"|"user"|"assistant") } — a short reminder put into the chat in every reply (how they talk, a rule the AI forgets). Optional; keep it under ~100 words.
 - creatorNotes: notes for people, not sent to the AI. tags: list of short words.
 Good cards: concrete details over adjectives; show voice in the first message; no contradictions between description and examples.`,
   },
@@ -97,3 +98,16 @@ Make cast, scenario, openings and lore agree: if two cards contradict, settle it
 Good narrators: few strong rules over many vague ones; say what NOT to do (speak for {{user}}, summarize, rush).`,
   },
 };
+
+/** Added to the instructions while "Draft first" is on (the tools that save are not offered then). */
+export const DRAFT_RULES = `DRAFT FIRST is on: the user wants to go back and forth before anything is saved.
+- Do not save. Show each item as a draft in a fenced block whose language is \`homunculus-<kind>\` (character, lorebook, tracker, kit, narrator) containing JSON with the fields from \`guide\`, e.g.
+\`\`\`homunculus-character
+{ "name": "Kessa", "description": "…", "firstMessages": ["…"] }
+\`\`\`
+- One block per item. To revise an existing library item, put "id": "kind:id" in the JSON and only the fields that change.
+- After a revision, show the whole updated draft again (not a diff), so the newest block is always complete.
+- The user saves a draft with the button under it. If they ask you to save, tell them to use that button or switch "Draft first" off.`;
+
+/** Draft blocks in a reply: kind + the JSON text. */
+export const DRAFT_BLOCK = /```homunculus-(character|lorebook|tracker|kit|narrator)[^\n]*\n([\s\S]*?)```/g;

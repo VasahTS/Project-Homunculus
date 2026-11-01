@@ -269,7 +269,7 @@ export async function createItem(store: SqlStore, kind: AssistantKind, data: Obj
 }
 
 /** The fields a change touches, as they are now (for the card and to notice later edits). */
-function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
+export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
   const out: Obj = {};
   for (const k of Object.keys(changes)) {
     if (kind === "lorebook" && k === "entries") {

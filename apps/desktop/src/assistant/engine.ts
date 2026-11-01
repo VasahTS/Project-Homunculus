@@ -8,7 +8,7 @@
 // - tool results of earlier replies are cut to their first lines (Flint's "microcompaction"): the model can read again.
 import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
-import { BUILTIN_ASSISTANTS, CORE_RULES } from "./guides.ts";
+import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES } from "./guides.ts";
 import { libraryCounts, runTool, TOOL_SPECS, type ToolContext } from "./tools.ts";
 export { TOOL_SPECS };
 
@@ -71,7 +71,9 @@ export const TOOL_GROUPS: Array<{ id: string; label: string; help: string; tools
   { id: "files", label: "Read attached files", help: "parts of the files you attach", tools: ["read_file"] },
   { id: "memory", label: "Remember", help: "adds to the preset's memory", tools: ["remember"] },
 ];
-export const toolsFor = (s: AssistantSettings) => TOOL_SPECS.filter((t) => !TOOL_GROUPS.some((g) => g.id !== "read" && s.toolsOff.includes(g.id) && g.tools.includes(t.name)));
+/** Tools that save (left out while "Draft first" is on). */
+export const SAVING_TOOLS = ["create", "import_file", "change", "set_picture", "propose_trash"];
+export const toolsFor = (s: AssistantSettings, draftFirst = false) => TOOL_SPECS.filter((t) => !TOOL_GROUPS.some((g) => g.id !== "read" && s.toolsOff.includes(g.id) && g.tools.includes(t.name)) && !(draftFirst && SAVING_TOOLS.includes(t.name)));
 
 /** Who answers a chat and what it knows. */
 export function resolveFor(chat: Pick<AssistantChat, "assistantId" | "presetId"> | null, s: AssistantSettings): { assistant: AssistantPersona; preset: AssistantPreset | undefined } {
@@ -108,8 +110,8 @@ export async function deleteChat(store: SqlStore, id: string): Promise<void> {
 // ------------------------------------------------------------------ the request
 
 /** The system message, in parts (so the composer can show what takes room). */
-export function systemParts(assistant: AssistantPersona, preset: AssistantPreset | undefined, counts: string): Record<string, string> {
-  const parts: Record<string, string> = { app: CORE_RULES, assistant: assistant.instructions.trim() ? `Your role — ${assistant.name}:\n${assistant.instructions.trim()}` : "", library: `The user's library: ${counts}.` };
+export function systemParts(assistant: AssistantPersona, preset: AssistantPreset | undefined, counts: string, draftFirst = false): Record<string, string> {
+  const parts: Record<string, string> = { app: draftFirst ? `${CORE_RULES}\n\n${DRAFT_RULES}` : CORE_RULES, assistant: assistant.instructions.trim() ? `Your role — ${assistant.name}:\n${assistant.instructions.trim()}` : "", library: `The user's library: ${counts}.` };
   if (preset) {
     const p: string[] = [];
     if (preset.style.trim()) p.push(`How the user likes things written:\n${preset.style.trim()}`);
@@ -140,7 +142,7 @@ function userContent(m: AssistantMessage, withImages: boolean): string | Content
 /** The saved chat as model turns (exact rounds of tool calls; older tool results shortened). */
 export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts: string): RichTurn[] {
   const { assistant, preset } = resolveFor(chat, settings);
-  const out: RichTurn[] = [{ role: "system", content: systemText(systemParts(assistant, preset, counts)) }];
+  const out: RichTurn[] = [{ role: "system", content: systemText(systemParts(assistant, preset, counts, chat.draftFirst)) }];
   const users = chat.messages.filter((m) => m.role === "user");
   const recentImages = new Set(users.slice(-2).map((m) => m.id));
   const lastUser = users.at(-1)?.id;
@@ -184,8 +186,8 @@ export async function runAssistant(o: {
   const conn = connectionFor(o.chat, assistant, o.main, o.connections);
   const counts = await libraryCounts(o.store);
   const est = (t: string) => Math.ceil(t.length / 3.6);
-  const sys = systemParts(assistant, preset, counts);
-  const tools = toolsFor(settings);
+  const sys = systemParts(assistant, preset, counts, o.chat.draftFirst);
+  const tools = toolsFor(settings, o.chat.draftFirst);
   const parts: Record<string, number> = { app: est(sys.app ?? ""), assistant: est(sys.assistant ?? ""), preset: est(sys.preset ?? ""), tools: est(JSON.stringify(tools)) };
   const sent = [
     ...(preset ? [...preset.rules.filter((r) => r.on && r.text.trim()).map((r) => r.id), ...preset.notes.filter((n) => n.on && n.text.trim()).map((n) => n.id), ...(preset.memoryOn ? preset.memory.map((m) => m.id) : [])] : []),

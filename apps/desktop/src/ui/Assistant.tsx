@@ -9,7 +9,8 @@ import { libraryCounts } from "../assistant/tools.ts";
 import { AssistantDetails } from "./AssistantDetails.tsx";
 import { saveExport } from "../files.ts";
 import type { RichTurn } from "@homunculus/core";
-import { applyChange, applyTrash, createItem, undoCreate } from "../assistant/tools.ts";
+import { applyChange, applyTrash, createItem, currentOf, getItem, splitRef, undoCreate } from "../assistant/tools.ts";
+import { DRAFT_BLOCK, GUIDES } from "../assistant/guides.ts";
 import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
 import { readFileBytes } from "../files.ts";
@@ -148,7 +149,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
 
   // who answers, what it knows, which model: the chat's own picks (before the first message, kept here)
   const [draft, setDraft] = useState<Picks>({ assistantId: "", presetId: "" });
-  const picks: Picks = chat ? { assistantId: chat.assistantId, presetId: chat.presetId, connectionId: chat.connectionId, model: chat.model, contextLength: chat.contextLength } : draft;
+  const picks: Picks = chat ? { assistantId: chat.assistantId, presetId: chat.presetId, connectionId: chat.connectionId, model: chat.model, contextLength: chat.contextLength, draftFirst: chat.draftFirst } : draft;
   const setPicks = (p: Partial<Picks>) => {
     if (chat) { const next = { ...chat, ...p }; setChat(next); void saveChat(svc.store, next); }
     else setDraft((d) => ({ ...d, ...p }));
@@ -243,6 +244,27 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setCompacting(false); }
   };
+  /** "Save to library" under a draft block: new item, or the listed changes to the item its "id" names (the user asked). */
+  const saveDraft = async (m: AssistantMessage, kind: AssistantKind, data: Record<string, unknown>) => {
+    if (!chat) return;
+    const newId = () => crypto.randomUUID();
+    let result: AssistantResult;
+    const ref = typeof data.id === "string" ? splitRef(data.id) : null;
+    if (ref) {
+      const { id: _id, ...changes } = data;
+      const item = await getItem(svc.store, ref.kind, ref.id);
+      if (!item) throw new Error(`“${data.id}” is not in your library any more.`);
+      const change = { type: "change" as const, id: newId(), kind, itemId: ref.id, name: String(item.name ?? kind), summary: "Saved from a draft", before: currentOf(item, kind, changes), after: changes, status: "waiting" as const };
+      const res = await applyChange(svc.store, change, newId);
+      result = { ...change, status: res === "applied" ? "applied" : "stale" };
+    } else {
+      const made = await createItem(svc.store, kind, data, newId);
+      result = { type: "created", kind, itemId: made.id, name: made.name, detail: `${made.detail} · from a draft`, undone: false };
+    }
+    const fresh = (await loadChat(svc.store, chat.id)) ?? chat;
+    const next = { ...fresh, messages: fresh.messages.map((x) => (x.id === m.id ? { ...x, results: [...x.results, result] } : x)), updatedAt: Date.now() };
+    setChat(next); await saveChat(svc.store, next); onChanged();
+  };
   const updateChat = (c: AssistantChat) => { setChat(c); void saveChat(svc.store, c).then(() => st.reload()); };
 
   const decide = async (m: AssistantMessage, i: number, next: AssistantResult) => {
@@ -322,7 +344,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
           <div className="asst-col asst-msgs" data-testid="assistant-messages">
             {chat?.compact && <div className="asst-compacted">Older messages are sent as a summary · <button className="link" onClick={() => setDetails(true)}>Details</button></div>}
             {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} /> : (
-              <Reply key={m.id} m={m} onAct={(ri, w) => void act(m, ri, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit}
+              <Reply key={m.id} m={m} onSaveDraft={(kind, data) => saveDraft(m, kind, data)} onAct={(ri, w) => void act(m, ri, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit}
                 emoji={settings?.assistants.find((a) => a.name === m.used?.assistant)?.emoji}
                 onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} />
             )))}
@@ -412,7 +434,8 @@ function UserBubble({ m, busy, onEdit, onView }: { m: AssistantMessage; busy: bo
   );
 }
 
-function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false }: {
+function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false, onSaveDraft }: {
+  onSaveDraft?: ((kind: AssistantKind, data: Record<string, unknown>) => Promise<void>) | undefined;
   m: AssistantMessage; live?: boolean; onAct: (i: number, what: "apply" | "discard" | "undo" | "restore") => void; onApplyAll: () => void;
   onOpen: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void; onRegenerate?: (() => void) | undefined;
   emoji?: string | undefined; liveName?: string | undefined; compacting?: boolean;
@@ -431,7 +454,7 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
         {thinkOpen && <div className="asst-qlist">{m.reasoning}</div>}
         {m.steps.length > 0 && <button type="button" className="asst-quiet" onClick={() => setStepsOpen(!stepsOpen)} aria-expanded={stepsOpen} data-testid="assistant-steps">{stepLine} ›</button>}
         {stepsOpen && <div className="asst-qlist">{m.steps.map((s, i) => <div key={i} className={s.error ? "bad" : ""}>{s.label}</div>)}</div>}
-        {m.text ? <div className="asst-text"><MessageText text={m.text} /></div> : live && !m.steps.length && !m.reasoning ? <div className="asst-typing" aria-label="Thinking"><i /><i /><i /></div> : null}
+        {m.text ? <ReplyText text={m.text} live={live} results={m.results} onSaveDraft={onSaveDraft} /> : live && !m.steps.length && !m.reasoning ? <div className="asst-typing" aria-label="Thinking"><i /><i /><i /></div> : null}
         {m.results.map((r, i) => <ResultCard key={i} r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} />)}
         {waiting > 1 && !live && <div className="asst-decide"><Button small variant="prominent" onClick={onApplyAll} data-testid="assistant-apply-all">Apply all {waiting}</Button></div>}
         {m.error && <p className="asst-error" role="alert">{m.error === "Stopped" || /abort/i.test(m.error) ? "Stopped." : m.error}</p>}
@@ -555,7 +578,7 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
 
 // ------------------------------------------------------------------ picks under the message box
 
-interface Picks { assistantId: string; presetId: string; connectionId?: string | null | undefined; model?: string | undefined; contextLength?: number | undefined }
+interface Picks { assistantId: string; presetId: string; connectionId?: string | null | undefined; model?: string | undefined; contextLength?: number | undefined; draftFirst?: boolean | undefined }
 const fmtK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n));
 const shortModel = (m: string) => m.split("/").pop() ?? m;
 
@@ -623,6 +646,9 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
           {(picks.connectionId !== undefined || picks.model) && <button type="button" className="asst-pop-foot" onClick={() => setPicks({ connectionId: undefined, model: undefined, contextLength: undefined })}>Use {assistant.name}'s model</button>}
         </>}
       </Pop>
+      <button type="button" className={`asst-pick draft${picks.draftFirst ? " on" : ""}`} aria-pressed={!!picks.draftFirst} data-testid="pick-draft"
+        title={picks.draftFirst ? "Draft first: it shows drafts here and saves nothing until you press Save under a draft" : "Draft first: go back and forth on drafts before anything is saved"}
+        onClick={() => setPicks({ draftFirst: !picks.draftFirst })}>✎ Drafts{picks.draftFirst ? " on" : ""}</button>
       <Pop title="Context and spending" testId="pick-context" label={<span className="asst-meter">{pct !== null && <span className="asst-ring" style={{ ["--p" as string]: `${pct}%` }} aria-hidden />}{full ? `${estimated ? "~" : ""}${fmtK(full)}` : "—"}{ctx ? ` / ${fmtK(ctx)}` : ""}</span>}>
         {() => <div className="asst-ctxpop">
           <div className="asst-pop-h">What it is using</div>
@@ -692,4 +718,68 @@ function RequestView({ chat, messageId, settings, svc, onClose }: { chat: Assist
       <details className="asst-req-turn"><summary><b>tools</b> <span className="hint">{tools.map((t) => t.name).join(", ")}</span></summary><pre>{JSON.stringify(tools, null, 2)}</pre></details>
     </Modal>
   );
+}
+
+// ------------------------------------------------------------------ drafts in replies ("Draft first")
+
+const KIND_NAME: Record<AssistantKind, string> = { character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator" };
+
+/** A reply's text with its draft blocks drawn as draft cards (Save to library, Copy, Show JSON). */
+function ReplyText({ text, live, results, onSaveDraft }: { text: string; live: boolean; results: AssistantResult[]; onSaveDraft?: ((kind: AssistantKind, data: Record<string, unknown>) => Promise<void>) | undefined }) {
+  const parts: Array<{ md: string } | { kind: AssistantKind; json: string; closed: boolean }> = [];
+  let at = 0;
+  for (const m of text.matchAll(DRAFT_BLOCK)) {
+    if (m.index! > at) parts.push({ md: text.slice(at, m.index) });
+    parts.push({ kind: m[1] as AssistantKind, json: m[2]!, closed: true });
+    at = m.index! + m[0].length;
+  }
+  const rest = text.slice(at);
+  // a draft block still being written: show it as a draft that is not ready yet
+  const open = /```homunculus-(character|lorebook|tracker|kit|narrator)[^\n]*\n([\s\S]*)$/.exec(rest);
+  if (open) { if (open.index) parts.push({ md: rest.slice(0, open.index) }); parts.push({ kind: open[1] as AssistantKind, json: open[2]!, closed: false }); }
+  else if (rest) parts.push({ md: rest });
+  return <div className="asst-text">{parts.map((p, i) => ("md" in p ? (p.md.trim() ? <MessageText key={i} text={p.md} /> : null)
+    : <DraftCard key={i} kind={p.kind} json={p.json} ready={p.closed && !(live && i === parts.length - 1 && !p.closed)} results={results} onSave={onSaveDraft} />))}</div>;
+}
+
+function DraftCard({ kind, json, ready, results, onSave }: { kind: AssistantKind; json: string; ready: boolean; results: AssistantResult[]; onSave?: ((kind: AssistantKind, data: Record<string, unknown>) => Promise<void>) | undefined }) {
+  const [showJson, setShowJson] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  let data: Record<string, unknown> | null = null;
+  try { const v = JSON.parse(json) as unknown; if (v && typeof v === "object" && !Array.isArray(v)) data = v as Record<string, unknown>; } catch { /* still being written, or broken */ }
+  const name = typeof data?.name === "string" ? data.name : typeof data?.id === "string" ? String(data.id) : "Draft";
+  const revising = typeof data?.id === "string";
+  const saved = results.some((r) => (r.type === "created" && r.kind === kind && r.name === name && r.detail.includes("from a draft")) || (r.type === "change" && r.summary === "Saved from a draft" && r.kind === kind && r.status === "applied" && revising));
+  const fields = data ? Object.entries(data).filter(([k]) => k !== "id" && k !== "name" && GUIDES[kind]?.fields.includes(k)) : [];
+  return (
+    <div className={`asst-draft${ready ? "" : " writing"}`} data-testid="assistant-draft">
+      <div className="asst-draft-h"><span className="asst-res-ic">{KIND_MARK[kind]}</span>
+        <span className="asst-res-t"><b>{name}</b><small>{ready ? `${KIND_NAME[kind]} draft${revising ? " · changes to an item in your library" : ""}` : "Writing the draft…"}</small></span>
+        {ready && <button type="button" className="asst-lnk" onClick={() => void navigator.clipboard?.writeText(json.trim())}>Copy</button>}
+        {ready && <button type="button" className="asst-lnk" onClick={() => setShowJson(!showJson)}>{showJson ? "Preview" : "JSON"}</button>}
+        {ready && data && onSave && <button type="button" className="asst-lnk strong" disabled={busy} data-testid="assistant-save-draft"
+          onClick={() => { setBusy(true); setErr(""); void onSave(kind, data!).catch((e) => setErr(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); }}>
+          {busy ? "Saving…" : saved ? (revising ? "Apply again" : "Save again") : revising ? "Apply to library" : "Save to library"}</button>}
+      </div>
+      {showJson || !data ? <pre className="asst-draft-json">{json}</pre> : (
+        <div className="asst-draft-body">{fields.map(([k, v]) => <DraftField key={k} name={k} value={v} />)}</div>
+      )}
+      {ready && !data && <p className="asst-error">This draft is not valid JSON — ask for it again.</p>}
+      {err && <p className="asst-error" role="alert">{err}</p>}
+      {saved && <p className="asst-draft-saved">✓ {revising ? "Applied" : "Saved"} — see the card below.</p>}
+    </div>
+  );
+}
+
+function DraftField({ name, value }: { name: string; value: unknown }) {
+  const label = name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+  if (Array.isArray(value)) {
+    const items = value.map((v) => (typeof v === "string" ? v : v && typeof v === "object" ? String((v as Record<string, unknown>).title ?? (v as Record<string, unknown>).label ?? (v as Record<string, unknown>).name ?? JSON.stringify(v)) : String(v)));
+    return <div className="asst-draft-f"><span>{label} <small>({items.length})</small></span>{typeof value[0] === "string" && name !== "tags" && name !== "keys"
+      ? items.map((t, i) => <div key={i} className="asst-draft-v"><MessageText text={t} /></div>)
+      : <div className="asst-draft-chips">{items.map((t, i) => <span key={i}>{t}</span>)}</div>}</div>;
+  }
+  if (value && typeof value === "object") return <div className="asst-draft-f"><span>{label}</span><div className="asst-draft-chips">{Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== "" && v != null).map(([k, v]) => <span key={k}>{k}: {String(v)}</span>)}</div></div>;
+  return <div className="asst-draft-f"><span>{label}</span><div className="asst-draft-v"><MessageText text={String(value ?? "")} /></div></div>;
 }

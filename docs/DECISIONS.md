@@ -612,3 +612,14 @@ Signed: **CLAUDE**.
 - **Chat menu (⋯):** Rename (also double-click the title), **Export as Markdown**, Delete. **Search** in the sidebar also finds text inside messages, with the matching line.
 - **Compaction** (`compactChat`): the model (no tools) sums up all but the newest 2 user turns — wants, decisions, items with `kind:id`, waiting proposals, preferences; requests then send the summary instead (Flint: "visible compaction"). Auto before a message when the last request used 80% of the context (75k when the window is unknown); can be switched off per chat.
 - **Repeated calls:** the third identical tool call is refused with "stop and answer"; a fourth ends the reply (Flint: stuck-loop detection). Steps record their duration; replies record think/write time and calls.
+
+**Same day, round 4 — going back and forth before saving (Daniel: "do code blocks render? I like a back and forth before committing my characters").** Code blocks already rendered (Markdown); now: **Copy** on every code block (in every message of the app); **✎ Drafts** switch under the message box (per chat): while on, the tools that save are not offered, the assistant shows each item as a ```` ```homunculus-<kind> ```` JSON block, revises it in full, and a **draft card** shows it readable (fields; JSON view; Copy) with **Save to library** — or **Apply to library** when the draft names an existing item with `"id": "kind:id"` (the user's click applies it, kept in the item's History). Saved drafts get the usual created/changed card.
+
+## D-063 — Character's Note as a field (2026-11-01)
+
+Daniel: "Characters don't have the Character's Note" (SillyTavern's `depth_prompt`, with @ Depth and Role). It was read from the imported card's `original` and sent, but could not be seen, edited or given to characters made in the app.
+- `CharacterNote { text, depth = 4, role = system }` on `Character.characterNote` (optional: missing = the one inside the imported card, so older characters keep working) and in `CharacterFields` (a version can have its own).
+- Import reads `data.extensions.depth_prompt`; export writes it back without adding fields that were not there (lossless); the prompt (`buildPrompt`, "card:note") and the lorebook scan's `characterDepthPrompt` use `characterNoteOf()`.
+- Editor: "Character's Note" under First message, with @ Depth, Role and tokens, like SillyTavern. The Assistant's character guide knows the field.
+
+Signed: **CLAUDE**.

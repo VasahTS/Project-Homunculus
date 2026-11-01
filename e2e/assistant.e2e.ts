@@ -84,3 +84,23 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await page.getByTestId("mode-switch").getByRole("tab", { name: "Play" }).click();
   await expect(page.getByTestId("place-list")).toBeVisible();
 });
+
+test("Draft first: drafts show as cards with Save; nothing is saved until the user does; code blocks have Copy", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  await page.getByTestId("pick-draft").click();
+  await expect(page.getByTestId("pick-draft")).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("textbox", { name: "Message to the Assistant" }).fill("Make a mercenary character");
+  await page.getByTestId("assistant-send").click();
+  const draft = page.getByTestId("assistant-draft");
+  await expect(draft).toContainText("Character draft");
+  await expect(draft).toContainText("You're short.");
+  await expect(page.getByTestId("assistant-result")).toHaveCount(0);
+  await draft.getByTestId("assistant-save-draft").click();
+  await expect(page.getByTestId("assistant-result")).toContainText("Character · created");
+  await expect(draft).toContainText("Saved");
+  // it is in the library
+  await page.getByTestId("mode-switch").getByRole("tab", { name: "Play" }).click();
+  await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click();
+  await expect(page.getByTestId("character-list")).toContainText("Kessa");
+});
