@@ -50,9 +50,9 @@ export function Segmented<T extends string>({ options, value, onChange, label, t
  * when it first shows (key it by the text to replay it when the text changes). Words stay whole (a word never breaks between letters), the
  * text reads normally to screen readers and searches, and reduced motion shows it at once.
  */
-export function RiseText({ text, stagger = 22 }: { text: string; stagger?: number }) {
-  // long titles keep the whole rise under about half a second
-  const step = Math.min(stagger, 480 / Math.max(text.length, 1));
+export function RiseText({ text, stagger = 38 }: { text: string; stagger?: number }) {
+  // long titles keep the whole rise under about 0.7 s
+  const step = Math.min(stagger, 700 / Math.max(text.length, 1));
   let i = 0;
   return (
     <span className="rise-text">

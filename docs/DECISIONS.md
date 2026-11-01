@@ -731,6 +731,7 @@ Daniel sent screen recordings (mainly the Coffra demo) as the motion he wants, a
 - **Tabs layout:** the underline glides to the selected tab (`useSlidingPill`, 420 ms, the glide curve).
 - **Greetings (Tabs and Sheet):** after ‹ › or picking another card, the text and the chat preview slide in from the side they came from (`slideIn` in `ui/motion.ts`).
 - Everything is skipped under reduced motion. Old content leaves at once; only arrivals move.
+- **After Daniel tried it** ("too fast now"; "the right and left panels keep coming in and out every time I switch session, and in the Assistant"; "opening a chat has no animation"): one slower cascade for whole views (`CASCADE` in `ui/motion.ts`: 85 ms apart, 900 ms each, 14 px), titles at 38 ms a letter over 760 ms. **The sidebar and the inspector no longer slide in** when they appear (they replayed on every chat switch and Play ↔ Assistant): the panels stay still and only what is inside arrives — the sidebar's items (not the brand or the mode switch) and the inspector's content a beat after the messages. **Opening a chat** brings the last messages on screen in one after another, then the composer (once per chat; new messages keep `.msg.fresh`).
 - **Not in this round:** the card growing into the editor (the app opens the editor from the character sheet's Edit, on another page), the side sheet with a blurred page behind, and the circular theme switch (the app has no appearance picker yet: Quiet is fixed). The draft shows all three.
 
 Signed: **CLAUDE**.

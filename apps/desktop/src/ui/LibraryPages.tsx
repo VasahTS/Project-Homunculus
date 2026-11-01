@@ -10,7 +10,7 @@ import { LorebookChips } from "./LorePanels.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
 import { AvatarDot } from "./Sidebar.tsx";
 import { Toolbar } from "./Toolbar.tsx";
-import { useEnter } from "./motion.ts";
+import { CASCADE, useEnter } from "./motion.ts";
 import type { Tracker } from "../trackers.ts";
 
 export function MasterDetail({ list, detail, collapsed = false, onExpand }: {
@@ -60,7 +60,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
   const shown = characters.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase()));
   // the list arrives one row after another when the page opens (D-072)
   const listEl = useRef<HTMLUListElement>(null);
-  useEnter(listEl, "open", undefined, { y: 8, stagger: 28, duration: 520, max: 12 });
+  useEnter(listEl, "open", undefined, { ...CASCADE, y: 10, stagger: 45, max: 12 });
   return (
     <div className="page">
       <Toolbar lead={lead} title="Characters" center={tabs} subtitle={`${characters.length} in the library`}

@@ -13,7 +13,7 @@ import { avatarUrl } from "../files.ts";
 import { cardSections, cleanGreetings } from "../cardSections.ts";
 import { Help } from "./Help.tsx";
 import { Button, IconButton, Icon, RiseText, Segmented } from "./kit.tsx";
-import { enter, useSlidingPill } from "./motion.ts";
+import { CASCADE, enter, useSlidingPill } from "./motion.ts";
 import { AutoText, Greetings, tokensText } from "./Greetings.tsx";
 import { FieldLabel, HistoryList, pruneVariants, useVersionedDraft, VersionBar, type HistoryField } from "./Versions.tsx";
 
@@ -145,13 +145,13 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
     const pane = el.querySelector<HTMLElement>(".ce-pane");
     const firsts = [el.querySelector(".ce-bar"), ...(layout === "tabs" ? [el.querySelector(".ce-thead"), el.querySelector(".ce-tabbar")] : [...(body?.children ?? [])])];
     const items = [...firsts, ...(pane ? blocksOf(pane) : [])].filter((x): x is Element => !!x);
-    enter(items, { y: 10, stagger: 55, duration: 620, max: 12 });
+    enter(items, CASCADE);
   }, [layout]);
   const tabMounted = useRef(false);
   useLayoutEffect(() => {
     if (!tabMounted.current) { tabMounted.current = true; return; }
     const pane = root.current?.querySelector<HTMLElement>(".ce-pane");
-    if (pane) enter(blocksOf(pane), { y: 10, stagger: 50, duration: 560, max: 10 });
+    if (pane) enter(blocksOf(pane), { ...CASCADE, stagger: 75 });
   }, [tab]);
   useSlidingPill(tabbar, tabLine, "button.on", `${layout}:${tab}`);
 

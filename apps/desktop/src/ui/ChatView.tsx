@@ -8,7 +8,7 @@
 // on any message makes the branch and puts you on it; a branch is a named end; each branch keeps its own versions.
 // 2026-10-29 (Daniel: "things stop generating when we leave the chat"): the turn lives in `turns.ts`, outside this
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
-import { useCallback, useEffect, useRef, useState, Fragment } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, Fragment } from "react";
 import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
 import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
@@ -33,6 +33,7 @@ import { MessageText } from "./MessageText.tsx";
 import { AuthorsNoteGroup, noteMarkAt } from "./AuthorsNote.tsx";
 import { QuickConnect } from "./QuickConnect.tsx";
 import { Toolbar } from "./Toolbar.tsx";
+import { CASCADE, enter } from "./motion.ts";
 import { BranchMenu, ForkMarker, subtreeOf, TreeSheet, useBranches } from "./Branches.tsx";
 import type { ReactNode } from "react";
 
@@ -447,6 +448,17 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const cut = pending ? (pending.parentId === null ? 0 : path.findIndex((m) => m.id === pending.parentId) + 1) : path.length;
   const visible = path.slice(0, cut);
   const last = visible[visible.length - 1];
+  // Opening a chat (D-072, the Coffra reference): the messages on screen rise in one after another, then the composer.
+  // Only once per chat, when its messages first show; new messages keep their own arrival (.msg.fresh).
+  const listRef = useRef<HTMLOListElement>(null);
+  const introDone = useRef(false);
+  useLayoutEffect(() => {
+    if (introDone.current || visible.length === 0 || !listRef.current) return;
+    introDone.current = true;
+    const items = [...listRef.current.children].slice(-6);
+    const composer = listRef.current.closest(".story-pane")?.querySelector(".composer");
+    enter(composer ? [...items, composer] : items, { ...CASCADE, stagger: 90 });
+  }, [visible.length]);
   const leadChar = charAsCast(session.cast[0]?.characterId ?? "");
   /**
    * Messages are stored raw; {{char}}/{{user}} are filled in for display (and in the prompt). Display-only regex
@@ -587,7 +599,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             <RegexReview groups={regexWaiting} sample={lastAi?.content} onClose={() => setReviewRegex(false)}
               onAllow={(xs) => void svc.store.approveRegex(xs.map(regexKey)).then(() => { setRegexTick((t) => t + 1); onRegexChanged?.(); })} />
           )}
-          <ol className="messages-list" data-testid="messages">
+          <ol className="messages-list" data-testid="messages" ref={listRef}>
             {visible.map((m, i) => {
               const versions = versionsOf(m);
               const vIndex = versions.indexOf(m.id);

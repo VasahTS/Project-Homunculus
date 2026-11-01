@@ -442,8 +442,7 @@ details[open]::details-content { block-size: auto; }
 @keyframes sweep { from { background-position: -60% 0; } to { background-position: 160% 0; } }
 @keyframes blink { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
 .msg.fresh { animation: rise var(--dur-slow) var(--ease-out) backwards; }
-.inspector { animation: slide-from-right var(--dur-slow) var(--ease-out) backwards; }
-.sidebar { animation: slide-from-left var(--dur-slow) var(--ease-out) backwards; }
+/* the sidebar and the inspector stay still when the view changes; only what is inside them arrives (D-072) */
 .help-pop { animation: pop var(--dur) var(--ease-spring) backwards; transform-origin: top left; }
 .who-pop, .popover { animation: pop var(--dur) var(--ease-spring) backwards; transform-origin: top left; }
 .notice, .error-bar { animation: rise var(--dur) var(--ease-out) backwards; }
@@ -2919,7 +2918,7 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
  * The reduced-motion block above turns all of it off. */
 .rise-text { display: inline; }
 .rise-word { display: inline-block; white-space: nowrap; }
-.rise-l { display: inline-block; animation: rise-letter 560ms var(--ease-out) backwards; }
+.rise-l { display: inline-block; animation: rise-letter 760ms var(--ease-out) backwards; }
 @keyframes rise-letter { from { opacity: 0; transform: translateY(0.42em); } }
 .ce-tabbar { position: relative; }
 .ce-tabbar button.on { border-bottom-color: transparent; }

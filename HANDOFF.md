@@ -8,6 +8,7 @@ Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`,
 
 Daniel: "do you have transitions like Coffra?" → draft `docs/drafts/motion/` (made with the Stageshow skill), approved: "more or less what I'm looking for"; plus "can the name rise in a cascade too, like Coffra?". He asked for a **`ui` branch** so `dev` stays untouched until he is sure.
 - **On `ui` only** (from `dev` b46474b): page titles and the editor title rise letter by letter; the character editor's blocks arrive in a cascade on open, layout switch and tab switch; the Tabs underline glides; greetings slide in from the side they came from; Characters cards and the character list cascade in.
+- **Second pass after Daniel tried it:** slower (one shared `CASCADE`), the sidebar and the inspector stay still on chat switches and Play ↔ Assistant (only their content arrives), and opening a chat cascades its last messages and the composer.
 - Not yet: card → editor growth, blurred side sheets, circular theme switch (no appearance picker in the app yet).
 - Checks: typecheck, unit tests, full browser suite. Looked at in the browser preview frame by frame; not tried in the Windows app.
 - **To try:** GitHub Desktop → branch `ui` → Pull origin, run the app, Characters → Lyra → Edit (Tabs layout), switch tabs and greetings. Back to normal: switch to `dev`.

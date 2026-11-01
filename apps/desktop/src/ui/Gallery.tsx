@@ -11,7 +11,7 @@ import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { Button, Icon, Segmented } from "./kit.tsx";
 import { Toolbar } from "./Toolbar.tsx";
-import { useEnter } from "./motion.ts";
+import { CASCADE, useEnter } from "./motion.ts";
 import { CollectionTools, FolderHits, type CollectionPrefs, type FolderHit } from "./CollectionTools.tsx";
 import type { LibraryArea } from "./Sidebar.tsx";
 
@@ -125,7 +125,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   const [recent, setRecent] = useState(false);
   // the cards arrive one after another when the page opens (D-072)
   const cards = useRef<HTMLDivElement>(null);
-  useEnter(cards, "open", undefined, { y: 12, stagger: 35, duration: 600, max: 12 });
+  useEnter(cards, "open", undefined, { ...CASCADE, stagger: 60 });
   const searching = q.trim() !== "";
   // a search looks in every folder (Daniel: "you can search in All and it will show everything")
   // D-068: the folder path counts too, and Everything ignores folders

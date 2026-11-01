@@ -16,6 +16,7 @@ import { diffWords } from "../diff.ts";
 import { readFileBytes } from "../files.ts";
 import { bytesToBase64 } from "@homunculus/st-cards";
 import { Button, Icon, IconButton } from "./kit.tsx";
+import { CASCADE, useEnter } from "./motion.ts";
 import { AssistantCustomizePage, ModelRow } from "./AssistantCustomize.tsx";
 import { Modal } from "./Vault.tsx";
 import { MessageText, openLink } from "./MessageText.tsx";
@@ -79,9 +80,12 @@ export function AssistantSidebar({ st, onMode, status }: { st: AssistantState; o
     })(), 200);
     return () => { live = false; clearTimeout(t); };
   }, [q, st.chats, st.svc]);
+  // what is inside arrives one after another when the sidebar appears; the brand and the mode switch stay put (D-072)
+  const navRef = useRef<HTMLElement>(null);
+  useEnter(navRef, "open", ":scope > :not(.slide-pill):not(.sidebar-brand):not(.mode-switch)", { ...CASCADE, y: 8, stagger: 40, max: 12 });
   const shown = q.trim() ? st.chats.filter((c) => `${c.title} ${c.summary}`.toLowerCase().includes(q.trim().toLowerCase()) || hits.has(c.id)) : st.chats;
   return (
-    <nav className="sidebar glass asst-side" aria-label="Assistant" data-region="sidebar" data-testid="assistant-sidebar">
+    <nav className="sidebar glass asst-side" aria-label="Assistant" data-region="sidebar" data-testid="assistant-sidebar" ref={navRef}>
       <div className="sidebar-brand"><span className="brand">Homunculus</span><span className="status-chip">{status}</span></div>
       <ModeSwitch mode="assistant" onMode={onMode} />
       <ul className="side-list">

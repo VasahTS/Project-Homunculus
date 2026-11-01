@@ -3,7 +3,7 @@
 // New tabs (Agents, Notes…) plug in here. 2026-10-28 (D-023): the tab body slides in from the side of the tab you came from.
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Segmented } from "./kit.tsx";
-import { EASE_OUT, reducedMotion } from "./motion.ts";
+import { CASCADE, EASE_OUT, enter, reducedMotion } from "./motion.ts";
 
 export type InspectorTab = "scene" | "prompt" | "reply";
 const ORDER: InspectorTab[] = ["scene", "prompt", "reply"];
@@ -13,6 +13,8 @@ export function Inspector({ tab, onTab, scene, prompt, reply }: {
 }) {
   const body = useRef<HTMLDivElement>(null);
   const prev = useRef(tab);
+  // opening a chat: the panel itself stays still (D-072); its content rises in a beat after the messages
+  useLayoutEffect(() => { if (body.current) enter([body.current], { ...CASCADE, delay: 240 }); }, []);
   useLayoutEffect(() => {
     const from = ORDER.indexOf(prev.current);
     const to = ORDER.indexOf(tab);

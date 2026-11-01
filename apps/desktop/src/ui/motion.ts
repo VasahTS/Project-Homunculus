@@ -29,6 +29,12 @@ export function enter(elements: Iterable<Element>, { x = 0, y = 10, scale = 1, s
   }
 }
 
+/**
+ * The page cascade (D-072, the Coffra reference): blocks arrive one after another, unhurried. Daniel found the first
+ * try (55 ms apart, 620 ms each) too fast. Use it for whole views: an editor opening, a tab, a chat, a list.
+ */
+export const CASCADE: EnterOptions = { y: 14, stagger: 85, duration: 900, max: 10 };
+
 /** Runs `enter` on the children of `ref` (or on `selector` inside it) whenever `key` changes. */
 export function useEnter(ref: RefObject<HTMLElement | null>, key: unknown, selector?: string, options?: EnterOptions): void {
   useLayoutEffect(() => {

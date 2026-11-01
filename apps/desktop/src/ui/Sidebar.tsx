@@ -14,7 +14,7 @@ import { variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
-import { useSlidingPill } from "./motion.ts";
+import { CASCADE, useEnter, useSlidingPill } from "./motion.ts";
 import { turns, useTurns, type LiveTurn } from "../turns.ts";
 
 export interface SidebarSearchItem { id: string; name: string; kind: string; onOpen: () => void }
@@ -95,6 +95,8 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
   // the highlight slides from the old place to the new one (D-023)
   const navRef = useRef<HTMLElement>(null);
   const pillRef = useRef<HTMLSpanElement>(null);
+  // what is inside arrives one after another when the sidebar appears; the brand and the mode switch stay put (D-072)
+  useEnter(navRef, "open", ":scope > :not(.slide-pill):not(.sidebar-brand):not(.mode-switch)", { ...CASCADE, y: 8, stagger: 40, max: 12 });
   useSlidingPill(navRef, pillRef, ".side-item.on", `${activeSessionId}:${activeStoryId}:${activeChatId}:${place}:${JSON.stringify(unfolded)}`);
 
   return (
