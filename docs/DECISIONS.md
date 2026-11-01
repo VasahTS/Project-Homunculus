@@ -575,3 +575,8 @@ Daniel: "*narration* and "dialogue" don't work even with the regex; SillyTavern,
 - Libraries: `marked`, `dompurify` (desktop app only). Nothing changes what is saved or what the AI is sent.
 
 Signed: **CLAUDE**.
+
+**Same day — links and pictures from the web (Daniel: "some cards come with images; leave it as an option to open links or see images attached by links").** Settings → Messages: **Links** (on by default) — `<a href>` / Markdown links with http(s) or mailto only; a click is caught and opened in the system browser (`plugin-opener` `openUrl`; the preview uses a new window with noopener), never inside the app. **Images from links**: *Click to show* (default; each picture is a "Show image · <site>" button, because loading one tells that site you opened it), *Always* (no-referrer, lazy) or *Never*. `data:` pictures always show.
+
+Signed: **CLAUDE**.
+

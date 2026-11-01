@@ -2319,3 +2319,6 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .look-preview { list-style: none; padding: 4px 2px; width: 100%; }
 .look-color { display: inline-flex; align-items: center; gap: 8px; margin-right: 10px; }
 .look-color input[type=color] { width: 30px; height: 22px; padding: 0; border: 1px solid var(--separator); border-radius: 6px; background: none; cursor: pointer; }
+.msg-format a.msg-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.msg-format .img-gate { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0; padding: 6px 12px; border: 1px dashed var(--separator); border-radius: var(--radius-control); background: var(--fill); color: var(--label-2); font: inherit; font-family: var(--font-ui, inherit); font-size: var(--size-small); cursor: pointer; }
+.msg-format .img-gate:hover { color: var(--label); background: var(--fill-hover); }

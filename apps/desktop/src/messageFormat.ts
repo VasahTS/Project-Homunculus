@@ -15,17 +15,21 @@ export interface MessageLook {
   dialogue: boolean;
   /** Formatting HTML written by the AI (<font color>, <span style>…). Regex scripts' HTML is always drawn. */
   html: boolean;
+  /** Links in messages open in the system browser (never inside the app). */
+  links: boolean;
+  /** Images from internet addresses: shown after a click ("ask"), always, or never. */
+  images: "ask" | "always" | "never";
   /** Empty = the theme's. */
   dialogueColor: string;
   narrationColor: string;
 }
 
-export const DEFAULT_LOOK: MessageLook = { markdown: true, dialogue: true, html: true, dialogueColor: "", narrationColor: "" };
+export const DEFAULT_LOOK: MessageLook = { markdown: true, dialogue: true, html: true, links: true, images: "ask", dialogueColor: "", narrationColor: "" };
 
 const TAGS = ["b", "strong", "i", "em", "u", "s", "del", "strike", "mark", "small", "big", "sub", "sup", "font", "span", "div", "p", "br", "hr",
   "q", "blockquote", "code", "pre", "kbd", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "details", "summary", "center",
-  "table", "thead", "tbody", "tr", "th", "td", "ruby", "rt", "rp", "abbr", "cite", "dfn", "time", "img"];
-const ATTRS = ["color", "face", "size", "style", "title", "open", "align", "colspan", "rowspan", "class", "src", "alt"];
+  "table", "thead", "tbody", "tr", "th", "td", "ruby", "rt", "rp", "abbr", "cite", "dfn", "time", "img", "a"];
+const ATTRS = ["color", "face", "size", "style", "title", "open", "align", "colspan", "rowspan", "class", "src", "alt", "href"];
 /** CSS a message may use on its own text. */
 const CSS = new Set(["color", "background", "background-color", "font-weight", "font-style", "font-family", "font-size", "font-variant",
   "text-decoration", "text-decoration-color", "text-decoration-style", "text-align", "text-transform", "text-shadow", "letter-spacing",
@@ -41,7 +45,9 @@ function hook() {
   DOMPurify.addHook("uponSanitizeAttribute", (_node, data) => {
     const name = data.attrName;
     if (name === "class") { data.keepAttr = data.attrValue === "dlg"; return; } // only our own dialogue mark
-    if (name === "src") { data.keepAttr = /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(data.attrValue); return; } // nothing from the internet
+    // pictures: inside the message, or from a web address (shown as the user chose: formatMessage)
+    if (name === "src") { data.keepAttr = /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(data.attrValue) || /^https?:\/\/[^\s]+$/i.test(data.attrValue.trim()); return; }
+    if (name === "href") { data.keepAttr = /^(https?:\/\/|mailto:)[^\s]+$/i.test(data.attrValue.trim()); return; }
     if (name === "size") { data.keepAttr = /^[+-]?[1-7]$/.test(data.attrValue.trim()); return; }
     if (name !== "style") return;
     const kept: string[] = [];
@@ -59,7 +65,7 @@ function hook() {
     data.attrValue = kept.join("; ");
     data.keepAttr = kept.length > 0;
   });
-  // an image whose address was dropped (from the internet) is dropped too
+  // an image whose address was dropped is dropped too
   DOMPurify.addHook("afterSanitizeAttributes", (node) => { if (node.nodeName === "IMG" && !node.getAttribute("src")) node.remove(); });
 }
 
@@ -86,7 +92,43 @@ export function formatMessage(text: string, look: MessageLook, allowHtml: boolea
   const html = look.markdown
     ? (marked.parse(src, { breaks: true, gfm: true, async: false }) as string)
     : src.replace(/\n/g, "<br>");
-  return DOMPurify.sanitize(html, { ALLOWED_TAGS: TAGS, ALLOWED_ATTR: ATTRS, ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false });
+  const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS: TAGS, ALLOWED_ATTR: ATTRS, ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false });
+  return webParts(clean, look);
+}
+
+const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };
+
+/**
+ * Links and pictures from the internet, as the user chose (Settings → Messages). Links get no app navigation: a click
+ * is caught by MessageText and opened in the system browser. A picture "ask" becomes a "Show image" button.
+ */
+function webParts(clean: string, look: MessageLook): string {
+  if (!/<(a|img)\b/i.test(clean)) return clean;
+  const t = document.createElement("template");
+  t.innerHTML = clean;
+  for (const a of [...t.content.querySelectorAll("a")]) {
+    const href = a.getAttribute("href");
+    if (!href || !look.links) { a.replaceWith(...a.childNodes); continue; }
+    a.setAttribute("target", "_blank");
+    a.setAttribute("rel", "noopener noreferrer");
+    a.setAttribute("title", href);
+    a.className = "msg-link";
+  }
+  for (const img of [...t.content.querySelectorAll("img")]) {
+    const src = img.getAttribute("src") ?? "";
+    if (!/^https?:/i.test(src)) continue;
+    if (look.images === "never") { img.remove(); continue; }
+    if (look.images === "always") { img.setAttribute("referrerpolicy", "no-referrer"); img.setAttribute("loading", "lazy"); continue; }
+    const gate = document.createElement("button");
+    gate.type = "button";
+    gate.className = "img-gate";
+    gate.dataset.src = src;
+    if (img.getAttribute("alt")) gate.dataset.alt = img.getAttribute("alt")!;
+    gate.textContent = `Show image · ${hostOf(src)}`;
+    gate.title = src;
+    img.replaceWith(gate);
+  }
+  return t.innerHTML;
 }
 
 /** Does the text have HTML tags at all? (then it is not plain text). */

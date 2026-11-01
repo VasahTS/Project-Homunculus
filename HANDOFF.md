@@ -13,7 +13,7 @@ Report and limits: `docs/REVIEW-BUGFIXES-2026-11-01.md`. No native app, real API
 
 ## Message formatting (2026-11-01) — CLAUDE — D-061
 
-- Daniel thought regex did *narration*/"dialogue": in SillyTavern the app does it. Now ours too: Markdown (`marked`), dialogue color, the AI's `<font>`/`<span style>` colors, all filtered by DOMPurify (text styles only; no scripts, links, outside images or app restyling). **Settings → Messages**: switches and the two colors, with a preview.
+- Daniel thought regex did *narration*/"dialogue": in SillyTavern the app does it. Now ours too: Markdown (`marked`), dialogue color, the AI's `<font>`/`<span style>` colors, all filtered by DOMPurify (text styles only; no scripts, links, outside images or app restyling). **Settings → Messages**: switches and the two colors, with a preview; **Links** open in the system browser; **Images from links**: click to show (default) / always / never.
 - Merged CODEX's `gpt` (five review bugfixes: memory after edits, summary queue, regex Original on edits, before/parallel notes feedback, test model in Try it/Compare) after typecheck, 298 unit and 42 affected click tests.
 - Tests: 298 unit; click tests incl. new `e2e/message-format.e2e.ts`.
 
