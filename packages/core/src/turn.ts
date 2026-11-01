@@ -287,8 +287,12 @@ export class TurnPipeline {
     return (await this.store.getAppSetting<Chapter[]>(`memory.chapters:${sessionId}`)) ?? [];
   }
 
-  async saveChapters(sessionId: string, chapters: Chapter[]): Promise<void> {
-    await this.serializeMemory(this.chapterWrites, sessionId, () => this.store.setAppSetting(`memory.chapters:${sessionId}`, chapters));
+  async saveChapters(sessionId: string, chapters: Chapter[] | ((latest: Chapter[]) => Chapter[])): Promise<void> {
+    // Read-modify-write edits share the summary commit queue, so they cannot overwrite another edit or new chapter.
+    await this.serializeMemory(this.chapterWrites, sessionId, async () => {
+      const next = typeof chapters === "function" ? chapters(await this.chapters(sessionId)) : chapters;
+      await this.store.setAppSetting(`memory.chapters:${sessionId}`, next);
+    });
   }
 
   /** Retain affected summaries, including hand edits, but send the corrected raw messages instead. CODEX. */
@@ -323,6 +327,7 @@ export class TurnPipeline {
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
     const path = messageId ? await this.store.pathTo(messageId) : [];
+    if (path.some(m => m.sessionId !== sessionId)) throw new Error("Memory message belongs to another session");
     const all = await this.chapters(sessionId);
     return {
       chapters: chaptersOnPath(path, all).map((x) => x.chapter),
@@ -344,6 +349,7 @@ export class TurnPipeline {
     connections: Record<string, ConnectionConfig> | undefined, opts: { min: number; signal?: AbortSignal | undefined }): Promise<Chapter | undefined> {
     opts.signal?.throwIfAborted();
     const path = await this.store.pathTo(messageId);
+    if (path.some(m => m.sessionId !== session.id)) throw new Error("Memory message belongs to another session");
     const all = await this.chapters(session.id);
     const span = nextChapterSpan(path, all, setup.memory, opts.min).slice(0, Math.max(opts.min, setup.memory.every));
     if (!span.length) return undefined;
@@ -363,11 +369,18 @@ export class TurnPipeline {
     };
     return this.serializeMemory(this.chapterWrites, session.id, async () => {
       opts.signal?.throwIfAborted();
-      const fresh = new Map((await this.store.pathTo(messageId)).map(m => [m.id, m]));
-      // An edit can finish while the model is writing. Never hide that edit behind its late answer. CODEX.
-      if (span.some(m => fresh.get(m.id)?.content !== m.content)) return undefined;
+      // A deleted branch endpoint has no remaining destination for this answer. CODEX, T-001.
+      if (!await this.store.getMessage(messageId)) return undefined;
+      const freshPath = await this.store.pathTo(messageId);
       const latest = await this.chapters(session.id);
-      if (previous && latest.find(c => c.id === previous.id)?.off) return undefined;
+      const freshSpan = nextChapterSpan(freshPath, latest, setup.memory, opts.min).slice(0, Math.max(opts.min, setup.memory.every));
+      // Revalidate the exact readable range and continuity input after edits, deletes and other chapter writes.
+      if (freshSpan.length !== span.length || span.some((m, i) => {
+        const fresh = freshSpan[i]!;
+        return fresh.id !== m.id || fresh.content !== m.content || JSON.stringify(fresh.speaker) !== JSON.stringify(m.speaker);
+      })) return undefined;
+      const freshPrevious = chaptersOnPath(freshPath, latest).filter(x => !x.chapter.off).at(-1)?.chapter;
+      if (freshPrevious?.id !== previous?.id || freshPrevious?.title !== previous?.title || freshPrevious?.summary !== previous?.summary) return undefined;
       await this.store.setAppSetting(`memory.chapters:${session.id}`, [...latest, chapter]);
       return chapter;
     });

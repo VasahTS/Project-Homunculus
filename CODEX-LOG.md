@@ -2,6 +2,13 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-11-01 · T-001 simple memory reliability audit
+
+Fast-forwarded gpt to committed local dev (`e774906`), preserving the original checkout's uncommitted files. Reproduced six core failures plus browser saving/draft failures before their corresponding fixes.
+Memory requests reject foreign paths and revalidate late answers; chapter patches use the shared write queue. The existing editor retains newer local drafts and reports failed saves for retry. No schema, chapter path rule, prompt order, layout or wording changes.
+Validation: typecheck/build passed; **309 unit tests passed (3 skipped); 20 browser flows passed** on exclusive port 1427. Added 14 unit and 6 browser cases; diff check passed.
+Report: `docs/MEMORY-RELIABILITY-AUDIT.md`. T-001 Done; T-002/T-003 Ready. Real API/native/private-data and unsaved-draft restart persistence are not claimed. Work only in Homunculus-gpt/gpt. Signed: **CODEX**.
+
 ## 2026-11-01 · Five review bugfixes — direct request
 
 Fixed all five reviewed bugs after ten failing unit regressions: stale chapter summaries after edits, duplicate summary spans, missing/obsolete originals of regex edits, omitted before/parallel feedback, and ignored per-test model choices.

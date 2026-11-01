@@ -38,26 +38,6 @@ Report: questions for Daniel go in the HANDOFF entry, not in code.
 
 ## Queue
 
-### T-001 · Reliability audit: simple memory (D-054)                     Status: Ready
-Goal: chapter memory never loses, duplicates or misplaces story text, on any branch, and a failure never breaks a turn.
-Context: D-054, `docs/MEMORY-PLAN.md` (proposal 1 — chapters tied to the tree path), format of `docs/AGENT-RELIABILITY-AUDIT.md`. This was written fast without a draft; it has only 39 lines of click tests.
-Files you may change: `packages/core/src/memory.ts`, the memory step in `packages/core/src/turn.ts` (only to fix a proven bug), `apps/desktop/src/ui/MemoryGroup.tsx` (behavior only — no new controls or wording), `packages/core/test/*memory*`, `e2e/memory.e2e.ts`, new `docs/MEMORY-RELIABILITY-AUDIT.md`.
-Do not touch: schemas, the storage key `memory.chapters:<sessionId>`, the path rule itself, prompt order, any UI layout or text.
-Check at least:
-- Branch from the middle of a chapter → that chapter does not count there; the raw messages come back.
-- Swipe / regenerate / edit / delete a message inside a summarized range.
-- Two turns finishing close together (background generation, D-034) → no duplicate or overlapping chapters.
-- "Summarize now" pressed twice, or during a turn.
-- A chapter edited by hand is never rewritten.
-- Summary call fails or is stopped → turn still succeeds, `core.error` is reported, nothing half-saved.
-- `every` / `keep` changed with chapters already saved; memory switched off and on.
-Done when:
-- [ ] each problem found has a test that failed before the fix and passes after
-- [ ] cases that were already fine have a test too
-- [ ] report lists what was checked, what was fixed, what was not tested (real API, native app)
-- [ ] npm run typecheck · npm test · npx playwright test e2e/memory.e2e.ts
-Size: M.
-
 ### T-002 · Tests for the late-30/10 additions                           Status: Ready
 Goal: the things Claude added on the night of 30/10 have click tests, so later changes cannot break them silently.
 Context: HANDOFF "Small round (2026-10-30, late)", D-055, and the last commits on folder views (Ctrl+click picking, group drag, Ctrl+Z after a drag, Ctrl+A / Delete to Trash).
@@ -106,3 +86,24 @@ Daniel explicitly authorized fixing the five bugs from CODEX's review, independe
 Changed: `packages/core/src/{chat,turn}.ts`, `packages/core/src/agents/{feedback,runner}.ts`; new unit/browser regressions and signed notes/report.
 Verified: typecheck/build, 295 unit tests passed (3 skipped), 37 affected browser flows passed.
 Report: `docs/REVIEW-BUGFIXES-2026-11-01.md`. T-001 remains Ready: this is not its full reliability audit. Signed: **CODEX**.
+
+### T-001 · Reliability audit: simple memory (D-054)                     Status: Done
+Goal: chapter memory never loses, duplicates or misplaces story text, on any branch, and a failure never breaks a turn.
+Context: D-054, `docs/MEMORY-PLAN.md` (proposal 1 — chapters tied to the tree path), format of `docs/AGENT-RELIABILITY-AUDIT.md`. This was written fast without a draft; it has only 39 lines of click tests.
+Files you may change: `packages/core/src/memory.ts`, the memory step in `packages/core/src/turn.ts` (only to fix a proven bug), `apps/desktop/src/ui/MemoryGroup.tsx` (behavior only — no new controls or wording), `packages/core/test/*memory*`, `e2e/memory.e2e.ts`, new `docs/MEMORY-RELIABILITY-AUDIT.md`.
+Do not touch: schemas, the storage key `memory.chapters:<sessionId>`, the path rule itself, prompt order, any UI layout or text.
+Check at least:
+- Branch from the middle of a chapter → that chapter does not count there; the raw messages come back.
+- Swipe / regenerate / edit / delete a message inside a summarized range.
+- Two turns finishing close together (background generation, D-034) → no duplicate or overlapping chapters.
+- "Summarize now" pressed twice, or during a turn.
+- A chapter edited by hand is never rewritten.
+- Summary call fails or is stopped → turn still succeeds, `core.error` is reported, nothing half-saved.
+- `every` / `keep` changed with chapters already saved; memory switched off and on.
+Done when:
+- [x] each problem found has a test that failed before the fix and passes after
+- [x] cases that were already fine have a test too
+- [x] report lists what was checked, what was fixed, what was not tested (real API, native app)
+- [x] npm run typecheck · npm test · npx playwright test e2e/memory.e2e.ts
+Size: M.
+Report: `docs/MEMORY-RELIABILITY-AUDIT.md`; 309 unit tests passed (3 skipped), 20 affected browser flows passed. Signed: **CODEX**.

@@ -3,7 +3,7 @@
 // One switch, two numbers, and the chapters of the branch on screen. Old messages are summarized into chapters and
 // the AI reads the chapters instead of them, so long chats stay consistent and cost less per reply.
 // Smart recall (picking chapters per turn) is slice 8 (docs/MEMORY-PLAN.md).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session, SetupLayer } from "@homunculus/schemas";
 import type { Chapter } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
@@ -31,16 +31,16 @@ export function MemoryGroup({ svc, session, headId, connection, storySetup, onCh
     const { memory: _drop, ...rest } = session.setup;
     void onChangeSession({ ...session, setup: Object.keys(next).length ? { ...rest, memory: next } : rest });
   };
-  const saveChapter = async (id: string, patch: Partial<Chapter>) => {
-    const all = await svc.chat.turns.chapters(session.id);
-    await svc.chat.turns.saveChapters(session.id, all.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-    await load();
+  const changeChapters = async (update: (latest: Chapter[]) => Chapter[]) => {
+    try {
+      await svc.chat.turns.saveChapters(session.id, update);
+      setError("");
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
-  const remove = async (id: string) => {
-    const all = await svc.chat.turns.chapters(session.id);
-    await svc.chat.turns.saveChapters(session.id, all.filter((c) => c.id !== id));
-    await load();
-  };
+  const saveChapter = (id: string, patch: Partial<Chapter>) =>
+    changeChapters(all => all.map(c => c.id === id ? { ...c, ...patch } : c));
+  const remove = (id: string) => changeChapters(all => all.filter(c => c.id !== id));
   const now = async () => {
     if (!headId) return;
     setBusy(true); setError("");
@@ -79,9 +79,8 @@ export function MemoryGroup({ svc, session, headId, connection, storySetup, onCh
 
 function ChapterRow({ n, c, onSave, onRemove }: { n: number; c: Chapter; onSave: (p: Partial<Chapter>) => void; onRemove: () => void }) {
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState(c.summary);
-  const [title, setTitle] = useState(c.title);
-  useEffect(() => { setText(c.summary); setTitle(c.title); }, [c.summary, c.title]);
+  const text = useChapterDraft(c.summary);
+  const title = useChapterDraft(c.title);
   return (
     <Row wide>
       <div className={`memory-chapter${c.off ? " off" : ""}`} data-testid="memory-chapter">
@@ -93,15 +92,31 @@ function ChapterRow({ n, c, onSave, onRemove }: { n: number; c: Chapter; onSave:
           <Switch label={`Send chapter ${n}`} checked={!c.off} onChange={(v) => onSave({ off: !v })} />
         </div>
         {open && <div className="memory-chapter-body">
-          <input aria-label={`Chapter ${n} title`} value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => { if (title !== c.title) onSave({ title, edited: true }); }} />
-          <textarea rows={6} aria-label={`Chapter ${n} summary`} value={text} onChange={(e) => setText(e.target.value)}
-            onBlur={() => { if (text !== c.summary) onSave({ summary: text, edited: true }); }} />
+          <input aria-label={`Chapter ${n} title`} value={title.value} onChange={(e) => title.change(e.target.value)} onBlur={() => { if (title.dirty()) onSave({ title: title.value, edited: true }); }} />
+          <textarea rows={6} aria-label={`Chapter ${n} summary`} value={text.value} onChange={(e) => text.change(e.target.value)}
+            onBlur={() => { if (text.dirty()) onSave({ summary: text.value, edited: true }); }} />
           <span className="row-line"><span className="hint">Edits save when you click away. The app never rewrites a chapter you edited.</span>
             <span className="spacer" /><button type="button" className="link quiet danger-hover" title="Its messages go back to the AI word for word (or into the next chapter)." onClick={onRemove}>Remove chapter</button></span>
         </div>}
       </div>
     </Row>
   );
+}
+
+/** Refresh untouched fields only, retaining newer drafts even when they restore the original text. CODEX, T-001. */
+function useChapterDraft(saved: string) {
+  const [value, setValue] = useState(saved);
+  const draft = useRef({ value: saved, dirty: false });
+  useEffect(() => {
+    if (!draft.current.dirty || draft.current.value === saved) {
+      draft.current = { value: saved, dirty: false };
+      setValue(saved);
+    }
+  }, [saved]);
+  return { value, dirty: () => draft.current.dirty, change: (next: string) => {
+    draft.current = { value: next, dirty: true };
+    setValue(next);
+  } };
 }
 
 function NumberField({ label, value, min, max, onCommit }: { label: string; value: number; min: number; max: number; onCommit: (n: number) => void }) {

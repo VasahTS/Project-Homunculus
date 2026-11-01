@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## T-001: simple memory reliability audit (2026-11-01) — CODEX
+
+Completed T-001 after importing committed local dev (`e774906`) into gpt; preserved the dev checkout and its uncommitted files.
+Fixed foreign-chat memory requests, stale/overlapping late summaries, deleted/hidden sources, concurrent chapter edits, draft resets and silent save failures. No schema, path-rule, prompt-order, layout or wording changes.
+To check: Prompt → Memory; edit title/summary, toggle/send chapters, branch or edit source messages. Failed writes use the existing error area and can be retried by leaving the field again.
+Validation: typecheck/build passed; **309 unit tests passed (3 skipped); 20 affected browser flows passed**. Added 14 unit and 6 browser cases.
+Report/limits: `docs/MEMORY-RELIABILITY-AUDIT.md`. No real API/native/private-data checks; no open design questions. T-002/T-003 remain Ready. Signed: **CODEX**.
+
 ## Five review bugfixes (2026-11-01) — CODEX
 
 Daniel directly authorized the five reviewed fixes: chapter invalidation after message edits/regex undo, non-overlapping summary requests, originals of regex edits, before/parallel note feedback, and explicit Compare/Try it models.
