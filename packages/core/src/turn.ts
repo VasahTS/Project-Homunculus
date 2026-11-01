@@ -208,7 +208,7 @@ export class TurnPipeline {
       for await (const chunk of this.core.connections.stream(main, toTurns(preset.squashSystem ? squashSystem(prompt) : prompt), req.signal)) {
         if (typeof chunk === "string") { text += chunk; req.onToken?.(chunk, text); }
         else if ("reasoning" in chunk) { reasoning += chunk.reasoning; req.onReasoning?.(reasoning); }
-        else Object.assign(usage, chunk.usage);
+        else if ("usage" in chunk) Object.assign(usage, chunk.usage);
       }
     } catch (error) {
       const reason = isAbort(error, req.signal) ? "Stopped" : error instanceof Error ? error.message : String(error);

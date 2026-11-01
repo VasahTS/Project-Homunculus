@@ -1,6 +1,6 @@
 // Homunculus 2 — module: OpenAI-compatible chat provider (OpenRouter, OpenAI, many local servers).
 // Author: CLAUDE, 2026-10-23.
-import type { ConnectionConfig, GenerateRequest, HomunculusModule, ModelInfo, StreamChunk } from "@homunculus/core";
+import type { ConnectionConfig, GenerateRequest, HomunculusModule, ModelInfo, RichTurn, StreamChunk, ToolCall } from "@homunculus/core";
 
 export const OPENROUTER_URL = "https://openrouter.ai/api/v1";
 
@@ -39,9 +39,13 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
 
   const body: Record<string, unknown> = {
     model: connection.model,
-    messages: req.messages,
+    messages: req.rich ? req.rich.map(toOpenAiMessage) : req.messages,
     stream: true,
   };
+  if (req.tools?.length) {
+    body.tools = req.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
+    body.tool_choice = "auto";
+  }
   const p = connection.params ?? {};
   if (p.temperature !== undefined) body.temperature = p.temperature;
   if (p.maxTokens !== undefined) body.max_tokens = p.maxTokens;
@@ -55,7 +59,7 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
   if (p.reasoningEffort) body.reasoning = { effort: p.reasoningEffort };
   // the user's extra fields win, except the ones the app needs to work (model, messages, stream)
   for (const [k, v] of Object.entries(connection.extraBody ?? {})) {
-    if (k !== "messages" && k !== "stream" && k !== "model") body[k] = v;
+    if (k !== "messages" && k !== "stream" && k !== "model" && k !== "tools") body[k] = v;
   }
 
   let res: Response;
@@ -71,10 +75,21 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
     throw new Error(`The AI service answered ${res.status}: ${text.slice(0, 300) || res.statusText}`);
   }
 
+  // tool calls arrive in pieces (by index): name first, then the arguments' JSON a few characters at a time
+  const calls: Array<{ id: string; name: string; arguments: string }> = [];
+  const flushCalls = function* (): Generator<StreamChunk> {
+    const done: ToolCall[] = calls.filter((c) => c.name).map((c, i) => ({ id: c.id || `call_${i}`, name: c.name, arguments: c.arguments }));
+    calls.length = 0;
+    if (done.length) yield { toolCalls: done };
+  };
   for await (const data of readSse(res.body)) {
-    if (data === "[DONE]") return;
+    if (data === "[DONE]") { yield* flushCalls(); return; }
     let json: {
-      choices?: Array<{ delta?: { content?: string; reasoning?: string; reasoning_content?: string } }>;
+      choices?: Array<{
+        delta?: { content?: string; reasoning?: string; reasoning_content?: string;
+          tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> };
+        finish_reason?: string | null;
+      }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
       error?: { message?: string };
     };
@@ -85,10 +100,32 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
     const thought = delta?.reasoning ?? delta?.reasoning_content;
     if (thought) yield { reasoning: thought };
     if (delta?.content) yield delta.content;
+    for (const tc of delta?.tool_calls ?? []) {
+      const i = tc.index ?? calls.length;
+      const c = (calls[i] ??= { id: "", name: "", arguments: "" });
+      if (tc.id) c.id = tc.id;
+      if (tc.function?.name) c.name += tc.function.name;
+      if (tc.function?.arguments) c.arguments += tc.function.arguments;
+    }
+    if (json.choices?.[0]?.finish_reason) yield* flushCalls();
     if (json.usage) {
       yield { usage: { tokensIn: json.usage.prompt_tokens, tokensOut: json.usage.completion_tokens, cost: json.usage.cost } };
     }
   }
+  yield* flushCalls();
+}
+
+/** Our turn → the OpenAI chat format (images as data URLs, tool calls and tool results). */
+export function toOpenAiMessage(t: RichTurn): Record<string, unknown> {
+  const content = typeof t.content === "string" ? t.content
+    : t.content.map((p) => (p.type === "text" ? { type: "text", text: p.text } : { type: "image_url", image_url: { url: `data:${p.mime};base64,${p.base64}` } }));
+  if (t.role === "tool") return { role: "tool", tool_call_id: t.toolCallId ?? "", content: typeof content === "string" ? content : JSON.stringify(content) };
+  const out: Record<string, unknown> = { role: t.role, content };
+  if (t.toolCalls?.length) {
+    out.tool_calls = t.toolCalls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments || "{}" } }));
+    if (out.content === "") out.content = null;
+  }
+  return out;
 }
 
 const num = (v: unknown): number | undefined => {
