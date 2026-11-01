@@ -81,6 +81,12 @@ Size: S–M.
 
 ## Done
 
+### Direct request · Assistant bug audit (2026-11-01)                     Status: Done
+Goal: inspect the Assistant on local dev and reproduce bugs, without redesigning it.
+Done: seven confirmed findings in `docs/ASSISTANT-RELIABILITY-AUDIT.md`; 7 unit expected-failure cases plus 1 browser reproduction. No production fixes included.
+Validation: typecheck, 324 ordinary unit passes (7 expected failures, 3 skips), 3 existing Assistant browser flows pass. Fixes remain a follow-up task. Signed: **CODEX**.
+
+
 ### Direct request · Five review bugfixes (2026-11-01)                     Status: Done
 Daniel explicitly authorized fixing the five bugs from CODEX's review, independently of the numbered queue.
 Changed: `packages/core/src/{chat,turn}.ts`, `packages/core/src/agents/{feedback,runner}.ts`; new unit/browser regressions and signed notes/report.

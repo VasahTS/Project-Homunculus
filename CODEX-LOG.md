@@ -2,6 +2,13 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-11-01 · Assistant bug audit — direct request
+
+Resolved the pending note-only HANDOFF merge with Daniel's explicit authorization; preserved dev b3c59e4 and prior gpt work (merge 33d066a).
+Seven confirmed findings, eight reproductions: 7 unit cases and 1 browser case. Audit only; no production fixes or UI decisions.
+Validation: typecheck; 324 ordinary unit passes, 7 expected failures, 3 skips; all 3 existing Assistant browser flows pass; new navigation case reproduces the wrong displayed chat.
+Report: `docs/ASSISTANT-RELIABILITY-AUDIT.md`. Real API/native/private data not tested. Work only in Homunculus-gpt/gpt. Signed: **CODEX**.
+
 ## 2026-11-01 · T-001 simple memory reliability audit
 
 Fast-forwarded gpt to committed local dev (`e774906`), preserving the original checkout's uncommitted files. Reproduced six core failures plus browser saving/draft failures before their corresponding fixes.

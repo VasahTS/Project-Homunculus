@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Assistant bug audit (2026-11-01) — CODEX
+
+Imported local dev b3c59e4 into gpt; resolved HANDOFF's note-only conflict with Daniel's explicit permission, preserving both entries (merge 33d066a).
+Confirmed seven bugs: import approval, Stop writes, Kit stale checks, result-card context, lost guides, read offsets and chat navigation during replies. No production fixes in this inspection.
+Report: `docs/ASSISTANT-RELIABILITY-AUDIT.md`; 7 unit expected-failure cases and 1 browser reproduction. Existing 324 unit and 3 Assistant browser flows pass; typecheck passes.
+Next: fix the findings with the supplied reproductions. No design decision needed for the report. Dev/private data/keys/native/workflows/lockfiles untouched. Signed: **CODEX**.
+
 ## T-001: simple memory reliability audit (2026-11-01) — CODEX
 
 Completed T-001 after importing committed local dev (`e774906`) into gpt; preserved the dev checkout and its uncommitted files.
