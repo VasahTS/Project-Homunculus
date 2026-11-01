@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
-import { compactChat, connectionFor, deleteChat, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, type ChatRow } from "../assistant/engine.ts";
+import { compactChat, connectionFor, deleteChat, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, webOn, webSources, type ChatRow } from "../assistant/engine.ts";
 import { libraryCounts } from "../assistant/tools.ts";
 import { AssistantDetails } from "./AssistantDetails.tsx";
 import { saveExport } from "../files.ts";
@@ -18,7 +18,7 @@ import { bytesToBase64 } from "@homunculus/st-cards";
 import { Button, Icon, IconButton } from "./kit.tsx";
 import { AssistantCustomizePage, ModelRow } from "./AssistantCustomize.tsx";
 import { Modal } from "./Vault.tsx";
-import { MessageText } from "./MessageText.tsx";
+import { MessageText, openLink } from "./MessageText.tsx";
 
 export type AppMode = "play" | "assistant";
 
@@ -155,7 +155,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
 
   // who answers, what it knows, which model: the chat's own picks (before the first message, kept here)
   const [draft, setDraft] = useState<Picks>({ assistantId: "", presetId: "" });
-  const picks: Picks = chat ? { assistantId: chat.assistantId, presetId: chat.presetId, connectionId: chat.connectionId, model: chat.model, contextLength: chat.contextLength, draftFirst: chat.draftFirst } : draft;
+  const picks: Picks = chat ? { assistantId: chat.assistantId, presetId: chat.presetId, connectionId: chat.connectionId, model: chat.model, contextLength: chat.contextLength, draftFirst: chat.draftFirst, webSearch: chat.webSearch } : draft;
   const setPicks = (p: Partial<Picks>) => {
     if (chat) { const next = { ...chat, ...p }; setChat(next); void saveChat(svc.store, next); }
     else setDraft((d) => ({ ...d, ...p }));
@@ -467,6 +467,7 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
         {m.steps.length > 0 && <button type="button" className="asst-quiet" onClick={() => setStepsOpen(!stepsOpen)} aria-expanded={stepsOpen} data-testid="assistant-steps">{stepLine} ›</button>}
         {stepsOpen && <div className="asst-qlist">{m.steps.map((s, i) => <div key={i} className={s.error ? "bad" : ""}>{s.label}</div>)}</div>}
         {m.text ? <ReplyText text={m.text} live={live} results={m.results} onSaveDraft={onSaveDraft} /> : live && !m.steps.length && !m.reasoning ? <div className="asst-typing" aria-label="Thinking"><i /><i /><i /></div> : null}
+        {!live && <WebSourcesRow steps={m.steps} />}
         {m.results.map((r, i) => <ResultCard key={i} r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} />)}
         {waiting > 1 && !live && <div className="asst-decide"><Button small variant="prominent" onClick={onApplyAll} data-testid="assistant-apply-all">Apply all {waiting}</Button></div>}
         {m.error && <p className="asst-error" role="alert">{m.error === "Stopped" || /abort/i.test(m.error) ? "Stopped." : m.error}</p>}
@@ -631,7 +632,7 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
 
 // ------------------------------------------------------------------ picks under the message box
 
-interface Picks { assistantId: string; presetId: string; connectionId?: string | null | undefined; model?: string | undefined; contextLength?: number | undefined; draftFirst?: boolean | undefined }
+interface Picks { assistantId: string; presetId: string; connectionId?: string | null | undefined; model?: string | undefined; contextLength?: number | undefined; draftFirst?: boolean | undefined; webSearch?: boolean | undefined }
 const fmtK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n));
 const shortModel = (m: string) => m.split("/").pop() ?? m;
 
@@ -702,6 +703,13 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
       <button type="button" className={`asst-pick draft${picks.draftFirst ? " on" : ""}`} aria-pressed={!!picks.draftFirst} data-testid="pick-draft"
         title={picks.draftFirst ? "Draft first: it shows drafts here and saves nothing until you press Save under a draft" : "Draft first: go back and forth on drafts before anything is saved"}
         onClick={() => setPicks({ draftFirst: !picks.draftFirst })}>✎ Drafts{picks.draftFirst ? " on" : ""}</button>
+      {(() => {
+        // D-067, as in Flint: on or off per chat; a chat nobody switched follows Details → Tools
+        const on = picks.webSearch ?? !settings.toolsOff.includes("web");
+        return <button type="button" className={`asst-pick web${on ? " on" : ""}`} aria-pressed={on} data-testid="pick-web"
+          title={`Web search (DuckDuckGo) is ${on ? "on" : "off"} for this chat — click to turn it ${on ? "off" : "on"}`}
+          onClick={() => setPicks({ webSearch: !on })}>🌐 Web</button>;
+      })()}
       <Pop title="Context and spending" testId="pick-context" label={<span className="asst-meter">{pct !== null && <span className="asst-ring" style={{ ["--p" as string]: `${pct}%` }} aria-hidden />}{full ? `${estimated ? "~" : ""}${fmtK(full)}` : "—"}{ctx ? ` / ${fmtK(ctx)}` : ""}</span>}>
         {() => <div className="asst-ctxpop">
           <div className="asst-pop-h">What it is using</div>
@@ -758,7 +766,7 @@ function RequestView({ chat, messageId, settings, svc, onClose }: { chat: Assist
   useEffect(() => { void libraryCounts(svc.store).then(setCounts); }, [svc]);
   const i = chat.messages.findIndex((m) => m.id === messageId);
   const turns = toTurns({ ...chat, messages: chat.messages.slice(0, i + 1) }, settings, counts);
-  const tools = toolsFor(settings);
+  const tools = toolsFor(settings, chat.draftFirst, webOn(chat, settings));
   const show = (c: RichTurn["content"]) => (typeof c === "string" ? c : c.map((p) => (p.type === "text" ? p.text : `[image ${p.mime}, ${Math.round(p.base64.length * 0.75 / 1024)} KB]`)).join("\n"));
   return (
     <Modal title="What the model received" onClose={onClose} className="modal-wide asst-request" testId="assistant-request">
@@ -779,6 +787,33 @@ function RequestView({ chat, messageId, settings, svc, onClose }: { chat: Assist
 const KIND_NAME: Record<AssistantKind, string> = { character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator" };
 
 /** A reply's text with its draft blocks drawn as draft cards (Save to library, Copy, Show JSON). */
+/** Flint's sources row (D-067): site letters + "N read · M found"; open = the list of pages. */
+const TONES = ["#1f2937", "#24292f", "#334155", "#3f3f46", "#1e3a5f", "#3b2f4a"];
+const siteOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
+const toneOf = (host: string) => { let h = 0; for (let i = 0; i < host.length; i++) h = (h * 31 + host.charCodeAt(i)) | 0; return TONES[Math.abs(h) % TONES.length]; };
+function WebSourcesRow({ steps }: { steps: AssistantMessage["steps"] }) {
+  const [open, setOpen] = useState(false);
+  const { sources, read, found } = useMemo(() => webSources(steps), [steps]);
+  if (!sources.length) return null;
+  const sites: string[] = [];
+  for (const s of sources) { const h = siteOf(s.url); if (!sites.includes(h)) sites.push(h); if (sites.length === 4) break; }
+  const label = read === 0 ? `${found} source${found === 1 ? "" : "s"}` : found === 0 ? `${read} read` : `${read} read · ${found} found`;
+  return (
+    <div className="asst-sources">
+      <button type="button" className="asst-sources-pill" aria-expanded={open} onClick={() => setOpen(!open)} data-testid="assistant-sources">
+        <span className="asst-site-tiles" aria-hidden>{sites.map((h) => <span key={h} className="asst-site" style={{ background: toneOf(h) }}>{(h[0] ?? "?").toUpperCase()}</span>)}</span>
+        <span>{label}</span><span className={`caret${open ? " open" : ""}`} aria-hidden>›</span>
+      </button>
+      {open && <ul className="asst-sources-list">{sources.map((s) => (
+        <li key={s.url}>
+          <a href={s.url} title={s.url} onClick={(e) => { e.preventDefault(); void openLink(s.url); }}>{s.title || siteOf(s.url)}</a>
+          <span className="asst-src-host">{siteOf(s.url)}</span>
+        </li>
+      ))}</ul>}
+    </div>
+  );
+}
+
 function ReplyText({ text, live, results, onSaveDraft }: { text: string; live: boolean; results: AssistantResult[]; onSaveDraft?: ((kind: AssistantKind, data: Record<string, unknown>) => Promise<void>) | undefined }) {
   const parts: Array<{ md: string } | { kind: AssistantKind; json: string; closed: boolean }> = [];
   let at = 0;

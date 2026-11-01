@@ -680,4 +680,6 @@ Daniel (translated): "when you search, folders are not included; have a mode tha
 - View and size are remembered **per place** in browser storage (`h2.collectionPrefs`; a per-viewer convenience, no database change).
 - Code: `ui/CollectionTools.tsx` (`CollectionPrefs`, `ViewSwitch`, `SizeSwitch`, `FolderHits`), `App.tsx` (`prefsOf`, `folderHits`, `openFound`, the Vault filter), `Gallery.tsx`, `Vault.tsx`, styles (`.gallery-grid.portrait`). Test: `e2e/collections.e2e.ts`.
 
+- **Built (same day):** T-005 by CODEX (reviewed; Claude added the ring provider fix), T-006 by Claude at Daniel's request. The web rules join the instructions only when web search is on for the chat (no tokens and no temptation when it is off). Live check from the cloud machine: DuckDuckGo answered 200 with 10 results and the parser read them all.
+
 Signed: **CLAUDE**.

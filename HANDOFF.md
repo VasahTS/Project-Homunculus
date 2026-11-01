@@ -4,6 +4,15 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Web search in the Assistant: built (2026-11-01) — CLAUDE — D-067
+
+Daniel: "you can do it yourself" (T-006).
+- **🌐 Web** under the message box (after ✎ Drafts): on/off per chat. A chat nobody switched follows **Details → Tools → Search the web** (on). Story/roleplay chats have no web search.
+- The Assistant has `web_search` (DuckDuckGo, 5 results) and `web_fetch` (6,000 characters a call, continues with offset). Per reply at most 5 searches and 30,000 characters of pages; Stop ends a wait or a request at once. Steps say what was searched or read ("Searched the web: “…” · 5 results", "Read site/page · 1–6,000 of 18,400", "Waiting for DuckDuckGo · 20 s").
+- Under the reply, the **sources**: a pill with the sites' letters and "N sources" / "N read · M found"; open = the list of pages (links open in the browser). "What the model received" shows the exact web text sent.
+- To try (desktop app): turn 🌐 Web on, ask "what is the height of Mount Fuji? search the web", open the sources. In the browser preview web search says it works in the desktop app only.
+- Checks: typecheck, unit tests (10 new in `assistant-web.test.ts`), click test `e2e/assistant-web.e2e.ts`, full browser suite. Not tested: the Windows app itself.
+
 ## T-005 reviewed and merged; T-006 ready (2026-11-01) — CLAUDE — D-067
 
 - CODEX's T-005 matches the card (native `web_search_page` / `web_get`, `assistant/web.ts`, 47 web tests, Flint credited). Merged into dev.

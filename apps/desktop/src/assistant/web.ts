@@ -10,9 +10,11 @@ export interface PageText { title: string; text: string; url: string; cut: boole
 export interface WebOptions { signal?: AbortSignal; onWait?: (seconds: number) => void }
 const PREVIEW = "Web search works in the desktop app only.";
 const REFUSED = "That address is on this computer or a private network, so it can't be read.";
+/** Click tests put a fake web here (as `__h2FakeUpdate` for updates); the browser preview has no web otherwise. */
+const fakeWeb = () => (globalThis as { __h2FakeWeb?: WebTransport }).__h2FakeWeb;
 export const nativeWeb: WebTransport = {
-  async searchPage(body) { if (!isDesktop) throw new Error(PREVIEW); return (await import("@tauri-apps/api/core")).invoke("web_search_page", { body }); },
-  async get(url) { if (!isDesktop) throw new Error(PREVIEW); return (await import("@tauri-apps/api/core")).invoke("web_get", { url }); },
+  async searchPage(body) { if (!isDesktop) { const f = fakeWeb(); if (f) return f.searchPage(body); throw new Error(PREVIEW); } return (await import("@tauri-apps/api/core")).invoke("web_search_page", { body }); },
+  async get(url) { if (!isDesktop) { const f = fakeWeb(); if (f) return f.get(url); throw new Error(PREVIEW); } return (await import("@tauri-apps/api/core")).invoke("web_get", { url }); },
 };
 const entities: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "—", hellip: "…", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", copy: "©" };
 const decode = (s: string) => s.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (all, key: string) => {

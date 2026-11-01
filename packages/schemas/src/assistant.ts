@@ -176,6 +176,8 @@ export const AssistantChat = z.object({
   autoCompact: z.boolean().default(true),
   /** Draft first: it shows drafts in the chat (```homunculus-<kind> blocks) and saves nothing until the user does. */
   draftFirst: z.boolean().default(false),
+  /** Web search for this chat (D-067); absent = the default in Details → Tools ("Search the web"). */
+  webSearch: z.boolean().optional(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });

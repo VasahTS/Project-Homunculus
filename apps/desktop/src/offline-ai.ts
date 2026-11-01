@@ -7,7 +7,7 @@ import type { HomunculusModule, RichTurn, StreamChunk } from "@homunculus/core";
 /**
  * The Assistant (D-062) with the offline AI: a tiny script so the screen can be tried and clicked through without a key.
  * "tracker" → guide + create a tracker; "kit" → create a Kit with the added characters; "describe"/"improve" → a change
- * to the first added character; anything else → a short answer. After a tool result it just says it is done.
+ * to the first added character; "search the web for …" → web_search (D-067); anything else → a short answer. After a tool result it just says it is done.
  */
 async function* offlineAssistant(turns: RichTurn[]): AsyncGenerator<StreamChunk> {
   const last = turns.at(-1)!;
@@ -23,6 +23,8 @@ async function* offlineAssistant(turns: RichTurn[]): AsyncGenerator<StreamChunk>
   }
   const added = [...ask.matchAll(/\[Added: (\w+):([^ \]]+) · ([^\]]+)\]/g)];
   const call = (name: string, args: unknown) => ({ toolCalls: [{ id: `off_${Date.now()}`, name, arguments: JSON.stringify(args) }] });
+  const web = /search the web for (.+)/i.exec(ask);
+  if (web) { yield call("web_search", { query: web[1]!.trim() }); return; }
   if (/tracker/i.test(ask)) { yield call("create", { kind: "tracker", data: { name: "World", help: "Time, weather and place", fields: [{ label: "Time of day", type: "text" }, { label: "Weather", type: "text" }, { label: "Place", type: "text" }] } }); return; }
   if (/\bkit\b/i.test(ask)) {
     const cast = added.filter((m) => m[1] === "character").map((m) => `character:${m[2]}`);

@@ -104,7 +104,7 @@ export function AssistantDetails({ chat, live, settings, modelName, modelFrom, o
               onChange={(on) => onSettings({ ...settings, toolsOff: on ? settings.toolsOff.filter((x) => x !== g.id) : [...settings.toolsOff, g.id] })} />
           </div>
         ))}
-        <p className="det-hint">Applies to every chat.</p>
+        <p className="det-hint">Applies to every chat. Search the web is the default: 🌐 Web in the message box changes it for one chat.</p>
       </Section>
 
       <Section title="Activity" icon="⏱" testId="det-activity" open={!!live || !!last?.steps.length}>

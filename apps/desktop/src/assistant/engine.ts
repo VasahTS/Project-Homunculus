@@ -8,8 +8,9 @@
 // - tool results of earlier replies are cut to their first lines (Flint's "microcompaction"): the model can read again.
 import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
-import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES, GUIDES } from "./guides.ts";
-import { libraryCounts, runTool, TOOL_SPECS, type ToolContext } from "./tools.ts";
+import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES, GUIDES, WEB_RULES } from "./guides.ts";
+import { libraryCounts, runTool, TOOL_SPECS, webSession, type ToolContext } from "./tools.ts";
+import type { WebSession } from "./web.ts";
 export { TOOL_SPECS };
 
 const SETTINGS_KEY = "assistant.settings";
@@ -71,10 +72,38 @@ export const TOOL_GROUPS: Array<{ id: string; label: string; help: string; tools
   { id: "organize", label: "Organize folders", help: "makes folders and puts items in them — Undo on the card", tools: ["move"] },
   { id: "files", label: "Read attached files", help: "parts of the files you attach", tools: ["read_file"] },
   { id: "memory", label: "Remember", help: "adds to the preset's memory", tools: ["remember"] },
+  // D-067: for this group the switch is the default; 🌐 Web in the message box decides per chat (as in Flint)
+  { id: "web", label: "Search the web", help: "DuckDuckGo · the default for chats; 🌐 Web in the message box turns it on or off for one chat", tools: ["web_search", "web_fetch"] },
 ];
 /** Tools that save (left out while "Draft first" is on). */
 export const SAVING_TOOLS = ["create", "import_file", "change", "set_picture", "propose_trash"];
-export const toolsFor = (s: AssistantSettings, draftFirst = false) => TOOL_SPECS.filter((t) => !TOOL_GROUPS.some((g) => g.id !== "read" && s.toolsOff.includes(g.id) && g.tools.includes(t.name)) && !(draftFirst && SAVING_TOOLS.includes(t.name)));
+export const WEB_TOOLS = ["web_search", "web_fetch"];
+/** Web search for a chat: its own choice, else the default (Details → Tools). */
+export const webOn = (chat: Pick<AssistantChat, "webSearch"> | null | undefined, s: AssistantSettings) => chat?.webSearch ?? !s.toolsOff.includes("web");
+export const toolsFor = (s: AssistantSettings, draftFirst = false, web = !s.toolsOff.includes("web")) => TOOL_SPECS.filter((t) =>
+  (WEB_TOOLS.includes(t.name) ? web : !TOOL_GROUPS.some((g) => g.id !== "read" && s.toolsOff.includes(g.id) && g.tools.includes(t.name))) && !(draftFirst && SAVING_TOOLS.includes(t.name)));
+
+export interface WebSource { url: string; title: string; read: boolean }
+/**
+ * The web pages a reply used, from its own steps (Flint's "sources" row): pages read first, then search hits
+ * not read; one entry per address; only http(s).
+ */
+export function webSources(steps: AssistantMessage["steps"]): { sources: WebSource[]; read: number; found: number } {
+  const read = new Map<string, string>();
+  const found = new Map<string, string>();
+  for (const s of steps) {
+    if (s.error) continue;
+    if (s.name === "web_fetch") {
+      const m = /^Page: (.*) — (https?:\/\/\S+) \(characters \d/.exec(s.result);
+      if (m && !read.has(m[2]!)) read.set(m[2]!, m[1]!);
+    } else if (s.name === "web_search" && s.result.startsWith("Web results for")) {
+      for (const m of s.result.matchAll(/^\d+\. (.*)\n {3}(https?:\/\/\S+)$/gm)) if (!found.has(m[2]!)) found.set(m[2]!, m[1]!);
+    }
+  }
+  const sources: WebSource[] = [...read].map(([url, title]) => ({ url, title: title || found.get(url) || "", read: true }));
+  for (const [url, title] of found) if (!read.has(url)) sources.push({ url, title, read: false });
+  return { sources, read: read.size, found: sources.length - read.size };
+}
 
 /** Who answers a chat and what it knows. */
 export function resolveFor(chat: Pick<AssistantChat, "assistantId" | "presetId"> | null, s: AssistantSettings): { assistant: AssistantPersona; preset: AssistantPreset | undefined } {
@@ -111,8 +140,8 @@ export async function deleteChat(store: SqlStore, id: string): Promise<void> {
 // ------------------------------------------------------------------ the request
 
 /** The system message, in parts (so the composer can show what takes room). */
-export function systemParts(assistant: AssistantPersona, preset: AssistantPreset | undefined, counts: string, draftFirst = false): Record<string, string> {
-  const parts: Record<string, string> = { app: draftFirst ? `${CORE_RULES}\n\n${DRAFT_RULES}` : CORE_RULES, assistant: assistant.instructions.trim() ? `Your role — ${assistant.name}:\n${assistant.instructions.trim()}` : "", library: `The user's library: ${counts}.` };
+export function systemParts(assistant: AssistantPersona, preset: AssistantPreset | undefined, counts: string, draftFirst = false, web = false): Record<string, string> {
+  const parts: Record<string, string> = { app: `${CORE_RULES}${web ? `\n${WEB_RULES}` : ""}${draftFirst ? `\n\n${DRAFT_RULES}` : ""}`, assistant: assistant.instructions.trim() ? `Your role — ${assistant.name}:\n${assistant.instructions.trim()}` : "", library: `The user's library: ${counts}.` };
   if (preset) {
     const p: string[] = [];
     if (preset.style.trim()) p.push(`How the user likes things written:\n${preset.style.trim()}`);
@@ -154,7 +183,7 @@ function resultLines(m: AssistantMessage): string[] {
 /** The saved chat as model turns (exact rounds of tool calls; older tool results shortened). */
 export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts: string): RichTurn[] {
   const { assistant, preset } = resolveFor(chat, settings);
-  const out: RichTurn[] = [{ role: "system", content: systemText(systemParts(assistant, preset, counts, chat.draftFirst)) }];
+  const out: RichTurn[] = [{ role: "system", content: systemText(systemParts(assistant, preset, counts, chat.draftFirst, webOn(chat, settings))) }];
   const users = chat.messages.filter((m) => m.role === "user");
   const recentImages = new Set(users.slice(-2).map((m) => m.id));
   const lastUser = users.at(-1)?.id;
@@ -193,6 +222,8 @@ export interface RunCallbacks {
 export async function runAssistant(o: {
   core: HomunculusCore; store: SqlStore; chat: AssistantChat; main: ConnectionConfig; connections: Record<string, ConnectionConfig>;
   signal?: AbortSignal; newId?: () => string; now?: () => number;
+  /** Web access (tests pass a fake; the app uses the shared one). */
+  web?: WebSession;
 } & RunCallbacks): Promise<AssistantChat> {
   const newId = o.newId ?? (() => crypto.randomUUID());
   const now = o.now ?? (() => Date.now());
@@ -201,8 +232,9 @@ export async function runAssistant(o: {
   const conn = connectionFor(o.chat, assistant, o.main, o.connections);
   const counts = await libraryCounts(o.store);
   const est = (t: string) => Math.ceil(t.length / 3.6);
-  const sys = systemParts(assistant, preset, counts, o.chat.draftFirst);
-  const tools = toolsFor(settings, o.chat.draftFirst);
+  const web = webOn(o.chat, settings);
+  const sys = systemParts(assistant, preset, counts, o.chat.draftFirst, web);
+  const tools = toolsFor(settings, o.chat.draftFirst, web);
   const parts: Record<string, number> = { app: est(sys.app ?? ""), assistant: est(sys.assistant ?? ""), preset: est(sys.preset ?? ""), tools: est(JSON.stringify(tools)) };
   const sent = [
     ...(preset ? [...preset.rules.filter((r) => r.on && r.text.trim()).map((r) => r.id), ...preset.notes.filter((n) => n.on && n.text.trim()).map((n) => n.id), ...(preset.memoryOn ? preset.memory.map((m) => m.id) : [])] : []),
@@ -222,6 +254,8 @@ export async function runAssistant(o: {
   }
   const ctx: ToolContext = {
     store: o.store, saveNew: assistant.saveNew, newId, files, images, results: reply.results, guides, signal: o.signal,
+    web: o.web ?? webSession, webBudget: { searches: 0, chars: 0 },
+    onStatus: (label) => { const last = reply.steps.at(-1); if (last && !last.result) { last.label = label; push(); } },
     remember: async (text) => {
       const s = await loadSettings(o.store);
       const target = preset ? s.presets.find((p) => p.id === preset.id) : undefined;

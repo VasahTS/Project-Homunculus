@@ -2613,6 +2613,23 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .msg-format .code-copy:hover { color: var(--label); }
 /* drafts ("Draft first") */
 .asst-pick.draft.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+/* D-067: 🌐 Web per chat (as ✎ Drafts) and the sources row under a reply (as in Flint) */
+.asst-pick.web:not(.on) { opacity: .6; }
+.asst-pick.web.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.asst-sources { display: flex; flex-direction: column; gap: 6px; }
+.asst-sources-pill { display: inline-flex; align-items: center; gap: 8px; width: fit-content; border: 1px solid var(--separator); background: var(--fill); color: var(--label-2); font-size: 12px; font-weight: 500; padding: 3px 10px 3px 5px; border-radius: var(--radius-pill); cursor: pointer; }
+.asst-sources-pill:hover { color: var(--label); }
+.asst-sources-pill .caret { font-size: 11px; transition: transform .15s; }
+.asst-sources-pill .caret.open { transform: rotate(90deg); }
+.asst-site-tiles { display: inline-flex; }
+.asst-site { width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 8.5px; font-weight: 600; border: 1px solid var(--separator); }
+.asst-site + .asst-site { margin-left: -5px; }
+.asst-sources-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-width: 560px; }
+.asst-sources-list li { display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 3px 6px; border-radius: 6px; }
+.asst-sources-list li:hover { background: var(--fill); }
+.asst-sources-list a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label); text-decoration: none; }
+.asst-sources-list a:hover { text-decoration: underline; }
+.asst-src-host { flex: none; color: var(--label-3); font-size: 11.5px; }
 .asst-draft { border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--separator)); border-radius: 14px; background: color-mix(in srgb, var(--accent) 4%, var(--group)); margin: 6px 0; }
 .asst-draft.writing { opacity: .75; }
 .asst-draft-h { display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 12px; border-bottom: 1px solid var(--separator); flex-wrap: wrap; }
