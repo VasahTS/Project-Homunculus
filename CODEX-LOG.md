@@ -2,6 +2,14 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-11-01 · T-005 native web access and DuckDuckGo reader
+
+Added only T-005's native commands, web module, synthetic fixtures/tests and Flint credit; no Assistant UI/tools, schemas, settings keys or roleplay changes.
+Searches share a paced queue and cooldown; pages use public-only DNS, bounded same-host redirects and 2 MB bodies. Stop returns immediately; late native answers retain their slots and are discarded. Session caches expire/evict; duplicate page reads share the native request.
+Validation: typecheck; **406 unit passes, 3 skips (47 web tests); 8 Rust passes; cargo build**. Pinned original Flint functions executed offline to generate parity cases. Initial transient MSVC PDB link error cleared on rerun.
+Only Cargo.lock's app dependency list changed (reqwest 0.13.5 already present); no new crates or TLS features. No live search, native UI, keys or private data used; no browser-flow changes to test in this card.
+T-005 Done; T-006 waits for Claude's review/merge into dev, as its card requires. No open questions. Signed: **CODEX**.
+
 ## 2026-11-01 · T-004 Assistant audit bug fixes
 
 Reproduced all seven unit failures and A7 in Chromium before fixing A1–A7, on Homunculus-gpt/gpt only. No changes to dev/main, schemas, storage keys, tool definitions, token limits, lockfiles or workflows.
