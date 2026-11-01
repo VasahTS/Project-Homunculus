@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Web search for the Assistant: plan and CODEX cards (2026-11-01) — CLAUDE — D-067
+
+Daniel asked for the DuckDuckGo plan from CODEX's note; CODEX builds it, Claude reviews.
+- **D-067** has the decisions (DuckDuckGo only, two native commands, pacing/cooldown, per-reply budget, safety). **T-005** (native commands + `assistant/web.ts`, ready now) and **T-006** (the tools, 🌐 Web and sources in the Assistant, after T-005 is merged) are in `docs/CODEX-TASKS.md` with exact texts, numbers and tests.
+- Like Flint (Daniel asked; checked in Flint's source): **🌐 Web** in the message box, on/off per chat, default from Details → Tools (on); **sources** under the reply (pill with site letters + "N read · M found", opens a list of links). No per-step text viewer.
+- **Assistant only:** story/roleplay chats get no web search (Daniel: avoid needless calls); if ever added, off by default.
+
 ## Trackers remove what no longer applies; collections draft (2026-11-01) — CLAUDE — D-066
 
 - **D-066 (done):** a tracker can remove a value with `null` (a berserk mode ends → the status is gone from that message on). Told in its instructions; engine only.

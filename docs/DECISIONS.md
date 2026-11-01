@@ -658,3 +658,18 @@ Daniel: "make it possible for the world state to REMOVE fields that are no longe
 Tests: `packages/core/test/tracker-removal.test.ts`.
 
 Signed: **CLAUDE**.
+
+## D-067 — The Assistant searches the web with DuckDuckGo (2026-11-01)
+
+Daniel: he uses `web_search` / `web_fetch` often in Flint, with DuckDuckGo only (Exa's limits); DuckDuckGo works when searches are not fired in bursts, and the error he sees as "404" goes away after a short wait. Recorded by CODEX in `docs/ASSISTANT-WEB-SEARCH-REVIEW.md`; planned by Claude, built by CODEX in two cards (T-005 native + `web.ts`, T-006 Assistant tools).
+- **Assistant only** (Daniel: "web search only in the Assistant, not in normal chats — at least not on by default, to avoid needless calls"): story and roleplay chats get no web tools. If that is ever added, it starts off and needs its own decision.
+- **Two tools:** `web_search` (5 results, max 10: title, address, snippet) and `web_fetch` (a page as plain text, 6,000 characters a call, absolute offsets). No MCP client, no API key, **DuckDuckGo only — no other provider and no fallback**.
+- **On/off like Flint** (Daniel: "do it like Flint, where web search sits there on or off"; checked in Flint's source): a **🌐 Web** toggle in the message box, next to ✎ Drafts, **per chat**. A chat nobody switched follows the default, **Search the web** in Details → Tools (on out of the box); once switched, the chat keeps its own choice (`AssistantChat.webSearch`, optional).
+- **Sources like Flint** (Daniel: "just the sources as Flint shows them is enough"): under a finished reply that used the web, a pill with up to four site letters and `N sources` / `N read` / `N read · M found`; open = the list of titles (links, system browser) and sites, pages read first. Built from the reply's steps; letter tiles instead of favicons (no requests to every site). No per-step text viewer.
+- **Native, small (D-003 still holds):** two Rust commands. `web_search_page` posts only to the fixed `html.duckduckgo.com/html/`; `web_get` reads public `http(s)` pages only — localhost and private/link-local addresses refused on the address actually connected to, same-host redirects only (another host comes back to the model to decide), 15–20 s timeouts, 2 MB cap. Parsing, text extraction, pacing, cooldown and cache are TypeScript (`assistant/web.ts`), tested with fake pages. Uses the `reqwest` the updater already ships; no npm dependency.
+- **Polite to DuckDuckGo:** one search at a time for the whole app, ≥ 2 s apart. A bot check or HTTP 202/403/429 = limited: cooldown (Retry-After, else 30 s doubling to 5 min; reset after 10 min calm). A search waits by itself only when ≤ 30 s are left (Stop ends the wait); otherwise the model is told when to try again. Any other error status: one retry after 3 s, then the real status is shown — a 404 is not assumed to be throttling.
+- **Token control:** per reply at most 5 searches and 30,000 characters of page text; a 10-minute in-memory cache (no repeat requests for the same query or page); older replies' results are trimmed to 400 characters like every tool result (D-062).
+- **Transparency and safety:** each step label names the query or the address and what came back, and the sources row lists every page. Web text is marked as data, never instructions; the rules tell the model to search with names and topics, never the user's private text, and to cite pages as Markdown links (they open in the system browser). The browser preview says web search works in the desktop app only.
+- Flint (Apache-2.0, commit 32861bbf) is the reference for the DuckDuckGo page format, bot-check markers and the public-address check; credited in `CREDITS.md` when ported.
+
+Signed: **CLAUDE**.
