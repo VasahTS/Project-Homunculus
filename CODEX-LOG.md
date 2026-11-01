@@ -2,6 +2,12 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-11-01 · Assistant efficiency and transparency review notes
+
+Recorded Daniel's request for Claude: consolidate the current Assistant, control total spending, reduce old argument replay, bound reads and review always-included preset context.
+Added the explicit requirement to inspect actual final outbound requests and explain inclusions, omissions and transformations per call; separate measured/estimated and per-call/cumulative usage, excluding credentials.
+Added synthetic character measurements, versioned Marinara sources, review priorities and verification expectations to `docs/ASSISTANT-RELIABILITY-AUDIT.md`. No production, UI, schema or budget-default changes. Validation: typecheck passed; 324 unit passes, 7 expected failures, 3 skips; diff check passed. Signed: **CODEX**.
+
 ## 2026-11-01 · Assistant bug audit — direct request
 
 Resolved the pending note-only HANDOFF merge with Daniel's explicit authorization; preserved dev b3c59e4 and prior gpt work (merge 33d066a).

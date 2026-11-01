@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Assistant follow-up: token control and request transparency (2026-11-01) — CODEX
+
+Daniel asked to record this for Claude's review: keep the sound on-demand/context-summary foundation; prioritize reliability and token control before expanding capabilities.
+Review total per-answer budgets, full replay of old creation arguments, oversized lorebook/file reads and preset/memory growth. Synthetic character measurements and Marinara source comparison are in `docs/ASSISTANT-RELIABILITY-AUDIT.md` → Follow-up for Claude.
+Explicit user requirement: inspect each actual outgoing AI request and explain included, omitted, summarized or truncated material and why; show per-call versus cumulative usage and label estimates/unknowns. Never include API keys.
+Documentation only; no UI/default/schema decision or implementation. Existing seven findings remain open. Signed: **CODEX**.
+
 ## Assistant bug audit (2026-11-01) — CODEX
 
 Imported local dev b3c59e4 into gpt; resolved HANDOFF's note-only conflict with Daniel's explicit permission, preserving both entries (merge 33d066a).

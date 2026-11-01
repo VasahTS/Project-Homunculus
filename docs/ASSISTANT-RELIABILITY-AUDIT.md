@@ -94,6 +94,48 @@ Remove-Item Env:H2_AUDIT_VERIFY
 
 For isolation, this audit used the ignored config `node_modules/.cache/agent-audit.config.mjs`: base URL `http://127.0.0.1:1427`, Vite on that same exclusive port, `reuseExistingServer: false`. Do not reuse an unrelated running app server. Browser tests use a fresh context and preview's in-memory database; unit tests use in-memory SQLite and scripted model responses.
 
+## Follow-up for Claude: efficiency and request transparency
+
+Daniel requested this review note after the audit and a source comparison with Marinara Engine (2026-11-01). His concern is reaching roughly 100k tokens after only a few visible messages. This section records review requirements and recommendations, not an approved screen design or an implemented fix.
+
+### Assessment and priorities
+
+The Assistant has a sound direction: a focused library-material workflow, small general tools, on-demand guides and item reads, file summaries instead of complete file injection, shortened old tool results, and a persisted conversation summary. Consolidate these foundations and the seven reliability findings before expanding capabilities; a rewrite is not warranted by this inspection.
+
+Efficiency is not yet guaranteed. Review these in order:
+
+1. A total per-answer token budget, distinct from a per-request context limit, output limit and maximum tool-round count. Include all internal calls, summaries and reported reasoning usage where available. Exact limits, defaults and exhaustion behavior require Daniel/Claude review; no new default is chosen here.
+2. Old tool-call arguments: `toTurns` shortens previous results but replays full `round.calls[].arguments`. A large created lorebook can keep returning in later prompts. Consider compact references and concise outcomes for completed historical operations while preserving valid provider tool-call/result pairing and the current working material.
+3. Bound every read by content size as well as entry/line count. Lorebook `entryFull` / pages of ten entries have no overall text-size cap; `read_file` line ranges can also contain arbitrarily long lines. Cover nested fields, names and summaries, not only ordinary descriptions.
+4. Reassess rules, notes and memory included in full from presets; keep useful persistent context without allowing uncontrolled prompt growth. Preserve the existing saved-summary approach and fix A5/A6 so reduction does not cause repeated reading or lost guides.
+5. Validate with scripted multi-round traces first; real-model behavior and spending still need a separate user-controlled trial. Do not infer low cost merely from a small first request or successful offline tests.
+
+Synthetic measurements from this session (no API, credentials or private data): 2,566 characters of serialized model turns plus 4,697 characters of tool definitions for a minimal greeting (12 tools). Attaching a 400,000-character text file produced 2,628 characters of turns, excluding the file body. Replaying a previous creation with a 100,000-character content field produced 102,928 characters of turns on the following short user message. These are serialized character counts, not tokenizer measurements or billed costs; the measurement script was disposable and removed.
+
+### Daniel's explicit requirement: show what the AI receives and omits
+
+The user must be able to inspect what is actually sent to the AI and identify what the application includes or leaves out. This needs to go beyond the existing approximate context meter and a reconstruction of the current chat.
+
+- Capture each actual outgoing application request at the final send boundary, after prompt assembly, compaction, trimming and provider-format conversion. Cover every internal tool/model round, retry or fallback that actually makes another request, and summary calls. Do not reconstruct it afterward from settings or messages that may have changed.
+- Make the submitted instructions and context inspectable: app rules, assistant instructions, active preset/rules/notes/memory, summary, ordered conversation messages, item/file content, image presence and identity, tool definitions, tool-call arguments and results. Distinguish an attachment reference/summary from content actually read and sent, and an advertised tool from an executed tool.
+- Explain exclusions and transformations with their source and reason: inactive rules, unselected material, content never fetched, compacted older messages, shortened results, paginated portions, omitted older images, context/budget cuts and other actual filtering. Do not imply that an entire file or library item was included when only a portion was sent. If a reason was not recorded, report it as unknown rather than inventing it.
+- Distinguish the context size of one request from total usage across the answer and conversation. Label provider-reported token/cost figures separately from local estimates; distinguish cache data where the provider exposes it. Missing usage must remain visibly unknown, not zero or a claim of cheap execution.
+- Keep authentication headers and API keys out of any request view/export. Review this without opening Daniel's private play folder or credentials. A view can establish what the application submitted; it cannot reveal a provider's undisclosed internal prompt changes or prove what a model attended to.
+- Verification should compare the inspectable record with an intercepted final outbound request, and exercise tool rounds, compaction, truncation, disabled context, attachments, summaries and failures. The user should be able to answer: What did this specific call receive? What relevant material was omitted or shortened, and why?
+
+Claude should review the existing `Request` view and Details panel against this requirement, then propose any necessary UI and storage changes through the project's normal approval process. Daniel requested recording the requirement here, not implementing a new interface in this task. No D-number or numerical budget has been assigned.
+
+### Marinara comparison: useful evidence, not a measured user bill
+
+Source inspected: Pasta-Devs/Marinara-Engine main at `e5ead06ac2fe1cb3e039f8cab7e4d266b01dac44`, matching the local reference pin at the time of inspection.
+
+- Full Mari's default pi runtime allows 400 tool-bearing rounds. Its in-memory compaction summary does not persist to the next user turn: [pi-runtime.ts](https://github.com/Pasta-Devs/Marinara-Engine/blob/e5ead06ac2fe1cb3e039f8cab7e4d266b01dac44/packages/server/src/services/professor-mari/pi-runtime.ts#L66), especially lines 872-909. This is a safety ceiling, not a spending budget. Homunculus defaults to 25 tool steps, also without a total token budget.
+- Mari's attached-chat block permits 400,000 characters (the source approximates 100k tokens) before the provider's context fitting, and is preserved as injected context: [mari-workspace-context-prompt.ts](https://github.com/Pasta-Devs/Marinara-Engine/blob/e5ead06ac2fe1cb3e039f8cab7e4d266b01dac44/packages/server/src/services/professor-mari/mari-workspace-context-prompt.ts#L22). Text files are inlined by [prompt-attachments.ts](https://github.com/Pasta-Devs/Marinara-Engine/blob/e5ead06ac2fe1cb3e039f8cab7e4d266b01dac44/packages/server/src/services/generation/prompt-attachments.ts#L171).
+- Mari also has useful economy mechanisms: indexed memories/skills, bounded reads, context fitting/caching support and a one-call Quick mode. Avoid describing it as blindly sending the whole library: [workspace-agent.service.ts](https://github.com/Pasta-Devs/Marinara-Engine/blob/e5ead06ac2fe1cb3e039f8cab7e4d266b01dac44/packages/server/src/services/professor-mari/workspace-agent.service.ts#L3215).
+- A short visible exchange may include many paid internal calls. Five requests with 20k input tokens each total 100k input tokens; this is illustrative arithmetic, not a reproduction of Daniel's Marinara session. Caching can change pricing; raw token totals alone do not establish cost.
+
+Signed: **CODEX**.
+
 ## Limits
 
 No real model, paid API, credentials, private play data or native Tauri window was accessed. Simulated tool responses prove application behavior, not how often a particular model triggers it. Persistence under actual native-disk latency, restart/crash recovery, compaction concurrent with edits/deletion, and full import Undo of embedded lore were not certified. Other possible issues were not promoted to confirmed findings without a reproduction.
