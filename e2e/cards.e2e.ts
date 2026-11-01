@@ -53,7 +53,7 @@ test("export keeps fields Homunculus doesn't use (lossless)", async ({ page }) =
   await openLibrary(page, "Characters");
   await page.getByTestId("import-input").setInputFiles({ name: "Mira.png", mimeType: "image/png", buffer: cardPng() });
   await editCharacter(page, "Mira");
-  await page.locator(".editor-body textarea").first().fill("Edited description.");
+  await page.getByLabel("Character editor").getByLabel("Description").fill("Edited description.");
   await page.getByRole("button", { name: "Save" }).click();
 
   const download = page.waitForEvent("download");

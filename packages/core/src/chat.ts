@@ -96,7 +96,8 @@ export class ChatService {
       const leadMember = narrator ?? session.cast.find((c) => c.role === "character" && c.characterId);
       const leadRaw = leadMember?.characterId ? await this.store.getCharacter(leadMember.characterId) : undefined;
       const lead = leadRaw ? effectiveCharacter(leadRaw, leadMember?.variantId) : undefined;
-      openings = lead?.firstMessages.slice(0, 1) ?? [];
+      // every greeting: the first one is shown, the others are swipes of it (like SillyTavern's alternate greetings)
+      openings = lead ? [...lead.firstMessages] : [];
       speaker = narrator || !lead ? { kind: "narrator" } : { kind: "character", characterId: lead.id };
     }
     openings = openings.filter((t) => t.trim());
@@ -104,12 +105,16 @@ export class ChatService {
     let firstMessage: Message | undefined;
     // regex scripts on first messages (D-060; SillyTavern: AI_OUTPUT when a chat starts)
     const { scripts, ctx } = await this.turns.regexForSession(session.id);
-    for (const raw of openings) {
+    // one millisecond apart, so the swipes keep the greetings' order (siblings are ordered by time, then by id)
+    const startedAt = this.now();
+    for (const [i, raw] of openings.entries()) {
       const text = applyRegexScripts(scripts, raw, { target: "ai", mode: "saved" }, ctx);
-      const m = await this.store.addMessage({ id: this.newId(), sessionId: session.id, parentId: null, speaker, content: text, createdAt: this.now(), meta: text !== raw ? { beforeRegex: raw } : {} });
+      const m = await this.store.addMessage({ id: this.newId(), sessionId: session.id, parentId: null, speaker, content: text, createdAt: startedAt + i, meta: text !== raw ? { beforeRegex: raw } : {} });
       await this.core.events.emit("message.created", { sessionId: session.id, messageId: m.id });
       firstMessage ??= m;
     }
+    // with several openings the chat opens on the first one (not the newest sibling); the others are its swipes
+    if (firstMessage && openings.length > 1) await this.store.saveBranch({ id: this.newId(), sessionId: session.id, name: "Main", headMessageId: null, endMessageId: firstMessage.id });
     return { session, firstMessage };
   }
 

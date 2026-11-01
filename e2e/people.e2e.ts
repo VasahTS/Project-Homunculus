@@ -46,7 +46,8 @@ test("a new session can start with a version", async ({ page }) => {
   await page.getByLabel("New version name").fill("Wounded");
   await page.getByRole("button", { name: "Add Version" }).click();
   await page.getByRole("button", { name: "Save" }).click();
-  await page.getByRole("button", { name: "Start Session with Lyra (Wounded)" }).click();
+  await expect(editor(page).getByRole("button", { name: "Chat Now" })).toHaveAttribute("title", "Start a chat with Lyra (Wounded)");
+  await editor(page).getByRole("button", { name: "Chat Now" }).click();
   await expect(page.getByTestId("who-button")).toContainText("with Lyra · Wounded");
   await expect(page.getByTestId("session-list").getByRole("button").first()).toContainText("Session with Lyra (Wounded)");
 });

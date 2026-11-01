@@ -694,3 +694,20 @@ Daniel (translated): "I think it is too busy the way it is, there are many stack
 - Not done (other drafts on the canvas, not chosen): Library sections inside the app sidebar (C), Narrators/NPCs/Personas as tabs of Characters (D), full-width list → detail (E/F).
 
 Signed: **CLAUDE**.
+
+## D-070 — Character editor: three layouts, greetings editor, alternate greetings in 1:1 chats (2026-11-01)
+
+Daniel (translated): "the character creation screen is very basic and bad to use … make drafts in HTML, functional, stylish and elegant. And alternate greetings are not showing." Drafts A · Sheet, B · Tabs, C · Writer in `docs/drafts/character-editor/` (UI-PLAN "Character editor"). Daniel: "I liked all 3, can you add them all?" and "yes" to greetings as swipes.
+- **Layouts:** a **Sheet · Tabs · Writer** switch in the editor's bar, remembered on this computer (`h2.characterEditor.layout`, browser storage; default Sheet). Same fields and versions in all three; switching keeps unsaved edits.
+  - **Sheet:** identity column (picture with drop, name, versions, In the Scene, lorebooks, tags, token meter, export, Move to Trash); on the right, sections with a sticky jump bar that follows the scroll: Description · Greetings · Details (Personality, Scenario — marked optional — and Example dialogue) · Prompt (Character's Note, system prompt, post-history) · More (regex, creator notes, History).
+  - **Tabs:** small picture, name and versions on top; tabs Character · Greetings · Prompt · Lore & Regex · About · History.
+  - **Writer:** outline (fields with token counts, the Description's sections, each greeting) · the card as one document in the reading font, fields without boxes that grow · settings on the right. Under ~1080 px of editor the outline hides; under ~720 px every layout becomes one column.
+- **Always in sight:** title, "Unsaved changes" / "✓ Saved", **Chat Now** (was "Start Session with …"), **Save** (also **Ctrl+S**), Close.
+- **Description sections:** top-level `<tag> … </tag>` blocks (or `#` headings when there are none) become chips/outline items with their size; a click puts the cursor there (`cardSections.ts`). Generic: any closed tag counts.
+- **Token meter:** "Sent with every reply ~N tokens" with a bar and a legend by part (greetings are not counted: only sent at the start). Every field shows its own count.
+- **Greetings editor** (`ui/Greetings.tsx`, one component, three looks): Greeting 1 = **Main**; add, duplicate, move ↑↓, **Make Main**, delete (second click), insert `{{user}}`, preview with the app's message formatting. Sheet: list + Edit/Preview; Tabs: cards + editor beside a chat preview with ‹ n/N ›; Writer: blocks in the document.
+- **Saving greetings** (`cleanGreetings`): empty alternates are dropped; an empty Greeting 1 stays when alternates exist (before, the second one silently became the main one). Same for a version's own greetings.
+- **1:1 chats get every greeting** (`chat.ts`): the first is the message shown, the others are its swipes (like SillyTavern's alternate greetings). Openings are saved 1 ms apart so the swipes keep their order, and with several openings the chat opens on the first one (a "Main" branch ending there; this also fixes Stories opening on a random opening).
+- Code: `ui/CharacterEditor.tsx`, `ui/Greetings.tsx`, `cardSections.ts`, `packages/core/src/chat.ts`, styles (`.ce*`). Tests: `apps/desktop/test/card-sections.test.ts`, `packages/core/test/chat.test.ts`, `e2e/character-editor.e2e.ts` (library/people tests now use the labels and "Chat Now").
+
+Signed: **CLAUDE**.

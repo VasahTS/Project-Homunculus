@@ -4,11 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
-## Character editor drafts; alternate greetings diagnosed (2026-11-01) — CLAUDE
+## Character editor: Sheet · Tabs · Writer, greetings, swipes (2026-11-01) — CLAUDE — D-070
 
-Daniel: the character editor is "very basic and bad to use"; asked for HTML drafts, and said alternate greetings don't show.
-- Drafts **A · Sheet, B · Tabs, C · Writer** in `docs/drafts/character-editor/index.html` (functional; plan in `docs/UI-PLAN.md` → "Character editor"). Waiting for his pick; no app code changed.
-- **Greetings:** the editor never had an editor for alternates (only a hint), and **1:1 chats send only greeting 1** (`chat.ts` `slice(0, 1)`); Stories already use them all as swipes. Fix both with the chosen draft.
+Daniel liked all three drafts ("add them all") and said yes to greetings as swipes.
+- **Library → Characters → Edit:** a **Sheet · Tabs · Writer** switch in the editor's bar (remembered). All three have the Description's `<sections>` (click = jump), token counts and a "Sent with every reply" meter, Save / Chat Now / Ctrl+S always visible, "Unsaved changes".
+- **Greetings** finally editable (alternates included): Main badge, Make Main, ↑↓, Duplicate, Delete, `{{user}}`, preview. An empty Greeting 1 no longer gets replaced by the second one on save.
+- **1:1 chats** now get every greeting: the first shows, the others are swipes (‹ 1/N ›). New chats (and Stories) open on the first opening.
+- To try: edit a card with alternate greetings (or add one), switch the three layouts, Chat Now and swipe the first message.
+- Checks: typecheck, unit tests (new `card-sections.test.ts`, 1:1 greetings in `chat.test.ts`), `e2e/character-editor.e2e.ts` (4 new) plus the full browser suite. Not tried with Daniel's real library (no access from the cloud).
 
 ## Expanded 0.2.0 changelog (2026-11-01) — CODEX
 

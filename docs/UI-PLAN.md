@@ -7,7 +7,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
-## Character editor: three drafts + alternate greetings — CLAUDE, 2026-11-01 · ⏳ waiting for Daniel's pick
+## Character editor: three drafts + alternate greetings — CLAUDE, 2026-11-01 · ✅ all three approved ("I liked all 3, add them all") and in the app as layouts (D-070)
 
 Daniel (translated): "the character creation screen is very basic and bad to use; what can we do to improve the design? Make some drafts in HTML — functional, stylish and elegant. And alternate greetings are not showing in the current version."
 Draft: `docs/drafts/character-editor/index.html` (A · Sheet, B · Tabs, C · Writer; Lyra filled / New character; everything clickable).

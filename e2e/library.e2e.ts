@@ -15,13 +15,13 @@ test("create a character, then start a session with them", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("needs a name");
 
   await page.getByPlaceholder("e.g. Lyra").fill("Corvin");
-  await page.locator(".editor-body textarea").first().fill("A tired innkeeper with a secret.");
-  await page.locator(".editor-body textarea").nth(3).fill("*Corvin wipes a mug.* \"Room's two silver.\"");
+  await page.getByLabel("Character editor").getByLabel("Description").fill("A tired innkeeper with a secret.");
+  await page.getByLabel("Greeting 1", { exact: true }).fill("*Corvin wipes a mug.* \"Room's two silver.\"");
   await page.getByRole("button", { name: "Create Character" }).click();
   await expect(page.getByText("✓ Saved")).toBeVisible();
   await expect(characters(page)).toHaveCount(2);
 
-  await page.getByRole("button", { name: "Start Session with Corvin" }).click();
+  await page.getByLabel("Character editor").getByRole("button", { name: "Chat Now" }).click();
   await expect(sessions(page)).toHaveCount(2);
   await expect(sessions(page).first()).toContainText("Session with Corvin");
   await expect(page.getByTestId("message").first()).toContainText("Room's two silver.");

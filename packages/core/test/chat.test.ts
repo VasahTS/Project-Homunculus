@@ -43,6 +43,19 @@ async function setup(replies: string[], extraModules: HomunculusModule[] = [], o
 }
 
 describe("chat service", () => {
+  it("a 1:1 chat gets every greeting: the first is shown, the alternates are its swipes (empty ones skipped)", async () => {
+    const { chat, store } = await setup([]);
+    await store.saveCharacter({ ...(await store.getCharacter("lyra"))!, firstMessages: ["Hello.", "", "Rain again."] });
+    const { session, firstMessage } = await chat.createSession({ characterIds: ["lyra"] });
+    expect(firstMessage?.content).toBe("Hello.");
+    const roots = await store.childrenOf(session.id, null);
+    expect(roots.map((m) => m.content)).toEqual(["Hello.", "Rain again."]);
+    expect(roots.every((m) => m.speaker.kind === "character")).toBe(true);
+    // the chat opens on the first greeting
+    const branches = await store.listBranches(session.id);
+    expect(branches.map((b) => [b.name, b.endMessageId])).toEqual([["Main", firstMessage!.id]]);
+  });
+
   it("creates a session with the character's greeting as first message", async () => {
     const { chat } = await setup([]);
     const { session, firstMessage } = await chat.createSession({ title: "Mill", characterIds: ["lyra"] });
