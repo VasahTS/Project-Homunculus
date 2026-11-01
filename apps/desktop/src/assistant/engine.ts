@@ -8,7 +8,7 @@
 // - tool results of earlier replies are cut to their first lines (Flint's "microcompaction"): the model can read again.
 import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
-import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES } from "./guides.ts";
+import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES, GUIDES } from "./guides.ts";
 import { libraryCounts, runTool, TOOL_SPECS, type ToolContext } from "./tools.ts";
 export { TOOL_SPECS };
 
@@ -140,6 +140,17 @@ function userContent(m: AssistantMessage, withImages: boolean): string | Content
   return [{ type: "text", text }, ...images.map((i) => ({ type: "image" as const, mime: i.mime, base64: i.base64 }))];
 }
 
+/** One short current outcome per card, independent of the original tool response. */
+function resultLines(m: AssistantMessage): string[] {
+  return m.results.flatMap((r) => {
+    if (r.type === "memory") return [];
+    if (r.type === "moved") return [`[Result: ${r.items.map((i) => `${i.kind}:${i.itemId}`).join(", ")} — move to ${JSON.stringify(r.folder)} ${r.undone ? "undone" : "moved"}]`];
+    const ref = `${r.kind}:${"itemId" in r && r.itemId ? r.itemId : "unsaved"}`;
+    const status = r.type === "created" ? r.undone ? "undone" : "created" : r.status === "applied" ? "approved/applied" : r.status;
+    return [`[Result: ${r.type} ${ref} ${JSON.stringify(r.name)} — ${status}]`];
+  });
+}
+
 /** The saved chat as model turns (exact rounds of tool calls; older tool results shortened). */
 export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts: string): RichTurn[] {
   const { assistant, preset } = resolveFor(chat, settings);
@@ -151,6 +162,8 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
   // compacted: the older messages go as their summary
   const cut = chat.compact ? chat.messages.findIndex((m) => m.id === chat.compact!.uptoId) : -1;
   if (cut >= 0) out.push({ role: "user", content: `[Summary of the earlier conversation — the messages themselves were compacted]\n${chat.compact!.summary}` }, { role: "assistant", content: "Understood." });
+  const earlierResults = chat.messages.slice(0, cut + 1).flatMap(resultLines);
+  if (earlierResults.length) out.push({ role: "user", content: earlierResults.join("\n") });
   for (const m of chat.messages.slice(cut + 1)) {
     if (m.id === lastUser) afterLastUser = true;
     if (m.role === "user") { out.push({ role: "user", content: userContent(m, recentImages.has(m.id)) }); continue; }
@@ -164,7 +177,8 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
         out.push({ role: "tool", toolCallId: c.id, content: res });
       }
     }
-    if (m.text || m.error) out.push({ role: "assistant", content: m.text || `(failed: ${m.error})` });
+    const outcomes = afterLastUser ? [] : resultLines(m);
+    if (m.text || m.error || outcomes.length) out.push({ role: "assistant", content: [m.text || (m.error ? `(failed: ${m.error})` : ""), ...outcomes].filter(Boolean).join("\n") });
   }
   return out;
 }
@@ -207,11 +221,12 @@ export async function runAssistant(o: {
     if (a.type === "image") images.set(a.id, { name: a.name, mime: a.mime, base64: a.base64 });
   }
   const ctx: ToolContext = {
-    store: o.store, saveNew: assistant.saveNew, newId, files, images, results: reply.results, guides,
+    store: o.store, saveNew: assistant.saveNew, newId, files, images, results: reply.results, guides, signal: o.signal,
     remember: async (text) => {
       const s = await loadSettings(o.store);
       const target = preset ? s.presets.find((p) => p.id === preset.id) : undefined;
       if (!target || !target.autoMemory) throw new Error(target ? `Memory is off for the preset “${target.name}”; tell the user to add it there.` : "No preset is in use, so there is nowhere to remember it.");
+      o.signal?.throwIfAborted();
       await saveSettings(o.store, { ...s, presets: s.presets.map((p) => (p.id === target.id ? { ...p, memory: [...p.memory, { id: newId(), text, from: o.chat.title, at: now() }] } : p)) });
     },
   };
@@ -220,7 +235,9 @@ export async function runAssistant(o: {
 
   try {
     for (let step = 0; ; step++) {
+      o.signal?.throwIfAborted();
       const turns = toTurns(chat, settings, counts);
+      ctx.availableGuides = new Set(Object.values(GUIDES).filter((g) => turns.some((t) => t.role === "tool" && t.content === g.text)).map((g) => g.kind));
       let text = "";
       let calls: ToolCall[] = [];
       const callStart = now();
@@ -241,6 +258,7 @@ export async function runAssistant(o: {
       for (const c of calls) {
         reply.steps.push({ id: c.id, name: c.name, args: c.arguments, result: "", label: "…", error: false });
         push();
+        o.signal?.throwIfAborted();
         const key = `${c.name}|${c.arguments}`;
         const seen = (repeats.get(key) ?? 0) + 1;
         repeats.set(key, seen);
@@ -258,6 +276,13 @@ export async function runAssistant(o: {
       chat = { ...chat, messages: [...o.chat.messages, reply] };
     }
   } catch (e) {
+    // Keep every requested tool paired, including calls that Stop prevented from starting.
+    for (const round of reply.rounds) for (const c of round.calls) {
+      const index = reply.steps.findIndex((step) => step.id === c.id);
+      if (index >= 0 && reply.steps[index]!.label !== "…") continue;
+      const stopped = { id: c.id, name: c.name, args: c.arguments, result: "Stopped before execution.", label: "Stopped", error: true };
+      if (index >= 0) reply.steps[index] = stopped; else reply.steps.push(stopped);
+    }
     reply.error = e instanceof Error ? e.message : String(e);
   }
   // the chat's share: from the service's count when it gave one, else estimated from the turns themselves

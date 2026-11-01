@@ -9,7 +9,7 @@
 import { Character, CharacterVariant, LoreEntry, Lorebook, Narrator, Story, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
 import { pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
-import { adoptEmbeddedLorebook, importStLorebook } from "@homunculus/st-lorebooks";
+import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
 import { readPart } from "./files.ts";
 import { GUIDES } from "./guides.ts";
@@ -26,6 +26,15 @@ const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit",
 /** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
 export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
 const inFolders = (k: string): k is FolderKind => (FOLDER_KINDS as string[]).includes(k);
+
+// Cancellation is checked at each write boundary; completed writes remain and are reported.
+interface Writes { signal?: AbortSignal; completed?: string[] }
+async function write<T>(w: Writes, ref: string, save: () => Promise<T>): Promise<T> {
+  w.signal?.throwIfAborted();
+  const saved = await save();
+  w.completed?.push(ref);
+  return saved;
+}
 
 // ------------------------------------------------------------------ folders (D-064)
 
@@ -52,7 +61,7 @@ const splitPath = (p: string) => p.split(/[/›>\\]/).map((x) => x.trim()).filte
 const samePath = (a: string, b: string) => splitPath(a).join("/").toLowerCase() === splitPath(b).join("/").toLowerCase();
 
 /** The folder at a path, made (with the ones above it) when missing. Returns its id (null = the top) and the ids it made. */
-export async function ensureFolder(store: SqlStore, kind: FolderKind, path: string, newId: () => string): Promise<{ id: string | null; made: string[] }> {
+export async function ensureFolder(store: SqlStore, kind: FolderKind, path: string, newId: () => string, w: Writes = {}): Promise<{ id: string | null; made: string[] }> {
   const names = splitPath(path);
   const all = await store.listFolders(kind);
   let parent: string | null = null;
@@ -60,14 +69,15 @@ export async function ensureFolder(store: SqlStore, kind: FolderKind, path: stri
   for (const name of names) {
     const found = all.find((f) => f.parentId === parent && f.name.trim().toLowerCase() === name.toLowerCase());
     if (found) { parent = found.id; continue; }
-    const f = await store.saveFolder({ id: newId(), kind, name, parentId: parent, createdAt: Date.now() });
+    const id = newId();
+    const f = await write(w, `folder:${id}`, () => store.saveFolder({ id, kind, name, parentId: parent, createdAt: Date.now() }));
     all.push(f); made.push(f.id); parent = f.id;
   }
   return { id: parent, made };
 }
 
 /** Puts items in a folder and returns the "moved" card (Undo needs where each one was). */
-export async function moveItems(store: SqlStore, refs: string[], folder: string, newId: () => string): Promise<{ card: Extract<AssistantResult, { type: "moved" }>; skipped: string[] }> {
+export async function moveItems(store: SqlStore, refs: string[], folder: string, newId: () => string, w: Writes = {}): Promise<{ card: Extract<AssistantResult, { type: "moved" }>; skipped: string[] }> {
   const card: Extract<AssistantResult, { type: "moved" }> = { type: "moved", id: newId(), folder: splitPath(folder).join("/"), items: [], made: [], undone: false };
   const skipped: string[] = [];
   const targets = new Map<FolderKind, string | null>();
@@ -76,9 +86,10 @@ export async function moveItems(store: SqlStore, refs: string[], folder: string,
     if (!r || !inFolders(r.kind)) { skipped.push(`${ref} (${r ? `${r.kind}s can't be in folders` : "unknown"})`); continue; }
     const item = await getItem(store, r.kind, r.id);
     if (!item) { skipped.push(`${ref} (not found)`); continue; }
-    if (!targets.has(r.kind)) { const t = await ensureFolder(store, r.kind, folder, newId); targets.set(r.kind, t.id); card.made.push(...t.made); }
+    if (!targets.has(r.kind)) { const t = await ensureFolder(store, r.kind, folder, newId, w); targets.set(r.kind, t.id); card.made.push(...t.made); }
     const from = (await store.folderMap(r.kind))[r.id] ?? null;
-    await store.setFolder(r.kind, r.id, targets.get(r.kind)!);
+    const kind = r.kind;
+    await write(w, ref, () => store.setFolder(kind, r.id, targets.get(kind)!));
     card.items.push({ kind: r.kind, itemId: r.id, name: str(item.name), from });
   }
   return { card, skipped };
@@ -110,6 +121,9 @@ export interface ToolContext {
   images: Map<string, { name: string; mime: string; base64: string }>;
   /** Cards for this reply. */
   results: AssistantResult[];
+  signal?: AbortSignal;
+  /** Guides still present in full in the current request. */
+  availableGuides?: Set<string>;
   /** Guides already given in this chat. */
   guides: Set<string>;
   remember: (text: string) => Promise<void>;
@@ -216,8 +230,12 @@ function trackerView(d: TrackerDraft): Obj {
 
 /** Never sent: the original imported file, ids of internal things, pictures. */
 const HIDDEN = new Set(["original", "source", "builtin", "lorePatches", "hasOwnAvatar", "createdAt", "setup", "regexScripts"]);
-function compact(v: unknown, path: string): unknown {
-  if (typeof v === "string") return v.length > LONG ? `${v.slice(0, LONG)} …(${(v.length - LONG).toLocaleString("en")} more characters: read with fields ["${path}"] and offset ${LONG})` : v;
+function compact(v: unknown, path: string, offset = 0): unknown {
+  if (typeof v === "string") {
+    const start = Math.max(0, Math.floor(offset));
+    const end = start + LONG;
+    return v.length > end ? `${v.slice(start, end)} …(${(v.length - end).toLocaleString("en")} more characters: read with fields ["${path}"] and offset ${end})` : v.slice(start);
+  }
   if (Array.isArray(v)) return v.map((x, i) => compact(x, `${path}.${i}`));
   if (isObj(v)) return Object.fromEntries(Object.entries(v).filter(([k, x]) => !HIDDEN.has(k) && x !== "" && !(Array.isArray(x) && x.length === 0)).map(([k, x]) => [k, compact(x, path ? `${path}.${k}` : k)]));
   return v;
@@ -259,8 +277,7 @@ async function readItem(store: SqlStore, ref: string, fields: string[], offset: 
     for (const f of fields) {
       let v: unknown = item;
       for (const k of f.split(".")) v = Array.isArray(v) ? v[Number(k)] : isObj(v) ? v[k] : undefined;
-      if (typeof v === "string" && offset) v = v.slice(offset, offset + LONG * 2);
-      out[f] = v === undefined ? "(no such field)" : compact(v, f);
+      out[f] = v === undefined ? "(no such field)" : compact(v, f, typeof v === "string" ? offset : 0);
     }
     return JSON.stringify(out);
   }
@@ -414,34 +431,35 @@ function kitOf(data: Obj, id: string, base?: Obj): Story {
 }
 
 /** Saves a new item. Returns its id and a one-line detail. Throws a readable error when the data is wrong. */
-export async function createItem(store: SqlStore, kind: AssistantKind, data: Obj, newId: () => string): Promise<{ id: string; name: string; detail: string }> {
+export async function createItem(store: SqlStore, kind: AssistantKind, data: Obj, newId: () => string, w: Writes = {}): Promise<{ id: string; name: string; detail: string }> {
   const bad = unknownKeys(data, kind);
   if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
   const name = str(data.name).trim();
   if (!name) throw new Error(`A ${kind} needs a name.`);
-  const made = await createOnly(store, kind, data, name, newId);
+  const made = await createOnly(store, kind, data, name, newId, w);
   const folder = str(data.folder);
   if (splitPath(folder).length && inFolders(kind)) {
-    const f = await ensureFolder(store, kind, folder, newId);
-    await store.setFolder(kind, made.id, f.id);
+    const f = await ensureFolder(store, kind, folder, newId, w);
+    await write(w, `${kind}:${made.id}`, () => store.setFolder(kind, made.id, f.id));
     made.detail += ` · in ${splitPath(folder).join("/")}`;
   }
   return made;
 }
 
-async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name: string, newId: () => string): Promise<{ id: string; name: string; detail: string }> {
+async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name: string, newId: () => string, w: Writes): Promise<{ id: string; name: string; detail: string }> {
   switch (kind) {
     case "character": {
       const main = Character.parse({ ...charFields(data), id: newId() });
       const list = Array.isArray(data.variants) ? data.variants.filter(isObj) : [];
       const variants: CharacterVariant[] = [];
       for (const v of list) { if (variantOf({ ...main, variants }, str(v.label))) throw new Error(`Two versions are called “${str(v.label)}”.`); variants.push(newVariant(main, v, newId)); }
-      const c = await store.saveCharacter({ ...main, variants });
+      const c = await write(w, `character:${main.id}`, () => store.saveCharacter({ ...main, variants }));
       return { id: c.id, name: c.name, detail: `${c.firstMessages.length} first message(s)${variants.length ? ` · ${variants.length + 1} versions` : ""}` };
     }
     case "lorebook": {
       const entries = (Array.isArray(data.entries) ? data.entries.filter(isObj) : []).map((e) => loreEntryOf(e, newId));
-      const b = await store.saveLorebook(Lorebook.parse({ id: newId(), name, description: str(data.description), entries }));
+      const book = Lorebook.parse({ id: newId(), name, description: str(data.description), entries });
+      const b = await write(w, `lorebook:${book.id}`, () => store.saveLorebook(book));
       return { id: b.id, name: b.name, detail: `${b.entries.length} entries` };
     }
     case "tracker": {
@@ -452,15 +470,23 @@ async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name:
       if (["cast", "castAndUser", "anyone"].includes(str(data.characters))) d.sets[0]!.characters = str(data.characters) as never;
       const problems = checkDraft(d);
       if (problems.length) throw new Error(problems.join(" "));
-      const saved = await saveTracker(store, d);
+      const guarded = new Proxy(store, { get(target, key) {
+        if (key === "saveTrackerSchema") return (value: Parameters<SqlStore["saveTrackerSchema"]>[0]) => write(w, `trackerSchema:${value.id}`, () => target.saveTrackerSchema(value));
+        if (key === "saveAgentConfig") return (value: Parameters<SqlStore["saveAgentConfig"]>[0]) => write(w, `tracker:${value.id}`, () => target.saveAgentConfig(value));
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      } });
+      const saved = await saveTracker(guarded, d);
       return { id: saved.id, name: saved.name, detail: `${saved.sets[0]!.fields.length} fields` };
     }
     case "kit": {
-      const k = await store.kits.save(kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, newId()));
+      const kit = kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, newId());
+      const k = await write(w, `kit:${kit.id}`, () => store.kits.save(kit));
       return { id: k.id, name: k.name, detail: `${k.cast.length} in the cast · ${k.openings.length} opening(s)` };
     }
     case "narrator": {
-      const n = await store.saveNarrator(narratorOf(data, newId()));
+      const narrator = narratorOf(data, newId());
+      const n = await write(w, `narrator:${narrator.id}`, () => store.saveNarrator(narrator));
       return { id: n.id, name: n.name, detail: n.about || "narrator" };
     }
   }
@@ -476,6 +502,8 @@ export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
       const touched = [...(Array.isArray(ops.update) ? ops.update.filter(isObj) : []).map((u) => str(u.id) || str(u.title)), ...strs(ops.remove)];
       out.entries = entries.filter((e) => touched.some((t) => t === e.id || t.toLowerCase() === e.title.toLowerCase())).map(entryFull);
     } else if (kind === "character" && k === "variants") out.variants = touchedVariants(Character.parse(item), changes.variants);
+    else if (kind === "kit" && k === "narratorId") out[k] = item.narrator ?? "";
+    else if (kind === "kit" && k === "lorebookIds") out[k] = isObj(item.setup) ? item.setup.lorebooks ?? "" : "";
     else out[k] = item[k] ?? "";
   }
   return out;
@@ -562,13 +590,46 @@ export async function applyTrash(store: SqlStore, kind: AssistantKind, id: strin
 /** Undo of a created item: to the Trash (trackers have no Trash: removed). */
 export const undoCreate = applyTrash;
 
+/** Saves an import only after approval, preserving the original format and embedded lore. */
+async function importItem(store: SqlStore, kind: "character" | "lorebook", file: { text: string; name: string }, newId: () => string, w: Writes = {}) {
+  const bytes = new TextEncoder().encode(file.text);
+  if (kind === "lorebook") {
+    const imp = importStLorebook(bytes, file.name);
+    const b = Lorebook.parse({ ...imp.lorebook, id: newId() });
+    await write(w, `lorebook:${b.id}`, () => store.saveLorebook(b));
+    return { id: b.id, name: b.name, detail: `${b.entries.length} entries · imported from ${file.name}` };
+  }
+  const imp = importCardJson(bytes);
+  const c = Character.parse({ ...imp.character, id: newId() });
+  await write(w, `character:${c.id}`, () => store.saveCharacter(c));
+  const embedded = embeddedBookOf(c);
+  let book: Lorebook | undefined;
+  if (embedded) {
+    book = Lorebook.parse({ id: newId(), ...lorebookFromCardBook(embedded, `${c.name}'s lorebook`, c.id) });
+    const b = book;
+    await write(w, `lorebook:${b.id}`, () => store.saveLorebook(b));
+    await write(w, `character:${c.id} lore link`, () => store.saveCharacter({ ...c, lorebookIds: [...new Set([...c.lorebookIds, b.id])] }));
+  }
+  return { id: c.id, name: c.name, detail: `imported from ${file.name}${book ? ` · lorebook “${book.name}”` : ""}${imp.warnings.length ? ` · ${imp.warnings.join(" ")}` : ""}` };
+}
+
+/** New-item cards already hold arbitrary data; imports retain the attached source until the user's OK. */
+export async function approveNew(store: SqlStore, r: Extract<AssistantResult, { type: "new" }>, newId: () => string) {
+  const data = isObj(r.data) ? r.data : {};
+  if ((r.kind === "character" || r.kind === "lorebook") && isObj(data.importFile))
+    return importItem(store, r.kind, { name: str(data.importFile.name), text: str(data.importFile.text) }, newId);
+  return createItem(store, r.kind, data, newId);
+}
+
 // ------------------------------------------------------------------ running a tool
 
 export async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise<ToolOutcome> {
   let a: Obj;
   try { a = rawArgs.trim() ? (JSON.parse(rawArgs) as Obj) : {}; } catch { return { result: "Your arguments were not valid JSON. Try again.", label: `${name} (bad arguments)`, error: true }; }
   if (!isObj(a)) return { result: "Arguments must be an object.", label: name, error: true };
+  const w: Writes = { signal: ctx.signal, completed: [] };
   try {
+    ctx.signal?.throwIfAborted();
     switch (name) {
       case "find": {
         const kind = READ_KINDS.includes(str(a.kind) as AssistantReadKind) ? (str(a.kind) as AssistantReadKind) : undefined;
@@ -591,7 +652,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       case "move": {
         const refs = strs(a.items);
         if (!refs.length) return { result: "Give the items as \"kind:id\".", label: "move", error: true };
-        const { card, skipped } = await moveItems(ctx.store, refs, str(a.folder), ctx.newId);
+        const { card, skipped } = await moveItems(ctx.store, refs, str(a.folder), ctx.newId, w);
         if (card.items.length) ctx.results.push(card);
         const where = card.folder || "the top (no folder)";
         return { result: `${card.items.length ? `Moved ${card.items.length} item(s) to ${where}.` : "Nothing moved."}${skipped.length ? ` Skipped: ${skipped.join("; ")}.` : ""}`, label: `Moved ${card.items.length} item(s) to “${where}”`, ...(card.items.length ? {} : { error: true }) };
@@ -606,8 +667,9 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       case "guide": {
         const g = GUIDES[str(a.kind)];
         if (!g) return { result: `No guide for “${str(a.kind)}”.`, label: "guide", error: true };
-        if (ctx.guides.has(g.kind)) return { result: `You already have the ${g.kind} guide earlier in this chat.`, label: `Guide: ${g.kind}` };
+        if (ctx.availableGuides?.has(g.kind)) return { result: `You already have the ${g.kind} guide earlier in this chat.`, label: `Guide: ${g.kind}` };
         ctx.guides.add(g.kind);
+        (ctx.availableGuides ??= new Set()).add(g.kind);
         return { result: g.text, label: `Read the ${g.kind} guide` };
       }
       case "create": {
@@ -620,7 +682,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
           ctx.results.push({ type: "new", id: ctx.newId(), kind, name: str(data.name) || kind, data, status: "waiting" });
           return { result: "Prepared; the user will approve it before it is saved.", label: `Prepared a new ${kind}: ${str(data.name)}` };
         }
-        const made = await createItem(ctx.store, kind, data, ctx.newId);
+        const made = await createItem(ctx.store, kind, data, ctx.newId, w);
         ctx.results.push({ type: "created", kind, itemId: made.id, name: made.name, detail: made.detail, undone: false });
         return { result: `Created ${kind}:${made.id} (${made.detail}).`, label: `Created ${kind} “${made.name}”` };
       }
@@ -658,18 +720,16 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       case "import_file": {
         const f = ctx.files.get(str(a.file));
         if (!f) return { result: `No attached file “${str(a.file)}”.`, label: "import_file", error: true };
-        const bytes = new TextEncoder().encode(f.text);
-        if (str(a.as) === "character") {
-          const imp = importCardJson(bytes);
-          const c = await ctx.store.saveCharacter({ ...imp.character, id: ctx.newId() });
-          const book = await adoptEmbeddedLorebook(ctx.store, c, ctx.newId).catch(() => undefined);
-          ctx.results.push({ type: "created", kind: "character", itemId: c.id, name: c.name, detail: `imported from ${f.name}${book ? ` · lorebook “${book.name}”` : ""}`, undone: false });
-          return { result: `Imported as character:${c.id}${book ? ` with its lorebook lorebook:${book.id}` : ""}.${imp.warnings.length ? ` Notes: ${imp.warnings.join(" ")}` : ""}`, label: `Imported “${c.name}”` };
+        const kind = str(a.as) === "character" ? "character" : "lorebook";
+        if (!ctx.saveNew) {
+          const bytes = new TextEncoder().encode(f.text);
+          const name = kind === "character" ? importCardJson(bytes).character.name : importStLorebook(bytes, f.name).lorebook.name;
+          ctx.results.push({ type: "new", id: ctx.newId(), kind, name, data: { name, importFile: { name: f.name, text: f.text } }, status: "waiting" });
+          return { result: "Prepared; the user will approve it before it is saved.", label: `Prepared a new ${kind}: ${name}` };
         }
-        const imp = importStLorebook(bytes, f.name);
-        const b = await ctx.store.saveLorebook({ ...imp.lorebook, id: ctx.newId() });
-        ctx.results.push({ type: "created", kind: "lorebook", itemId: b.id, name: b.name, detail: `${b.entries.length} entries · imported from ${f.name}`, undone: false });
-        return { result: `Imported as lorebook:${b.id} (${b.entries.length} entries).`, label: `Imported “${b.name}”` };
+        const made = await importItem(ctx.store, kind, f, ctx.newId, w);
+        ctx.results.push({ type: "created", kind, itemId: made.id, name: made.name, detail: made.detail, undone: false });
+        return { result: `Imported as ${kind}:${made.id} (${made.detail}).`, label: `Imported “${made.name}”` };
       }
       case "set_picture": {
         const r = splitRef(str(a.id));
@@ -693,7 +753,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
     }
     return { result: `There is no tool “${name}”.`, label: name, error: true };
   } catch (e) {
-    return { result: `Error: ${e instanceof Error ? e.message : String(e)}`, label: `${name} failed`, error: true };
+    return { result: `Error: ${e instanceof Error ? e.message : String(e)}${w.completed?.length ? ` Completed writes: ${w.completed.join(", ")}.` : ""}`, label: `${name} failed`, error: true };
   }
 }
 

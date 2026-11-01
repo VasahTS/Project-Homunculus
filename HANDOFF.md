@@ -9,6 +9,14 @@ Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`,
 - **D-066 (done):** a tracker can remove a value with `null` (a berserk mode ends → the status is gone from that message on). Told in its instructions; engine only.
 - **Draft waiting for Daniel:** `docs/drafts/collections-v2/` + UI-PLAN "Collections v2" — portrait cards (2:3) with S · M · L, search that also finds folders, and a Folders · Everything switch. No code yet.
 
+## T-004: seven Assistant bugs fixed (2026-11-01) — CODEX
+
+Imports wait for approval (including embedded lore); Stop gates every tool/model call and multi-write boundary, reporting completed writes. Kit proposals detect later narrator/lore changes.
+Request history includes current result-card decisions; guides can be reread after trimming/compaction; read hints advance correctly. Chat navigation and the next send stay with the selected chat.
+To check: Assistant → import with Ask me first, Stop a tool run, apply an outdated Kit proposal, or switch Recents during a reply. Existing controls/text/layout and budget defaults retained.
+Validation: typecheck; **352 unit passes, 3 skips; 19 audit regressions also pass with H2_AUDIT_VERIFY=1; 6 Assistant browser flows pass**. No expected-failure markers remain.
+Report: `docs/ASSISTANT-RELIABILITY-AUDIT.md`. T-004 Done; no open design questions. Partial completed writes survive Stop as specified; no real API/native/private-data checks. Signed: **CODEX**.
+
 ## Track in Scene, brief people out of the scene (2026-11-01) — CLAUDE — D-065
 
 Daniel asked (06:41) and approved the draft ("do what you think is best"; send the minimum for people out of the scene).

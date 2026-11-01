@@ -2,6 +2,13 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## 2026-11-01 · T-004 Assistant audit bug fixes
+
+Reproduced all seven unit failures and A7 in Chromium before fixing A1–A7, on Homunculus-gpt/gpt only. No changes to dev/main, schemas, storage keys, tool definitions, token limits, lockfiles or workflows.
+Fixed import approval with original/embedded data intact, Stop write boundaries and partial-write reports, Kit stale checks, current card outcomes, available guides, absolute paging, and selected-chat/reply isolation.
+Validation: typecheck and diff check passed; **352 unit passes, 3 skips; 19 audit regressions pass with H2_AUDIT_VERIFY=1; 6 browser flows pass**, including approval of both import kinds and the next send after navigation.
+T-004 marked Done. Report: `docs/ASSISTANT-RELIABILITY-AUDIT.md`. Real APIs, native Tauri and full embedded-import Undo not tested; Stop intentionally retains completed writes. No open questions. Signed: **CODEX**.
+
 ## 2026-11-01 · DuckDuckGo web search request for Claude
 
 Recorded Daniel's explicit request for Assistant web_search/web_fetch with DuckDuckGo only, no required Exa/key or silent provider fallback, controlled concurrency and temporary-error cooldown.
