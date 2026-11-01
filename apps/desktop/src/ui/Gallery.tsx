@@ -11,7 +11,7 @@ import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { Button, Icon, Segmented } from "./kit.tsx";
 import { Toolbar } from "./Toolbar.tsx";
-import { CollectionTools } from "./CollectionTools.tsx";
+import { CollectionTools, FolderHits, type CollectionPrefs, type FolderHit } from "./CollectionTools.tsx";
 import type { LibraryArea } from "./Sidebar.tsx";
 
 const LIBRARY_TABS: Array<{ area: LibraryArea; label: string }> = [
@@ -92,7 +92,7 @@ export function SheetSection({ title, children, lines = 4, prose = false }: { ti
 }
 
 /** Library → Characters: the cards, and the selected one's sheet (or the editor, when editing). */
-export function CharacterGallery({ lead, tabs, title = "Library", characters, avatars, selectedId, importHelp, onSelect, onNew, onImport, sheet, folders, inFolder, folderOf, chatsOf, activity = {} }: {
+export function CharacterGallery({ lead, tabs, title = "Library", characters, avatars, selectedId, importHelp, onSelect, onNew, onImport, sheet, folders, inFolder, folderOf, chatsOf, activity = {}, prefs, onPrefs, folderHits, onOpenFolder }: {
   lead: ReactNode;
   tabs?: ReactNode;
   title?: string;
@@ -113,15 +113,23 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   onNew: () => void;
   onImport: (files: File[]) => void;
   sheet: ReactNode;
+  /** Folders · Everything and the card size (D-068). */
+  prefs?: CollectionPrefs; onPrefs?: (p: CollectionPrefs) => void;
+  /** Folders whose name matches a search, and opening one. */
+  folderHits?: (q: string) => FolderHit[]; onOpenFolder?: (id: string) => void;
 }) {
   const [q, setQ] = useState("");
+  const everything = prefs?.view === "everything";
   const fileInput = useRef<HTMLInputElement>(null);
   const [recent, setRecent] = useState(false);
   const searching = q.trim() !== "";
   // a search looks in every folder (Daniel: "you can search in All and it will show everything")
+  // D-068: the folder path counts too, and Everything ignores folders
   const filtered = searching
-    ? characters.filter((c) => [c.name, c.creator, ...c.tags].some((x) => x.toLowerCase().includes(q.trim().toLowerCase())))
-    : inFolder ? characters.filter(inFolder) : characters;
+    ? characters.filter((c) => [c.name, c.creator, ...c.tags, folderOf?.(c) ?? ""].some((x) => x.toLowerCase().includes(q.trim().toLowerCase())))
+    : inFolder && !everything ? characters.filter(inFolder) : characters;
+  const hits = searching && folderHits ? folderHits(q) : [];
+  const where = (c: Character) => { const f = folderOf?.(c); return f ? `in ${f}` : everything ? "not in a folder" : undefined; };
   const shown = filtered.filter((c) => !recent || (activity[c.id] ?? 0) > 0).sort((a, b) => (activity[b.id] ?? 0) - (activity[a.id] ?? 0));
   return (
     <div className="page collection-page" data-region="collection">
@@ -133,15 +141,16 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
           <input ref={fileInput} type="file" accept=".png,.json" multiple hidden data-testid="import-input"
             onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) onImport(files); }} />
         </>} />
-      <CollectionTools label="characters" query={q} onQuery={setQ} recent={recent} onRecent={setRecent} />
+      <CollectionTools label="characters" query={q} onQuery={setQ} recent={recent} onRecent={setRecent} prefs={prefs} onPrefs={onPrefs} />
       <div className="gallery-layout">
-        <div className="gallery-grid">
-          {!searching && folders}
-          <div className="collection-heading"><h2>{searching ? "Search results" : "Your characters"}</h2><span>{shown.length} characters</span></div>
+        <div className={`gallery-grid${prefs ? ` portrait size-${prefs.size}` : ""}`}>
+          {!searching && !everything && folders}
+          {searching && onOpenFolder && <FolderHits hits={hits} onOpen={(id) => { setQ(""); onOpenFolder(id); }} />}
+          <div className="collection-heading"><h2>{searching ? "Search results" : everything ? "Every character" : "Your characters"}</h2><span>{shown.length} characters</span></div>
           <div className="gallery-cards" data-testid="character-list">
           {shown.map((c) => (
             <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={c.id}
-              by={searching && folderOf?.(c) ? `in ${folderOf(c)}` : chatsOf ? chatsOf(c) : c.variants.length ? `${c.variants.length + 1} versions: Main, ${c.variants.map((v) => v.label).join(", ")}` : c.creator ? `by ${c.creator}` : undefined}
+              by={(searching || everything) && where(c) ? where(c) : chatsOf ? chatsOf(c) : c.variants.length ? `${c.variants.length + 1} versions: Main, ${c.variants.map((v) => v.label).join(", ")}` : c.creator ? `by ${c.creator}` : undefined}
               summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.tracked === false ? ["Not tracked", ...c.tags] : c.tags} size={shortTokens(cardTokens(c))} />
           ))}
           </div>
@@ -150,7 +159,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
             <span>Import cards from SillyTavern</span>
             <span className="hint">PNG or JSON, several at once</span>
           </button>}
-          {characters.length > 0 && shown.length === 0 && <p className="hint gallery-empty">{searching ? "No character matches." : "Nothing here yet. Drag cards here, or pick a Folder on a card's sheet."}</p>}
+          {characters.length > 0 && shown.length === 0 && <p className="hint gallery-empty">{searching ? (hits.length ? "No character matches by name; open a folder above." : "No character or folder matches.") : "Nothing here yet. Drag cards here, or pick a Folder on a card's sheet."}</p>}
         </div>
         <aside className="gallery-sheet" data-region="sheet">
           <div className="collection-detail-label">Character details</div>

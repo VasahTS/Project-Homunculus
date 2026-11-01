@@ -7,7 +7,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 ---
 
 
-## Collections v2: search finds folders, Everything view, portrait cards with a size — CLAUDE, 2026-11-01 · 🟡 draft 1, waiting for Daniel
+## Collections v2: search finds folders, Everything view, portrait cards with a size — CLAUDE, 2026-11-01 · ✅ approved ("everything approved") and in the app (D-068)
 
 Daniel (07:38, translated): "In Stories, Characters etc., when you search, folders are not included; have a mode that shows everything with folders ignored, for a fuller view" · "Make Character Cards rectangular to show the whole picture if there is one, with an option to choose the size; now they are too big."
 Draft: `docs/drafts/collections-v2/index.html` (example names and colour panels; no pictures from his library).
@@ -16,7 +16,7 @@ Draft: `docs/drafts/collections-v2/index.html` (example names and colour panels;
 - **Search:** also matches folder names. Results: "Folders" (matching folders, click opens) then the cards whose name, tags, creator **or folder path** match, each with "in RPG › Iron Party".
 - **Folders · Everything:** a switch next to "All / Recently played". Everything = one flat list of every card, folder under the name, no folder tiles; Folders = today. Remembered per place. Drag onto folders only in Folders; the sheet's Folder picker works in both.
 - **States:** empty place (today's text), no results ("No character or folder matches"), cards without a picture (letter on a colour, as today), long names (one line, ellipsis).
-- **Open questions:** default size M? Should Everything also be the view while searching (it already is, plus the folders)?
+- **Answered:** default size M; a search already shows everything (plus the folders). Narrators keep their list beside the wide editor (no size there).
 
 ## Cards with several characters; brief people in the Scene — CLAUDE, 2026-11-01 · ✅ approved ("do what you think is best") and in the app (D-065)
 

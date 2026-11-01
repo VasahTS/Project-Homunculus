@@ -13,7 +13,7 @@ import { StoryMark } from "./Sidebar.tsx";
 import { ImagePicker } from "./ImagePicker.tsx";
 import { SetupFields, SetupSection, type StorySetupProps } from "./SetupFields.tsx";
 import { layerHasTracker } from "../trackers.ts";
-import { CollectionTools } from "./CollectionTools.tsx";
+import { CollectionTools, FolderHits, SizeSwitch, ViewSwitch, type CollectionPrefs, type FolderHit } from "./CollectionTools.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 
 /** A field set an NPC sheet can use (a Scene: Characters set, or any set with per-character fields). */
@@ -24,7 +24,7 @@ export const ROLE_LABEL: Record<UserRole, string> = { player: "You play a charac
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // ------------------------------------------------------------------------------------------------ the Vault page
-export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, onSearch, cards, sheet, emptyText, folders, title = "Library", activity = {}, wide = false }: {
+export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, onSearch, cards, sheet, emptyText, folders, title = "Library", activity = {}, wide = false, prefs, onPrefs, folderHits = [], onOpenFolder }: {
   title?: string; activity?: Record<string, number>;
   /** A narrow list beside a wide editor (narrators, D-059): everything to edit and compare without scrolling the page. */
   wide?: boolean;
@@ -34,29 +34,38 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
   sheet: ReactNode; emptyText: string;
   /** The folders (round 3): shown when not searching; `cards` are then the open folder's. */
   folders?: ReactNode;
+  /** Folders · Everything and the card size (D-068). */
+  prefs?: CollectionPrefs; onPrefs?: (p: CollectionPrefs) => void;
+  /** Folders whose name matches the search, shown above the results. */
+  folderHits?: FolderHit[]; onOpenFolder?: (id: string) => void;
 }) {
   const [recent, setRecent] = useState(false);
   const isStories = tab === "stories";
+  // portrait cards with a size, except beside the narrators' wide editor
+  const portrait = !wide && prefs ? ` portrait size-${prefs.size}` : "";
   const visible = cards.filter((c) => !isStories || !recent || (activity[c.id] ?? 0) > 0).sort((a, b) => isStories ? (activity[b.id] ?? 0) - (activity[a.id] ?? 0) : 0);
   return (
     <div className={`page${isStories ? " collection-page" : " resource-page"}`} data-region="collection">
       <Toolbar lead={lead} title={title} subtitle={isStories ? "Your worlds, their cast and every conversation." : undefined}
         trailing={<>
+          {!isStories && prefs && onPrefs && <ViewSwitch prefs={prefs} onPrefs={onPrefs} />}
+          {!isStories && !wide && prefs && onPrefs && <SizeSwitch prefs={prefs} onPrefs={onPrefs} />}
           {!isStories && <label className="search-box toolbar-search"><Icon name="search" size={13} /><input aria-label={`Search ${tab}`} placeholder={`Search ${tab}`} value={search} onChange={(e) => onSearch(e.target.value)} /></label>}
           {newButton}
         </>} />
-      {isStories && <CollectionTools label="stories" query={search} onQuery={onSearch} recent={recent} onRecent={setRecent} />}
+      {isStories && <CollectionTools label="stories" query={search} onQuery={onSearch} recent={recent} onRecent={setRecent} prefs={prefs} onPrefs={onPrefs} />}
       <div className={`gallery-layout${wide ? " wide-sheet" : ""}`}>
-        <div className="gallery-grid">
+        <div className={`gallery-grid${portrait}`}>
           {!search.trim() && folders}
+          {search.trim() && onOpenFolder && <FolderHits hits={folderHits} onOpen={onOpenFolder} />}
           <div className="gallery-cards" data-testid={`vault-${tab}`}>
-            {isStories && <div className="collection-heading"><h2>{search ? "Search results" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
+            {isStories && <div className="collection-heading"><h2>{search ? "Search results" : prefs?.view === "everything" ? "Every story" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
             {visible.map((c, i) => <Fragment key={c.id}>
               {c.group && c.group !== visible[i - 1]?.group && <div className="gallery-group" role="heading" aria-level={3}>{c.group}</div>}
               <GalleryCard {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />
             </Fragment>)}
           </div>
-          {visible.length === 0 && <p className="hint gallery-empty">{search ? "Nothing matches, in any folder." : emptyText}</p>}
+          {visible.length === 0 && <p className="hint gallery-empty">{search ? (folderHits.length ? "No items match by name; open a folder above." : "Nothing matches, in any folder.") : emptyText}</p>}
         </div>
         {(isStories || selectedId) && <aside className="gallery-sheet" data-region="sheet">{isStories && <div className="collection-detail-label">Story details</div>}{sheet}</aside>}
       </div>

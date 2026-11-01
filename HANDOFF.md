@@ -11,10 +11,15 @@ Daniel asked for the DuckDuckGo plan from CODEX's note; CODEX builds it, Claude 
 - Like Flint (Daniel asked; checked in Flint's source): **🌐 Web** in the message box, on/off per chat, default from Details → Tools (on); **sources** under the reply (pill with site letters + "N read · M found", opens a list of links). No per-step text viewer.
 - **Assistant only:** story/roleplay chats get no web search (Daniel: avoid needless calls); if ever added, off by default.
 
+## Collections v2 (2026-11-01) — CLAUDE — D-068
+
+- Characters, Stories, Kits, NPCs: **portrait cards** (the whole picture) with **S · M · L**; **Folders · Everything**; the search also finds **folders** and says where each result lives. Remembered per place.
+- Also merged CODEX's T-004 (seven Assistant fixes) after review, with a small fix: the Assistant no longer flashes an empty chat after a reply.
+
 ## Trackers remove what no longer applies; collections draft (2026-11-01) — CLAUDE — D-066
 
 - **D-066 (done):** a tracker can remove a value with `null` (a berserk mode ends → the status is gone from that message on). Told in its instructions; engine only.
-- **Draft waiting for Daniel:** `docs/drafts/collections-v2/` + UI-PLAN "Collections v2" — portrait cards (2:3) with S · M · L, search that also finds folders, and a Folders · Everything switch. No code yet.
+- Collections draft: approved and built the same morning (D-068).
 
 ## T-004: seven Assistant bugs fixed (2026-11-01) — CODEX
 

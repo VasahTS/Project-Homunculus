@@ -17,6 +17,9 @@ import { imageFileToPngAvatar, readFileBytes, saveExport } from "./files.ts";
 import { ChatView } from "./ui/ChatView.tsx";
 import { turns, useTurns } from "./turns.ts";
 import { FolderSelect, FolderView, folderAndBelow, folderLabel, VirtualTile, type FolderItem } from "./ui/Folders.tsx";
+import { DEFAULT_PREFS, type CollectionPrefs, type FolderHit } from "./ui/CollectionTools.tsx";
+
+const COLL_PREFS_KEY = "h2.collectionPrefs";
 import { Picker, type PickKind } from "./ui/Picker.tsx";
 import { ChatList, type ChatRow } from "./ui/ChatList.tsx";
 import { CharacterEditor } from "./ui/CharacterEditor.tsx";
@@ -110,6 +113,16 @@ export function App() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderMaps, setFolderMaps] = useState<Partial<Record<FolderKind, Record<string, string>>>>({});
   const [openFolder, setOpenFolder] = useState<Partial<Record<string, string | null>>>({});
+  // Folders · Everything and the card size, per place (D-068); a per-viewer convenience, so browser storage
+  const [collPrefs, setCollPrefs] = useState<Record<string, CollectionPrefs>>(() => {
+    try { return JSON.parse(localStorage.getItem(COLL_PREFS_KEY) ?? "{}") as Record<string, CollectionPrefs>; } catch { return {}; }
+  });
+  const prefsOf = (page: string): CollectionPrefs => ({ ...DEFAULT_PREFS, ...collPrefs[page] });
+  const setPrefs = (page: string) => (next: CollectionPrefs) => setCollPrefs((all) => {
+    const out = { ...all, [page]: next };
+    try { localStorage.setItem(COLL_PREFS_KEY, JSON.stringify(out)); } catch { /* per-viewer only */ }
+    return out;
+  });
   const [kits, setKits] = useState<Kit[]>([]);
   /** A chat opened from a search result: the message to show. */
   const [focusMessage, setFocusMessage] = useState<{ sessionId: string; messageId: string } | null>(null);
@@ -915,6 +928,22 @@ export function App() {
   );
   /** Is the item in the folder open on that page (directly)? */
   const inOpenFolder = (kind: FolderKind, page: string) => (id: string) => (mapOf(kind)[id] ?? null) === (openFolder[page] ?? null);
+  /** Folders whose path matches a search, with how many items are in them and below (D-068). */
+  const folderHits = (kind: FolderKind, q: string): FolderHit[] => {
+    const t = q.trim().toLowerCase();
+    if (!t) return [];
+    const map = mapOf(kind);
+    return foldersOf(kind).map((f) => ({ id: f.id, path: folderLabel(folders, f.id) }))
+      .filter((f) => f.path.toLowerCase().includes(t))
+      .map((f) => { const below = folderAndBelow(folders, f.id); return { ...f, count: Object.values(map).filter((x) => x && below.has(x)).length }; })
+      .sort((a, b) => a.path.localeCompare(b.path));
+  };
+  /** Opens a folder found by the search: back to Folders, search cleared. */
+  const openFound = (page: string, clear: () => void) => (id: string) => {
+    clear();
+    setOpenFolder((o) => ({ ...o, [page]: id }));
+    setPrefs(page)({ ...prefsOf(page), view: "folders" });
+  };
   const folderPick = (kind: FolderKind, id: string) => (
     <label className="row-line"><span className="field-label">Folder</span>
       <FolderSelect folders={foldersOf(kind)} value={mapOf(kind)[id] ?? null} onChange={(fid) => void folderAction(() => svc.store.setFolder(kind, id, fid))} />
@@ -1076,6 +1105,7 @@ export function App() {
         importHelp={importHelp} onSelect={(id) => setView({ kind: "characters", id })} onNew={() => setView({ kind: "characters", id: "new" })}
         onImport={(files) => void importFiles(files)}
         folders={folderView("character", "characters", "characters", characters.map((c) => ({ id: c.id, name: c.name, avatar: avatars[c.id] })))}
+        prefs={prefsOf("characters")} onPrefs={setPrefs("characters")} folderHits={(q) => folderHits("character", q)} onOpenFolder={openFound("characters", () => {})}
         inFolder={(c) => inOpenFolder("character", "characters")(c.id)}
         folderOf={(c) => folderLabel(folders, mapOf("character")[c.id])}
         chatsOf={(c) => { const n = chatsWith(c.id); return n.length ? `${n.length} chat${n.length === 1 ? "" : "s"} · ${new Date(n[0]!.when).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "No chats yet"; }}
@@ -1250,11 +1280,17 @@ export function App() {
     const kindOf: Record<VaultTab, FolderKind> = { stories: "story", kits: "kit", narrators: "narrator", npcs: "npc" };
     const fkind = kindOf[tab];
     const open = openFolder[page] ?? null;
-    /** Searching: everything that matches, with its folder; else the open folder's. */
+    const prefs = prefsOf(page);
+    const everything = prefs.view === "everything";
+    const pathOf = (id: string) => folderLabel(folders, mapOf(fkind)[id]);
+    /** Searching: everything whose name or folder matches, with its folder; Everything: all of them; else the open folder's. */
     const shown = <T extends { id: string; name: string }>(xs: T[], inPlace: (x: T) => boolean = (x) => (mapOf(fkind)[x.id] ?? null) === open) =>
-      searching ? xs.filter((x) => match(x.name)) : xs.filter(inPlace);
-    const withFolder = <T extends { id: string; by?: string | undefined }>(c: T): T & { dragId: string } =>
-      ({ ...c, dragId: c.id, ...(searching && mapOf(fkind)[c.id] ? { by: `${folderLabel(folders, mapOf(fkind)[c.id])}${c.by ? ` · ${c.by}` : ""}` } : {}) });
+      searching ? xs.filter((x) => match(x.name) || pathOf(x.id).toLowerCase().includes(q)) : everything ? xs : xs.filter(inPlace);
+    const withFolder = <T extends { id: string; by?: string | undefined }>(c: T): T & { dragId: string } => {
+      const path = pathOf(c.id);
+      const where = path ? `in ${path}` : everything && !searching ? "not in a folder" : "";
+      return { ...c, dragId: c.id, ...((searching || everything) && where ? { by: `${where}${c.by ? ` · ${c.by}` : ""}` } : {}) };
+    };
     let cards; let sheet; let newButton; let emptyText; let items: FolderItem[]; let extra: React.ReactNode = null; let currentName: string | undefined;
     if (tab === "stories") {
       const st = stories.find((x) => x.id === view.id) ?? (!view.id ? shown(stories)[0] : undefined);
@@ -1332,7 +1368,8 @@ export function App() {
       <VaultPage lead={pageLead} title={tab === "stories" ? "Stories" : tab === "kits" ? "Kits" : tab === "narrators" ? "Narrators" : "NPCs"} tab={tab}
         activity={Object.fromEntries(stories.map((st) => [st.id, storyChatRows(st.id)[0]?.when ?? 0]))} selectedId={view.id ?? (tab === "stories" ? cards[0]?.id ?? null : null)} onSelect={select}
         newButton={newButton} search={vaultQuery} onSearch={setVaultQuery} cards={cards} emptyText={emptyText}
-        folders={folderView(fkind, page, tab === "stories" ? "stories" : tab === "kits" ? "kits" : tab === "narrators" ? "narrators" : "NPCs", items, extra, currentName)}
+        folders={everything ? undefined : folderView(fkind, page, tab === "stories" ? "stories" : tab === "kits" ? "kits" : tab === "narrators" ? "narrators" : "NPCs", items, extra, currentName)}
+        prefs={prefs} onPrefs={setPrefs(page)} folderHits={folderHits(fkind, vaultQuery)} onOpenFolder={openFound(page, () => setVaultQuery(""))}
         sheet={sheet ?? <div className="empty-detail"><p>Pick one to see it here.</p></div>} wide={tab === "narrators"} />
     );
   } else if (view.kind === "kit") {

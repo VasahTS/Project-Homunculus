@@ -671,5 +671,13 @@ Daniel: he uses `web_search` / `web_fetch` often in Flint, with DuckDuckGo only 
 - **Token control:** per reply at most 5 searches and 30,000 characters of page text; a 10-minute in-memory cache (no repeat requests for the same query or page); older replies' results are trimmed to 400 characters like every tool result (D-062).
 - **Transparency and safety:** each step label names the query or the address and what came back, and the sources row lists every page. Web text is marked as data, never instructions; the rules tell the model to search with names and topics, never the user's private text, and to cite pages as Markdown links (they open in the system browser). The browser preview says web search works in the desktop app only.
 - Flint (Apache-2.0, commit 32861bbf) is the reference for the DuckDuckGo page format, bot-check markers and the public-address check; credited in `CREDITS.md` when ported.
+## D-068 — Collections: portrait cards with a size, search finds folders, Folders · Everything (2026-11-01)
+
+Daniel (translated): "when you search, folders are not included; have a mode that shows everything with folders ignored" · "make Character Cards rectangular to show the whole picture, with a size option; now they are too big." Draft `docs/drafts/collections-v2/` and UI-PLAN "Collections v2": "everything approved".
+- **Portrait cards** on Characters, Stories, Kits and NPCs: the picture is 2:3 (`object-position: top`, the whole portrait), then name, one line, the first tag. **S · M · L** = fixed card widths 128 / 168 / 220 px (cards no longer stretch); the summary shows at L only. Narrators keep their list beside the wide editor (D-059), with no size.
+- **Search** also matches the folder path ("RPG › Iron Party"); matching folders are listed first ("Folders", with how many items are in them and below) and open on click (search cleared, back to Folders view). Results say where each item lives ("in RPG › Iron Party").
+- **Folders · Everything** next to "All / Recently played" (Characters, Stories) or beside the search (Kits, Narrators, NPCs): Everything = every item in one list, no folder tiles, "in …" / "not in a folder" under the name.
+- View and size are remembered **per place** in browser storage (`h2.collectionPrefs`; a per-viewer convenience, no database change).
+- Code: `ui/CollectionTools.tsx` (`CollectionPrefs`, `ViewSwitch`, `SizeSwitch`, `FolderHits`), `App.tsx` (`prefsOf`, `folderHits`, `openFound`, the Vault filter), `Gallery.tsx`, `Vault.tsx`, styles (`.gallery-grid.portrait`). Test: `e2e/collections.e2e.ts`.
 
 Signed: **CLAUDE**.
