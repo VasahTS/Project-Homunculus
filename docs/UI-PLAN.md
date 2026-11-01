@@ -444,7 +444,7 @@ The engine already works (D-027): it activates entries exactly like SillyTavern 
 
 ## Library Assistant (BLUEPRINT §4.9) — step 1, text plan (2026-11-01)
 
-**Daniel's answers (01/11):** first version = trackers, characters, lorebooks (presets, regex, narrators, NPCs later); it works only on the Library for now (no reading chats); new items may be saved directly, changes to existing items need an OK; draft first. Also asked for: **real tool calling** and **attaching images** (e.g. a character made from a visual reference).
+**Built 2026-11-01 (D-062).** **Daniel's answers (01/11):** first version = trackers, characters, lorebooks (presets, regex, narrators, NPCs later); it works only on the Library for now (no reading chats); new items may be saved directly, changes to existing items need an OK; draft first. Also asked for: **real tool calling** and **attaching images** (e.g. a character made from a visual reference).
 
 **What it is for:** describe what you want ("a world tracker with time, weather and place", "a cynical mercenary, dark fantasy") or what to fix ("Lyra's description is generic") and get it built or changed, ready to use. **When Daniel looks at it:** while building a story's material; when an imported card or book needs work.
 

@@ -11,11 +11,13 @@ Affected chapters stay saved (including hand edits) but are switched off; correc
 Validation: typecheck/build passed; **295 unit tests passed, 3 skipped; 37 affected browser flows passed** on isolated port 1427 (12 new unit cases, 2 new browser flows).
 Report and limits: `docs/REVIEW-BUGFIXES-2026-11-01.md`. No native app, real API, private play data, workflow or lockfile changes. Work only in Homunculus-gpt, pushed only to gpt. Signed: **CODEX**.
 
-## Library Assistant — plan and draft, waiting for Daniel (2026-11-01) — CLAUDE
+## The Assistant — built (2026-11-01) — CLAUDE — D-062
 
-- **Order changed by Daniel:** Library Assistant now; importing a whole SillyTavern/v1 folder moved to the **end**.
-- Plan: `docs/UI-PLAN.md` → "Library Assistant" (his answers: v1 = trackers, characters, lorebooks; Library only; new items saved right away, changes need an OK; **real tool calling**; **image attachments**). Draft: `docs/drafts/library-assistant/index.html`. No code until he approves.
-- His idea for later, noted in the plan: **Director's notes** — OOC instructions outside the chat, permanent or for N turns, injected after the history, gone when they expire; the assistant can manage them.
+- **Play | Assistant** switch at the top of the sidebar. Assistant mode: own chats (Recents, Search), Customize (Rules, Memory, Instructions, Model), welcome with Quick start, **@ Add context** (browse every kind, search, multi-select), attach files (.json/.jsonl/.md/.txt/PNG cards) and images.
+- Real **tool calling** in the provider; ten general tools; write kinds: characters, lorebooks, trackers, Kits, **narrators**. Token budget rules in D-062 (library never sent; find/read light; files as summaries; old tool results trimmed).
+- Changes wait for an OK (stale check); new items save with Undo; it never deletes.
+- Tests: 306 unit (7 Assistant, 1 provider tool-call); `e2e/assistant.e2e.ts` with the offline AI's tool script. Not tried with a real model by Claude (no keys): **Daniel, try it with nano-gpt/OpenRouter and a model that supports tools.**
+- Next for the Assistant: "Ask the assistant" from editors; fallback for models without tools; Director's notes (OOC idea).
 
 ## Message formatting (2026-11-01) — CLAUDE — D-061
 

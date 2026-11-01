@@ -580,3 +580,20 @@ Signed: **CLAUDE**.
 
 Signed: **CLAUDE**.
 
+
+## D-062 — The Assistant: its own mode, tool calling, files, light reading (2026-11-01)
+
+Daniel (01/11, three draft rounds): an assistant that builds and changes the Library for him; its own chats; customize its prompt, rules and memory; a big window to add many app items as context ("a Kit with characters X and Y… that fits together"); real **tool calling**; **images** and **files** (.json, .jsonl, .md…: "download a card and ask the assistant to edit it and give it back as a character or lorebook"); **narrators too**; and **no huge token use** with 200+ characters. Draft: `docs/drafts/library-assistant/index.html` (round 3); plan: `docs/UI-PLAN.md` → "Library Assistant".
+- **Mode, not a page:** "Play | Assistant" at the top of the sidebar (remembered). Assistant mode has its own sidebar (New chat, Search, Customize, Recents) and one centered conversation; welcome = greeting + composer + Quick start.
+- **Provider (`provider-openai`):** OpenAI-style `tools` and `tool_calls` (streamed pieces put back together), images as `image_url` data URLs, `role: "tool"` results. Core: `ToolSpec`, `ToolCall`, `RichTurn`, `ContentPart`, `StreamChunk` `{ toolCalls }`; `connections.stream(…, { tools, rich })`. Story turns are unchanged.
+- **Tools** (`apps/desktop/src/assistant/tools.ts`): ten general ones — `find`, `read`, `guide`, `create`, `change`, `propose_trash`, `read_file`, `import_file`, `set_picture`, `remember` — with a `kind`, not one tool per kind (their definitions go in every request). Write kinds: character, lorebook, tracker, Kit, narrator; read kinds also NPC, persona, preset, story. Items are named `kind:id`.
+- **Token budget (Daniel: "don't read 200 characters"):** the library is never sent — only counts per kind; `find` returns one line per item, 25 per page; `read` returns only asked fields, long texts cut at 2,500 characters with "read more"; a lorebook is read as an index (entries by page or by title); picked items and files go as one line each (a file as a summary: card fields and sizes, lorebook entry count and titles, JSONL line count, Markdown headings), read by JSON path, line range or chunk; pictures only with the newest two user messages; old tool results cut to 400 characters (Flint's "microcompaction"); a guide is given once per chat.
+- **Safety:** nothing is deleted by it (`propose_trash`); changes are proposals with before/after of only the changed fields, and turn **stale** if the item changed since; new items save right away with Undo (or wait, in Customize → Model); text inside items and files is data, never instructions (in the prompt); a step limit per message (25).
+- **Guides** (`assistant/guides.ts`): a short guide per kind with the exact fields `create`/`change` accept; a test checks every field name against the app's data shapes.
+- **Customize:** Rules (switches), Memory (it writes with `remember`; shown with where it came from; editable; a switch), Instructions (editable, Reset), Model (connection, model, thinking, temperature, steps, new items now/ask). Stored in app settings (`assistant.settings`, `assistant.chats`, `assistant.chat:<id>`): no new tables.
+- **Results as cards:** created (Open / Undo / Restore; a Kit has "Start a story"), change (See change = word diff; Apply / Discard; "Apply all N"), trash proposal, new-item proposal, memory line; "what it used" under each reply (model, tokens, cost).
+- **Offline test AI** answers Assistant requests with a tiny tool script (tracker, Kit, a description change), so the mode can be tried and click-tested without a key.
+- **From Flint (Daniel's work assistant), taken:** microcompaction of old tool results, "what it used" per reply, untrusted text treated as data, approvals in plain words. Noted for later: an `@` quick menu inline, a prompt library with {{variables}}, spend budgets.
+- **Later:** "✦ Ask the assistant" buttons in the editors; reading chats; presets/regex/NPCs as write kinds; a JSON-in-text fallback for models without tool calling; Director's notes (Daniel's OOC idea).
+
+Signed: **CLAUDE**.

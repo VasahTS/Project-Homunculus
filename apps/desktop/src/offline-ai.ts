@@ -2,7 +2,31 @@
 // Lets anyone try the app (and the click tests run) without an API key.
 // It does not understand anything; it just streams a short scripted reply.
 // Agents (trackers…) get a made-up answer in the shape their prompt asks for.
-import type { HomunculusModule } from "@homunculus/core";
+import type { HomunculusModule, RichTurn, StreamChunk } from "@homunculus/core";
+
+/**
+ * The Assistant (D-062) with the offline AI: a tiny script so the screen can be tried and clicked through without a key.
+ * "tracker" → guide + create a tracker; "kit" → create a Kit with the added characters; "describe"/"improve" → a change
+ * to the first added character; anything else → a short answer. After a tool result it just says it is done.
+ */
+async function* offlineAssistant(turns: RichTurn[]): AsyncGenerator<StreamChunk> {
+  const last = turns.at(-1)!;
+  const text = (t: RichTurn) => (typeof t.content === "string" ? t.content : t.content.map((p) => (p.type === "text" ? p.text : "")).join(" "));
+  await new Promise((r) => setTimeout(r, 120));
+  if (last.role === "tool") { yield "Done (offline test AI) — have a look at the card below."; return; }
+  const ask = text(last);
+  const added = [...ask.matchAll(/\[Added: (\w+):([^ \]]+) · ([^\]]+)\]/g)];
+  const call = (name: string, args: unknown) => ({ toolCalls: [{ id: `off_${Date.now()}`, name, arguments: JSON.stringify(args) }] });
+  if (/tracker/i.test(ask)) { yield call("create", { kind: "tracker", data: { name: "World", help: "Time, weather and place", fields: [{ label: "Time of day", type: "text" }, { label: "Weather", type: "text" }, { label: "Place", type: "text" }] } }); return; }
+  if (/\bkit\b/i.test(ask)) {
+    const cast = added.filter((m) => m[1] === "character").map((m) => `character:${m[2]}`);
+    yield call("create", { kind: "kit", data: { name: `${added.map((m) => m[3]).slice(0, 2).join(" & ") || "Offline"} Kit`, scenario: "Rain over the woods; two old acquaintances meet at the mill.", openings: ["*The mill wheel creaks.* \"Who's there?\""], cast } });
+    return;
+  }
+  const char = added.find((m) => m[1] === "character");
+  if (char && /describ|improve|better/i.test(ask)) { yield call("change", { id: `character:${char[2]}`, changes: { description: `${char[3]} has kept the northern woods for eleven winters.` }, summary: "A more concrete description" }); return; }
+  yield "Offline test AI here: I can't really think, but try “make a world tracker”, or add characters and ask for a Kit.";
+}
 
 let calls = 0; // varies the reply on every call, so swipes look different
 let agentCalls = 0;
@@ -50,6 +74,7 @@ export const offlineAiModule: HomunculusModule = {
         return [{ id: "offline", name: "Offline test AI", description: "Repeats scripted lines. For trying the app." }];
       },
       async *stream(req) {
+        if (req.tools?.length && req.rich) { yield* offlineAssistant(req.rich); return; }
         const lastTurn = req.messages.at(-1)?.content ?? "";
         if (/Answer with ONLY/.test(lastTurn)) {
           // a little delay, like a real agent call (click tests can make it longer to watch the "updating" state)

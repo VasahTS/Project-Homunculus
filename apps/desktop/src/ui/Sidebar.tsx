@@ -6,6 +6,7 @@
 // "Recent" keeps the last 3 chats at hand.
 // 2026-10-29: a chat writing a reply in the background says so ("writing…"), and its story too, even folded.
 // Floats in the functional (glass) layer. Two levels at most. Nothing critical at the bottom.
+import { ModeSwitch, type AppMode } from "./Assistant.tsx";
 import type { LibraryCategory, NavigationPlace, NavigationProfile } from "../theme/navigation.ts";
 import { useRef, useState } from "react";
 import type { Avatar, Character, Session, Story } from "@homunculus/schemas";
@@ -22,9 +23,12 @@ export type LibraryArea = "characters" | LibraryCategory;
 export type Place = NavigationPlace | "settings" | null;
 
 export function Sidebar({ sessions, stories, characters, avatars, lastLines, branchCounts = {}, activeSessionId, activeStoryId, activeChatId = null, place, status,
-  navigation, searchItems, onOpenStories, onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenLibrary, onOpenVault, onOpenSettings }: {
+  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenLibrary, onOpenVault, onOpenSettings }: {
   navigation: NavigationProfile;
   searchItems: SidebarSearchItem[];
+  /** Play / Assistant (D-062): the switch at the top. */
+  mode?: AppMode;
+  onMode?: (m: AppMode) => void;
   onOpenStories: () => void;
   sessions: Session[];
   stories: Story[];
@@ -100,6 +104,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
         <span className="brand">Homunculus</span>
         <span className="status-chip" data-testid="status">{status}</span>
       </div>
+      {mode && onMode && <ModeSwitch mode={mode} onMode={onMode} />}
       <label className="search-box side-search">
         <Icon name="search" size={13} />
         <input aria-label="Search everything" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
