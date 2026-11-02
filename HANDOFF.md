@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Card Browser planned (2026-11-02) — CLAUDE — no code yet
+
+Daniel: "make an implementation plan of the Card Browser for CODEX to apply, then you review and do the visual".
+- **Screen:** `docs/UI-PLAN.md` → "Card Browser" (from Characters and Ctrl+K; portrait grid + sheet like Characters; Add to Characters; ChubAI, JannyAI, Wyvern, Pygmalion, DataCat). ⏳ Daniel's OK + 4 open questions.
+- **Technical:** `docs/CARD-BROWSER.md` (Rust `card_site_request` with a host allowlist, package `card-browser`, one import path, optional `Character.source`).
+- **CODEX:** cards T-007 … T-012 in `docs/CODEX-TASKS.md`, ahead of T-002/T-003. T-007–T-009 can start now; T-010 (the screen) waits for Daniel's OK.
+- **After CODEX:** Claude reviews `gpt`, merges into `dev`, then does the visual pass on `ui`.
+
 ## Assistant like Flint (model under the box, box at the bottom, Settings); no blur; UX review (2026-11-02) — CLAUDE — D-077
 
 - Model under the box opens Quick Connection (this chat only); the assistant list opens where there is room; start screen with the box at the bottom; Settings at the bottom of the Assistant's sidebar; page switches without blur.

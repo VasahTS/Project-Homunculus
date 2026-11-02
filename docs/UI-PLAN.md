@@ -6,6 +6,83 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Card Browser — CLAUDE, 2026-11-02 · ⏳ text waiting for Daniel's OK
+
+**What it is for:** find a character on ChubAI, JannyAI, Wyvern, Pygmalion or DataCat, read it, and have it in Characters in one
+click — no file to download and import by hand. **When Daniel looks at it:** looking for something new to play; looking for a
+specific card he heard of. Technical plan: `docs/CARD-BROWSER.md`. From v1 (`classic-card-browser.js`) and Marinara (Card Browser).
+**Proposed process:** Daniel approves this text → CODEX builds it functional with the existing kit (T-010), no styling of its own →
+Claude reviews and does the visual pass on the `ui` branch → Daniel judges it in the app (no separate HTML draft, as with Regex).
+
+### Where it opens
+- **Characters** toolbar: a **Card Browser** button (globe icon) beside **Import**.
+- Empty Characters page: under "Import cards from SillyTavern", a second line **or find characters online**.
+- **Ctrl+K:** "Card Browser" in Actions.
+- It takes the Characters content area (the sidebar stays). **‹ Characters** at the top left goes back. Esc with no sheet open
+  also goes back.
+
+### Layout (top to bottom)
+1. **Head:** ‹ Characters · title **Card Browser** · "?" (help: searches go straight from this app to each site, the site sees what
+   you search as in a browser; card text is shown as plain text and nothing from the sites runs in the app) · on the right the
+   **source picker**: the site's name + ▾. Menu: ChubAI, JannyAI, Wyvern, Pygmalion, DataCat, each with a grey one-liner of its
+   NSFW rule ("Adult cards with NSFW on", "Safe cards only", "Adult cards only"), the current one checked.
+2. **Toolbar:** search (placeholder "Search ChubAI…", searches by itself ½ s after typing stops; Ctrl+F focuses it) · **Sort**
+   (that site's orders, its default first) · **Tags** (count when any) · **Filters** (count; hidden when the site has none) ·
+   **NSFW** switch (disabled with its reason on Pygmalion and DataCat) · **S · M · L** (the same card sizes as Characters, D-068).
+3. **Active tags and filters** as a row of chips only when there are any: "Fantasy ×", "− Furry ×", "Has Lorebook ×",
+   "Clear All". Click a chip = remove it.
+4. **Results:** the same portrait cards as Characters (D-068): picture, name, "by <creator>", one line of tagline; a quiet line of
+   figures (downloads · tokens). Marks in the picture's corner: **NSFW**, and **✓** when it is already in Characters.
+   Above the grid, quiet: "12,340 cards" (or "Page 2" when the site gives no total).
+5. **Load More** at the end (a button, not endless scrolling: these sites throttle bursts of requests). The page keeps its place.
+
+**Tags** (a panel under the button): its own search, the site's tags (suggested or from the results); click = **must have**
+(✓), the − at the row's end = **hide** (−); typing a tag the list lacks shows "Must Have “x”" / "Hide “x”".
+**Filters** (a panel): "Must have" (Lorebook, Alternate Greetings, Gallery, Expressions — only what the site supports),
+Min tokens / Max tokens, Ascending order (Chub, Pygmalion), Show Low Quality (JannyAI).
+Changing source keeps the search text, clears tags and filters (they differ by site).
+
+### The card sheet (on the right, like the Characters sheet, D-029)
+Click a card = the sheet opens beside the grid (the grid stays; ↑↓←→ move the selection, Esc closes).
+- **Top:** big picture, name, "by <creator>", figures, badges (**Lorebook**, **N Greetings**, **NSFW**), up to 12 tags + "+N".
+- **Main action:** **Add to Characters**. Under it, small: **Folder:** [No Folder ▾] (the last one used is remembered).
+  While adding: "Adding…". After: the button becomes **Chat Now**, with "In your Characters · Open" under it.
+  Already added before: **Open in Characters** is the main action; **Add Again** (a copy) moves into ⋯.
+- **Secondary:** **Save as PNG** (a card file, nothing added) · **Open on ChubAI** (system browser) · ⋯ (**Tags From the Site:**
+  All · Only Ones I Use · None — remembered; Add Again).
+- **Text, read-only, plain text,** each folded at a few lines with "More": Creator's Notes (open first), Description,
+  First Message (‹ 1/N › to read the alternate greetings), Scenario, Personality, Example Dialogue, System Prompt,
+  Post-History Instructions. Empty ones are not shown. Links open in the system browser; pictures inside the text are not loaded.
+- Embedded lorebook: nothing to answer — it is added and linked as with any import (D-027), and the notice says so.
+
+### States
+- **Loading:** grey card shapes in the grid; "Loading…" in the sheet. A thumbnail that fails = the letter picture.
+- **Empty:** "Nothing on ChubAI matches “elf queen”." + **Clear Tags and Filters** when any are on.
+- **Site pausing us** (rate limit / Cloudflare / human check): a notice in place of the grid with the site's message ("ChubAI
+  asked this app to slow down. Try again in about 10 min."), **Open ChubAI** and **Import a Downloaded File…** (the normal Import).
+- **Site not answering:** "JannyAI did not answer." + **Try Again**.
+- **Details failed:** the sheet keeps the picture and the basics: "The details didn't load. You can still add it."
+- **Add failed:** the usual error notice with the reason; the card stays selected.
+- **DataCat, first time:** a small confirmation: "DataCat lists adult cards only." **Continue** · **Back** (remembered).
+- **Browser preview:** "The Card Browser works in the desktop app."
+- **Many results:** only cards on screen load their pictures; 500+ loaded cards stay smooth.
+
+### Remembered
+While the app is open: source, search, sort, tags, filters, results, selected card, scroll — coming back shows the same place.
+Between runs: last source, sort and NSFW per source, card size, folder, tags choice.
+
+### Left out (for now)
+Selecting several cards and adding them together; "update available" for cards added earlier; PlotLight and CharacterTavern;
+Pygmalion login; personas from sites.
+
+### Open questions for Daniel
+1. Is the **Card Browser** button on Characters + Ctrl+K enough, or also an item in the sidebar?
+2. New cards: no folder by default (proposed), or always a folder like "From the Web"?
+3. Tags from the site: **All** by default (proposed)? Chub cards often bring 10–20 tags.
+4. The process: OK to skip the HTML draft (CODEX builds it plain, Claude styles it, you judge it in the app)?
+
+---
+
 ## Customize (look, tweaks, motion, advanced) — CLAUDE, 2026-11-01 · ✅ text and draft (page 2 of `docs/drafts/neutral-look/`) approved; in the app (D-075)
 
 **What it is for:** one place to change how the app looks — the look (profile), its tweaks, motion, and for the curious its colors and extra CSS. Everything applies at once (v1's Customize drawer, `classic-themes.js` `renderPanel`, on top of D-018's tokens/profiles/`data-region`).

@@ -47,6 +47,84 @@ Report: questions for Daniel go in the HANDOFF entry, not in code.
 
 ## Queue
 
+> **Card Browser (T-007 … T-012)** — Daniel asked for it on 2026-11-02 ("plan it for CODEX, then Claude reviews and does the
+> visual"). Do them **in number order, one card per session**; they come before T-002/T-003. The whole design is
+> `docs/CARD-BROWSER.md` (technical) and `docs/UI-PLAN.md` → "Card Browser" (screen). T-010 waits for Daniel's OK on that text.
+> All site knowledge comes from v1 (`VasahTS/Homunculus` at 0884338a: `src/endpoints/classic-card-browser.js` = server,
+> `public/scripts/classic-card-browser.js` = client). `npm run refs` fetches it into `.refs/homunculus/`. Port, test, credit.
+
+### T-007 · Card Browser 1: native `card_site_request` + desktop transport      Status: Ready
+Goal: TypeScript can ask the card sites for JSON, text, pictures and card files through one safe Rust command.
+Context: `docs/CARD-BROWSER.md` §2 (the whole spec: input, hosts, headers, redirects, caps, output). D-067 / T-005 for the pattern (`web_get`, `PublicOnlyResolver`, `web_crypto`, `web_retry_after` in `apps/desktop/src-tauri/src/lib.rs`; `assistant/web.ts` for the fake).
+Files you may change: `apps/desktop/src-tauri/src/lib.rs` (new command + tests; register it in `run()`), `apps/desktop/src/cardSites.ts` (new: `SiteRequest`, `SiteResponse`, `SiteTransport`, `desktopCardSites`, the `__h2FakeCardSites` hook, base64 → `Uint8Array`), `apps/desktop/src-tauri/capabilities/*` only if the command needs listing there, tests.
+Do not touch: `web_get` / `web_search_page` behaviour, Cargo dependencies (use what is there), lockfiles.
+Done when:
+- [ ] Rust tests: allowed hosts and `*.` wildcards; look-alikes refused (`chub.ai.evil.com`, `evilchub.ai`, `api.chub.ai.` handled); http and other ports refused; a header outside the list refused; `expect: "card"` accepts any public host but only a PNG with a `chara` or `ccv3` tEXt chunk; `expect: "image"` checks PNG/JPEG/WebP/GIF magic bytes; caps cut/refuse as specified
+- [ ] non-2xx answers come back with `status`, `retryAfterSecs`, `cfMitigated` (not as errors)
+- [ ] `cardSites.ts`: in the browser preview without the fake → "The Card Browser works in the desktop app."
+- [ ] `cargo test` (in `apps/desktop/src-tauri`) · npm run typecheck · npm test
+Size: S–M.
+
+### T-008 · Card Browser 2: package `card-browser` + ChubAI                  Status: Ready (after T-007)
+Goal: a pure TypeScript package that searches ChubAI, reads a card's details and gets its card file, with site pauses — tested without network.
+Context: `docs/CARD-BROWSER.md` §3 (interfaces `CardSource`, `CardQuery`, `CardPage`, `CardItem`, `CardDetails`, `CardFile`; `pauses.ts`; `build.ts`; thumbnails) and the ChubAI row. v1 server L29–L340 (constants, pauses, `buildCard`, `chub*`), client `CHUB_SORTS`, `CHUB_TAGS`, `MUST_HAVE`, `SOURCES.chub`.
+Files you may change: new `packages/card-browser/` (`package.json` named `@homunculus/card-browser` like the other packages, `src/{types,pauses,build,thumbs,index}.ts`, `src/sources/chub.ts`, `test/`, `test/fixtures/chub-*.json`), root `package.json`/`tsconfig.json`/`vitest.config.ts` only to add the package the same way `st-regex` is added, `package-lock.json` for that workspace entry only, `CREDITS.md`.
+Do not touch: anything in `apps/`.
+Rules: the package never calls `fetch`; everything goes through the injected `SiteTransport` from T-007 (import the types only, or define the same interface in the package and have `cardSites.ts` satisfy it — pick the second, so the package stays free of the app). Text from the site is kept as data; `creatorNotes`/`tagline` get `plain()` (tags stripped). Fixtures: recorded once from the live API on the PC, trimmed to 3 items, text only.
+Done when:
+- [ ] tests: the URL built for default sort, a text search, include/exclude tags, each must-have, ascending, min/max tokens, NSFW on/off (compare with v1's parameters)
+- [ ] tests: mapping of a recorded search and of a recorded `full=true` character into `CardItem` / `CardDetails`
+- [ ] tests: `download` returns `png` when `chara_card_v2.png` carries a card, else `json` built by `build.ts` (+ picture); `build.ts` matches v1 `buildCard` for the same input
+- [ ] tests: `pauses.ts` — 429 pauses the site (Retry-After or 10 min), Cloudflare 5 min the part, turnstile 30 min, messages as v1, no request while paused
+- [ ] npm run typecheck · npm test
+Size: M.
+
+### T-009 · Card Browser 3: import path, `Character.source`, Save as PNG     Status: Ready (after T-008)
+Goal: one import function used by file Import and by the Card Browser; a card added from a site remembers where it came from.
+Context: `docs/CARD-BROWSER.md` §4. Today: `App.tsx` `importFiles` (L688–L719), `adoptEmbeddedLorebook`, `linkCharacterToNamedBooks`, `files.ts` `imageFileToPngAvatar` / `saveExport`, `st-cards` `importCardPng` / `importCardJson` / `exportCardPng` / `parseCard`, folder functions (D-036, D-068).
+Files you may change: new `apps/desktop/src/importCharacters.ts`, `App.tsx` (`importFiles` calls the new function — **same notices and same behaviour**), `files.ts` (a Blob → PNG avatar helper next to `imageFileToPngAvatar`), `packages/schemas/src/library.ts` (**only** the optional `source` field below), tests.
+Schema change (allowed here, exactly this): `Character.source: z.object({ site: z.string(), id: z.string(), url: z.string(), addedAt: z.number() }).optional()`, with a doc comment "Where it was added from (Card Browser). Not exported in cards. D-0xx (Claude fills the number)". No migration.
+API to provide: `importCharacterFile(svc, bytes, fileName, opts?)`, `importFromSite(svc, file: CardFile, item: CardItem, opts: { folderId?: string; tags: "all" | "mine" | "none" })` → the saved character + notice lines, `siteIndex(characters)` → `Map<"site:id", characterId>`, `cardPngForSite(file, item)` → PNG bytes for **Save as PNG** (nothing imported).
+Do not touch: the importer modules' output, card export (the `source` field must not appear in exported PNG/JSON — test it).
+Done when:
+- [ ] unit tests: file import unchanged (existing tests pass untouched); site import sets `source`, applies tags all/mine/none, puts it in the folder; JSON + webp picture → PNG avatar; Save as PNG round-trips through `importCardPng`; export has no `source`
+- [ ] existing click tests for Import still pass: `npx playwright test e2e/library.e2e.ts e2e/people.e2e.ts`
+- [ ] npm run typecheck · npm test
+Size: S–M.
+
+### T-010 · Card Browser 4: the screen, functional (ChubAI)                  Status: Blocked (waits for Daniel's OK on UI-PLAN "Card Browser")
+Goal: the Card Browser works end to end with ChubAI, exactly as `docs/UI-PLAN.md` → "Card Browser" says. **Function only**: Claude does the visual pass afterwards.
+Context: UI-PLAN "Card Browser" (copy every label, state and behaviour from it; Title Case labels). Reuse, do not re-create: `GalleryCard`, `CardPicture`, `SheetSection`, `SizeSwitch` (`ui/Gallery.tsx`, `ui/CollectionTools.tsx`), the kit (`ui/kit.tsx`: `Button`, `Icon`, `Help`, menus), notices, the Characters sheet pattern, `CommandPalette` actions (`App.tsx` `paletteItems`).
+Files you may change: new `apps/desktop/src/ui/CardBrowser.tsx` (+ a small state module `cardBrowserState.ts` if useful), `ui/Gallery.tsx` (the **Card Browser** button and the empty-page line only), `App.tsx` (view wiring, palette action), `styles.css` **layout only** (grid/sheet/toolbar placement with existing tokens; no new colours, fonts, shadows or animation), new `e2e/card-browser.e2e.ts`.
+Do not touch: other screens, the look, motion (`ui/motion.ts`).
+Must: stable `data-testid`s (`card-browser`, `cb-source`, `cb-search`, `cb-sort`, `cb-tags`, `cb-filters`, `cb-nsfw`, `cb-grid`, `cb-card`, `cb-load-more`, `cb-sheet`, `cb-add`, `cb-notice`) so the visual pass keeps the tests; thumbnails only for cards on screen, max 4 at a time; state kept while the app is open and the §5 prefs in browser storage `h2.cardBrowser` (try/catch).
+Done when:
+- [ ] click tests with `__h2FakeCardSites`: open from Characters and from Ctrl+K; search waits for typing to stop; sort; tags must-have/hide + chips; filters count; Load More appends; select → sheet → Add to Characters → ✓ on the card, **Chat Now**, the character is in Characters with its picture; already-added shows **Open in Characters**; Add Again makes a copy; Save as PNG; empty results; a paused site shows its notice with both buttons; details failed still allows Add; leaving and coming back keeps the place; preview without the fake shows the desktop-only line
+- [ ] live check on the PC (desktop app): one ChubAI search + one import; result in the report
+- [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts e2e/library.e2e.ts
+Size: M (tests not counted). If it passes ~400 lines, stop after search + sheet + Add and say what is left.
+
+### T-011 · Card Browser 5: Wyvern, Pygmalion, DataCat                       Status: Ready (after T-010)
+Goal: three more sources in the source picker, each tested like ChubAI.
+Context: `docs/CARD-BROWSER.md` §3 table; v1 server L668–L930, client `SOURCES.wyvern`, `SOURCES.pygmalion`, `SOURCES.datacat`. Pygmalion without login (NSFW "never"); DataCat NSFW "always", session token with one retry on 401, tag list loaded once (cache 1 h).
+Files you may change: `packages/card-browser/src/sources/{wyvern,pygmalion,datacat}.ts`, `src/index.ts` (register them, in the UI-PLAN menu order), their tests and fixtures, `cardBrowserState.ts`/`CardBrowser.tsx` **only** for the DataCat first-time confirmation and the disabled NSFW reasons the UI-PLAN describes.
+Done when:
+- [ ] per source: request built for a query, recorded search and details mapped, download → `png` or built `json` + picture
+- [ ] DataCat: 401 → new session → one retry; confirmation shown once; Pygmalion/DataCat NSFW switch disabled with the UI-PLAN reason
+- [ ] live check on the PC: one search + one import per source; report what worked
+- [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts
+Size: M.
+
+### T-012 · Card Browser 6: JannyAI                                          Status: Ready (after T-011)
+Goal: JannyAI in the source picker, working when the site lets the app through and failing clearly when Cloudflare does not.
+Context: `docs/CARD-BROWSER.md` §3 JannyAI row; v1 server L416–L666 (`getJannyToken`, `jannySearchHeaders`, `/janny/search` with one key refresh on 401/403, `parseJannyPage` + `decodeAstro`, `jannyCard` → `jannyCardFile` with `expect: "card"`), client `JANNY_TAGS`, `SOURCES.janny`. v1's Node/Bun child-process trick does **not** apply (we are not Bun).
+Files you may change: `packages/card-browser/src/sources/janny.ts`, `src/index.ts`, tests and fixtures (a trimmed character page HTML is fine as a fixture).
+Done when:
+- [ ] tests: key read from the page bundle, fallback key when unreadable; search body (filters `totalToken`, `isLowQuality`, `isNsfw`, tag ids, sort); key refreshed once on 401/403 without a Cloudflare page; details from `astro-island` props; a Cloudflare page → pause + the v1 message
+- [ ] live check on the PC; if Cloudflare blocks the desktop app, say so in the report — the screen must show the notice with **Open JannyAI** and **Import a Downloaded File…**
+- [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts
+Size: M.
+
 ### T-002 · Tests for the late-30/10 additions                           Status: Ready
 Goal: the things Claude added on the night of 30/10 have click tests, so later changes cannot break them silently.
 Context: HANDOFF "Small round (2026-10-30, late)", D-055, and the last commits on folder views (Ctrl+click picking, group drag, Ctrl+Z after a drag, Ctrl+A / Delete to Trash).
