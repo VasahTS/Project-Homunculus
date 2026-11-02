@@ -4,7 +4,7 @@
 import type { SiteResponse } from "./types.ts";
 
 export type RefusalKind = "rate" | "cloudflare" | "verify";
-const NAMES: Record<string, string> = { chub: "ChubAI", janny: "JannyAI", wyvern: "Wyvern", pygmalion: "Pygmalion" };
+const NAMES: Record<string, string> = { chub: "ChubAI", janny: "JannyAI", wyvern: "Wyvern", pygmalion: "Pygmalion", datacat: "DataCat" };
 const PAUSE_MS: Record<RefusalKind, number> = { rate: 10 * 60_000, cloudflare: 5 * 60_000, verify: 30 * 60_000 };
 
 /** Something a site did that the screen shows as a notice. `kind` "http" = an ordinary failure (try again). */

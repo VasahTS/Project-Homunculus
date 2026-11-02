@@ -47,7 +47,7 @@ Report: questions for Daniel go in the HANDOFF entry, not in code.
 
 ## Queue
 
-> **Card Browser — done 2026-11-02 (T-007 CODEX; T-008 … T-012 Claude; DataCat left out; T-013 JanitorAI parked)** — Daniel asked for it on 2026-11-02 and approved the screen text the same day. He is short on
+> **Card Browser — done 2026-11-02 (T-007 CODEX; T-008 … T-012 Claude, DataCat included; T-013 JanitorAI parked)** — Daniel asked for it on 2026-11-02 and approved the screen text the same day. He is short on
 > Claude quota: **CODEX does the heavy work, including a finished look; Claude only reviews.** Do them **in number order, one card
 > per session**; they come before T-002/T-003. The whole design is `docs/CARD-BROWSER.md` (technical) and `docs/UI-PLAN.md` →
 > "Card Browser" (screen, approved — copy it, do not redesign it).
@@ -94,7 +94,7 @@ Done when:
 - [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts e2e/library.e2e.ts
 Size: M–L (tests not counted). Daniel allows up to ~700 changed lines for this card; past that, stop after search + sheet + Add and say what is left.
 
-### T-011 · Card Browser 5: Wyvern, Pygmalion (DataCat left out, D-081)     Status: Done (by Claude, 2026-11-02)
+### T-011 · Card Browser 5: Wyvern, Pygmalion, DataCat                       Status: Done (by Claude, 2026-11-02)
 Goal: three more sources in the source picker, each tested like ChubAI.
 Context: `docs/CARD-BROWSER.md` §3 table; v1 server L668–L930, client `SOURCES.wyvern`, `SOURCES.pygmalion`, `SOURCES.datacat`. Pygmalion without login (NSFW "never"); DataCat NSFW "always", session token with one retry on 401, tag list loaded once (cache 1 h).
 Files you may change: `packages/card-browser/src/sources/{wyvern,pygmalion,datacat}.ts`, `src/index.ts` (register them, in the UI-PLAN menu order), their tests and fixtures, `cardBrowserState.ts`/`CardBrowser.tsx` **only** for the DataCat first-time confirmation and the disabled NSFW reasons the UI-PLAN describes.

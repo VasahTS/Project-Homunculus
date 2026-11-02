@@ -20,7 +20,7 @@ export interface SiteResponse {
 }
 export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse> }
 
-export type SourceId = "chub" | "janny" | "wyvern" | "pygmalion";
+export type SourceId = "chub" | "janny" | "wyvern" | "pygmalion" | "datacat";
 export type MustHave = "lorebook" | "greetings" | "gallery" | "expressions";
 
 export interface CardFilters { must: MustHave[]; ascending: boolean; minTokens?: number; maxTokens?: number; lowQuality: boolean }
@@ -70,8 +70,8 @@ export interface CardSource {
   site: string;
   sorts: { id: string; label: string }[];
   defaultSort: string;
-  /** toggle = the NSFW switch works; never = safe cards only. */
-  nsfw: "toggle" | "never";
+  /** toggle = the NSFW switch works; never = safe cards only; always = adult cards only. */
+  nsfw: "toggle" | "never" | "always";
   /** Why the switch is off, when it is not a toggle. */
   nsfwNote?: string;
   pageSize: number;
@@ -81,6 +81,8 @@ export interface CardSource {
   lowQuality: boolean;
   /** Tags to suggest before any search. */
   suggestedTags: string[];
+  /** Tags the site lists itself (loaded once); used when there are no suggested ones. */
+  loadTags?(t: SiteTransport): Promise<string[]>;
   search(q: CardQuery, t: SiteTransport): Promise<CardPage>;
   details(item: CardItem, t: SiteTransport): Promise<CardDetails>;
   download(item: CardItem, t: SiteTransport): Promise<CardFile>;

@@ -17,7 +17,7 @@ import { siteIndex, type FolderChoice } from "../importCharacters.ts";
 
 // ------------------------------------------------------------------ remembered state
 /** Between runs (a per-viewer convenience, D-068 style): never required, defaults apply without it. */
-interface Prefs { source: SourceId; sorts: Partial<Record<SourceId, string>>; nsfw: Partial<Record<SourceId, boolean>>; size: CollectionPrefs["size"]; folder: string; importTags: boolean }
+interface Prefs { source: SourceId; sorts: Partial<Record<SourceId, string>>; nsfw: Partial<Record<SourceId, boolean>>; size: CollectionPrefs["size"]; folder: string; importTags: boolean; datacatOk?: boolean }
 const PREFS_KEY = "h2.cardBrowser";
 const DEFAULT_PREFS: Prefs = { source: "chub", sorts: {}, nsfw: {}, size: "m", folder: "web", importTags: true };
 function loadPrefs(): Prefs {
@@ -79,7 +79,7 @@ function useOnScreen<T extends Element>(): [RefObject<T | null>, boolean] {
 }
 
 // ------------------------------------------------------------------ helpers
-const NSFW_NOTE: Record<SourceId, string> = { chub: "Adult cards with NSFW on", janny: "Adult cards with NSFW on", wyvern: "Adult cards with NSFW on", pygmalion: "Safe cards only" };
+const NSFW_NOTE: Record<SourceId, string> = { chub: "Adult cards with NSFW on", janny: "Adult cards with NSFW on", wyvern: "Adult cards with NSFW on", pygmalion: "Safe cards only", datacat: "Adult cards only" };
 const MUST_LABEL: Record<MustHave, string> = { lorebook: "Has Lorebook", greetings: "Has Alternate Greetings", gallery: "Has Gallery", expressions: "Has Expressions" };
 const MUST_SHORT: Record<MustHave, string> = { lorebook: "Lorebook", greetings: "Alternate Greetings", gallery: "Gallery", expressions: "Expressions" };
 const fmt = (n: number | undefined) => (n === undefined ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n));
@@ -133,7 +133,17 @@ export function CardBrowser(p: CardBrowserProps) {
   const [busy, setBusy] = useState<"search" | "more" | null>(null);
   const [error, setError] = useState<{ message: string; paused: boolean; desktop: boolean } | null>(null);
   const [open, setOpen] = useState<"source" | "tags" | "filters" | null>(null);
-  const nsfw = source.nsfw === "never" ? false : prefs.nsfw[sourceId] ?? false;
+  const nsfw = source.nsfw === "never" ? false : source.nsfw === "always" ? true : prefs.nsfw[sourceId] ?? false;
+  const [askAdult, setAskAdult] = useState(false);
+  // tags the site lists itself (DataCat), loaded once per source
+  const [siteTags, setSiteTags] = useState<string[]>([]);
+  useEffect(() => {
+    setSiteTags([]);
+    if (!source.loadTags) return;
+    let live = true;
+    source.loadTags(p.transport).then((xs) => { if (live) setSiteTags(xs); }, () => {});
+    return () => { live = false; };
+  }, [source, p.transport]);
   const search = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -175,9 +185,12 @@ export function CardBrowser(p: CardBrowserProps) {
   });
   useEffect(() => { if (m?.scroll && gridRef.current) gridRef.current.scrollTop = m.scroll; }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const switchSource = (id: SourceId) => {
+  const switchSource = (id: SourceId, confirmed = false) => {
     setOpen(null);
     if (id === sourceId) return;
+    // DataCat lists adult cards only: asked once (remembered)
+    if (cardSource(id).nsfw === "always" && !prefs.datacatOk && !confirmed) { setAskAdult(true); return; }
+    setAskAdult(false);
     setSourceId(id); setPrefs((x) => ({ ...x, source: id }));
     // the search text stays; tags and filters differ by site
     setInclude([]); setExclude([]); setFilters(NO_FILTERS); setSeenTags([]); setSelected(null); setItems([]);
@@ -229,15 +242,15 @@ export function CardBrowser(p: CardBrowserProps) {
           <Pop open={open === "tags"} onClose={() => setOpen(null)} button={
             <Button variant="plain" data-testid="cb-tags" aria-expanded={open === "tags"} onClick={() => setOpen(open === "tags" ? null : "tags")}>
               Tags{include.length + exclude.length > 0 && <span className="cb-count">{include.length + exclude.length}</span>}</Button>}>
-            <TagPanel tags={[...new Set([...source.suggestedTags, ...seenTags])]} include={include} exclude={exclude} onSet={setTag} />
+            <TagPanel tags={[...new Set([...source.suggestedTags, ...siteTags, ...seenTags])]} include={include} exclude={exclude} onSet={setTag} />
           </Pop>
           {hasFilters && <Pop open={open === "filters"} onClose={() => setOpen(null)} button={
             <Button variant="plain" data-testid="cb-filters" aria-expanded={open === "filters"} onClick={() => setOpen(open === "filters" ? null : "filters")}>
               Filters{activeFilters > 0 && <span className="cb-count">{activeFilters}</span>}</Button>}>
             <FilterPanel source={source} filters={filters} onChange={setFilters} />
           </Pop>}
-          <span className="cb-nsfw" data-testid="cb-nsfw" title={source.nsfw === "never" ? source.nsfwNote : undefined}>
-            <Switch label="NSFW" checked={nsfw} disabled={source.nsfw === "never"} onChange={(v) => setPrefs((x) => ({ ...x, nsfw: { ...x.nsfw, [sourceId]: v } }))} />
+          <span className="cb-nsfw" data-testid="cb-nsfw" title={source.nsfw !== "toggle" ? source.nsfwNote : undefined}>
+            <Switch label="NSFW" checked={nsfw} disabled={source.nsfw !== "toggle"} onChange={(v) => setPrefs((x) => ({ ...x, nsfw: { ...x.nsfw, [sourceId]: v } }))} />
             <span>NSFW</span>
           </span>
         </div>
@@ -257,6 +270,16 @@ export function CardBrowser(p: CardBrowserProps) {
       )}
       <div className="gallery-layout">
         <div className={`gallery-grid portrait size-${prefs.size}`} ref={gridRef}>
+          {askAdult && (
+            <div className="cb-notice gallery-empty" data-testid="cb-adult" role="alertdialog" aria-label="DataCat is adult only">
+              <p><strong>DataCat lists adult cards only.</strong></p>
+              <p className="hint">Its cards come from JanitorAI. Continue to browse it, or go back to {source.name}.</p>
+              <div className="cb-notice-actions">
+                <Button variant="prominent" onClick={() => { setPrefs((x) => ({ ...x, datacatOk: true })); switchSource("datacat", true); }}>Continue</Button>
+                <Button onClick={() => setAskAdult(false)}>Back</Button>
+              </div>
+            </div>
+          )}
           {error && (error.desktop
             ? <div className="cb-notice gallery-empty" data-testid="cb-notice"><p>The Card Browser works in the desktop app.</p></div>
             : <div className="cb-notice gallery-empty" data-testid="cb-notice">

@@ -1,7 +1,7 @@
 // Card Browser package: requests built per site, answers mapped, pauses, built cards. No network. CLAUDE, 2026-11-02.
 import { beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { buildCard, cardSource, CARD_SOURCES, NO_FILTERS, parseJannyPage, pauses, Pauses, plain, refusalKind, resetJannyKey, SiteError, wyvernAvatarUrl } from "../src/index.ts";
+import { buildCard, cardSource, CARD_SOURCES, NO_FILTERS, parseJannyPage, pauses, Pauses, plain, refusalKind, resetDatacat, resetJannyKey, SiteError, wyvernAvatarUrl } from "../src/index.ts";
 import type { CardQuery, SiteRequest, SiteResponse, SiteTransport } from "../src/index.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -14,11 +14,11 @@ function sites(routes: [RegExp, (r: SiteRequest) => SiteResponse | Promise<SiteR
   return { t, seen };
 }
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 1, 2, 3]);
-beforeEach(() => { pauses.clear(); resetJannyKey(); });
+beforeEach(() => { pauses.clear(); resetJannyKey(); resetDatacat(); });
 
 describe("sources", () => {
-  it("lists the four sites in the picker's order, each with a default sort it offers", () => {
-    expect(CARD_SOURCES.map((s) => s.name)).toEqual(["ChubAI", "JannyAI", "Wyvern", "Pygmalion"]);
+  it("lists the five sites in the picker's order, each with a default sort it offers", () => {
+    expect(CARD_SOURCES.map((s) => s.name)).toEqual(["ChubAI", "JannyAI", "Wyvern", "Pygmalion", "DataCat"]);
     for (const s of CARD_SOURCES) expect(s.sorts.map((x) => x.id)).toContain(s.defaultSort);
     expect(cardSource("nope").id).toBe("chub");
   });
@@ -177,6 +177,65 @@ describe("Pygmalion (recorded 2026-11-02)", () => {
     const f = await pyg.download(item, t);
     expect(f.kind === "json" && (f.card.data as { first_mes: string }).first_mes.length).toBeGreaterThan(0);
     expect((await pyg.details(item, t)).description.length).toBeGreaterThan(0);
+  });
+});
+
+describe("DataCat (shapes checked live 2026-11-02; synthetic text)", () => {
+  const dc = cardSource("datacat");
+  const tagsAnswer = { success: true, tags: [{ id: 3, name: "Female", count: 9 }, { id: 40, name: "🧝 Elf", count: 5 }] };
+  const row = { characterId: "c-1", name: "Mira Vale", chatName: "Narrator", creatorName: "zed", description: "<p>A thief</p>", avatarVariantUrls: { thumb: "https://media.datacat.run/v/thumb.webp" }, isNsfw: true, stats: { chat: 12 }, totalTokens: 3400 };
+  const recent = { success: true, totalCount: 200, hasMore: true, characters: [row] };
+  const char = (over: Record<string, unknown> = {}) => ({ success: true, character: { character_id: "c-1", name: "Mira Vale", personality: "Quick hands.", scenario: "A port town.", first_message: "Hey.", alternate_greetings: ["Hey.", "Yo."], description: "Made with <b>care</b>", tags: [{ id: 2, name: "👩‍🦰 Female" }], custom_tags: ["thief"], creator_name: "zed", avatarDisplayUrl: "https://media.datacat.run/v/card.webp", downloadsDisabled: false, deletedByCreatorPolicy: false, ...over } });
+  const routes = (charOver: Record<string, unknown> = {}): [RegExp, (r: SiteRequest) => SiteResponse][] => [
+    [/liberator\/identify/, () => json(JSON.stringify({ success: true, sessionToken: "s-1" }))],
+    [/tags\/faceted/, () => json(JSON.stringify(tagsAnswer))],
+    [/recent-public/, () => json(JSON.stringify(recent))],
+    [/characters\/fresh/, () => json(JSON.stringify({ windows: { last24h: [row] } }))],
+    [/api\/characters\/c-1/, () => json(JSON.stringify(char(charOver)))],
+    [/media\.datacat/, () => ({ ...json(""), bytes: PNG, mime: "image/webp" })],
+  ];
+  it("is adult only, opens a session, and searches by tag ids like v1", async () => {
+    expect(dc.nsfw).toBe("always");
+    const { t, seen } = sites(routes());
+    const r = await dc.search(query({ text: "thief", include: ["Elf", "pirate"], exclude: ["Female"], filters: { must: [], ascending: false, maxTokens: 5000, lowQuality: false } }), t);
+    const call = seen.find((x) => x.url.includes("recent-public"))!;
+    expect(call.headers).toMatchObject({ "X-Session-Token": "s-1", Origin: "https://datacat.run" });
+    expect(Object.fromEntries(new URL(call.url).searchParams)).toEqual({ limit: "50", offset: "0", summary: "1", minTotalTokens: "889", tagIds: "40", blockedTagIds: "3", maxTotalTokens: "5000", search: "thief" });
+    // "pirate" has no DataCat id: matched against the cards' tags here, and Mira has none
+    expect(r.items).toEqual([]);
+    expect(await dc.loadTags!(t)).toEqual(["Female", "Elf"]);
+  });
+  it("maps rows; Fresh uses the 24 h list only without search, tags or tokens", async () => {
+    const { t, seen } = sites(routes());
+    const r = await dc.search(query(), t);
+    expect(r).toMatchObject({ total: 200, hasMore: true });
+    expect(r.items[0]).toMatchObject({ id: "c-1", name: "Mira Vale", creator: "zed", tagline: "A thief", thumb: "https://media.datacat.run/v/thumb.webp", nsfw: true, url: "https://datacat.run/characters/c-1", stats: { chats: 12, tokens: 3400 } });
+    await dc.search(query({ sort: "fresh" }), t);
+    expect(seen.some((x) => x.url.includes("characters/fresh"))).toBe(true);
+    const before = seen.filter((x) => x.url.includes("fresh")).length;
+    await dc.search(query({ sort: "fresh", text: "mira" }), t);
+    expect(seen.filter((x) => x.url.includes("fresh")).length).toBe(before);
+  });
+  it("opens a new session once when DataCat answers 401", async () => {
+    let n = 0;
+    const r = routes();
+    r.splice(2, 1, [/recent-public/, () => (++n === 1 ? json("{}", 401) : json(JSON.stringify(recent)))]);
+    const { t, seen } = sites(r);
+    expect((await dc.search(query(), t)).items).toHaveLength(1);
+    expect(seen.filter((x) => x.url.includes("identify"))).toHaveLength(2);
+  });
+  it("details and a built card from the character page (tags cleaned, greetings without the first)", async () => {
+    const { t } = sites(routes());
+    const item = (await dc.search(query(), t)).items[0]!;
+    expect(await dc.details(item, t)).toMatchObject({ description: "Quick hands.", scenario: "A port town.", firstMessage: "Hey.", alternateGreetings: ["Yo."], creatorNotes: "Made with care", tags: ["Female", "thief"] });
+    const f = await dc.download(item, t);
+    expect(f.kind === "json" && f.card.data).toMatchObject({ name: "Mira Vale", first_mes: "Hey.", alternate_greetings: ["Yo."], tags: ["Female", "thief"], creator: "zed", extensions: { datacat: { id: "c-1" } } });
+    expect(f.kind === "json" && f.avatar?.mime).toBe("image/webp");
+  });
+  it("does not add a card whose creator turned downloads off on DataCat", async () => {
+    const { t } = sites(routes({ downloadsDisabled: true }));
+    const item = (await dc.search(query(), t)).items[0]!;
+    await expect(dc.download(item, t)).rejects.toThrow("The creator turned off downloads of this card on DataCat.");
   });
 });
 

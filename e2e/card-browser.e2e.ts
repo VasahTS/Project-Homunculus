@@ -30,6 +30,9 @@ async function fakeSites(page: Page, opts: { pause?: boolean } = {}) {
           const name = u.pathname.endsWith("elf-1") ? "Elf Queen" : "Elf";
           return ok(JSON.stringify({ node: { definition: { name, personality: "Proud and old.", scenario: "A court of silver trees.", first_message: "Kneel, traveller.", alternate_greetings: ["Rise."], description: "Made with care. https://example.com/notes", embedded_lorebook: { entries: [{ keys: ["court"], content: "The court is old.", id: 0 }] } } } }));
         }
+        if (u.host === "datacat.run" && u.pathname === "/api/liberator/identify") return ok(JSON.stringify({ success: true, sessionToken: "s" }));
+        if (u.host === "datacat.run" && u.pathname === "/api/tags/faceted") return ok(JSON.stringify({ success: true, tags: [{ id: 3, name: "Female" }] }));
+        if (u.host === "datacat.run" && u.pathname === "/api/characters/recent-public") return ok(JSON.stringify({ success: true, totalCount: 1, hasMore: false, characters: [{ characterId: "d-1", name: "Rook", creatorName: "kit", description: "A card", totalTokens: 2000 }] }));
         if (u.host === "server.pygmalion.chat") return ok(JSON.stringify({ totalItems: "1", characters: [{ id: "p-1", displayName: "Monika", description: "Club president", avatarUrl: "https://assets.pygmalion.chat/m.png" }] }));
         throw new Error(`no fake for ${r.url}`);
       },
@@ -139,4 +142,32 @@ test("Card Browser: the browser preview without a fake says it works in the desk
   await page.goto("/");
   await page.getByTestId("place-list").getByRole("button", { name: "Card Browser" }).click();
   await expect(page.getByTestId("cb-notice")).toContainText("The Card Browser works in the desktop app.");
+});
+
+test("Card Browser: DataCat asks once that it is adult only; Back stays, Continue switches and the NSFW switch is locked on", async ({ page }) => {
+  await fakeSites(page);
+  await page.goto("/");
+  await page.getByTestId("place-list").getByRole("button", { name: "Card Browser" }).click();
+  const browser = page.getByTestId("card-browser");
+  await expect(browser.getByTestId("cb-card")).toHaveCount(48);
+  const pick = async () => { await browser.getByTestId("cb-source").click(); await page.getByRole("menuitemradio", { name: /DataCat/ }).click(); };
+  await pick();
+  const ask = page.getByTestId("cb-adult");
+  await expect(ask).toContainText("DataCat lists adult cards only.");
+  await ask.getByRole("button", { name: "Back" }).click();
+  await expect(ask).toBeHidden();
+  await expect(browser.getByTestId("cb-source")).toContainText("ChubAI");
+  await pick();
+  await page.getByTestId("cb-adult").getByRole("button", { name: "Continue" }).click();
+  await expect(browser.getByTestId("cb-source")).toContainText("DataCat");
+  await expect(browser.getByTestId("cb-card")).toHaveCount(1);
+  await expect(browser.getByTestId("cb-card")).toContainText("Rook");
+  const nsfw = browser.getByTestId("cb-nsfw").getByRole("switch");
+  await expect(nsfw).toBeDisabled();
+  await expect(nsfw).toHaveAttribute("aria-checked", "true");
+  // asked only once
+  await browser.getByTestId("cb-source").click(); await page.getByRole("menuitemradio", { name: /ChubAI/ }).click();
+  await pick();
+  await expect(page.getByTestId("cb-adult")).toHaveCount(0);
+  await expect(browser.getByTestId("cb-source")).toContainText("DataCat");
 });

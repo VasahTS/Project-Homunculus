@@ -8,7 +8,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ## Card Browser — CLAUDE, 2026-11-02 · ✅ approved; in the app on `ui` (T-007 by CODEX, T-008 … T-012 by Claude, D-081)
 
-**What it is for:** find a character on ChubAI, JannyAI, Wyvern or Pygmalion, read it, and have it in Characters in one
+**What it is for:** find a character on ChubAI, JannyAI, Wyvern, Pygmalion or DataCat, read it, and have it in Characters in one
 click — no file to download and import by hand. **When Daniel looks at it:** looking for something new to play; looking for a
 specific card he heard of. Technical plan: `docs/CARD-BROWSER.md`. From v1 (`classic-card-browser.js`) and Marinara (Card Browser).
 **Process (Daniel, 11/02: he is short on Claude quota — "CODEX does the heavy work now, then you only review"; no HTML draft "for now"):**
@@ -24,11 +24,11 @@ reviews the `gpt` diff and merges → Daniel judges it in the app.
 ### Layout (top to bottom)
 1. **Head:** title **Card Browser** · "?" (help: searches go straight from this app to each site, the site sees what
    you search as in a browser; card text is shown as plain text and nothing from the sites runs in the app) · on the right the
-   **source picker**: the site's name + ▾. Menu: ChubAI, JannyAI, Wyvern, Pygmalion, each with a grey one-liner of its
+   **source picker**: the site's name + ▾. Menu: ChubAI, JannyAI, Wyvern, Pygmalion, DataCat, each with a grey one-liner of its
    NSFW rule ("Adult cards with NSFW on", "Safe cards only", "Adult cards only"), the current one checked.
 2. **Toolbar:** search (placeholder "Search ChubAI…", searches by itself ½ s after typing stops; Ctrl+F focuses it) · **Sort**
    (that site's orders, its default first) · **Tags** (count when any) · **Filters** (count; hidden when the site has none) ·
-   **NSFW** switch (disabled with its reason on Pygmalion) · **S · M · L** (the same card sizes as Characters, D-068).
+   **NSFW** switch (disabled with its reason on Pygmalion, locked on for DataCat) · **S · M · L** (the same card sizes as Characters, D-068).
 3. **Active tags and filters** as a row of chips only when there are any: "Fantasy ×", "− Furry ×", "Has Lorebook ×",
    "Clear All". Click a chip = remove it.
 4. **Results:** the same portrait cards as Characters (D-068): picture, name, "by <creator>", one line of tagline; a quiet line of
@@ -65,7 +65,7 @@ Click a card = the sheet opens beside the grid (the grid stays; ↑↓←→ mov
 - **Site not answering:** "JannyAI did not answer." + **Try Again**.
 - **Details failed:** the sheet keeps the picture and the basics: "The details didn't load. You can still add it."
 - **Add failed:** the usual error notice with the reason; the card stays selected.
-- ~~DataCat, first time~~ — DataCat left out (D-081: its cards are extracted from JanitorAI's hidden definitions, the same thing left out of Glaze).
+- **DataCat, first time:** in place of the grid: "DataCat lists adult cards only." + "Its cards come from JanitorAI." **Continue** · **Back** (remembered). A card whose creator turned downloads off on DataCat can't be added (the reason is shown). Added on 11/02 at Daniel's request, knowing where its cards come from (D-081).
 - **Browser preview:** "The Card Browser works in the desktop app."
 - **Many results:** only cards on screen load their pictures; 500+ loaded cards stay smooth.
 
