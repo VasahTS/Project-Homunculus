@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { AssistantChat, AssistantMessage, AssistantSettings } from "@homunculus/schemas";
 import { resolveFor, TOOL_GROUPS } from "../assistant/engine.ts";
 import { Icon, Switch, type ICONS } from "./kit.tsx";
+import { AssistantMark } from "./AssistantMark.tsx";
 
 const fmtK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n));
 const PART: Record<string, string> = { app: "App rules", assistant: "Assistant", preset: "Preset", tools: "Tools", chat: "Messages and results" };
@@ -73,7 +74,7 @@ export function AssistantDetails({ chat, live, settings, modelName, modelFrom, o
 
       <Section title="What it is using" icon="info" testId="det-using">
         <div className="det-item"><div className="det-item-h">Model</div><b>{modelName}</b><small>{modelFrom}</small><Sent on={!!used} off="Not sent yet" /><button className="link" onClick={() => onCustomize("limits")}>Limits</button></div>
-        <div className="det-item"><div className="det-item-h">Instructions</div><b>{assistant.emoji} {assistant.name}</b><small>{chat?.assistantId ? "This chat" : "Default assistant"} · ~{fmtK(Math.round(assistant.instructions.length / 3.6))} tokens + app rules</small><Sent on={!!used} off="Not sent yet" /><button className="link" onClick={() => onCustomize("assistants")}>Edit assistant</button></div>
+        <div className="det-item"><div className="det-item-h">Instructions</div><b><AssistantMark emoji={assistant.emoji} size={12} /> {assistant.name}</b><small>{chat?.assistantId ? "This chat" : "Default assistant"} · ~{fmtK(Math.round(assistant.instructions.length / 3.6))} tokens + app rules</small><Sent on={!!used} off="Not sent yet" /><button className="link" onClick={() => onCustomize("assistants")}>Edit assistant</button></div>
         {preset ? <>
           <div className="det-item"><div className="det-item-h">Preset</div><b>{preset.name}</b><small>{chat?.presetId ? "This chat" : "Default preset"}</small><button className="link" onClick={() => onCustomize("presets")}>Manage preset</button></div>
           {preset.style.trim() && <div className="det-line"><span className="det-line-t">How I like it written</span><span className="det-line-x">{preset.style}</span><Sent on={!!used} /></div>}

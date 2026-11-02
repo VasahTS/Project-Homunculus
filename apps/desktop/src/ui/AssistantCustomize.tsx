@@ -10,6 +10,7 @@ import type { ConnectionState } from "../connection.ts";
 import { builtinAssistant, listChats, loadChat, loadSettings, saveSettings } from "../assistant/engine.ts";
 import { CORE_RULES } from "../assistant/guides.ts";
 import { Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
+import { AssistantMark } from "./AssistantMark.tsx";
 import { ModelPicker, modelMeta } from "./ModelPicker.tsx";
 import { ConfirmButton } from "./Help.tsx";
 
@@ -59,7 +60,7 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
       list={<>
         {s.assistants.map((x) => (
           <button key={x.id} type="button" className={`cust-item${x.id === a?.id ? " on" : ""}`} onClick={() => setSel(x.id)} data-testid="cust-assistant">
-            <span className="cust-emoji">{x.emoji || "✦"}</span>
+            <span className="cust-emoji"><AssistantMark emoji={x.emoji || "✦"} size={16} /></span>
             <span className="cust-item-t"><b>{x.name}{x.id === s.defaultAssistantId && <span className="cust-badge">Default</span>}</b><small>{x.description || "No description"}</small></span>
           </button>
         ))}

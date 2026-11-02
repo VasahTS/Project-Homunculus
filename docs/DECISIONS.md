@@ -811,3 +811,14 @@ Daniel: "move this version to dev; then apply these changes straight on the ui b
 
 Signed: **CLAUDE**.
 
+## D-079 — UX review, second round: Defaults regrouped, Narrators grid, Scene empty state, assistants' marks (2026-11-02)
+
+Daniel: "apply the other items of the review now" (straight on `ui`).
+- **Item 7, Settings → Defaults:** "New chats and stories" (preset, persona, trackers on new versions) first; Connections next, with the per-tracker connections folded under "A connection for one tracker"; the default Author's Note last.
+- **Item 8, Narrators:** the portrait grid with S·M·L until a narrator is open; then the narrow list beside its editor (D-059). Fixed on the way: portrait cards inside a scrolling grid were squeezed to 50 px (`grid-auto-rows: max-content`).
+- **Item 9, Scene with no tracker on:** "Follow this scene", one line on what trackers do, **Switch On All N** (one save for all), and the single switches folded under "Or pick which ones".
+- **Item 13:** the built-in assistants' glyph marks (✦ ◯ ▤ ❖ ✎ ✧) are drawn as line icons (`AssistantMark`); a mark someone types stays as typed.
+- **Item 11 (Title Case vs sentence case on buttons) is not changed:** D-018 chose Title Case and it is Daniel's call.
+
+Signed: **CLAUDE**.
+

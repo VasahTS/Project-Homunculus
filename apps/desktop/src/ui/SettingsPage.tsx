@@ -318,40 +318,12 @@ function DefaultsSection({ c, trackers, presets, defaultPresetId, personas, defa
     if (connectionId) next.connectionId = connectionId; else delete next.connectionId;
     void onSetDefaultSetup({ agentOverrides: { ...overrides, [id]: next } });
   };
+  // UX review item 7 (D-079): what most people change first (preset, persona) on top; connections next, with the
+  // per-tracker choice folded under them; the default Author's Note last
   return (
     <div className="settings-page">
-      <p className="pane-note">What every session uses unless it picks something else (in the story's toolbar or in the inspector's Prompt tab).</p>
-      <Group title="Connections" help="Which saved connections are used by default. Each session can pick others in the Prompt tab.">
-        <Row label="Story" help="Writes the replies.">
-          <select aria-label="Default story connection" value={c.defaultId ?? ""} onChange={(e) => void c.setDefault({ connectionId: e.target.value || null })}>
-            {options}
-          </select>
-        </Row>
-        <Row label="Agents & Trackers" help="Used by agents and trackers that don't have their own. A cheaper or faster model here saves money; the story keeps its own model.">
-          <select aria-label="Default agents connection" value={c.defaultAgentId ?? ""} onChange={(e) => void c.setDefault({ agentConnectionId: e.target.value || null })}>
-            <option value="">Same as the story</option>
-            {options}
-          </select>
-        </Row>
-      </Group>
-
-      {trackers.length > 0 && (
-        <Group title="Connection per Tracker" help="Give one tracker its own connection (for example a smarter model for the plot, a cheap one for the clock). Empty = the agents' connection above.">
-          {trackers.map((t) => (
-            <Row key={t.agent.id} label={t.agent.name}>
-              <select aria-label={`${t.agent.name} connection`} value={overrides[t.agent.id]?.connectionId ?? ""} onChange={(e) => setTrackerConnection(t.agent.id, e.target.value)}>
-                <option value="">Agents' connection</option>
-                {options}
-              </select>
-            </Row>
-          ))}
-        </Group>
-      )}
-
-      <AuthorsNoteGroup level="default" layer={defaultSetup} above={AUTHORS_NOTE_DEFAULTS} testId="default-authors-note"
-        onChange={(l) => void onSetDefaultSetup({ authorsNote: l.authorsNote })} />
-
-      <Group title="Story" help="How stories behave by default.">
+      <p className="pane-note">What every new chat and story uses unless it picks something else.</p>
+      <Group title="New chats and stories" help="What a new chat or story starts with. Each one can pick something else later.">
         <Row label="Preset" help="The recipe of the prompt for every session that doesn't pick its own (Prompt tab). Edit presets in Library → Presets.">
           <select aria-label="Default preset" value={defaultPresetId} onChange={(e) => void onSetDefaultSetup({ presetId: e.target.value })}>
             {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -367,6 +339,39 @@ function DefaultsSection({ c, trackers, presets, defaultPresetId, personas, defa
           <Switch label="Trackers on new versions" checked={defaultSetup.trackersOnSwipe ?? true} onChange={(on) => void onSetDefaultSetup({ trackersOnSwipe: on })} />
         </Row>
       </Group>
+      <Group title="Connections" help="Which saved connections are used by default. Each session can pick others in the Prompt tab.">
+        <Row label="Story" help="Writes the replies.">
+          <select aria-label="Default story connection" value={c.defaultId ?? ""} onChange={(e) => void c.setDefault({ connectionId: e.target.value || null })}>
+            {options}
+          </select>
+        </Row>
+        <Row label="Agents & Trackers" help="Used by agents and trackers that don't have their own. A cheaper or faster model here saves money; the story keeps its own model.">
+          <select aria-label="Default agents connection" value={c.defaultAgentId ?? ""} onChange={(e) => void c.setDefault({ agentConnectionId: e.target.value || null })}>
+            <option value="">Same as the story</option>
+            {options}
+          </select>
+        </Row>
+      </Group>
+
+      {trackers.length > 0 && (
+        <details className="cz-adv defaults-more" data-testid="defaults-per-tracker">
+          <summary>A connection for one tracker</summary>
+          <p className="hint">For example a smarter model for the plot and a cheap one for the clock. Empty = the agents' connection.</p>
+          <Group>
+          {trackers.map((t) => (
+            <Row key={t.agent.id} label={t.agent.name}>
+              <select aria-label={`${t.agent.name} connection`} value={overrides[t.agent.id]?.connectionId ?? ""} onChange={(e) => setTrackerConnection(t.agent.id, e.target.value)}>
+                <option value="">Agents' connection</option>
+                {options}
+              </select>
+            </Row>
+          ))}
+          </Group>
+        </details>
+      )}
+
+      <AuthorsNoteGroup level="default" layer={defaultSetup} above={AUTHORS_NOTE_DEFAULTS} testId="default-authors-note"
+        onChange={(l) => void onSetDefaultSetup({ authorsNote: l.authorsNote })} />
     </div>
   );
 }

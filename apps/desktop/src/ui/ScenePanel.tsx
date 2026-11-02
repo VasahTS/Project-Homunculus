@@ -23,7 +23,7 @@ import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
 import { fieldSetOf, isOnIn, type Tracker } from "../trackers.ts";
 import { Help } from "./Help.tsx";
-import { Collapse, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
+import { Button, Collapse, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { move, SortableList } from "./Sortable.tsx";
 import { AvatarDot } from "./Sidebar.tsx";
 import { EASE_IN_OUT, EASE_OUT, flash, popIn, reducedMotion } from "./motion.ts";
@@ -57,7 +57,7 @@ interface Cell { t: Tracker; f: TrackerField; value: unknown; was: unknown; mine
 /** A person (or a pair) of one tracker, with the accessors for their values. */
 interface Person { key: string; t: Tracker; schema: TrackerSchema; id: string; name: string; you: boolean; here: boolean; pair: boolean; cells: Cell[] }
 
-export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshKey, trackers, connection, avatars, onToggle, onPickSet, onEditTracker, onNewTracker, onChanged, onChangeSession, onSaveToVault }: {
+export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshKey, trackers, connection, avatars, onToggle, onToggleAll, onPickSet, onEditTracker, onNewTracker, onChanged, onChangeSession, onSaveToVault }: {
   svc: AppServices;
   session: Session;
   /** The story's layer, for a story chat: trackers it turns on are on here too (D-031). */
@@ -71,6 +71,8 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
   connection: ConnectionState;
   avatars: Record<string, Avatar>;
   onToggle: (trackerId: string, on: boolean) => void;
+  /** Several at once (D-079). */
+  onToggleAll?: ((ids: string[], on: boolean) => void) | undefined;
   onPickSet: (trackerId: string, setId: string | null) => void;
   onEditTracker: (trackerId: string) => void;
   onNewTracker: () => void;
@@ -354,8 +356,11 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
 
       {enabled.length === 0 && (
         <section className="q-empty">
-          <p className="pane-note">{trackers.length ? "Switch on a tracker to follow this story: who is here, where, when, goals…" : "No trackers yet."}</p>
-          {trackers.length ? <div className="q-group">{switches}</div> : <button className="link" onClick={onNewTracker}>Create One</button>}
+          {/* UX review item 9 (D-079): an empty state with one clear action, the single switches under it */}
+          <h3 className="q-empty-title">Follow this scene</h3>
+          <p className="pane-note">{trackers.length ? "Trackers keep who is here, where and when, and what each person wants, up to date after every reply." : "No trackers yet."}</p>
+          {trackers.length > 0 && onToggleAll && <Button variant="prominent" onClick={() => onToggleAll(trackers.map((t) => t.agent.id), true)} data-testid="scene-follow-all">Switch On All {trackers.length}</Button>}
+          {trackers.length ? <details className="q-empty-pick"><summary>Or pick which ones</summary><div className="q-group">{switches}</div></details> : <button className="link" onClick={onNewTracker}>Create One</button>}
         </section>
       )}
 

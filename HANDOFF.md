@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## UX review round 2 on `ui` (2026-11-02) — CLAUDE — D-079
+
+- Defaults regrouped (new chats first, per-tracker connections folded); Narrators as a portrait grid until one is open (and portrait cards no longer squeezed in scrolling grids); Scene tab with none on: "Switch On All" + folded single switches; built-in assistants drawn with line icons.
+- Left for Daniel: Title Case vs sentence case on buttons (item 11).
+- Checks: typecheck, 430 unit, full browser suite (helper `setTracker` handles the folded switches).
+
 ## dev = ui; UX review round 1 on `ui` (2026-11-02) — CLAUDE — D-078
 
 - **dev fast-forwarded to ui (2e76d07)** at Daniel's request; both pushed.

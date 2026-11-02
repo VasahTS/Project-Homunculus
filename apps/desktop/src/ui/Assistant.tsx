@@ -7,6 +7,7 @@ import type { ConnectionState } from "../connection.ts";
 import { compactChat, connectionFor, deleteChat, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, webOn, webSources, type ChatRow } from "../assistant/engine.ts";
 import { libraryCounts } from "../assistant/tools.ts";
 import { AssistantDetails } from "./AssistantDetails.tsx";
+import { AssistantMark } from "./AssistantMark.tsx";
 import { saveExport } from "../files.ts";
 import type { RichTurn } from "@homunculus/core";
 import { applyChange, applyTrash, approveNew, createItem, currentOf, getItem, redoMove, splitRef, undoCreate, undoMove } from "../assistant/tools.ts";
@@ -33,6 +34,8 @@ const KIND_ONE: Record<AssistantReadKind, string> = { character: "Character", pe
 // unslop (D-074): one line-icon set instead of geometric glyphs
 const KIND_ICON: Record<AssistantReadKind, keyof typeof ICONS> = { character: "characters", persona: "persona", narrator: "scroll", npc: "figure", story: "book", kit: "grid", lorebook: "book", tracker: "trackers", preset: "preset" };
 const KindMark = ({ kind }: { kind: AssistantReadKind }) => <Icon name={KIND_ICON[kind]} size={14} />;
+
+
 const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "narrator", "npc", "story", "kit", "lorebook", "tracker", "preset"];
 
 // ------------------------------------------------------------------ state shared by the sidebar and the view
@@ -495,7 +498,7 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
   const stepLine = live && last ? `${last.label}${last.label === "…" ? "" : "…"}` : m.steps.length === 1 ? m.steps[0]!.label : `${m.steps.length} steps`;
   return (
     <div className="asst-ai" data-testid="assistant-reply">
-      <span className={`asst-orb${live ? " live" : ""}`} aria-hidden>{emoji && emoji !== "✦" ? emoji : "✦"}</span>
+      <span className={`asst-orb${live ? " live" : ""}`} aria-hidden><AssistantMark emoji={emoji || "✦"} size={14} /></span>
       <div className="asst-body">
         <div className="asst-meta"><b>{m.used?.assistant ?? liveName ?? "Assistant"}</b>{m.used?.model && <span>{m.used.model}</span>}<span>{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{compacting && <span className="asst-busy">compacting older messages…</span>}</div>
         {m.reasoning && <button type="button" className="asst-quiet" onClick={() => setThinkOpen(!thinkOpen)} aria-expanded={thinkOpen}>{live && !m.text && !m.steps.length ? "Thinking…" : m.used?.thinkMs ? `Thought for ${Math.max(1, Math.round(m.used.thinkMs / 1000))} s` : "Thought"} ›</button>}
@@ -726,7 +729,7 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
       <Pop title="Context and spending" testId="pick-context" label={<span className="asst-meter">{pct !== null && <span className="asst-ring" style={{ ["--p" as string]: `${pct}%` }} aria-hidden />}{full ? `${estimated ? "~" : ""}${fmtK(full)}` : "—"}{ctx ? ` / ${fmtK(ctx)}` : ""}</span>}>
         {() => <div className="asst-ctxpop">
           <div className="asst-pop-h">What it is using</div>
-          <div className="asst-kv"><span>Assistant</span><b>{assistant.emoji} {assistant.name}</b><span>Preset</span><b>{preset?.name ?? "none"}</b><span>Model</span><b>{model}</b></div>
+          <div className="asst-kv"><span>Assistant</span><b><AssistantMark emoji={assistant.emoji} size={12} /> {assistant.name}</b><span>Preset</span><b>{preset?.name ?? "none"}</b><span>Model</span><b>{model}</b></div>
           <div className="asst-pop-h">Last request{full ? ` · ${estimated ? "about " : ""}${fmtK(full)} tokens` : ""}{ctx ? ` · ${pct ?? 0}% of ${fmtK(ctx)}` : ""}</div>
           {used?.parts ? <div className="asst-bars">{Object.entries(used.parts).filter(([, n]) => n > 0).map(([k, n]) => (
             <div key={k} className="asst-bar"><span>{PART[k] ?? k}</span><i style={{ width: `${Math.max(2, Math.round((n / Math.max(1, Object.values(used.parts!).reduce((a, b) => a + b, 0))) * 100))}%` }} /><b>{fmtK(n)}</b></div>
@@ -783,7 +786,7 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
         <div role="radiogroup" aria-label="Assistant" className="asst-opt-list">
           {settings.assistants.map((a) => (
             <button key={a.id} type="button" role="radio" aria-checked={a.id === assistant.id} className={`asst-pop-item${a.id === assistant.id ? " on" : ""}`} onClick={() => { setPicks({ assistantId: a.id }); setSub(null); }}>
-              <span className="asst-pop-emoji">{a.emoji}</span><span><b>{a.name}</b><small>{a.description}</small></span>
+              <span className="asst-pop-emoji"><AssistantMark emoji={a.emoji} /></span><span><b>{a.name}</b><small>{a.description}</small></span>
             </button>
           ))}
         </div>

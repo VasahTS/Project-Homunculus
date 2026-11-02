@@ -679,6 +679,15 @@ export function App() {
     await refresh(svc);
   };
 
+  /** Several trackers at once, in one save (D-079: "Follow this scene" in an empty Scene tab). */
+  const toggleTrackers = async (ids: string[], on: boolean) => {
+    if (!active) return;
+    let next = active;
+    for (const id of ids) next = withTracker(next, id, on, storyLayerOf(active));
+    await svc.store.saveSession(next);
+    await refresh(svc);
+  };
+
   const pickFieldSet = async (id: string, setId: string | null) => {
     if (!active) return;
     await svc.store.saveSession(withFieldSet(active, id, setId, storyLayerOf(active)));
@@ -1403,7 +1412,7 @@ export function App() {
         newButton={newButton} search={vaultQuery} onSearch={setVaultQuery} cards={cards} emptyText={emptyText}
         folders={everything ? undefined : folderView(fkind, page, tab === "stories" ? "stories" : tab === "kits" ? "kits" : tab === "narrators" ? "narrators" : "NPCs", items, extra, currentName)}
         prefs={prefs} onPrefs={setPrefs(page)} folderHits={folderHits(fkind, vaultQuery)} onOpenFolder={openFound(page, () => setVaultQuery(""))}
-        sheet={sheet ?? <div className="empty-detail"><p>Pick one to see it here.</p></div>} wide={tab === "narrators"} />
+        sheet={sheet ?? <div className="empty-detail"><p>Pick one to see it here.</p></div>} wide={tab === "narrators" && !!view.id} /* D-079 (UX item 8): the portrait grid until a narrator is open; then the narrow list beside its editor */ />
     );
   } else if (view.kind === "kit") {
     const k = kits.find((x) => x.id === view.id);
@@ -1481,6 +1490,7 @@ export function App() {
         onRename={(t) => void renameSession(t)}
         onDelete={() => void deleteSession()}
         onToggleTracker={(id, on) => void toggleTracker(id, on)}
+        onToggleTrackers={(ids, on) => void toggleTrackers(ids, on)}
         agents={agents}
         onOpenStoryLore={active?.storyId ? () => void (async () => {
           const st = await svc.store.getStory(active.storyId!);

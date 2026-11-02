@@ -64,8 +64,16 @@ export async function setTracker(page: Page, name: string, on = true) {
   const scene = page.getByTestId("scene");
   const sw = scene.getByRole("switch", { name, exact: true });
   // wait until the panel is drawn: either the list of trackers or the ⚙ button
-  await scene.locator('[data-testid="tracker-toggles"], button[aria-label="Trackers"]').first().waitFor();
-  if (!(await sw.isVisible())) await scene.getByRole("button", { name: "Trackers" }).click();
+  await scene.locator('[data-testid="scene-follow-all"], button[aria-label="Trackers"], [data-testid="tracker-toggles"]').first().waitFor();
+  // D-079: with none on, the single switches are folded under "Or pick which ones"; with some on, they are under ⚙.
+  // The panel can change between the two while it reloads, so retry until the switch shows.
+  await expect(async () => {
+    if (await sw.isVisible()) return;
+    const pick = scene.getByText("Or pick which ones");
+    if (await pick.isVisible()) await pick.click();
+    else if (await scene.getByRole("button", { name: "Trackers" }).isVisible()) await scene.getByRole("button", { name: "Trackers" }).click();
+    await expect(sw).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   if ((await sw.getAttribute("aria-checked")) !== String(on)) await sw.click();
   if (await scene.getByRole("dialog").isVisible()) await page.keyboard.press("Escape");
   // the tracker's tab appears (or goes away)

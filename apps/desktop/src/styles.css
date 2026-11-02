@@ -3052,3 +3052,15 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .composer-meta .grow { flex: 1; }
 .qc-anchor { position: relative; display: inline-flex; }
 .qc-anchor .qc-pop { left: auto; right: 0; transform: none; bottom: calc(100% + 8px); }
+
+/* D-079: the Scene tab's empty state; Settings → Defaults' folded per-tracker connections */
+.q-empty { display: grid; gap: 8px; justify-items: start; }
+.q-empty-title { margin: 8px 0 0; font-size: 16px; font-weight: 600; }
+.q-empty .pane-note { margin: 0; }
+.q-empty-pick { width: 100%; margin-top: 8px; }
+.q-empty-pick summary { cursor: pointer; color: var(--label-2); padding: 4px 0; }
+.q-empty-pick[open] summary { margin-bottom: 8px; }
+.defaults-more { border: 0; padding: 0 4px; }
+.defaults-more .hint { margin: 4px 0 8px; }
+/* D-079: portrait cards inside a scrolling grid keep their height (overflow:hidden let the rows squeeze them to 50 px) */
+.gallery-grid.portrait { grid-auto-rows: max-content; }

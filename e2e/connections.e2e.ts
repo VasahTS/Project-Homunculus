@@ -125,6 +125,7 @@ test("Defaults: the agents' connection and a tracker's own connection", async ({
   await page.getByTestId("settings-defaults").click();
   await expect(page.getByLabel("Default story connection")).toHaveValue("offline-test");
   await page.getByLabel("Default agents connection").selectOption({ label: "Offline test AI" });
+  await page.getByTestId("defaults-per-tracker").locator("summary").click(); // folded since D-079
   await page.getByLabel("Scene: World connection").selectOption({ label: "Offline test AI" });
   await page.screenshot({ path: "e2e/.results/settings-defaults.png" });
   await openSession(page);

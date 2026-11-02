@@ -40,7 +40,7 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex }: {
   /** Open the chat at this message (a chat search result, round 3): its branch, scrolled to it. */
   focusMessageId?: string | null;
   svc: AppServices;
@@ -84,6 +84,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   trackers: Tracker[];
   onActivity: () => void;
   onRename: (title: string) => void;
+  /** Several trackers at once (D-079). */
+  onToggleTrackers?: (ids: string[], on: boolean) => void;
   onDelete: () => void;
   onToggleTracker: (trackerId: string, on: boolean) => void;
   onPickFieldSet: (trackerId: string, setId: string | null) => void;
@@ -780,7 +782,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       {inspectorOpen && headId !== undefined && (
         <Inspector tab={tab} onTab={setTab}
           scene={<ScenePanel svc={svc} session={session} storySetup={storySetup} messageId={last?.id ?? null} busy={busy} refreshKey={sceneKey}
-            trackers={trackers} connection={connection} avatars={sceneAvatars} onToggle={onToggleTracker} onPickSet={onPickFieldSet} onEditTracker={onEditTracker}
+            trackers={trackers} connection={connection} avatars={sceneAvatars} onToggle={onToggleTracker} onToggleAll={onToggleTrackers} onPickSet={onPickFieldSet} onEditTracker={onEditTracker}
             onNewTracker={onNewTracker} onChanged={() => setSceneKey((k) => k + 1)} onChangeSession={onChangeSession} onSaveToVault={onSaveNpcToVault} />}
           prompt={<PromptPane c={connection} providers={providers} session={session} storySetup={storySetup} storyName={storyInfo?.name} director={storyInfo?.role === "director"} setupProps={setupProps} onChangeSession={onChangeSession} onOpenSettings={onOpenSettings}
             presets={presets} defaultPresetId={defaultPresetId} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} trackers={trackers}
