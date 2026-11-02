@@ -6,7 +6,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
-## Customize (look, tweaks, motion, advanced) — CLAUDE, 2026-11-01 · text approved by Daniel's answers; draft page 2 of `docs/drafts/neutral-look/` ⏳ waiting for his OK
+## Customize (look, tweaks, motion, advanced) — CLAUDE, 2026-11-01 · ✅ text and draft (page 2 of `docs/drafts/neutral-look/`) approved; in the app (D-075)
 
 **What it is for:** one place to change how the app looks — the look (profile), its tweaks, motion, and for the curious its colors and extra CSS. Everything applies at once (v1's Customize drawer, `classic-themes.js` `renderPanel`, on top of D-018's tokens/profiles/`data-region`).
 **Where:** a tab in **Settings** (Daniel: "C"), between Lorebooks and About. **Settings → Messages moves into it** (Daniel: yes).

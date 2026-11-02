@@ -15,7 +15,7 @@ import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
 import { readFileBytes } from "../files.ts";
 import { bytesToBase64 } from "@homunculus/st-cards";
-import { Button, Icon, IconButton } from "./kit.tsx";
+import { Button, Icon, IconButton, type ICONS } from "./kit.tsx";
 import { CASCADE, useEnter } from "./motion.ts";
 import { AssistantCustomizePage, ModelRow } from "./AssistantCustomize.tsx";
 import { Modal } from "./Vault.tsx";
@@ -28,7 +28,9 @@ export interface LibraryEntry { kind: AssistantReadKind; id: string; name: strin
 
 const KIND_LABEL: Record<AssistantReadKind, string> = { character: "Characters", persona: "Personas", narrator: "Narrators", npc: "NPCs", story: "Stories", kit: "Kits", lorebook: "Lorebooks", tracker: "Trackers", preset: "Presets" };
 const KIND_ONE: Record<AssistantReadKind, string> = { character: "Character", persona: "Persona", narrator: "Narrator", npc: "NPC", story: "Story", kit: "Kit", lorebook: "Lorebook", tracker: "Tracker", preset: "Preset" };
-const KIND_MARK: Record<AssistantReadKind, string> = { character: "◯", persona: "◐", narrator: "✒", npc: "◔", story: "▣", kit: "❖", lorebook: "▤", tracker: "◉", preset: "≡" };
+// unslop (D-074): one line-icon set instead of geometric glyphs
+const KIND_ICON: Record<AssistantReadKind, keyof typeof ICONS> = { character: "characters", persona: "persona", narrator: "scroll", npc: "figure", story: "book", kit: "grid", lorebook: "book", tracker: "trackers", preset: "preset" };
+const KindMark = ({ kind }: { kind: AssistantReadKind }) => <Icon name={KIND_ICON[kind]} size={14} />;
 const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "narrator", "npc", "story", "kit", "lorebook", "tracker", "preset"];
 
 // ------------------------------------------------------------------ state shared by the sidebar and the view
@@ -51,7 +53,7 @@ export function ModeSwitch({ mode, onMode }: { mode: AppMode; onMode: (m: AppMod
     <div className="mode-switch" role="tablist" aria-label="Mode" data-testid="mode-switch">
       {(["play", "assistant"] as const).map((m) => (
         <button key={m} type="button" role="tab" aria-selected={mode === m} className={mode === m ? "on" : ""} onClick={() => onMode(m)}>
-          {m === "play" ? "Play" : <><span className="mode-star" aria-hidden>✦</span> Assistant</>}
+          {m === "play" ? "Play" : <>Assistant</>}
         </button>
       ))}
     </div>
@@ -110,13 +112,12 @@ export function AssistantSidebar({ st, onMode, status }: { st: AssistantState; o
 
 // ------------------------------------------------------------------ the view
 
-const greeting = () => { const h = new Date().getHours(); return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; };
 
-const QUICK: Array<{ icon: string; title: string; text: string; prompt: string }> = [
-  { icon: "❖", title: "Build a Kit", text: "Pick characters and get a Kit with a scenario and an opening where they fit together.", prompt: "Make a Kit with the characters I added: a scenario and an opening where they fit together." },
-  { icon: "◯", title: "Make a character", text: "From a description or a picture: card, first message and examples.", prompt: "Make a character: " },
-  { icon: "▤", title: "Write a lorebook", text: "A place, a faction or a whole world, with keywords that trigger well.", prompt: "Write a lorebook about " },
-  { icon: "✒", title: "Make a narrator", text: "How your stories are told: voice, rules, pacing.", prompt: "Make a narrator that " },
+const QUICK: Array<{ title: string; text: string; prompt: string }> = [
+  { title: "Build a Kit", text: "Pick characters and get a Kit with a scenario and an opening where they fit together.", prompt: "Make a Kit with the characters I added: a scenario and an opening where they fit together." },
+  { title: "Make a character", text: "From a description or a picture: card, first message and examples.", prompt: "Make a character: " },
+  { title: "Write a lorebook", text: "A place, a faction or a whole world, with keywords that trigger well.", prompt: "Write a lorebook about " },
+  { title: "Make a narrator", text: "How your stories are told: voice, rules, pacing.", prompt: "Make a narrator that " },
 ];
 
 export function AssistantView({ svc, st, connection, library, userName, lead, onOpenItem, onStartKit, onChanged }: {
@@ -333,9 +334,9 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
           : <span className="asst-title" onDoubleClick={() => chat && setRenaming(true)}>{chat && messages.length ? chat.title : ""}</span>}
         {chat && messages.length > 0 && <Pop title="Chat" testId="assistant-chat-menu" className="down" label={<Icon name="dots" size={15} />}>
           {(close) => <>
-            <button type="button" className="asst-pop-item" onClick={() => { close(); setRenaming(true); }}><span className="asst-pop-emoji">✎</span><span><b>Rename</b></span></button>
-            <button type="button" className="asst-pop-item" onClick={() => { close(); void saveExport({ fileName: `${chat.title.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60) || "assistant-chat"}.md`, mime: "text/markdown", bytes: new TextEncoder().encode(chatMarkdown(chat)) }); }}><span className="asst-pop-emoji">⇩</span><span><b>Export as Markdown</b></span></button>
-            <button type="button" className="asst-pop-item danger" onClick={() => { close(); void deleteChat(svc.store, chat.id).then(() => { st.setActiveId(null); void st.reload(); }); }}><span className="asst-pop-emoji">🗑</span><span><b>Delete chat</b></span></button>
+            <button type="button" className="asst-pop-item" onClick={() => { close(); setRenaming(true); }}><span className="asst-pop-emoji"><Icon name="pencil" size={14} /></span><span><b>Rename</b></span></button>
+            <button type="button" className="asst-pop-item" onClick={() => { close(); void saveExport({ fileName: `${chat.title.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60) || "assistant-chat"}.md`, mime: "text/markdown", bytes: new TextEncoder().encode(chatMarkdown(chat)) }); }}><span className="asst-pop-emoji"><Icon name="download" size={14} /></span><span><b>Export as Markdown</b></span></button>
+            <button type="button" className="asst-pop-item danger" onClick={() => { close(); void deleteChat(svc.store, chat.id).then(() => { st.setActiveId(null); void st.reload(); }); }}><span className="asst-pop-emoji"><Icon name="trash" size={14} /></span><span><b>Delete chat</b></span></button>
           </>}
         </Pop>}
         <button type="button" className={`asst-details-btn${details ? " on" : ""}`} onClick={() => setDetails(!details)} aria-pressed={details} data-testid="assistant-details-toggle"><Icon name="inspector" size={14} /> Details</button>
@@ -343,15 +344,15 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       <div className="asst-scroll" ref={scroller}>
         {empty ? (
           <div className="asst-col asst-hello">
-            <span className="asst-pill">Knows <b>your library</b> · {library.length} items</span>
-            <h1>{greeting()}{userName ? `, ${userName}` : ""}</h1>
+            <h1>Assistant</h1>
             <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: true }} />
+            <p className="asst-knows">Reads your library when it needs to · {library.length} items</p>
             {error && <p className="asst-error" role="alert">{error}</p>}
             <div className="asst-qs-h">Quick start</div>
             <div className="asst-qs">
               {QUICK.map((q) => (
                 <button key={q.title} type="button" className="asst-q" onClick={() => { setText(q.prompt); if (q.title === "Build a Kit") setPicking(true); }}>
-                  <span className="asst-qi" aria-hidden>{q.icon}</span><b>{q.title}</b><span>{q.text}</span>
+                  <b>{q.title}</b><span>{q.text}</span>
                 </button>
               ))}
             </div>
@@ -400,7 +401,7 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
         <div className="asst-ctx">
           {atts.map((a) => (
             <span key={a.id} className={`asst-chip${a.type === "image" ? " img" : ""}`}>
-              {a.type === "image" ? <img src={`data:${a.mime};base64,${a.base64}`} alt="" /> : <span className="asst-k" aria-hidden>{a.type === "item" ? KIND_MARK[a.kind] : "📄"}</span>}
+              {a.type === "image" ? <img src={`data:${a.mime};base64,${a.base64}`} alt="" /> : <span className="asst-k" aria-hidden>{a.type === "item" ? <KindMark kind={a.kind} /> : <Icon name="file" size={14} />}</span>}
               <span className="asst-chip-name">{a.name}</span>
               <button type="button" aria-label={`Remove ${a.name}`} onClick={() => setAtts((x) => x.filter((y) => y.id !== a.id))}>✕</button>
             </span>
@@ -430,7 +431,7 @@ function UserBubble({ m, busy, onEdit, onView }: { m: AssistantMessage; busy: bo
     <div className="asst-me">
       {m.attachments.length > 0 && <div className="asst-ctx end">{m.attachments.map((a) => (
         a.type === "image" ? <img key={a.id} className="asst-thumb" src={`data:${a.mime};base64,${a.base64}`} alt={a.name} />
-          : <span key={a.id} className="asst-chip"><span className="asst-k" aria-hidden>{a.type === "item" ? KIND_MARK[a.kind] : "📄"}</span><span className="asst-chip-name">{a.name}</span></span>
+          : <span key={a.id} className="asst-chip"><span className="asst-k" aria-hidden>{a.type === "item" ? <KindMark kind={a.kind} /> : <Icon name="file" size={14} />}</span><span className="asst-chip-name">{a.name}</span></span>
       ))}</div>}
       {editing ? (
         <div className="asst-edit">
@@ -497,11 +498,11 @@ function ResultCard({ r, onAct, onOpen, onStartKit }: { r: AssistantResult; onAc
         <button className="asst-lnk" onClick={() => onAct(r.undone ? "restore" : "undo")}>{r.undone ? "Redo" : "Undo"}</button>
       </div>
       {open && <div className="asst-res-more asst-moved">{r.items.map((i) => (
-        <button key={`${i.kind}:${i.itemId}`} type="button" className="asst-chip" onClick={() => onOpen(i.kind as AssistantKind, i.itemId)}><span className="asst-k" aria-hidden>{KIND_MARK[i.kind]}</span><span className="asst-chip-name">{i.name}</span></button>
+        <button key={`${i.kind}:${i.itemId}`} type="button" className="asst-chip" onClick={() => onOpen(i.kind as AssistantKind, i.itemId)}><span className="asst-k" aria-hidden><KindMark kind={i.kind} /></span><span className="asst-chip-name">{i.name}</span></button>
       ))}</div>}
     </div>
   );
-  const kindMark = KIND_MARK[r.kind];
+  const kindMark = <KindMark kind={r.kind} />;
   if (r.type === "created") return (
     <div className="asst-res" data-testid="assistant-result">
       <div className="asst-res-line"><span className="asst-res-ic">{kindMark}</span>
@@ -536,7 +537,7 @@ function ResultCard({ r, onAct, onOpen, onStartKit }: { r: AssistantResult; onAc
   const fields = Object.keys(r.after).filter((k) => k !== "picture");
   return (
     <div className={`asst-res${open ? " open" : ""}`} data-testid="assistant-result">
-      <div className="asst-res-line"><span className="asst-res-ic">✎</span>
+      <div className="asst-res-line"><span className="asst-res-ic"><Icon name="pencil" size={14} /></span>
         <span className="asst-res-t"><b>{r.name}{fields.length ? ` · ${fields.map((k) => (k === "variants" ? "versions" : k)).join(", ")}` : " · picture"}</b><small className={r.status === "waiting" ? "wait" : r.status === "applied" ? "ok" : ""}>{r.summary && r.status === "waiting" ? r.summary : label}</small></span>
         <button className="asst-lnk" onClick={() => setOpen(!open)} data-testid="assistant-see-change">{open ? "Hide" : "See change"}</button>
         {r.status === "waiting" && <><button className="asst-lnk strong" onClick={() => onAct("apply")} data-testid="assistant-apply">Apply</button><button className="asst-lnk" onClick={() => onAct("discard")}>Discard</button></>}
@@ -615,7 +616,7 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
             const on = sel.has(`${e.kind}:${e.id}`);
             return (
               <button key={`${e.kind}:${e.id}`} type="button" className={`asst-card${on ? " sel" : ""}`} aria-pressed={on} onClick={() => toggle(e)}>
-                {e.avatar ? <img src={`data:${e.avatar.mime};base64,${e.avatar.base64}`} alt="" /> : <span className="asst-card-ph" aria-hidden>{KIND_MARK[e.kind]}</span>}
+                {e.avatar ? <img src={`data:${e.avatar.mime};base64,${e.avatar.base64}`} alt="" /> : <span className="asst-card-ph" aria-hidden><KindMark kind={e.kind} /></span>}
                 <span className="asst-card-t"><b>{e.name}</b><small>{words ? `${KIND_ONE[e.kind]} · ` : ""}{e.line}</small></span>
                 <span className="asst-ck" aria-hidden>{on ? "✓" : ""}</span>
               </button>
@@ -624,7 +625,7 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
         </div>
       </div>
       <div className="modal-foot">
-        <span className="grow asst-picked">{sel.size ? [...sel.values()].map((e) => <span key={`${e.kind}:${e.id}`} className="asst-chip"><span className="asst-k">{KIND_MARK[e.kind]}</span><span className="asst-chip-name">{e.name}</span></span>) : <span className="hint">Pick characters, lorebooks, narrators… The Assistant reads only what it needs from them.</span>}</span>
+        <span className="grow asst-picked">{sel.size ? [...sel.values()].map((e) => <span key={`${e.kind}:${e.id}`} className="asst-chip"><span className="asst-k"><KindMark kind={e.kind} /></span><span className="asst-chip-name">{e.name}</span></span>) : <span className="hint">Pick characters, lorebooks, narrators… The Assistant reads only what it needs from them.</span>}</span>
         <Button variant="plain" onClick={onClose}>Cancel</Button>
         <Button variant="prominent" disabled={!sel.size} data-testid="assistant-picker-add"
           onClick={() => onAdd([...sel.values()].map((e) => ({ type: "item", kind: e.kind, id: e.id, name: e.name })))}>Add {sel.size || ""}</Button>
@@ -684,15 +685,15 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
           <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit assistants…</button>
         </>}
       </Pop>
-      <Pop title="Preset" testId="pick-preset" label={<><span aria-hidden>📘</span> {preset?.name ?? "No preset"} <span className="caret">▾</span></>}>
+      <Pop title="Preset" testId="pick-preset" label={<><Icon name="preset" size={14} /> {preset?.name ?? "No preset"} <span className="caret">▾</span></>}>
         {(close) => <>
           <div className="asst-pop-h">What it always knows</div>
           {settings.presets.map((p) => (
             <button key={p.id} type="button" className={`asst-pop-item${p.id === preset?.id ? " on" : ""}`} onClick={() => { setPicks({ presetId: p.id }); close(); }}>
-              <span className="asst-pop-emoji">📘</span><span><b>{p.name}</b><small>{p.description || `${p.rules.length} rules · ${p.notes.length} notes · ${p.memory.length} memories`}</small></span>
+              <span className="asst-pop-emoji"><Icon name="preset" size={14} /></span><span><b>{p.name}</b><small>{p.description || `${p.rules.length} rules · ${p.notes.length} notes · ${p.memory.length} memories`}</small></span>
             </button>
           ))}
-          <button type="button" className={`asst-pop-item${!preset ? " on" : ""}`} onClick={() => { setPicks({ presetId: "none" }); close(); }}><span className="asst-pop-emoji">∅</span><span><b>No preset</b><small>Only the assistant's own instructions.</small></span></button>
+          <button type="button" className={`asst-pop-item${!preset ? " on" : ""}`} onClick={() => { setPicks({ presetId: "none" }); close(); }}><span className="asst-pop-emoji"><Icon name="none" size={14} /></span><span><b>No preset</b><small>Only the assistant's own instructions.</small></span></button>
           <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit presets…</button>
         </>}
       </Pop>
@@ -706,13 +707,13 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
       </Pop>
       <button type="button" className={`asst-pick draft${picks.draftFirst ? " on" : ""}`} aria-pressed={!!picks.draftFirst} data-testid="pick-draft"
         title={picks.draftFirst ? "Draft first: it shows drafts here and saves nothing until you press Save under a draft" : "Draft first: go back and forth on drafts before anything is saved"}
-        onClick={() => setPicks({ draftFirst: !picks.draftFirst })}>✎ Drafts{picks.draftFirst ? " on" : ""}</button>
+        onClick={() => setPicks({ draftFirst: !picks.draftFirst })}><Icon name="pencil" size={14} /> Drafts{picks.draftFirst ? " on" : ""}</button>
       {(() => {
         // D-067, as in Flint: on or off per chat; a chat nobody switched follows Details → Tools
         const on = picks.webSearch ?? !settings.toolsOff.includes("web");
         return <button type="button" className={`asst-pick web${on ? " on" : ""}`} aria-pressed={on} data-testid="pick-web"
           title={`Web search (DuckDuckGo) is ${on ? "on" : "off"} for this chat — click to turn it ${on ? "off" : "on"}`}
-          onClick={() => setPicks({ webSearch: !on })}>🌐 Web</button>;
+          onClick={() => setPicks({ webSearch: !on })}><Icon name="globe" size={14} /> Web</button>;
       })()}
       <Pop title="Context and spending" testId="pick-context" label={<span className="asst-meter">{pct !== null && <span className="asst-ring" style={{ ["--p" as string]: `${pct}%` }} aria-hidden />}{full ? `${estimated ? "~" : ""}${fmtK(full)}` : "—"}{ctx ? ` / ${fmtK(ctx)}` : ""}</span>}>
         {() => <div className="asst-ctxpop">
@@ -847,7 +848,7 @@ function DraftCard({ kind, json, ready, results, onSave }: { kind: AssistantKind
   const fields = data ? Object.entries(data).filter(([k]) => k !== "id" && k !== "name" && GUIDES[kind]?.fields.includes(k)) : [];
   return (
     <div className={`asst-draft${ready ? "" : " writing"}`} data-testid="assistant-draft">
-      <div className="asst-draft-h"><span className="asst-res-ic">{KIND_MARK[kind]}</span>
+      <div className="asst-draft-h"><span className="asst-res-ic"><KindMark kind={kind} /></span>
         <span className="asst-res-t"><b>{name}</b><small>{ready ? `${KIND_NAME[kind]} draft${revising ? " · changes to an item in your library" : ""}` : "Writing the draft…"}</small></span>
         {ready && <button type="button" className="asst-lnk" onClick={() => void navigator.clipboard?.writeText(json.trim())}>Copy</button>}
         {ready && <button type="button" className="asst-lnk" onClick={() => setShowJson(!showJson)}>{showJson ? "Preview" : "JSON"}</button>}

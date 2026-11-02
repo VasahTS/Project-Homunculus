@@ -749,3 +749,27 @@ Daniel wants the UI neutral before any new theme: "take out the green gradient, 
 
 Signed: **CLAUDE**.
 
+## D-074 — unslop passes on the whole app (2026-11-01)
+
+Daniel approved the audit (`docs/UNSLOP-AUDIT.md`): "pode aplicar", with **an exception for animations for now** (D-072 motion stays as it is: no pass 9).
+- **Spacing:** padding, margin and gap values moved onto the 4 px grid (odd values to the nearest step; 2 px steps kept inside small controls), 285 values.
+- **Type:** one scale, 11 · 12 · 13 · 14 · 16 · 20 · 28 (+ display sizes); `--size-section` 12 px, `--size-title` 16 px; weights at most 600 (28 rules were 650–800); the 26 uppercase tracked labels ("QUICK START", "MODEL", "PRESET"…) are sentence case.
+- **Icons:** emoji and geometric glyphs used as icons became the kit's line icons (new: file, globe, paperclip, tool, download, none), stroke 1.6: the Assistant's kinds, files, preset, Drafts, Web, Rename/Export/Delete, Details sections. The ✦ sparkle is gone from "Assistant" in the mode switch. Status ticks (✓ Saved) and an assistant's own emoji (user data) stay.
+- **Copy:** the Assistant's start screen says "Assistant" (no "Good evening, …" greeting, no pill above it); "Reads your library when it needs to · N items" is quiet text under the box; Quick start cards lose their icon tiles. A lorebook entry's "⚑ 2 conditions" badge reads "2 conditions".
+- **Details:** counts, token figures, the receipt and tags (`.badge`, Main) are quiet figures in `--font-figures` (Geist Mono in Mono, the interface font elsewhere): the direction's signature. Agent kind dots stay (they mean something) but quieter in Mono.
+
+Signed: **CLAUDE**.
+
+## D-075 — Settings → Customize (2026-11-01)
+
+Built from the approved draft (`docs/drafts/neutral-look/` page 2, Daniel: "Aprovada sim") and the plan in `docs/UI-PLAN.md`.
+- **Where:** a Settings tab, **Customize**, in place of **Messages** (its rows moved in as the "Messages" group).
+- **Look:** cards with a small preview; click applies at once, with Undo for 6 s. ⋯ Duplicate · Export · Delete (only the user's). **Import Look…** reads `homunculus-look@1` files (tokens checked: names `a-z0-9-`, values without `; { } < >`; CSS that loads from the internet is refused).
+- **Tweaks for <look>** (kept per look, never change the look; Reset): accent (swatches + any color; text on it turns black or white by contrast), story font (Literata / interface font), story text size (14–20 px).
+- **Motion:** Animations on/off, speed Calm · Normal · Quick (×1.35 / ×1 / ×0.65 on `enter`, flashes, slides, `--dur*` and the rising titles), follow the system's reduce motion (now also governs the CSS rule). Off stops everything except spinners and typing dots.
+- **Advanced:** **Edit colors** (window and panels, text, accent and status, corners Square/Soft/Round = `--round`) and **Extra CSS**. The first change to a built-in look makes "<look> (edited)" and switches to it. **Ctrl+Shift+0** turns the look's extra CSS off until restart.
+- **Data:** app setting `appearance` (`theme/appearance.ts`): active look, tweaks per look, user looks, motion. `applyProfile` now removes only the token names it set, so message colors and motion values survive a look change; a look's own dialogue/narration colors apply unless Messages sets one.
+- Not in this round: v1 theme import (Daniel: not worth it), a second layout (later), effects other than motion.
+
+Signed: **CLAUDE**.
+

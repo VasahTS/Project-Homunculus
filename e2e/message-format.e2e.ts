@@ -32,7 +32,7 @@ test("narration, dialogue, bold and the AI's colors are drawn; scripts never; li
   await expect(f.locator("img")).toHaveAttribute("src", "https://example.com/x.png");
   // Settings → Messages: formatting off shows the text as written
   await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByTestId("settings-messages").click();
+  await page.getByTestId("settings-customize").click();
   await page.getByRole("switch", { name: "Formatting (Markdown)" }).click();
   await expect(page.getByTestId("settings-messages-body").getByTestId("msg-format").locator("em")).toHaveCount(0);
   await page.getByRole("switch", { name: "Formatting (Markdown)" }).click();

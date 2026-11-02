@@ -5,6 +5,7 @@
 import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Help } from "./Help.tsx";
 import { EASE_OUT, reducedMotion, useSlidingPill } from "./motion.ts";
+import { motionFactor } from "../theme/appearance.ts";
 
 type ButtonVariant = "plain" | "bordered" | "prominent" | "destructive";
 
@@ -52,7 +53,7 @@ export function Segmented<T extends string>({ options, value, onChange, label, t
  */
 export function RiseText({ text, stagger = 38 }: { text: string; stagger?: number }) {
   // long titles keep the whole rise under about 0.7 s
-  const step = Math.min(stagger, 700 / Math.max(text.length, 1));
+  const step = Math.min(stagger, 700 / Math.max(text.length, 1)) * motionFactor();
   let i = 0;
   return (
     <span className="rise-text">
@@ -99,7 +100,7 @@ export function Row({ label, help, children, wide = false }: { label?: ReactNode
 }
 
 /** Icons: one stroke family, matched to the text weight. Decorative unless `label` is given. */
-export function Icon({ name, size = 16, label, stroke = 1.9 }: { name: keyof typeof ICONS; size?: number; label?: string; stroke?: number }) {
+export function Icon({ name, size = 16, label, stroke = 1.6 }: { name: keyof typeof ICONS; size?: number; label?: string; stroke?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round"
       role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
@@ -167,6 +168,12 @@ export const ICONS = {
   book: "M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21a2 2 0 0 1 2-2h13v2H6",
   dots: "M5 12h.01M12 12h.01M19 12h.01",
   back: "M15 6l-6 6 6 6",
+  file: "M14 3H6v18h12V7zM14 3v4h4M9 13h6M9 17h6",
+  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9M12 3C9.5 5.6 8.2 8.6 8.2 12s1.3 6.4 3.8 9",
+  paperclip: "M20 11.5l-8.2 8.2a5 5 0 0 1-7-7L13 4.4a3.4 3.4 0 0 1 4.8 4.8L9.6 17.4a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6",
+  tool: "M14.5 6.5a4 4 0 0 0 5 5L21 13l-8 8-2-2 1.5-1.5a4 4 0 0 0-5-5L6 14 3 11l8-8 3 3z",
+  download: "M12 3v12M7 10l5 5 5-5M5 21h14",
+  none: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM5.6 18.4L18.4 5.6",
   gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
 } as const;
 

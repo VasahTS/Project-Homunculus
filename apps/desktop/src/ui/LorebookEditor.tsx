@@ -93,14 +93,14 @@ function badgesOf(e: LoreEntry): string[] {
   if (e.group) b.push(`group: ${e.group}`);
   if (e.delayUntilRecursion) b.push("only via other entries");
   if (e.characterFilter.names.length || e.characterFilter.tags.length) b.push(`${e.characterFilter.exclude ? "not for" : "only"} ${[...e.characterFilter.names, ...e.characterFilter.tags].join(", ")}`);
-  if (e.conditions.length) b.push(`⚑ ${e.conditions.length} condition${e.conditions.length === 1 ? "" : "s"}`);
+  if (e.conditions.length) b.push(`${e.conditions.length} condition${e.conditions.length === 1 ? "" : "s"}`);
   if (e.ignoreBudget) b.push("ignores budget");
   return b;
 }
 
 /** "More" summary when closed. */
 function moreSummary(e: LoreEntry): string {
-  const s = badgesOf(e).filter((x) => !x.startsWith("+ ") && !x.startsWith("⚑"));
+  const s = badgesOf(e).filter((x) => !x.startsWith("+ ") && !/^\d+ conditions?$/.test(x));
   if (e.scanDepth !== null) s.push(`reads ${e.scanDepth} messages`);
   if (e.matchWholeWords !== null) s.push(e.matchWholeWords ? "whole words" : "parts of words");
   if (e.caseSensitive) s.push("match case");

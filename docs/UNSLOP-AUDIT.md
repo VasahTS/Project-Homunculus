@@ -1,7 +1,7 @@
 # unslop audit of the current UI — CLAUDE, 2026-11-01
 
 Daniel asked to review the app with the unslop skill (github.com/heydamir/unslop, by Damir Sokolovsky, CC BY 4.0). Method: the skill's `references/signs.md`, checked on the running app (browser preview, demo data: Chat, Characters, character editor, Library → Agents, Settings, Assistant) and on `apps/desktop/src/styles.css` and `ui/*.tsx`.
-**Nothing below is changed yet** except what D-073 already did (Mono). The skill says to show the audit and the direction and wait for an answer before the fixes.
+**Status:** Daniel approved it ("pode aplicar") with an exception for animations for now. Passes 1–8 applied on 11/01 (D-074); the Motion section below is on hold.
 
 ## Verdict
 

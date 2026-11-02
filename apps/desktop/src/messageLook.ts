@@ -6,10 +6,16 @@ const KEY = "messages.look";
 let look: MessageLook = DEFAULT_LOOK;
 const listeners = new Set<() => void>();
 
-function apply(l: MessageLook) {
+// only what this module set is taken back, so a look's own --dialogue / --narration (D-075) survives
+let mine: string[] = [];
+function apply(l: MessageLook = look) {
   const root = document.documentElement.style;
-  if (l.dialogueColor) root.setProperty("--dialogue", l.dialogueColor); else root.removeProperty("--dialogue");
-  if (l.narrationColor) root.setProperty("--narration", l.narrationColor); else root.removeProperty("--narration");
+  const want: Array<[string, string]> = [["--dialogue", l.dialogueColor], ["--narration", l.narrationColor]];
+  for (const [name, value] of want) {
+    if (value) root.setProperty(name, value);
+    else if (mine.includes(name)) root.removeProperty(name);
+  }
+  mine = want.filter(([, v]) => !!v).map(([n]) => n);
 }
 
 interface Store { getAppSetting<T>(key: string): Promise<T | undefined>; setAppSetting(key: string, value: unknown): Promise<void> }
@@ -35,3 +41,6 @@ export async function setMessageLook(patch: Partial<MessageLook>): Promise<void>
 export function useMessageLook(): MessageLook {
   return useSyncExternalStore((f) => { listeners.add(f); return () => listeners.delete(f); }, () => look, () => look);
 }
+
+/** Puts the user's message colors back over a look's (a look sets its own --dialogue / --narration). D-075. */
+export const applyMessageLook = (): void => { if (typeof document !== "undefined") apply(look); };

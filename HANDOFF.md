@@ -4,6 +4,15 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## unslop applied; Settings → Customize built (2026-11-01, night) — CLAUDE — D-074, D-075
+
+Daniel: audit "pode aplicar", animations excepted for now; the Customize draft "Aprovada sim".
+- **unslop (D-074):** 4 px spacing, one type scale and weights ≤ 600, sentence case instead of uppercase labels, line icons instead of emoji (Assistant, Details), no greeting on the Assistant's start screen, counts and token figures in Geist Mono. Motion untouched.
+- **Customize (D-075):** Settings → Customize replaces Messages: looks (Undo, Duplicate, Export, Import), tweaks per look (accent, story font, story size), Messages, Motion (on/off, speed, follow the system), Advanced (Edit colors → editable copy, corners, Extra CSS; Ctrl+Shift+0 = CSS off until restart).
+- Checks: typecheck, 430 unit tests (new `theme/appearance.test.ts`), **184 browser tests** (new `e2e/customize.e2e.ts`; `assistant` and `message-format` updated). Seen in the browser preview with demo data; not tried in the Windows app or with Daniel's database.
+- **To try:** Settings → Customize: switch looks, change the accent, turn Motion to Calm, Edit colors → change Window.
+- **Next:** the motion round on Mono (D-072 follow-up), then the motion part of the unslop audit if Daniel wants it.
+
 ## Mono look (default on `ui`), fonts, unslop audit (2026-11-01) — CLAUDE — D-073
 
 Daniel picked **A — Mono** from `docs/drafts/neutral-look/`, "Mono is the default for now", Google fonts where they fit, and asked for an unslop review of the UI.

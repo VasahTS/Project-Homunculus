@@ -1,7 +1,7 @@
 // Homunculus 2 — Settings: saved connections and the Default layer of the setup. Author: CLAUDE, 2026-10-28
 // (slice 1b, D-020). Connections = master-detail like the Library; Defaults = Settings-style grouped rows.
 // The look comes only from the kit and the theme tokens (D-018).
-import { MessageLookSection } from "./MessageLookSection.tsx";
+import { CustomizeSection } from "./CustomizeSection.tsx";
 import type { Lorebook, LoreSettings } from "@homunculus/schemas";
 import { LoreSettingsSection } from "./LorePanels.tsx";
 import { useEffect, useState, type ReactNode } from "react";
@@ -18,7 +18,7 @@ import { Toolbar } from "./Toolbar.tsx";
 import type { Updates } from "../updates.ts";
 import { AboutSection } from "./About.tsx";
 
-export type SettingsTab = "connections" | "defaults" | "lorebooks" | "messages" | "about";
+export type SettingsTab = "connections" | "defaults" | "lorebooks" | "customize" | "about";
 
 export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels, trackers, presets, defaultPresetId, personas, defaultPersonaId, defaultSetup, onSetDefaultSetup, onSetDefaultPersona, notify, lorebooks, loreSettings, onSaveLoreSettings, updates }: {
   lead: ReactNode;
@@ -48,9 +48,9 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
     <div className="page">
       <Toolbar lead={lead} title="Settings"
         center={<Segmented label="Settings sections" tabs value={tab} onChange={onTab}
-          options={[{ value: "connections", label: "Connections", testId: "settings-connections" }, { value: "defaults", label: "Defaults", testId: "settings-defaults" }, { value: "lorebooks", label: "Lorebooks", testId: "settings-lorebooks" }, { value: "messages", label: "Messages", testId: "settings-messages" }, { value: "about", label: "About", testId: "settings-about" }]} />} />
+          options={[{ value: "connections", label: "Connections", testId: "settings-connections" }, { value: "defaults", label: "Defaults", testId: "settings-defaults" }, { value: "lorebooks", label: "Lorebooks", testId: "settings-lorebooks" }, { value: "customize", label: "Customize", testId: "settings-customize" }, { value: "about", label: "About", testId: "settings-about" }]} />} />
       {tab === "about" ? <AboutSection u={updates} />
-        : tab === "messages" ? <MessageLookSection />
+        : tab === "customize" ? <CustomizeSection notify={notify} />
         : tab === "lorebooks" ? <LoreSettingsSection settings={loreSettings} onSave={onSaveLoreSettings} books={lorebooks} defaultSetup={defaultSetup} onSetDefaultSetup={onSetDefaultSetup} />
         : tab === "connections"
         ? <ConnectionsSection c={c} providers={providers} test={test} listModels={listModels} notify={notify} />

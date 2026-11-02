@@ -4,14 +4,17 @@
 // under the selected tab, and a value that just changed glows once. Everything is skipped when the system
 // asks for reduced motion, and nothing here carries meaning on its own (the UI is the same without it).
 import { useLayoutEffect, useRef, type RefObject } from "react";
+import { motionFactor, motionOff } from "../theme/appearance.ts";
 
 export const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 export const EASE_SPRING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
 /** For things moving from one place to another on screen (a reordered row gliding to its new place). D-026. */
 export const EASE_IN_OUT = "cubic-bezier(0.77, 0, 0.175, 1)";
 
-export const reducedMotion = (): boolean =>
-  typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** No motion: Settings → Customize → Motion is off, or the system asks for less and Customize follows it (D-075). */
+export const reducedMotion = (): boolean => motionOff();
+/** Customize → Motion → Speed (Calm 1.35 · Normal 1 · Quick 0.65) applied to a time in ms. */
+export const ms = (t: number): number => Math.round(t * motionFactor());
 
 export interface EnterOptions { x?: number; y?: number; scale?: number; stagger?: number; delay?: number; duration?: number; easing?: string; max?: number }
 
@@ -23,7 +26,7 @@ export function enter(elements: Iterable<Element>, { x = 0, y = 10, scale = 1, s
     if (!(el instanceof HTMLElement) || typeof el.animate !== "function") continue;
     el.animate(
       [{ opacity: 0, transform: `translate(${x}px, ${y}px) scale(${scale})` }, { opacity: 1, transform: "none" }],
-      { duration, delay: delay + Math.min(i, max) * stagger, easing, fill: "backwards" },
+      { duration: ms(duration), delay: ms(delay + Math.min(i, max) * stagger), easing, fill: "backwards" },
     );
     i++;
   }
@@ -48,7 +51,7 @@ export function useEnter(ref: RefObject<HTMLElement | null>, key: unknown, selec
 /** A short glow on an element whose value just changed. */
 export function flash(el: Element | null): void {
   if (!el || reducedMotion() || !(el instanceof HTMLElement) || typeof el.animate !== "function") return;
-  el.animate([{ backgroundColor: "var(--flash)" }, { backgroundColor: "transparent" }], { duration: 1400, easing: EASE_OUT });
+  el.animate([{ backgroundColor: "var(--flash)" }, { backgroundColor: "transparent" }], { duration: ms(1400), easing: EASE_OUT });
 }
 
 /**
@@ -59,7 +62,7 @@ export function slideIn(elements: Iterable<Element>, dir: 1 | -1, distance = 16)
   if (reducedMotion()) return;
   for (const el of elements) {
     if (!(el instanceof HTMLElement) || typeof el.animate !== "function") continue;
-    el.animate([{ opacity: 0, transform: `translateX(${dir * distance}px)` }, { opacity: 1, transform: "none" }], { duration: 420, easing: EASE_OUT });
+    el.animate([{ opacity: 0, transform: `translateX(${dir * distance}px)` }, { opacity: 1, transform: "none" }], { duration: ms(420), easing: EASE_OUT });
   }
 }
 
@@ -68,7 +71,7 @@ export function popIn(el: Element | null, from: { x?: number; y?: number } = { y
   if (!el || reducedMotion() || !(el instanceof HTMLElement) || typeof el.animate !== "function") return;
   el.animate(
     [{ opacity: 0, transform: `translate(${from.x ?? 0}px, ${from.y ?? 0}px) scale(0.97)` }, { opacity: 1, transform: "none" }],
-    { duration: 320, easing: EASE_SPRING },
+    { duration: ms(320), easing: EASE_SPRING },
   );
 }
 

@@ -86,13 +86,14 @@
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-prose: "Literata", Georgia, serif;
   --font-mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-figures: var(--font-ui);       /* counts, tokens, times: the receipt look (D-074) */
   --font-display: var(--font-ui);        /* big page titles */
   --display-weight: 600;
   --display-stretch: 100%;
   --size-ui: 13px;
   --size-small: 12px;
-  --size-section: 11.5px;
-  --size-title: 15px;
+  --size-section: 12px;
+  --size-title: 16px;
   --size-prose: 16.5px;
   --leading-prose: 1.72;
 
@@ -106,9 +107,9 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
-  --dur-fast: 160ms;
-  --dur: 280ms;
-  --dur-slow: 520ms;
+  --dur-fast: calc(160ms * var(--motion-k, 1));
+  --dur: calc(280ms * var(--motion-k, 1));
+  --dur-slow: calc(520ms * var(--motion-k, 1));
   /* where a piece of the prompt came from (Preview, Reply) */
   --cat-preset: #62b6a4;
   --cat-character: #8ab0e6;
@@ -151,4 +152,11 @@
 }
 @media (prefers-contrast: more) {
   :root { --separator: rgba(255, 255, 255, 0.22); --label-2: rgba(235, 235, 245, 0.8); --fill: rgba(255, 255, 255, 0.12); }
+}
+
+/* Settings → Customize → Motion off (D-075): everything that moves stops, except what shows that something is running. */
+:root[data-motion="off"] *:not(.spinner):not(.spin-icon):not(.typing i):not(.asst-typing i),
+:root[data-motion="off"] *::before, :root[data-motion="off"] *::after {
+  animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important;
 }

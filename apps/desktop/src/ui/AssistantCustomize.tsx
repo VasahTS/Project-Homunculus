@@ -144,7 +144,7 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
         <p className="hint cust-list-hint">What the assistant always knows. Each chat uses one (pick it under the message box).</p>
         {s.presets.map((x) => (
           <button key={x.id} type="button" className={`cust-item${x.id === p?.id ? " on" : ""}`} onClick={() => setSel(x.id)} data-testid="cust-preset">
-            <span className="cust-emoji">📘</span>
+            <span className="cust-emoji"><Icon name="preset" size={16} /></span>
             <span className="cust-item-t"><b>{x.name}{x.id === s.defaultPresetId && <span className="cust-badge">Default</span>}</b><small>{x.rules.length} rules · {x.notes.length} notes · {x.memory.length} memories · ~{size(x)} tokens</small></span>
           </button>
         ))}

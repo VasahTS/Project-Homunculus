@@ -5,7 +5,7 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await page.goto("/");
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
   await expect(page.getByTestId("assistant")).toContainText("What shall we make?".slice(0, 0));
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening)/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Assistant");
   await page.getByRole("textbox", { name: "Message to the Assistant" }).fill("Make a world tracker with time, weather and place");
   await page.getByTestId("assistant-send").click();
   const card = page.getByTestId("assistant-result").first();

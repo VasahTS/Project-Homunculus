@@ -46,7 +46,7 @@ import { RegexPage } from "./ui/RegexScripts.tsx";
 import { loadMessageLook } from "./messageLook.ts";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
-import { applyProfile, BUILTIN_PROFILES, DEFAULT_PROFILE_ID } from "./theme/themes.ts";
+import { applyDefaultAppearance, loadAppearance, toggleSafeMode } from "./theme/appearance.ts";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, withFieldSet, withTracker, type Tracker, type TrackerDraft, sampleFor } from "./trackers.ts";
 
 type View =
@@ -160,7 +160,17 @@ export function App() {
   // a newer version on GitHub (D-037): a quiet bar on top + Settings → About
   const updates = useUpdates();
 
-  useEffect(() => { applyProfile(BUILTIN_PROFILES.find((p) => p.id === DEFAULT_PROFILE_ID) ?? BUILTIN_PROFILES[0]!); }, []);
+  useEffect(() => { applyDefaultAppearance(); }, []);
+  // Ctrl+Shift+0: turns the look's extra CSS off until restart, a way out of CSS that broke the screen (D-075)
+  useEffect(() => {
+    const out = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || (event.key !== "0" && event.code !== "Digit0")) return;
+      event.preventDefault();
+      toggleSafeMode();
+    };
+    document.addEventListener("keydown", out);
+    return () => document.removeEventListener("keydown", out);
+  }, []);
 
   // Ctrl+K opens the "open anything" box (D-069); pressed again, it closes it
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -195,6 +205,7 @@ export function App() {
     setLorebooks(await s.store.lorebooks.list());
     setLoreSettings(await s.store.getLoreSettings());
     void loadMessageLook(s.store);
+    void loadAppearance(s.store);
     setGlobalRegex(await s.store.getGlobalRegex());
     setApprovedRegex(await s.store.getApprovedRegex());
     const av: Record<string, Avatar> = {};

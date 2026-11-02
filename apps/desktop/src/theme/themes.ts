@@ -48,6 +48,7 @@ export const BUILTIN_PROFILES: AppearanceProfile[] = [
       round: "0",
       "font-ui": '"Geist Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
       "font-mono": '"Geist Mono Variable", ui-monospace, Consolas, monospace',
+      "font-figures": '"Geist Mono Variable", ui-monospace, Consolas, monospace',
       "font-display": '"Archivo Variable", "Geist Variable", system-ui, sans-serif',
       "display-weight": "600", "display-stretch": "112%",
       "letter-bg": "#1c1c1c", "portrait-bg": "#161616",
@@ -71,6 +72,8 @@ export const BUILTIN_PROFILES: AppearanceProfile[] = [
       // switches and dots stay round: they are objects, not panels
       '.switch, .switch span { border-radius: 999px; }',
       '.switch.on span { background: var(--window); }',
+      // agent kinds keep a dot (it means something) but quieter than in the colorful looks
+      '.kind-dot { filter: saturate(.5); }',
     ].join("\n"),
   },
   {
@@ -96,10 +99,13 @@ export const LAYOUTS = ["inspector"] as const;
 const STYLE_ID = "homunculus-profile-css";
 
 /** Applies a profile to the whole window: token overrides on <html>, extra CSS in one <style>. */
+// the token names the last profile set, so a new one removes only those (message colors and motion live beside them)
+let applied: string[] = [];
 export function applyProfile(p: AppearanceProfile, root: HTMLElement = document.documentElement): void {
   root.dataset.theme = p.id;
   root.dataset.layout = p.layout;
-  for (const prop of [...root.style]) if (prop.startsWith("--")) root.style.removeProperty(prop);
+  for (const prop of applied) root.style.removeProperty(prop);
+  applied = Object.keys(p.tokens).map((name) => `--${name}`);
   for (const [name, value] of Object.entries(p.tokens)) root.style.setProperty(`--${name}`, value);
   let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
   if (!style) { style = document.createElement("style"); style.id = STYLE_ID; document.head.append(style); }
