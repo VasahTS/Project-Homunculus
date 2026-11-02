@@ -13,6 +13,10 @@
 @import "@fontsource/literata/400-italic.css";
 @import "@fontsource/literata/600.css";
 @import "@fontsource/literata/600-italic.css";
+/* interface, figures and display faces (Google Fonts, bundled through Fontsource so they work offline; OFL). D-073 */
+@import "@fontsource-variable/geist/index.css";
+@import "@fontsource-variable/geist-mono/index.css";
+@import "@fontsource-variable/archivo/standard.css";
 
 :root,
 :root[data-theme="graphite"] {
@@ -70,15 +74,21 @@
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55);
 
   /* shape */
-  --radius-panel: 14px;
-  --radius-group: 10px;
-  --radius-control: 7px;
-  --radius-pill: 999px;
+  /* every fixed corner in styles.css is "N px × --round": 1 = as drawn, 0 = square (Mono), in between = softer. D-073 */
+  --round: 1;
+  --radius-panel: calc(14px * var(--round));
+  --radius-group: calc(10px * var(--round));
+  --radius-control: calc(7px * var(--round));
+  --radius-pill: calc(999px * var(--round));
   --gap-float: 8px;            /* space around floating panels */
 
   /* type: system font for controls, a reading face for the story */
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-prose: "Literata", Georgia, serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-display: var(--font-ui);        /* big page titles */
+  --display-weight: 600;
+  --display-stretch: 100%;
   --size-ui: 13px;
   --size-small: 12px;
   --size-section: 11.5px;
@@ -111,6 +121,12 @@
   --flash: rgba(98, 182, 164, 0.32);    /* a value that just changed glows with this, then fades */
   --preview-scrim: rgba(0, 0, 0, 0.64); /* approved Try it backdrop, D-053, CODEX */
   --scrim: rgba(8, 9, 11, 0.55);         /* behind sheets */
+  /* pictures drawn by the app (a letter when there is no image; the Assistant's mark). D-073 */
+  --letter-bg: linear-gradient(160deg, #5d8a73 0%, #3e5f7e 55%, #2b3346 100%);
+  --portrait-bg: radial-gradient(120% 90% at 30% 15%, color-mix(in srgb, var(--accent) 34%, transparent), var(--fill) 70%);
+  --orb: radial-gradient(circle at 35% 30%, #c8eadb, var(--accent) 55%, color-mix(in srgb, var(--accent) 70%, #000));
+  --orb-ring: 0 0 0 4px var(--accent-soft);
+  --assistant-wash: radial-gradient(900px 500px at 70% -10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%);
 
   /* Shared collection and Library hierarchy. CODEX, D-040; values remain profile-overridable. */
   --collection-title: 26px;

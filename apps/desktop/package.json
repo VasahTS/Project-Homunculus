@@ -9,6 +9,9 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource/literata": "^5.3.0",
     "@homunculus/core": "0.0.1",
     "@homunculus/provider-openai": "^0.0.1",

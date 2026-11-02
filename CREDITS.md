@@ -15,4 +15,8 @@ Formats read at the "border" (no code copied): SillyTavern's persona backup / se
 
 Reference projects studied (ideas, not code, unless listed above): SillyTavern, SillyBunny, Homunculus v1 (VasahTS/Homunculus), Marinara Engine, Aventuras. Studied commits are pinned in `docs/reference/pins.json`.
 
+Fonts bundled with the app (SIL Open Font License 1.1, from Google Fonts through Fontsource): Literata, Geist and Geist Mono (Vercel), Archivo (Omnibus-Type). D-073.
+
+UI review method: unslop by Damir Sokolovsky (github.com/heydamir/unslop, CC BY 4.0) — used for `docs/UNSLOP-AUDIT.md`; no code copied.
+
 Planned reference (MIT): fiction-prose-style (github.com/unkarelian/fiction-prose-style, commit 2f5947ac) for the Style Reviewer — list here when its scanner or guide is adapted.

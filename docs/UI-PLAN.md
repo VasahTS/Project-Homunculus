@@ -6,6 +6,21 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Customize (look, tweaks, motion, advanced) — CLAUDE, 2026-11-01 · text approved by Daniel's answers; draft page 2 of `docs/drafts/neutral-look/` ⏳ waiting for his OK
+
+**What it is for:** one place to change how the app looks — the look (profile), its tweaks, motion, and for the curious its colors and extra CSS. Everything applies at once (v1's Customize drawer, `classic-themes.js` `renderPanel`, on top of D-018's tokens/profiles/`data-region`).
+**Where:** a tab in **Settings** (Daniel: "C"), between Lorebooks and About. **Settings → Messages moves into it** (Daniel: yes).
+**Hierarchy:**
+- Primary — **Look:** cards with a small preview (window, text, accent), the active one outlined. Click = applied to the whole app, with Undo for a few seconds. Built in: Mono (default, D-073), Quiet, Graphite.
+- Secondary — **Tweaks for <look>** (kept per look, "Reset <look>"): accent swatches + custom; story font; story text size; dialogue and narration colors (from Messages).
+- Secondary — **Motion** (the only effect for now; Daniel left effects to Claude): on/off, speed Calm · Normal · Quick, follow the system's reduce motion.
+- Hidden until opened — **Advanced** (Daniel: in from the start): **Edit colors** (tokens in groups: window and panels, text, accent and status, shape: corners Square/Soft/Round = `--round`, panels Lines/Floating). Editing a built-in look makes a copy "<look> (edited)". **Extra CSS** (only the stable `data-region` hooks), saved and exported with the look; Ctrl+Shift+0 drops back to the look without it.
+- ⋯ on a look: Duplicate · Export · Delete (only yours). **Import look…** (format `homunculus-look@1`). **No v1 theme import** (Daniel: not worth it). **One layout** for now (a second one later).
+**States:** 2–4 looks normal; 12+ scrolls with a search; a broken import says why and changes nothing; a missing font falls back and says so; reduced motion on = Motion section says why it is off.
+**Data:** `appSettings`: active look, tweaks per look, user looks.
+
+---
+
 
 ## Text mode (edit the card as text) — CLAUDE, 10/31 (plan) · 11/01 draft · ⏳ waiting for Daniel's OK on the draft
 

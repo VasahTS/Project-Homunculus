@@ -4,6 +4,15 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Mono look (default on `ui`), fonts, unslop audit (2026-11-01) — CLAUDE — D-073
+
+Daniel picked **A — Mono** from `docs/drafts/neutral-look/`, "Mono is the default for now", Google fonts where they fit, and asked for an unslop review of the UI.
+- **On `ui` only:** Mono (black/grey/white, square corners, hairlines, white = the main action) is the default look; Quiet and Graphite stay. Geist (interface), Geist Mono (figures/code), Archivo wide (page titles), all bundled (no network). Corners follow one token, `--round`; letter avatars, portrait and Assistant mark are tokens (flat in Mono).
+- **unslop audit:** `docs/UNSLOP-AUDIT.md` — direction and every sign found; fixes wait for Daniel's OK (one disagreement with D-072 motion to settle).
+- **Customize:** plan in `docs/UI-PLAN.md`; draft = page 2 of `docs/drafts/neutral-look/`; code after Daniel's OK.
+- Checks: typecheck, unit tests, full browser suite. Seen in the browser preview with demo data; not tried in the Windows app or with Daniel's database.
+- **To try:** Update UI.bat (or GitHub Desktop on branch `ui`) → open the app.
+
 ## Motion round 1 on the `ui` branch (2026-11-01) — CLAUDE — D-072
 
 Daniel: "do you have transitions like Coffra?" → draft `docs/drafts/motion/` (made with the Stageshow skill), approved: "more or less what I'm looking for"; plus "can the name rise in a cascade too, like Coffra?". He asked for a **`ui` branch** so `dev` stays untouched until he is sure.

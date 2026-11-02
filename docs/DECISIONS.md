@@ -735,3 +735,17 @@ Daniel sent screen recordings (mainly the Coffra demo) as the motion he wants, a
 - **Not in this round:** the card growing into the editor (the app opens the editor from the character sheet's Edit, on another page), the side sheet with a blurred page behind, and the circular theme switch (the app has no appearance picker yet: Quiet is fixed). The draft shows all three.
 
 Signed: **CLAUDE**.
+
+## D-073 — Mono: a neutral look as the default; corners, fonts and pictures become tokens (2026-11-01)
+
+Daniel wants the UI neutral before any new theme: "take out the green gradient, make it black/grey and white" (reference: a "Fontstore" type-foundry site, pink read as white). Draft `docs/drafts/neutral-look/` showed Quiet, "A — Mono" and "B — Mono grid" on the real app; he picked **A**, said Mono is the default "for now", and asked for Google fonts where they fit.
+- **On `ui` only** (D-072). New built-in profile **Mono** (`theme/themes.ts`), now `DEFAULT_PROFILE_ID`; Quiet and Graphite stay registered.
+- **Mono:** window #0D0D0D, panels #131313, text #F2F2F2 / #A1A1A1 / #7A7A7A, hairlines at 10% of the text color, no glass, no shadows. The accent is white: the main button and the selected segment are white blocks with black text. Status colors stay (they carry meaning), toned down. Panels are split by 1 px lines instead of floating. Switches and dots stay round.
+- **Corners are one token, `--round`** (D-073): every fixed `border-radius` in `styles.css` is now `calc(N px × var(--round))` and the `--radius-*` tokens use it too. 1 = as drawn (Quiet, Graphite), 0 = square (Mono). Customize's "Corners" will set it.
+- **Fonts (Google Fonts, bundled with Fontsource so the app works offline, OFL):** Geist for the interface (the v1 Lantern themes used it), Geist Mono for figures and code-like text (`--font-mono`, replaces the system monospace stack), Archivo at 112 % width, weight 600, for the big page titles only (`--font-display`, `--display-weight`, `--display-stretch`). Literata stays for the story.
+- **Pictures drawn by the app** are tokens now: `--letter-bg` (a card without a picture), `--portrait-bg`, `--orb` / `--orb-ring` (the Assistant's mark), `--assistant-wash`. Quiet keeps its gradients; Mono makes them flat.
+- **Customize** (Settings tab, Messages moves into it; Edit colors and Extra CSS from the start; Motion as the only effect for now; no v1 theme import; second layout later): plan in `docs/UI-PLAN.md`, draft page 2 of `docs/drafts/neutral-look/`; built after Daniel's OK on that page.
+- **unslop audit** of the current UI: `docs/UNSLOP-AUDIT.md` (skill github.com/heydamir/unslop, CC BY 4.0, Damir Sokolovsky). Its fixes wait for Daniel's answer on the direction.
+
+Signed: **CLAUDE**.
+

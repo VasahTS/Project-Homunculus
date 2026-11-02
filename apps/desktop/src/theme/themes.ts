@@ -26,9 +26,53 @@ export interface AppearanceProfile {
   css?: string;
 }
 
-export const DEFAULT_PROFILE_ID = "quiet";
+export const DEFAULT_PROFILE_ID = "mono";
 
 export const BUILTIN_PROFILES: AppearanceProfile[] = [
+  {
+    // D-073 (2026-11-01): Daniel's neutral look, from his "Fontstore" reference with white in place of pink.
+    // Black, grey and white; square corners; panels split by hairlines instead of floating; white is the one
+    // strong thing on a screen (the main button, the selected tab). Geist for the interface, Archivo for big titles.
+    id: "mono", name: "Mono", description: "Black, grey and white. Square corners, hairlines, white for the one thing that matters.",
+    layout: "inspector", effects: [], tweaks: {},
+    tokens: {
+      window: "#0d0d0d", backdrop: "#0d0d0d", surface: "#131313", field: "#161616",
+      label: "#f2f2f2", "label-2": "#a1a1a1", "label-3": "#7a7a7a",
+      separator: "rgba(242,242,242,.10)", fill: "rgba(242,242,242,.05)", "fill-hover": "rgba(242,242,242,.09)", "fill-selected": "rgba(242,242,242,.13)", group: "transparent",
+      accent: "#f2f2f2", "accent-ink": "#0d0d0d", "accent-soft": "rgba(242,242,242,.07)", "focus-ring": "rgba(242,242,242,.6)",
+      ok: "#4cc38a", warn: "#d9b46a", danger: "#e5484d", "danger-soft": "rgba(229,72,77,.12)",
+      dialogue: "#f2f2f2", narration: "#a6a6a6",
+      glass: "#0d0d0d", "glass-edge": "rgba(242,242,242,.10)", pop: "#141414", "glass-blur": "none",
+      "shadow-float": "none", "shadow-pop": "0 0 0 1px rgba(242,242,242,.12), 0 16px 40px rgba(0,0,0,.6)",
+      flash: "rgba(242,242,242,.14)", scrim: "rgba(0,0,0,.72)", "preview-scrim": "rgba(0,0,0,.72)",
+      round: "0",
+      "font-ui": '"Geist Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+      "font-mono": '"Geist Mono Variable", ui-monospace, Consolas, monospace',
+      "font-display": '"Archivo Variable", "Geist Variable", system-ui, sans-serif',
+      "display-weight": "600", "display-stretch": "112%",
+      "letter-bg": "#1c1c1c", "portrait-bg": "#161616",
+      orb: "#f2f2f2", "orb-ring": "none", "assistant-wash": "linear-gradient(transparent, transparent)",
+      "collection-title": "36px",
+    },
+    css: [
+      '[data-region="app"] { gap: 0; padding: 0; }',
+      '[data-region="sidebar"] { border-radius: 0; box-shadow: none; border-right: 1px solid var(--separator); padding: 24px 12px 16px; }',
+      '[data-region="inspector"] { border-radius: 0; box-shadow: none; border-left: 1px solid var(--separator); }',
+      '.toolbar { border-bottom: 1px solid var(--separator); height: 56px; }',
+      // selected = solid white block with black text (segmented controls, the sidebar's place)
+      '.segmented, .mode-switch { background: transparent; box-shadow: inset 0 0 0 1px var(--separator); padding: 0; }',
+      '.segmented .slide-pill { background: var(--label); box-shadow: none; }',
+      '.segmented button.on { color: var(--window); }',
+      '.mode-switch { padding: 0; } .mode-switch button.on { background: var(--label); color: var(--window); box-shadow: none; }',
+      '.btn-bordered, .ghost { background: transparent; box-shadow: inset 0 0 0 1px rgba(242,242,242,.18); }',
+      '.btn-bordered:hover:not(:disabled), .ghost:hover { background: var(--fill); }',
+      '.group { border-top: 1px solid var(--separator); border-bottom: 1px solid var(--separator); }',
+      '.composer-box:focus-within { box-shadow: none; }',
+      // switches and dots stay round: they are objects, not panels
+      '.switch, .switch span { border-radius: 999px; }',
+      '.switch.on span { background: var(--window); }',
+    ].join("\n"),
+  },
   {
     id: "graphite", name: "Graphite", description: "Neutral dark graphite with a verdigris accent. Sidebar, story and inspector.",
     tokens: {}, layout: "inspector", effects: [], tweaks: {},
