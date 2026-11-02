@@ -65,11 +65,11 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
   return (
     <QuickConnectMenu svc={svc} c={c} listModels={listModels} target={target} onManage={onManage}
       trigger={(open, toggle) => (
-        <IconButton className={`qc-btn${open ? " on" : ""}`} aria-expanded={open} data-testid="quick-connect"
-          label={current ? `Quick Connection: ${current.name}${current.model ? ` (${current.model})` : ""}` : "Quick Connection: switch connection and model"}
-          onClick={toggle}>
-          <Icon name="link" size={17} />
-        </IconButton>
+        <button type="button" className={`asst-model-btn qc-under${open ? " on" : ""}`} aria-expanded={open} data-testid="quick-connect"
+          aria-label={current ? `Quick Connection: ${current.name}${current.model ? ` (${current.model})` : ""}` : "Quick Connection: switch connection and model"}
+          title="Switch the connection or the model" onClick={toggle}>
+          {current ? (current.providerId === "offline-test" ? current.name : (current.model || current.name).split("/").pop()) : "No connection"}
+        </button>
       )} />
   );
 }

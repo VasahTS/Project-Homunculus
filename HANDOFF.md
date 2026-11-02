@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## dev = ui; UX review round 1 on `ui` (2026-11-02) — CLAUDE — D-078
+
+- **dev fast-forwarded to ui (2e76d07)** at Daniel's request; both pushed.
+- On `ui`: one tab style (underline), Settings with a big title and the Library's tab row, Presets/Trackers/Personas open the last used item, Play's box like the Assistant's (model under it opens Quick Connection), "?" hidden until hover, chat ⋯ menu instead of the trash icon, status chip only in the preview, 5 recent chats.
+- Open from the review: 7, 8, 9, 11 (Daniel's call on Title Case), 13.
+
 ## Assistant like Flint (model under the box, box at the bottom, Settings); no blur; UX review (2026-11-02) — CLAUDE — D-077
 
 - Model under the box opens Quick Connection (this chat only); the assistant list opens where there is room; start screen with the box at the bottom; Settings at the bottom of the Assistant's sidebar; page switches without blur.

@@ -3,7 +3,7 @@
 // tabs inside them), Stories and Chats are the lists below, each row with its last line so same-named chats differ.
 // 2026-10-29 (round 3, D-036): the long list of chats left the sidebar (Daniel: "it will get really clogged when there are
 // many characters"): Characters is a place (the cards, in folders; a character's chats are on its sheet), and
-// "Recent" keeps the last 3 chats at hand.
+// "Recent" keeps the last chats at hand (5 since D-078).
 // 2026-10-29: a chat writing a reply in the background says so ("writing…"), and its story too, even folded.
 // Floats in the functional (glass) layer. Two levels at most. Nothing critical at the bottom.
 import { ModeSwitch, type AppMode } from "./Assistant.tsx";
@@ -104,7 +104,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
       <span className="slide-pill side-pill" ref={pillRef} aria-hidden />
       <div className="sidebar-brand">
         <span className="brand">Homunculus</span>
-        <span className="status-chip" data-testid="status">{status}</span>
+        {status && <span className="status-chip" data-testid="status">{status}</span>}
       </div>
       {mode && onMode && <ModeSwitch mode={mode} onMode={onMode} />}
       <label className="search-box side-search">
@@ -173,7 +173,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
       </>}
 
       <div className="side-head">
-        <span className="label-row">{searching ? "Chats" : "Recent"} <Help text="Your last chats. Every chat with a character is on its sheet (Characters); a story's chats are on its page." /></span>
+        <span className="label-row" title="Your last chats. Every chat with a character is on its sheet (Characters); a story's chats are on its page.">{searching ? "Chats" : "Recent"}</span>
       </div>
       <ul className="side-list side-recent" data-testid="session-list">
         {chats.map((s) => {

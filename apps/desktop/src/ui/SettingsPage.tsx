@@ -45,10 +45,16 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
   updates: Updates;
 }) {
   return (
-    <div className="page">
-      <Toolbar lead={lead} title="Settings"
-        center={<Segmented label="Settings sections" tabs value={tab} onChange={onTab}
-          options={[{ value: "connections", label: "Connections", testId: "settings-connections" }, { value: "defaults", label: "Defaults", testId: "settings-defaults" }, { value: "lorebooks", label: "Lorebooks", testId: "settings-lorebooks" }, { value: "customize", label: "Customize", testId: "settings-customize" }, { value: "about", label: "About", testId: "settings-about" }]} />} />
+    // UX review items 1–2 (D-078): Settings is a place like Library — a big title and the same row of tabs under it
+    <section className="library-workspace settings-workspace" data-region="library-workspace">
+      <Toolbar lead={lead} title="Settings" subtitle="Connections, defaults for new chats, and how the app looks" />
+      <nav className="library-tabs" aria-label="Settings sections" role="tablist">
+        {SECTIONS.map((x) => (
+          <button key={x.value} type="button" role="tab" aria-selected={tab === x.value} className="library-tab" aria-current={tab === x.value ? "page" : undefined}
+            data-testid={`settings-${x.value}`} onClick={() => onTab(x.value)}><span>{x.label}</span></button>
+        ))}
+      </nav>
+      <div className="library-workspace-content settings-content">
       {tab === "about" ? <AboutSection u={updates} />
         : tab === "customize" ? <CustomizeSection notify={notify} />
         : tab === "lorebooks" ? <LoreSettingsSection settings={loreSettings} onSave={onSaveLoreSettings} books={lorebooks} defaultSetup={defaultSetup} onSetDefaultSetup={onSetDefaultSetup} />
@@ -56,9 +62,15 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
         ? <ConnectionsSection c={c} providers={providers} test={test} listModels={listModels} notify={notify} />
         : <DefaultsSection c={c} trackers={trackers} presets={presets} defaultPresetId={defaultPresetId} personas={personas} defaultPersonaId={defaultPersonaId} defaultSetup={defaultSetup}
             onSetDefaultSetup={onSetDefaultSetup} onSetDefaultPersona={onSetDefaultPersona} />}
-    </div>
+      </div>
+    </section>
   );
 }
+
+const SECTIONS: Array<{ value: SettingsTab; label: string }> = [
+  { value: "connections", label: "Connections" }, { value: "defaults", label: "Defaults" }, { value: "lorebooks", label: "Lorebooks" },
+  { value: "customize", label: "Customize" }, { value: "about", label: "About" },
+];
 
 // ---------------------------------------------------------------- Connections
 

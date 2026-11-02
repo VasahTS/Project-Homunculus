@@ -15,6 +15,6 @@ export const COLLECTION_NAVIGATION: NavigationProfile = {
     { id: "scene", label: "Around each reply", items: [{ id: "trackers", label: "Trackers" }, { id: "agents", label: "Agents" }] },
     { id: "manage", label: "Manage", items: [{ id: "trash", label: "Trash" }], trailing: true },
   ],
-  recentLimit: 3,
+  recentLimit: 5, // D-078 (UX review item 12): five fit at 768 px
   showStoryShortcuts: false,
 };

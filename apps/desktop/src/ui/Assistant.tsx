@@ -90,7 +90,7 @@ export function AssistantSidebar({ st, onMode, status, onSettings }: { st: Assis
   const shown = q.trim() ? st.chats.filter((c) => `${c.title} ${c.summary}`.toLowerCase().includes(q.trim().toLowerCase()) || hits.has(c.id)) : st.chats;
   return (
     <nav className="sidebar glass asst-side" aria-label="Assistant" data-region="sidebar" data-testid="assistant-sidebar" ref={navRef}>
-      <div className="sidebar-brand"><span className="brand">Homunculus</span><span className="status-chip">{status}</span></div>
+      <div className="sidebar-brand"><span className="brand">Homunculus</span>{status && <span className="status-chip">{status}</span>}</div>
       <ModeSwitch mode="assistant" onMode={onMode} />
       <ul className="side-list">
         <li><button className={`side-item${st.page === "chat" && !st.activeId ? " on" : ""}`} onClick={() => st.setActiveId(null)} data-testid="assistant-new"><span className="side-icon acc"><Icon name="plus" /></span><span className="side-text"><strong>New chat</strong></span></button></li>

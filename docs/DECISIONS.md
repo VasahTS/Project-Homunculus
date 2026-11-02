@@ -796,3 +796,18 @@ Daniel (after trying D-076): "three clicks to change the model — do it like Fl
 
 Signed: **CLAUDE**.
 
+## D-078 — UX review, first round: one tab style, Settings as a place, no empty panes, one message box (2026-11-02)
+
+Daniel: "move this version to dev; then apply these changes straight on the ui branch so we can test" (no drafts this time). `dev` was fast-forwarded to `ui` at 2e76d07 first.
+- **Item 1, tabs:** every Segmented used as tabs (Inspector, Scene sections, run details, Vault…) looks like the Library's tab row: words with a gliding underline. Boxes stay for small choices inside forms (S·M·L, Edit/Preview).
+- **Item 2, page heads:** Settings is a place like Library — big title, a line under it, and the same tab row (Connections · Defaults · Lorebooks · Customize · About); test ids kept.
+- **Item 3, empty panes:** Presets, Trackers and Personas open the item used last on that page (remembered per viewer), else the first, unless something is already open (a new one being made). Lorebooks is left out: its editor takes the whole page.
+- **Item 4, one message box:** a Play chat's box has a short placeholder ("Write your message"; the key hints are its tooltip) and the model under the box opens Quick Connection, as in the Assistant (the link icon left the box). Temperature/thinking, when set, stay a quiet link to the Prompt tab.
+- **Item 5, "?":** help buttons stay invisible until their row is pointed at or focused (still reachable by keyboard).
+- **Item 6:** a chat's trash icon became a ⋯ menu (Rename, Move to Trash).
+- **Item 10:** the status chip shows only in the browser preview ("preview · not saved"); the installed app shows nothing.
+- **Item 12:** Recent keeps 5 chats; its "?" became the label's tooltip.
+- Not yet: 7 (Defaults grouping), 8 (Narrators grid), 9 (Scene empty state), 11 (Title Case vs sentence case — Daniel decides), 13 (built-in assistants' glyphs).
+
+Signed: **CLAUDE**.
+

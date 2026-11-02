@@ -3,7 +3,7 @@
 // Characters and Trackers share this master-detail shape; future library kinds (personas, lorebooks,
 // presets, agents) reuse it.
 import { dragItem } from "./Folders.tsx";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character, Lorebook, Persona, Preset, TrashItem } from "@homunculus/schemas";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { LorebookChips } from "./LorePanels.tsx";
@@ -26,6 +26,23 @@ export function MasterDetail({ list, detail, collapsed = false, onExpand }: {
       <div className="detail" data-region="editor">{detail}</div>
     </div>
   );
+}
+
+/**
+ * UX review item 3 (D-078): a page with items never opens on an empty "pick something" pane. With nothing selected it
+ * opens the item used last on that page (remembered per viewer), else the first one.
+ */
+function useAutoOpen(kind: string, ids: string[], selectedId: string | null, onSelect: (id: string) => void, open: boolean): void {
+  const key = `h2.lastOpen.${kind}`;
+  useEffect(() => {
+    if (open) return; // something is already open (a new item being made, a draft)
+    if (selectedId && selectedId !== "new") { try { localStorage.setItem(key, selectedId); } catch { /* a convenience only */ } return; }
+    if (selectedId === "new" || !ids.length) return;
+    let last: string | null = null;
+    try { last = localStorage.getItem(key); } catch { /* private window */ }
+    onSelect(last && ids.includes(last) ? last : ids[0]!);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, ids.length, open]);
 }
 
 const LIST_KEY = "h2.characters.listCollapsed";
@@ -104,6 +121,7 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
   onNew: () => void;
   detail: ReactNode;
 }) {
+  useAutoOpen("trackers", trackers.map((t) => t.agent.id), selectedId, onSelect, !!detail);
   const [q, setQ] = useState("");
   const shown = trackers.filter((t) => t.agent.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
@@ -145,6 +163,7 @@ export function PersonasPage({ lead, tabs, personas, avatars, defaultId, selecte
   onImport: (files: File[]) => void;
   detail: ReactNode;
 }) {
+  useAutoOpen("personas", personas.map((x) => x.id), selectedId, onSelect, !!detail);
   const [q, setQ] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const shown = personas.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
@@ -195,6 +214,7 @@ export function PresetsPage({ lead, tabs, presets, defaultId, selectedId, import
   onImport: (files: File[]) => void;
   detail: ReactNode;
 }) {
+  useAutoOpen("presets", presets.map((x) => x.id), selectedId, onSelect, !!detail);
   const [q, setQ] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const shown = presets.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));

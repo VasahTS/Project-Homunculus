@@ -579,7 +579,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             )}
             {onOpenStory && <Button onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
             {/* an icon (29/10): the words took the room of the title, branch and "with …" in narrow windows */}
-            <IconButton label="Move to Trash" className="danger-hover" onClick={onDelete} title="Move to Trash: the chat goes to Library → Trash; you can restore it."><Icon name="trash" size={16} /></IconButton>
+            {/* UX review item 6 (D-078): deleting no longer sits beside everyday buttons; it is in the chat's ⋯ menu */}
+            <ChatMenu onRename={() => setEditingTitle(true)} onDelete={onDelete} />
             <IconButton label={inspectorOpen ? "Hide Inspector" : "Show Inspector"} onClick={onToggleInspector} aria-pressed={inspectorOpen}>
               <Icon name="inspector" size={17} />
             </IconButton>
@@ -739,10 +740,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         {lastAi && !busy && !pending && <ComposerChoices results={agentResults.get(lastAi.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(lastAi.id)} />}
         <form className="composer" data-region="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
           <div className="composer-box">
-            <QuickConnect svc={svc} c={connection} session={session} storySetup={storySetup} listModels={listModels}
-              onChangeSession={onChangeSession} onManage={onOpenSettings} />
-            <textarea value={input} rows={2} aria-label="Your message"
-              placeholder="Write your message (Enter sends, Shift+Enter makes a new line; empty Enter gets a reply)"
+            <textarea value={input} rows={2} aria-label="Your message" title="Enter sends · Shift+Enter makes a new line · Enter in an empty box gets a reply"
+              placeholder="Write your message"
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
             {busy
@@ -750,12 +749,19 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               : <Button variant="prominent" type="submit" disabled={!input.trim() && !headId}
                   title={input.trim() ? undefined : "Empty: the AI writes the next message"}>Send</Button>}
           </div>
+          {/* UX review item 4 (D-078): the same shape as the Assistant's box — the model under the box opens Quick Connection;
+              samplers stay a quiet link to the Prompt tab */}
           <div className="composer-meta">
-            <button type="button" className="link quiet" onClick={() => { setTab("prompt"); if (!inspectorOpen) onToggleInspector(); }}>
-              Writing with {story ? (story.providerId === "offline-test" ? "the offline test AI" : `${story.name}`) : "no connection"}
-              {params.temperature !== undefined ? `, temperature ${params.temperature}` : ""}
-              {params.reasoningEffort ? `, thinking ${params.reasoningEffort}` : ""}
-            </button>
+            <span className="grow" />
+            {(params.temperature !== undefined || params.reasoningEffort) && (
+              <button type="button" className="link quiet" onClick={() => { setTab("prompt"); if (!inspectorOpen) onToggleInspector(); }} title="Sampling: open the Prompt tab">
+                {[params.temperature !== undefined ? `temperature ${params.temperature}` : "", params.reasoningEffort ? `thinking ${params.reasoningEffort}` : ""].filter(Boolean).join(" · ")}
+              </button>
+            )}
+            <span className="qc-anchor">
+              <QuickConnect svc={svc} c={connection} session={session} storySetup={storySetup} listModels={listModels}
+                onChangeSession={onChangeSession} onManage={onOpenSettings} />
+            </span>
             {usage && usage.tokensIn + usage.tokensOut > 0 && (
               <span className="composer-usage" data-testid="chat-usage" title={`This chat so far (all branches, replies and agents): ${usage.tokensIn.toLocaleString("en-US")} tokens in, ${usage.tokensOut.toLocaleString("en-US")} out, ${usage.calls} calls${usage.cost ? `, $${usage.cost.toFixed(4)}` : ""}. Only what the provider reported.`}>
                 · this chat: {shortTokens(usage.tokensIn + usage.tokensOut)} tokens{usage.cost ? ` · $${usage.cost.toFixed(2)}` : ""}
@@ -830,3 +836,27 @@ function shortTokens(n: number): string {
   return n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n);
 }
 
+
+/** The chat's ⋯ menu: Rename, Move to Trash (D-078). */
+function ChatMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", off); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", off); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  return (
+    <span className="chat-menu" ref={box}>
+      <IconButton label="More for this chat" aria-expanded={open} data-testid="chat-menu" onClick={() => setOpen(!open)}><Icon name="dots" size={17} /></IconButton>
+      {open && (
+        <div className="look-menu chat-menu-pop" role="menu">
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onRename(); }}>Rename</button>
+          <button type="button" role="menuitem" className="danger" title="The chat goes to Library → Trash; you can restore it." onClick={() => { setOpen(false); onDelete(); }}>Move to Trash</button>
+        </div>
+      )}
+    </span>
+  );
+}

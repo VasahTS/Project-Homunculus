@@ -1,7 +1,7 @@
 # UX review of the whole app — CLAUDE, 2026-11-02
 
 Daniel asked for it with the Flint-style Assistant changes (D-077): "aproveite a análise a ux geral do app".
-Method: the running app (browser preview, demo data) at 1366 × 768: chat with Scene / Prompt / Reply, Stories, Characters, Library (Narrators, Lorebooks, Presets, Trackers, Agents), Settings (Connections, Defaults, Customize), Assistant. **Nothing below is changed yet**; each item says what it would be and why. Ordered by how often Daniel meets the problem.
+Method: the running app (browser preview, demo data) at 1366 × 768: chat with Scene / Prompt / Reply, Stories, Characters, Library (Narrators, Lorebooks, Presets, Trackers, Agents), Settings (Connections, Defaults, Customize), Assistant. **Status (11/02):** items 1–6, 10 and 12 are in the app on `ui` (D-078). Still open: 7, 8, 9, 11 (Daniel decides), 13. Ordered by how often Daniel meets the problem.
 
 ## Most felt
 

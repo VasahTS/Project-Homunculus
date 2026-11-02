@@ -3024,3 +3024,31 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-hello .asst-knows { margin: 0 0 12px; max-width: 520px; color: var(--label-2); font-size: 13px; }
 .asst-hello .asst-qs { width: 100%; text-align: left; }
 .asst-under .qc-pop { width: min(640px, calc(100vw - 48px)); }
+
+/* D-078 (UX review): the chat's ⋯ menu; "?" helps stay out of sight until their row is pointed at or focused */
+.chat-menu { position: relative; display: inline-flex; }
+.chat-menu-pop { right: 0; top: calc(100% + 4px); }
+.help-btn { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+:is(.label-row, .row, .group-head, .side-head, .toolbar, label, .det-head, .q-k, .v-label, .v-pill, .v-line, .field, .ce-k, .cust-field):hover .help-btn,
+.help-btn:focus-visible, .help-btn[aria-expanded="true"] { opacity: 1; }
+
+/* D-078: Settings in the Library's frame; its sections scroll inside */
+.settings-content { flex-direction: column; overflow: hidden; }
+.settings-content > .settings-page { margin: 0; max-width: 880px; padding: 0 0 24px; }
+.settings-content > .master-detail { flex: 1; min-height: 0; }
+
+/* D-078 (UX review item 1): one tab pattern. Segmented controls used as tabs (Inspector, Scene sections, run details…)
+   look like the Library's tab row — words with an underline that glides; boxes stay for small choices inside forms. */
+.segmented[role="tablist"] { background: transparent; box-shadow: inset 0 -1px 0 var(--separator); border-radius: 0; padding: 0; gap: 4px; }
+.segmented[role="tablist"] button { flex: none; padding: 8px 12px; border-radius: 0; color: var(--label-2); }
+.segmented[role="tablist"] button:hover { color: var(--label); }
+.segmented[role="tablist"] button.on { color: var(--label); font-weight: 600; }
+.segmented[role="tablist"] .slide-pill { background: transparent; box-shadow: inset 0 -2px 0 var(--accent); border-radius: 0; }
+.segmented[role="tablist"].small button { padding: 6px 8px; }
+input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
+
+/* D-078: Play's message box — the model under it opens Quick Connection (as in the Assistant) */
+.composer-meta { align-items: center; }
+.composer-meta .grow { flex: 1; }
+.qc-anchor { position: relative; display: inline-flex; }
+.qc-anchor .qc-pop { left: auto; right: 0; transform: none; bottom: calc(100% + 8px); }

@@ -49,7 +49,8 @@ test("rename a session; moving it to the Trash can be undone", async ({ page }) 
   await title.press("Enter");
   await expect(sessions(page).first()).toContainText("The Mill at Dusk");
 
-  await page.getByRole("button", { name: "Move to Trash" }).click();
+  await page.getByTestId("chat-menu").click();
+  await page.getByRole("menuitem", { name: "Move to Trash" }).click();
   await expect(sessions(page)).toHaveCount(0);
   await expect(page.getByText("No session open.")).toBeVisible();
   await expect(page.getByTestId("notice")).toContainText("moved to the Trash");
@@ -69,8 +70,10 @@ test("a character used by a session cannot go to the Trash, with a clear reason"
 
 test("every option has a '?' that explains it", async ({ page }) => {
   await page.goto("/");
+  // D-078: the "?" stay out of sight until their row is pointed at; Recent's explanation is now its tooltip
+  await expect(page.getByText("Recent", { exact: true })).toHaveAttribute("title", /Your last chats/);
   await page.getByRole("button", { name: "Explain" }).first().click();
-  await expect(page.getByRole("note")).toContainText("Your last chats");
+  await expect(page.getByRole("note")).toBeVisible();
   await page.mouse.click(900, 400); // click elsewhere closes it
   await expect(page.getByRole("note")).toHaveCount(0);
   await page.screenshot({ path: "e2e/.results/library-after.png" });

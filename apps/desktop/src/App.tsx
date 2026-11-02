@@ -1543,7 +1543,7 @@ export function App() {
   return (
     <div className="app" data-region="app">
       {sidebarOpen && mode === "assistant" && (
-        <AssistantSidebar st={asst} onMode={setMode} status={svc.isDesktop ? "saved on this PC" : "preview · not saved"}
+        <AssistantSidebar st={asst} onMode={setMode} status={svc.isDesktop ? "" : "preview · not saved"}
           onSettings={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }} />
       )}
       {sidebarOpen && mode === "play" && (
@@ -1572,7 +1572,7 @@ export function App() {
           activeStoryId={view.kind === "story" ? view.id : view.kind === "session" ? active?.storyId ?? null : null}
           activeChatId={view.kind === "session" && active?.storyId ? activeId : null}
           place={place}
-          status={svc.isDesktop ? "saved on this PC" : "preview · not saved"}
+          status={svc.isDesktop ? "" : "preview · not saved"}
           onOpenSession={(id) => { setActiveId(id); setView({ kind: "session" }); }}
           onOpenStory={(id) => setView({ kind: "story", id })}
           onNewStory={() => setNewStoryOpen({ cardId: null })}
