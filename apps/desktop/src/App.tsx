@@ -2,7 +2,8 @@
 // trackers 2026-10-27; UI direction "I" (D-018): sidebar (Sessions, Library), toolbar per view, inspector in sessions;
 // 2026-10-28 (slice 1, D-019): versions of characters, personas, history, the Trash; (slice 1b, D-020): Settings.
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { pageIn } from "./ui/motion.ts";
 import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript } from "@homunculus/schemas";
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
@@ -161,6 +162,22 @@ export function App() {
   const updates = useUpdates();
 
   useEffect(() => { applyDefaultAppearance(); }, []);
+  // Switching pages (D-076): the new page's blocks rise out of a light blur, one after another. A chat and the character
+  // editor have their own cascades, so they are left out; picking an item inside the same page does not replay it.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const pageKey = mode === "assistant" ? `assistant:${asst.page}:${asst.activeId ? "chat" : "new"}`
+    : view.kind === "session" ? null
+    : view.kind === "characters" ? (view.edit ? null : "characters")
+    : view.kind === "settings" ? `settings:${view.tab}`
+    : view.kind === "vault" ? `vault:${view.tab}`
+    : view.kind === "story" || view.kind === "kit" ? `${view.kind}:${view.id}`
+    : view.kind;
+  useLayoutEffect(() => {
+    if (!pageKey) return;
+    const root = contentRef.current;
+    const page = root ? [...root.children].filter((c) => !c.matches(".notice, .update-bar, [data-testid='notice']")).pop() : null;
+    pageIn((page as HTMLElement | null) ?? null);
+  }, [pageKey]);
   // Ctrl+Shift+0: turns the look's extra CSS off until restart, a way out of CSS that broke the screen (D-075)
   useEffect(() => {
     const out = (event: KeyboardEvent) => {
@@ -1564,7 +1581,7 @@ export function App() {
           onOpenSettings={() => setView({ kind: "settings", tab: "connections" })}
         />
       )}
-      <div className="content">
+      <div className="content" ref={contentRef}>
         <UpdateBar u={updates} />
         {noticeBar}
         {mode === "assistant" ? (

@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Flint-style Assistant bar, page entrances, fixes (2026-11-02) — CLAUDE — D-076
+
+Daniel tried the app: Assistant bar "cleaner, like Flint's"; Messages color didn't go back to the theme's; the look menu was cut; a picture covered the selection ring; switching menus needs a better animation (Coffra recording + notes, `docs/MOTION-NOTES.md`).
+- **Assistant:** + · Options (Assistant ›, Preset ›, Model ›, Draft first, Search the web) · meter · Send; the choices as quiet text under the box.
+- **Motion:** every page/tab switch enters with a blur-rise cascade; menus grow from their button; switching looks opens as a circle from the click.
+- **Fixes:** "Theme's" resets dialogue/narration colors; the ⋯ menu is whole and one at a time; the ring sits above full-picture cards.
+- Checks: typecheck, 430 unit tests, full browser suite (3 new tests in `customize.e2e.ts`; Assistant tests open Options first). Browser preview only.
+
 ## unslop applied; Settings → Customize built (2026-11-01, night) — CLAUDE — D-074, D-075
 
 Daniel: audit "pode aplicar", animations excepted for now; the Customize draft "Aprovada sim".

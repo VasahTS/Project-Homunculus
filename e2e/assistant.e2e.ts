@@ -18,6 +18,7 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
 
   // a new chat with a character as context → a Kit
   await page.getByTestId("assistant-new").click();
+  await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();
   await page.getByTestId("assistant-picker-add").click();
@@ -28,6 +29,7 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await expect(page.getByTestId("assistant-messages")).toContainText("Lyra");
 
   // a change waits for an OK
+  await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();
   await page.getByTestId("assistant-picker-add").click();
@@ -42,9 +44,12 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await expect(change).toContainText("Applied");
 
   // the picks under the message box: another assistant for this chat; the context meter
+  await page.getByTestId("assistant-options").click();
   await page.getByTestId("pick-assistant").click();
-  await page.getByRole("dialog", { name: "Assistant" }).getByRole("button", { name: /Card Smith/ }).click();
+  await page.getByRole("radiogroup", { name: "Assistant" }).getByRole("radio", { name: /Card Smith/ }).click();
   await expect(page.getByTestId("pick-assistant")).toContainText("Card Smith");
+  await expect(page.getByTestId("assistant-summary")).toContainText("Card Smith");
+  await page.keyboard.press("Escape");
   await page.getByTestId("pick-context").click();
   await expect(page.getByRole("dialog", { name: "Context and spending" })).toContainText("Card Smith");
   await page.keyboard.press("Escape");
@@ -88,6 +93,7 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
 test("Folders and versions (D-064): the Assistant puts a character in a party folder (Undo, Redo) and proposes a new version", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();
   await page.getByTestId("assistant-picker-add").click();
@@ -105,6 +111,7 @@ test("Folders and versions (D-064): the Assistant puts a character in a party fo
   await expect(page.getByTestId("assistant-send")).toBeVisible();
 
   // another version of her, in the same card
+  await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();
   await page.getByTestId("assistant-picker-add").click();
@@ -122,6 +129,7 @@ test("Folders and versions (D-064): the Assistant puts a character in a party fo
   await expect(change).toContainText("Applied");
 
   // the picker now shows where she is and that she has two versions
+  await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   await expect(page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first()).toContainText("RPG › Offline Party · 2 versions");
   await page.keyboard.press("Escape");
@@ -135,8 +143,11 @@ test("Folders and versions (D-064): the Assistant puts a character in a party fo
 test("Draft first: drafts show as cards with Save; nothing is saved until the user does; code blocks have Copy", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  await page.getByTestId("assistant-options").click();
   await page.getByTestId("pick-draft").click();
   await expect(page.getByTestId("pick-draft")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("assistant-summary")).toContainText("Drafts");
   await page.getByRole("textbox", { name: "Message to the Assistant" }).fill("Make a mercenary character");
   await page.getByTestId("assistant-send").click();
   const draft = page.getByTestId("assistant-draft");

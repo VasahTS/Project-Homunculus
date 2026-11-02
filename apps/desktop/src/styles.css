@@ -1131,6 +1131,11 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .gallery-card { display: flex; gap: 12px; align-items: stretch; min-height: 132px; padding: 10px; border: 0; border-radius: var(--radius-group); background: var(--surface); box-shadow: inset 0 0 0 1px var(--separator); text-align: left; cursor: pointer; color: var(--label); transition: background 0.15s, box-shadow 0.15s; }
 .gallery-card:hover { background: var(--fill-hover); }
 .gallery-card.on { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+/* cards whose picture fills them edge to edge: the ring is drawn above the picture (it used to hide it). D-076.
+   isolation keeps the ring inside the card, so it never shows through a sheet laid over the grid. */
+.collection-page .gallery-card, .gallery-grid.portrait .gallery-card { isolation: isolate; }
+.collection-page .gallery-card::after, .gallery-grid.portrait .gallery-card::after { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; box-shadow: inset 0 0 0 2px var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease-out); }
+.collection-page .gallery-card.on::after, .gallery-grid.portrait .gallery-card.on::after { opacity: 1; }
 .gallery-card.add { flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--separator); border: 0; color: var(--label-2); outline: 1.5px dashed var(--separator); outline-offset: -6px; }
 .gallery-card .card-pic, .gallery-card > .story-mark { width: 86px; height: 112px; }
 .gallery-card > .story-mark { border-radius: calc(8px * var(--round)); font-size: 34px !important; }
@@ -2300,9 +2305,9 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .msg-format > :first-child { margin-top: 0; }
 .msg-format > :last-child { margin-bottom: 0; }
 .msg-format p { margin: 0 0 0.8em; }
-.msg-format em, .msg-format i { color: var(--narration); }
+.msg-format em, .msg-format i { color: var(--narration-user, var(--narration)); }
 .msg-format em .dlg, .msg-format i .dlg { font-style: normal; }
-.msg-format q.dlg { color: var(--dialogue); quotes: none; }
+.msg-format q.dlg { color: var(--dialogue-user, var(--dialogue)); quotes: none; }
 .msg-format q.dlg::before, .msg-format q.dlg::after { content: none; }
 .msg-format strong, .msg-format b { font-weight: 600; }
 .msg-format blockquote { margin: 0.4em 0 0.8em; padding: 2px 0 2px 12px; border-left: 3px solid var(--separator); color: var(--label-2); }
@@ -2937,6 +2942,7 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 
 /* Settings → Customize (D-075): looks, tweaks, motion, advanced. CLAUDE, 2026-11-01. */
 .settings-page.customize { max-width: 880px; }
+.settings-page.customize .group:has(.look-grid) { overflow: visible; }
 .look-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding: 12px; }
 .look-card { position: relative; border: 1px solid var(--separator); border-radius: var(--radius-group); background: var(--surface); }
 .look-card.on { border-color: var(--label); box-shadow: inset 0 0 0 1px var(--label); }
@@ -2973,3 +2979,34 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .token-swatch input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .token-value { font-family: var(--font-mono); font-size: 12px; color: var(--label-2); background: var(--field); border: 1px solid var(--separator); border-radius: var(--radius-control); padding: 4px 8px; min-width: 0; }
 .cz-css { width: 100%; min-height: 140px; margin-top: 8px; padding: 8px 12px; font: 12px/1.6 var(--font-mono); color: var(--label); background: var(--field); border: 1px solid var(--separator); border-radius: var(--radius-control); resize: vertical; }
+
+/* Assistant message box, Flint-style (D-076): + and Options on the left, the meter and Send on the right, the picks as quiet text under the box */
+.asst-pick.icon { width: 32px; height: 32px; padding: 0; justify-content: center; position: relative; }
+.asst-picks { flex: 1; flex-wrap: nowrap; justify-content: flex-start; }
+.asst-picks .grow { flex: 1; }
+.asst-pop-wrap.up-left .asst-pop { left: 0; right: auto; }
+.asst-opt-dot { position: absolute; top: 6px; right: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.asst-opts { display: grid; gap: 2px; min-width: 300px; }
+.asst-opt-list { display: grid; gap: 2px; }
+.asst-opt-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 36px; padding: 0 8px; border: 0; background: none; color: var(--label); text-align: left; font: inherit; border-radius: var(--radius-control); cursor: pointer; }
+.asst-opt-row:hover { background: var(--fill); }
+.asst-opt-row b { font-weight: 500; }
+.asst-opt-val { flex: 1; min-width: 0; text-align: right; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asst-opt-row > svg { color: var(--label-3); flex: none; }
+.asst-opt-sep { height: 1px; background: var(--separator); margin: 4px 0; }
+.asst-opt-back { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border: 0; background: none; color: var(--label-2); font: inherit; cursor: pointer; border-radius: var(--radius-control); }
+.asst-opt-back:hover { color: var(--label); background: var(--fill); }
+.asst-send { display: grid; place-items: center; }
+.asst-under { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px 16px; margin-top: -12px; padding: 0 8px; font-size: 12px; color: var(--label-3); }
+.asst-msgs-composer .asst-under, .asst-under { min-height: 16px; }
+.asst-under-model { font-family: var(--font-figures); color: var(--label-2); }
+
+/* Menus grow out of the button that opened them (D-076; reference "dropdown fade-scale", transform-origin) */
+@keyframes menu-in { from { opacity: 0; transform: translateY(4px) scale(0.96); } }
+.asst-pop { transform-origin: bottom right; animation: menu-in var(--dur) var(--ease-out) backwards; }
+.asst-pop-wrap.up-left .asst-pop { transform-origin: bottom left; }
+.asst-pop-wrap.down .asst-pop { transform-origin: top right; }
+.look-menu { transform-origin: top right; animation: menu-in var(--dur) var(--ease-out) backwards; }
+
+/* Switching looks: the new look opens as a circle from where you clicked (View Transitions; D-076) */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }

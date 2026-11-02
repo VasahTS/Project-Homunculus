@@ -79,3 +79,34 @@ test("Import Look reads a look file and switches to it; a broken file says why",
   await page.getByLabel("Look file").setInputFiles({ name: "bad.json", mimeType: "application/json", buffer: Buffer.from("{ nope") });
   await expect(page.getByText("Couldn't import this look")).toBeVisible();
 });
+
+test("a dialogue color can be taken back: Theme's returns to the look's own color (Daniel, 11/02)", async ({ page }) => {
+  await openCustomize(page);
+  const q = page.getByTestId("settings-messages-body").locator("q.dlg").first();
+  const before = await q.evaluate((el) => getComputedStyle(el).color);
+  await page.getByLabel("Dialogue color", { exact: true }).fill("#ff0000");
+  await expect(q).toHaveCSS("color", "rgb(255, 0, 0)");
+  await page.getByTestId("settings-messages-body").getByRole("button", { name: "Theme's" }).first().click();
+  await expect(q).toHaveCSS("color", before);
+});
+
+test("a look's ⋯ menu is whole (not cut by its group) and only one is open at a time", async ({ page }) => {
+  await openCustomize(page);
+  await page.getByRole("button", { name: "More for Mono" }).click();
+  const exp = page.getByRole("menuitem", { name: "Export" });
+  await expect(exp).toBeVisible();
+  const box = (await exp.boundingBox())!;
+  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.textContent ?? "", { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  expect(hit).toBe("Export");
+  await page.getByRole("button", { name: "More for Graphite" }).click();
+  await expect(page.getByRole("menu")).toHaveCount(1);
+});
+
+test("the selected card's ring is drawn above its picture", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click();
+  const card = page.getByTestId("character-list").getByRole("button").first();
+  await card.click();
+  const ring = await card.evaluate((el) => { const s = getComputedStyle(el, "::after"); return { z: s.zIndex, o: s.opacity, pos: s.position }; });
+  expect(ring).toEqual({ z: "2", o: "1", pos: "absolute" });
+});

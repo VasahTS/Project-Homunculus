@@ -6,11 +6,12 @@ const KEY = "messages.look";
 let look: MessageLook = DEFAULT_LOOK;
 const listeners = new Set<() => void>();
 
-// only what this module set is taken back, so a look's own --dialogue / --narration (D-075) survives
+// the user's colors live in --dialogue-user / --narration-user, over the look's --dialogue / --narration (D-075, D-076):
+// clearing one ("Theme's") falls back to the look's again
 let mine: string[] = [];
 function apply(l: MessageLook = look) {
   const root = document.documentElement.style;
-  const want: Array<[string, string]> = [["--dialogue", l.dialogueColor], ["--narration", l.narrationColor]];
+  const want: Array<[string, string]> = [["--dialogue-user", l.dialogueColor], ["--narration-user", l.narrationColor]];
   for (const [name, value] of want) {
     if (value) root.setProperty(name, value);
     else if (mine.includes(name)) root.removeProperty(name);

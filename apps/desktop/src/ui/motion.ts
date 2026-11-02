@@ -66,6 +66,53 @@ export function slideIn(elements: Iterable<Element>, dir: 1 | -1, distance = 16)
   }
 }
 
+/**
+ * Switching pages (D-076, the Coffra reference and Daniel's notes "staggered fade-up"): the old page goes at once; the new
+ * one's blocks come up out of a light blur, one after another, top to bottom. The page title rises by itself (RiseText).
+ * Blocks are found without knowing the page: anything taller than most of the page is opened up, so a list or a form
+ * arrives as its parts, not as one slab. Only what is on screen moves.
+ */
+export function pageIn(root: HTMLElement | null): void {
+  if (!root || reducedMotion() || typeof root.animate !== "function") return;
+  const rootH = root.getBoundingClientRect().height || window.innerHeight;
+  const blocks: HTMLElement[] = [];
+  const visit = (el: Element, depth: number) => {
+    for (const child of el.children) {
+      if (!(child instanceof HTMLElement) || blocks.length >= 12) continue;
+      if (child.matches(".toolbar, .slide-pill, script, style, [hidden]")) continue;
+      const r = child.getBoundingClientRect();
+      if (r.height === 0 || r.top > window.innerHeight) continue;
+      if (depth < 4 && r.height > rootH * 0.55 && child.children.length > 1) visit(child, depth + 1);
+      else blocks.push(child);
+    }
+  };
+  visit(root, 0);
+  blocks.forEach((el, i) => {
+    el.animate(
+      [{ opacity: 0, transform: "translateY(12px)", filter: "blur(6px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }],
+      { duration: ms(720), delay: ms(60 + i * 70), easing: EASE_OUT, fill: "backwards" },
+    );
+  });
+}
+
+/**
+ * The new look opens as a circle from the click (D-072's "circular theme switch", D-076). Uses View Transitions where
+ * the window has them (WebView2 on Windows); elsewhere the look just changes.
+ */
+export function revealLook(change: () => void, from?: { x: number; y: number }): void {
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void> } };
+  if (reducedMotion() || !doc.startViewTransition) { change(); return; }
+  const x = from?.x ?? window.innerWidth / 2, y = from?.y ?? window.innerHeight / 2;
+  const r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+  const t = doc.startViewTransition(change);
+  void t.ready.then(() => {
+    document.documentElement.animate(
+      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
+      { duration: ms(640), easing: EASE_OUT, pseudoElement: "::view-transition-new(root)" },
+    );
+  }).catch(() => undefined);
+}
+
 /** Pop-in for menus and bubbles: a little drop and a spring. */
 export function popIn(el: Element | null, from: { x?: number; y?: number } = { y: -6 }): void {
   if (!el || reducedMotion() || !(el instanceof HTMLElement) || typeof el.animate !== "function") return;

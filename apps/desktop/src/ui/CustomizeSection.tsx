@@ -7,6 +7,7 @@ import {
 } from "../theme/appearance.ts";
 import { BUILTIN_PROFILES, type AppearanceProfile } from "../theme/themes.ts";
 import { saveExport } from "../files.ts";
+import { revealLook } from "./motion.ts";
 import { Button, Group, Icon, Row, Segmented, Switch } from "./kit.tsx";
 import { MessageLookRows } from "./MessageLookSection.tsx";
 
@@ -25,13 +26,21 @@ const hex6 = (v: string): string | null => (/^#[0-9a-f]{6}$/i.test(v) ? v : /^#[
 const swatch = (p: AppearanceProfile, name: string, fallback: string): string => p.tokens[name] ?? fallback;
 
 function LookCard({ look, on, onPick, onDuplicate, onExport, onDelete }: {
-  look: AppearanceProfile; on: boolean; onPick: () => void; onDuplicate: () => void; onExport: () => void; onDelete?: () => void;
+  look: AppearanceProfile; on: boolean; onPick: (at: { x: number; y: number }) => void; onDuplicate: () => void; onExport: () => void; onDelete?: () => void;
 }) {
   const [menu, setMenu] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const off = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setMenu(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
+    document.addEventListener("mousedown", off); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", off); document.removeEventListener("keydown", esc); };
+  }, [menu]);
   const win = swatch(look, "window", "#1b1c1f");
   return (
-    <div className={`look-card${on ? " on" : ""}`} data-testid="look-card">
-      <button type="button" className="look-pick" role="radio" aria-checked={on} onClick={onPick} aria-label={look.name}>
+    <div className={`look-card${on ? " on" : ""}`} data-testid="look-card" ref={box}>
+      <button type="button" className="look-pick" role="radio" aria-checked={on} onClick={(e) => onPick({ x: e.clientX, y: e.clientY })} aria-label={look.name}>
         <span className="lookcard-preview" style={{ background: win }} aria-hidden>
           <span className="look-side" style={{ background: swatch(look, "glass", swatch(look, "surface", "#26282c")), borderColor: swatch(look, "separator", "transparent") }} />
           <span className="look-lines">
@@ -44,7 +53,7 @@ function LookCard({ look, on, onPick, onDuplicate, onExport, onDelete }: {
       </button>
       <button type="button" className="look-more" aria-label={`More for ${look.name}`} aria-expanded={menu} onClick={() => setMenu(!menu)}><Icon name="dots" size={16} /></button>
       {menu && (
-        <div className="look-menu" role="menu" onMouseLeave={() => setMenu(false)}>
+        <div className="look-menu" role="menu">
           <button type="button" role="menuitem" onClick={() => { setMenu(false); onDuplicate(); }}>Duplicate</button>
           <button type="button" role="menuitem" onClick={() => { setMenu(false); onExport(); }}>Export</button>
           {onDelete && <button type="button" role="menuitem" className="danger" onClick={() => { setMenu(false); onDelete(); }}>Delete</button>}
@@ -87,12 +96,12 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
   const [, redraw] = useState(0);
   useEffect(() => { redraw((n) => n + 1); }, [st]);
 
-  const pick = (id: string) => {
+  const pick = (id: string, at?: { x: number; y: number }) => {
     if (id === look.id) return;
     setUndo({ from: look.id, to: id });
     window.clearTimeout(undoTimer.current);
     undoTimer.current = window.setTimeout(() => setUndo(null), 6000);
-    void setActiveLook(id);
+    revealLook(() => void setActiveLook(id), at);
   };
   useEffect(() => () => window.clearTimeout(undoTimer.current), []);
 
@@ -121,7 +130,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
           <input ref={file} type="file" accept=".json,application/json" hidden aria-label="Look file" onChange={(e) => { void doImport(e.target.files?.[0]); e.target.value = ""; }} /></>}>
         <div className="look-grid" role="radiogroup" aria-label="Look">
           {allLooks(st).map((p) => (
-            <LookCard key={p.id} look={p} on={p.id === look.id} onPick={() => pick(p.id)}
+            <LookCard key={p.id} look={p} on={p.id === look.id} onPick={(at) => pick(p.id, at)}
               onDuplicate={() => void copyLook(p, `${p.name} (copy)`)} onExport={() => void doExport(p)}
               onDelete={isBuiltin(p.id) ? undefined : () => { void deleteLook(p.id); notify(`“${p.name}” deleted`); }} />
           ))}
@@ -129,7 +138,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
         {undo && (
           <div className="look-undo" role="status">
             <span>Switched to {allLooks(st).find((p) => p.id === undo.to)?.name}</span>
-            <Button small variant="plain" onClick={() => { void setActiveLook(undo.from); setUndo(null); }}>Undo</Button>
+            <Button small variant="plain" onClick={(e) => { const from = undo.from; revealLook(() => void setActiveLook(from), { x: e.clientX, y: e.clientY }); setUndo(null); }}>Undo</Button>
           </div>
         )}
         {safe && <p className="hint look-safe">This look's extra CSS is off until the app restarts (Ctrl+Shift+0 turns it back on).</p>}

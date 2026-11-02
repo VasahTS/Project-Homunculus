@@ -1,6 +1,6 @@
 // Homunculus 2 — the Assistant mode: its sidebar, the conversation, Add context and Customize (D-062).
 // Author: CLAUDE, 2026-11-01. Draft: docs/drafts/library-assistant/index.html (round 3); plan: docs/UI-PLAN.md.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
@@ -16,7 +16,7 @@ import { diffWords } from "../diff.ts";
 import { readFileBytes } from "../files.ts";
 import { bytesToBase64 } from "@homunculus/st-cards";
 import { Button, Icon, IconButton, type ICONS } from "./kit.tsx";
-import { CASCADE, useEnter } from "./motion.ts";
+import { CASCADE, slideIn, useEnter } from "./motion.ts";
 import { AssistantCustomizePage, ModelRow } from "./AssistantCustomize.tsx";
 import { Modal } from "./Vault.tsx";
 import { MessageText, openLink } from "./MessageText.tsx";
@@ -172,11 +172,12 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const profileOf = (id: string | null | undefined) => (id ? connection.byId.get(id) : undefined);
   const modelLabel = effective?.model || profileOf(picks.connectionId ?? resolved?.assistant.connectionId ?? connection.defaultId)?.name || "No connection";
   const modelFrom = `${profileOf(picks.connectionId ?? resolved?.assistant.connectionId ?? connection.defaultId)?.name ?? "No connection"} · ${picks.connectionId !== undefined || picks.model ? "this chat" : resolved?.assistant.model || resolved?.assistant.connectionId ? `${resolved?.assistant.name}'s model` : "the stories' connection"}`;
+  const pickedModel = settings && resolved ? (effective?.model || (() => { const id = picks.connectionId ?? resolved.assistant.connectionId ?? connection.defaultId; return (id ? connection.byId.get(id)?.name : undefined) ?? "No connection"; })()) : "";
   const picksBar = settings && resolved ? (
     <PicksBar settings={settings} picks={picks} setPicks={setPicks} svc={svc} connection={connection}
-      model={effective?.model || (() => { const id = picks.connectionId ?? resolved.assistant.connectionId ?? connection.defaultId; return (id ? connection.byId.get(id)?.name : undefined) ?? "No connection"; })()}
-      used={lastUsed} chat={chat} onCustomize={() => st.setPage("customize")} />
+      model={pickedModel} used={lastUsed} chat={chat} onCustomize={() => st.setPage("customize")} />
   ) : null;
+  const summary = settings && resolved ? <PicksSummary settings={settings} picks={picks} model={pickedModel} /> : null;
 
   const addFiles = async (files: File[]) => {
     const out: AssistantAttachment[] = [];
@@ -346,6 +347,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
           <div className="asst-col asst-hello">
             <h1>Assistant</h1>
             <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: true }} />
+            {summary}
             <p className="asst-knows">Reads your library when it needs to · {library.length} items</p>
             {error && <p className="asst-error" role="alert">{error}</p>}
             <div className="asst-qs-h">Quick start</div>
@@ -373,6 +375,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
         <div className="asst-bottom"><div className="asst-col">
           {error && <p className="asst-error" role="alert">{error}</p>}
           <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar }} />
+          {summary}
         </div></div>
       )}
       <input ref={fileInput} type="file" multiple hidden accept=".json,.jsonl,.md,.markdown,.txt,.csv,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" data-testid="assistant-file"
@@ -413,12 +416,19 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); } if (e.key === "@" && !text.trim()) { e.preventDefault(); onPick(); } }}
         onPaste={(e) => { const fs = [...e.clipboardData.files]; if (fs.length) { e.preventDefault(); onDropFiles(fs); } }} />
       <div className="asst-crow">
-        <button type="button" className="asst-tool" onClick={onPick} data-testid="assistant-add-context"><span aria-hidden>＠</span> Add context</button>
-        <button type="button" className="asst-tool" onClick={onFiles} title="Attach a file or an image (.json, .jsonl, .md, .txt, PNG cards, pictures)" aria-label="Attach"><Icon name="link" size={14} /></button>
-        <span className="grow" />
+        <Pop title="Add" testId="assistant-plus" className="up-left" icon label={<Icon name="plus" size={16} />}>
+          {(close) => <>
+            <button type="button" className="asst-pop-item" data-testid="assistant-add-context" onClick={() => { close(); onPick(); }}>
+              <span className="asst-pop-emoji"><Icon name="book" size={14} /></span><span><b>Add context…</b><small>Characters, lorebooks, narrators from your library (or type @)</small></span>
+            </button>
+            <button type="button" className="asst-pop-item" onClick={() => { close(); onFiles(); }} aria-label="Attach">
+              <span className="asst-pop-emoji"><Icon name="paperclip" size={14} /></span><span><b>Attach a file…</b><small>.json, .jsonl, .md, .txt, PNG cards, pictures</small></span>
+            </button>
+          </>}
+        </Pop>
         {picksBar}
         {busy ? <button type="button" className="asst-send stop" aria-label="Stop" onClick={onStop}>■</button>
-          : <button type="button" className="asst-send" aria-label="Send" onClick={onSend} disabled={!text.trim() && !atts.length} data-testid="assistant-send">↑</button>}
+          : <button type="button" className="asst-send" aria-label="Send" onClick={onSend} disabled={!text.trim() && !atts.length} data-testid="assistant-send"><Icon name="send-up" size={16} /></button>}
       </div>
     </div>
   );
@@ -642,7 +652,7 @@ const fmtK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 
 const shortModel = (m: string) => m.split("/").pop() ?? m;
 
 /** A small menu that opens above its button and closes on a click outside or Esc. */
-function Pop({ label, title, children, testId, className = "" }: { label: ReactNode; title: string; children: (close: () => void) => ReactNode; testId?: string; className?: string }) {
+function Pop({ label, title, children, testId, className = "", icon = false }: { label: ReactNode; title: string; children: (close: () => void) => ReactNode; testId?: string; className?: string; icon?: boolean }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -654,7 +664,7 @@ function Pop({ label, title, children, testId, className = "" }: { label: ReactN
   }, [open]);
   return (
     <span className={`asst-pop-wrap ${className}`.trim()} ref={box}>
-      <button type="button" className={`asst-pick${open ? " on" : ""}`} title={title} aria-expanded={open} onClick={() => setOpen(!open)} data-testid={testId}>{label}</button>
+      <button type="button" className={`asst-pick${icon ? " icon" : ""}${open ? " on" : ""}`} title={title} aria-label={icon ? title : undefined} aria-expanded={open} onClick={() => setOpen(!open)} data-testid={testId}>{label}</button>
       {open && <div className="asst-pop" role="dialog" aria-label={title}>{children(() => setOpen(false))}</div>}
     </span>
   );
@@ -672,49 +682,15 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
   const ctx = picks.contextLength;
   const pct = ctx && full ? Math.min(100, Math.round((full / ctx) * 100)) : null;
   const PART: Record<string, string> = { app: "App rules", assistant: "Assistant", preset: "Preset", tools: "Tools", chat: "This chat (messages, results)" };
+  const webOn = picks.webSearch ?? !settings.toolsOff.includes("web");
   return (
     <span className="asst-picks">
-      <Pop title="Assistant" testId="pick-assistant" label={<><span aria-hidden>{assistant.emoji}</span> {assistant.name} <span className="caret">▾</span></>}>
-        {(close) => <>
-          <div className="asst-pop-h">Who answers</div>
-          {settings.assistants.map((a) => (
-            <button key={a.id} type="button" className={`asst-pop-item${a.id === assistant.id ? " on" : ""}`} onClick={() => { setPicks({ assistantId: a.id }); close(); }}>
-              <span className="asst-pop-emoji">{a.emoji}</span><span><b>{a.name}</b><small>{a.description}</small></span>
-            </button>
-          ))}
-          <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit assistants…</button>
-        </>}
+      {/* unslop + Flint (D-076): one Options button instead of a row of pickers; what is chosen shows under the box */}
+      <Pop title="Options" testId="assistant-options" className="up-left" icon
+        label={<Icon name="sliders" size={16} />}>
+        {(close) => <OptionsPanel {...{ settings, picks, setPicks, svc, connection, assistant, preset, webOn, model, close, onCustomize }} />}
       </Pop>
-      <Pop title="Preset" testId="pick-preset" label={<><Icon name="preset" size={14} /> {preset?.name ?? "No preset"} <span className="caret">▾</span></>}>
-        {(close) => <>
-          <div className="asst-pop-h">What it always knows</div>
-          {settings.presets.map((p) => (
-            <button key={p.id} type="button" className={`asst-pop-item${p.id === preset?.id ? " on" : ""}`} onClick={() => { setPicks({ presetId: p.id }); close(); }}>
-              <span className="asst-pop-emoji"><Icon name="preset" size={14} /></span><span><b>{p.name}</b><small>{p.description || `${p.rules.length} rules · ${p.notes.length} notes · ${p.memory.length} memories`}</small></span>
-            </button>
-          ))}
-          <button type="button" className={`asst-pop-item${!preset ? " on" : ""}`} onClick={() => { setPicks({ presetId: "none" }); close(); }}><span className="asst-pop-emoji"><Icon name="none" size={14} /></span><span><b>No preset</b><small>Only the assistant's own instructions.</small></span></button>
-          <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit presets…</button>
-        </>}
-      </Pop>
-      <Pop title="Model" testId="pick-model" className="wide" label={<>{shortModel(model)} <span className="caret">▾</span></>}>
-        {() => <>
-          <div className="asst-pop-h">Model for this chat</div>
-          <ModelRow svc={svc} connection={connection} connectionId={picks.connectionId ?? null} model={picks.model ?? ""}
-            onChange={(connectionId, m) => setPicks({ connectionId, model: m })} onInfo={(m) => setPicks({ contextLength: m.contextLength })} />
-          {(picks.connectionId !== undefined || picks.model) && <button type="button" className="asst-pop-foot" onClick={() => setPicks({ connectionId: undefined, model: undefined, contextLength: undefined })}>Use {assistant.name}'s model</button>}
-        </>}
-      </Pop>
-      <button type="button" className={`asst-pick draft${picks.draftFirst ? " on" : ""}`} aria-pressed={!!picks.draftFirst} data-testid="pick-draft"
-        title={picks.draftFirst ? "Draft first: it shows drafts here and saves nothing until you press Save under a draft" : "Draft first: go back and forth on drafts before anything is saved"}
-        onClick={() => setPicks({ draftFirst: !picks.draftFirst })}><Icon name="pencil" size={14} /> Drafts{picks.draftFirst ? " on" : ""}</button>
-      {(() => {
-        // D-067, as in Flint: on or off per chat; a chat nobody switched follows Details → Tools
-        const on = picks.webSearch ?? !settings.toolsOff.includes("web");
-        return <button type="button" className={`asst-pick web${on ? " on" : ""}`} aria-pressed={on} data-testid="pick-web"
-          title={`Web search (DuckDuckGo) is ${on ? "on" : "off"} for this chat — click to turn it ${on ? "off" : "on"}`}
-          onClick={() => setPicks({ webSearch: !on })}><Icon name="globe" size={14} /> Web</button>;
-      })()}
+      <span className="grow" />
       <Pop title="Context and spending" testId="pick-context" label={<span className="asst-meter">{pct !== null && <span className="asst-ring" style={{ ["--p" as string]: `${pct}%` }} aria-hidden />}{full ? `${estimated ? "~" : ""}${fmtK(full)}` : "—"}{ctx ? ` / ${fmtK(ctx)}` : ""}</span>}>
         {() => <div className="asst-ctxpop">
           <div className="asst-pop-h">What it is using</div>
@@ -730,6 +706,90 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
         </div>}
       </Pop>
     </span>
+  );
+}
+
+/** Options (D-076, Flint-style): a short list; Assistant, Preset and Model open their choices in place, ‹ goes back. */
+function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, preset, webOn, model, close, onCustomize }: {
+  settings: AssistantSettings; picks: Picks; setPicks: (p: Partial<Picks>) => void; svc: AppServices; connection: ConnectionState;
+  assistant: ReturnType<typeof resolveFor>["assistant"]; preset: ReturnType<typeof resolveFor>["preset"]; webOn: boolean; model: string; close: () => void; onCustomize: () => void;
+}) {
+  const [sub, setSub] = useState<null | "assistant" | "preset" | "model">(null);
+  const body = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { if (body.current) slideIn([body.current], sub ? 1 : -1, 12); }, [sub]);
+  const back = (title: string) => (
+    <button type="button" className="asst-opt-back" onClick={() => setSub(null)}><Icon name="back" size={14} /> {title}</button>
+  );
+  const Row = ({ id, label, value }: { id: "assistant" | "preset" | "model"; label: string; value: string }) => (
+    <button type="button" className="asst-opt-row" data-testid={`pick-${id}`} onClick={() => setSub(id)}>
+      <b>{label}</b><span className="asst-opt-val">{value}</span><Icon name="chevron" size={14} />
+    </button>
+  );
+  return (
+    <div className="asst-opts" ref={body}>
+      {sub === null && <>
+        <Row id="assistant" label="Assistant" value={assistant.name} />
+        <Row id="preset" label="Preset" value={preset?.name ?? "No preset"} />
+        <Row id="model" label="Model" value={shortModel(model)} />
+        <div className="asst-opt-sep" />
+        <label className="asst-opt-row">
+          <b>Draft first</b><span className="asst-opt-val" />
+          <button type="button" role="switch" aria-checked={!!picks.draftFirst} aria-pressed={!!picks.draftFirst} aria-label="Draft first" data-testid="pick-draft"
+            title="Drafts show here; nothing is saved until you press Save under one"
+            className={`switch${picks.draftFirst ? " on" : ""}`} onClick={() => setPicks({ draftFirst: !picks.draftFirst })}><span /></button>
+        </label>
+        {/* D-067, as in Flint: on or off per chat; a chat nobody switched follows Details → Tools */}
+        <label className="asst-opt-row">
+          <b>Search the web</b><span className="asst-opt-val" />
+          <button type="button" role="switch" aria-checked={webOn} aria-pressed={webOn} aria-label="Search the web for this chat" data-testid="pick-web"
+            title={`Web search (DuckDuckGo) is ${webOn ? "on" : "off"} for this chat — click to turn it ${webOn ? "off" : "on"}`}
+            className={`switch${webOn ? " on" : ""}`} onClick={() => setPicks({ webSearch: !webOn })}><span /></button>
+        </label>
+        <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit assistants and presets…</button>
+      </>}
+      {sub === "assistant" && <>
+        {back("Who answers")}
+        <div role="radiogroup" aria-label="Assistant" className="asst-opt-list">
+          {settings.assistants.map((a) => (
+            <button key={a.id} type="button" role="radio" aria-checked={a.id === assistant.id} className={`asst-pop-item${a.id === assistant.id ? " on" : ""}`} onClick={() => { setPicks({ assistantId: a.id }); setSub(null); }}>
+              <span className="asst-pop-emoji">{a.emoji}</span><span><b>{a.name}</b><small>{a.description}</small></span>
+            </button>
+          ))}
+        </div>
+      </>}
+      {sub === "preset" && <>
+        {back("What it always knows")}
+        <div role="radiogroup" aria-label="Preset" className="asst-opt-list">
+          {settings.presets.map((p) => (
+            <button key={p.id} type="button" role="radio" aria-checked={p.id === preset?.id} className={`asst-pop-item${p.id === preset?.id ? " on" : ""}`} onClick={() => { setPicks({ presetId: p.id }); setSub(null); }}>
+              <span className="asst-pop-emoji"><Icon name="preset" size={14} /></span><span><b>{p.name}</b><small>{p.description || `${p.rules.length} rules · ${p.notes.length} notes · ${p.memory.length} memories`}</small></span>
+            </button>
+          ))}
+          <button type="button" role="radio" aria-checked={!preset} className={`asst-pop-item${!preset ? " on" : ""}`} onClick={() => { setPicks({ presetId: "none" }); setSub(null); }}><span className="asst-pop-emoji"><Icon name="none" size={14} /></span><span><b>No preset</b><small>Only the assistant's own instructions.</small></span></button>
+        </div>
+      </>}
+      {sub === "model" && <>
+        {back("Model for this chat")}
+        <ModelRow svc={svc} connection={connection} connectionId={picks.connectionId ?? null} model={picks.model ?? ""}
+          onChange={(connectionId, m) => setPicks({ connectionId, model: m })} onInfo={(m) => setPicks({ contextLength: m.contextLength })} />
+        {(picks.connectionId !== undefined || picks.model) && <button type="button" className="asst-pop-foot" onClick={() => setPicks({ connectionId: undefined, model: undefined, contextLength: undefined })}>Use {assistant.name}'s model</button>}
+      </>}
+    </div>
+  );
+}
+
+/** The quiet line under the message box: who answers, the preset, the model, and what is on (D-076). */
+function PicksSummary({ settings, picks, model }: { settings: AssistantSettings; picks: Picks; model: string }) {
+  const { assistant, preset } = resolveFor(picks, settings);
+  const webOn = picks.webSearch ?? !settings.toolsOff.includes("web");
+  return (
+    <div className="asst-under" data-testid="assistant-summary">
+      <span>{assistant.name}</span>
+      {preset && <span>{preset.name}</span>}
+      {picks.draftFirst && <span>Drafts</span>}
+      {webOn && <span>Web</span>}
+      <span className="asst-under-model">{shortModel(model)}</span>
+    </div>
   );
 }
 
