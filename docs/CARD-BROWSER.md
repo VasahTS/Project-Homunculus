@@ -1,16 +1,16 @@
 # Card Browser — technical plan
 
 Author: CLAUDE, 2026-11-02. Status: **plan**. The screen's behaviour is in `docs/UI-PLAN.md` → "Card Browser" (waits for Daniel's OK);
-the work is split into CODEX cards T-007 … T-012 in `docs/CODEX-TASKS.md`, in this order: T-007 native request → T-008 package + ChubAI → T-009 import path → T-010 the screen (usable with ChubAI from here) → T-011 Wyvern, Pygmalion, DataCat → T-012 JannyAI. Then Claude reviews and does the visual pass. BLUEPRINT §8 (`card-browser` module), §10 slice 9.
+the work is split into CODEX cards T-007 … T-013 in `docs/CODEX-TASKS.md`, in this order: T-007 native request → T-008 package + ChubAI → T-009 import path → T-010 the screen, finished (usable with ChubAI from here) → T-011 Wyvern, Pygmalion, DataCat → T-012 JannyAI → T-013 JanitorAI (sign-in window). Claude reviews each card's diff. BLUEPRINT §8 (`card-browser` module), §10 slice 9.
 
-**What it is:** find character cards on public sites (ChubAI, JannyAI, Wyvern, Pygmalion, DataCat), read them, and add them to
+**What it is:** find character cards on public sites (ChubAI, JannyAI, JanitorAI, Wyvern, Pygmalion, DataCat), read them, and add them to
 Characters in one click — without downloading a file and importing it by hand. v1 had it (`classic-card-browser.js`); Marinara too
 (`bot-browser*`). We port the **site knowledge** (addresses, query parameters, field mapping, refusals); the screen is ours.
 
 ## 1. Shape
 
 ```
-UI (apps/desktop/src/ui/CardBrowser.tsx)          ← T-010 functional, then Claude's visual pass
+UI (apps/desktop/src/ui/CardBrowser.tsx)          ← T-010, looks like the Characters page
   │  uses
 packages/card-browser  (pure TypeScript, module "card-browser")   ← T-008 (Chub), T-011, T-012
   │  sources/{chub,janny,wyvern,pygmalion,datacat}.ts · pauses.ts · build.ts · types.ts
@@ -108,8 +108,10 @@ wants it), Pygmalion login, card "galleries"/expressions download.
 - **Already added:** a map `site:id → character id` built from the characters list (`source`). Grid and sheet use it.
 - **From a site:** `CardFile.png` → the same path as a PNG file. `CardFile.json` → `importCardJson` bytes + the picture turned
   into a PNG avatar (the canvas helper behind `imageFileToPngAvatar`, given a Blob).
-- **Tags from the site:** `all` (default) · `mine` (only tags some character already has) · `none` — applied before saving.
-- **Folder:** the item is put in the chosen folder with the existing folder functions (D-036/D-068), in the same step.
+- **Tags from the site:** `importTags: boolean` (Daniel: a choice to import them or not; default on) — applied before saving.
+- **Folder:** default a Characters folder named **From the Web**, created the first time it is needed (found again by name, so
+  renaming it makes a new one next time — acceptable); or any folder the user picks, or none. Existing folder functions (D-036/D-068),
+  in the same step.
 - **Save as PNG** (no import): build the character with `parseCard`, `exportCardPng(character, pngAvatar)`, `saveExport`.
 - The notice is the existing import notice (lorebook adopted, warnings), title "Added <name> to Characters".
 
@@ -134,7 +136,38 @@ wants it), Pygmalion login, card "galleries"/expressions download.
 - **Live check** (CODEX on Daniel's PC, desktop app): one search + one import per source; write what worked in the report. Sites
   change without warning; a failing source must fail with its message, never break the screen.
 
-## 7. Credits
+## 7. JanitorAI (T-013) — from Glaze
 
-`CREDITS.md`: Homunculus v1 `public/scripts/classic-card-browser.js` and `src/endpoints/classic-card-browser.js` (VasahTS/Homunculus
+Reference: Glaze (github.com/hydall/Glaze, Flutter, AGPL-3.0) at f1fe39e, `lib/features/catalog/services/`:
+`janitor_webview_proxy.dart` (2,047 lines), `janitor_provider.dart`, `janitor_public_lorebook.dart`, `janitor_session.dart`;
+Glaze in turn credits SillyTavern-CharacterLibrary.
+
+**How Glaze does it.** JanitorAI's API (`janitorai.com/hampter/...`) is behind Cloudflare, and Cloudflare ties its clearance cookie
+to the browser that solved the check — a request from Rust/Dart with the same cookie still gets 403. So Glaze keeps a **hidden
+WebView on janitorai.com** and runs `fetch()` *inside the page*; the account token is read from the page's Supabase cookies
+(`sb-<ref>-auth-token`, chunked, `base64-` JSON). Search: `GET /hampter/characters?...`; one card: `GET /hampter/characters/{id}`;
+public lorebooks: `GET /hampter/script/{id}`; pictures from `ella.janitorai.com/bot-avatars/`. A card's fields are only there when
+`showdefinition == true` (`janitorDefinitionPublic`).
+
+**What we take:** the hidden-WebView idea, the endpoints, the field mapping (`_convertToGlaze`, greetings normalisation, tag ids),
+public lorebooks, the "signed in / signed out / Cloudflare" states.
+
+**In Tauri:** a second webview window labelled `janitor` on `https://janitorai.com` (shown for sign-in, hidden otherwise). The app
+asks it to run a fixed request script with `eval`; the script posts its answer back through **one** command,
+`janitor_report({ nonce, status, body })`, the only command that capability grants to the remote origin `https://janitorai.com`
+(Tauri `remote.urls`). Rust keeps a map nonce → waiting request (random nonce per request, 30 s timeout, 8 MB cap); anything
+without a known nonce is dropped. The window's cookies live in the app's own webview profile, never read by the app except the
+token inside the page script. Spike first: if Tauri cannot do this cleanly on Windows **and** Linux (WebKitGTK), stop and report.
+
+**What we do not take — hidden definitions.** Glaze's main JanitorAI feature (`janitor_extractor.dart`) recovers cards whose
+creator chose to **hide** the definition and closed lorebooks: it adds a dummy proxy preset to the user's JanitorAI account,
+opens a chat with the character, types messages into the page by simulated clicks, captures the assembled prompt that JanitorAI
+sends to the "proxy", and has an AI rebuild the lorebook from it. Left out: it goes around a protection the creator set on
+purpose (and JanitorAI's terms), it changes the user's account (presets, chats) and can get it banned, it needs AI calls per card,
+and it is the most fragile code in Glaze (DOM selectors, a July 2026 API move already broke it once). Claude's recommendation;
+Daniel can reopen it as its own decision.
+
+## 8. Credits
+
+`CREDITS.md`: Glaze (hydall/Glaze f1fe39e, AGPL-3.0) for JanitorAI (T-013). Homunculus v1 `public/scripts/classic-card-browser.js` and `src/endpoints/classic-card-browser.js` (VasahTS/Homunculus
 0884338a), itself following Marinara Engine's bot browser (Pasta-Devs/Marinara-Engine e5ead06, AGPL-3.0).

@@ -47,9 +47,10 @@ Report: questions for Daniel go in the HANDOFF entry, not in code.
 
 ## Queue
 
-> **Card Browser (T-007 … T-012)** — Daniel asked for it on 2026-11-02 ("plan it for CODEX, then Claude reviews and does the
-> visual"). Do them **in number order, one card per session**; they come before T-002/T-003. The whole design is
-> `docs/CARD-BROWSER.md` (technical) and `docs/UI-PLAN.md` → "Card Browser" (screen). T-010 waits for Daniel's OK on that text.
+> **Card Browser (T-007 … T-013)** — Daniel asked for it on 2026-11-02 and approved the screen text the same day. He is short on
+> Claude quota: **CODEX does the heavy work, including a finished look; Claude only reviews.** Do them **in number order, one card
+> per session**; they come before T-002/T-003. The whole design is `docs/CARD-BROWSER.md` (technical) and `docs/UI-PLAN.md` →
+> "Card Browser" (screen, approved — copy it, do not redesign it).
 > All site knowledge comes from v1 (`VasahTS/Homunculus` at 0884338a: `src/endpoints/classic-card-browser.js` = server,
 > `public/scripts/classic-card-browser.js` = client). `npm run refs` fetches it into `.refs/homunculus/`. Port, test, credit.
 
@@ -84,25 +85,26 @@ Goal: one import function used by file Import and by the Card Browser; a card ad
 Context: `docs/CARD-BROWSER.md` §4. Today: `App.tsx` `importFiles` (L688–L719), `adoptEmbeddedLorebook`, `linkCharacterToNamedBooks`, `files.ts` `imageFileToPngAvatar` / `saveExport`, `st-cards` `importCardPng` / `importCardJson` / `exportCardPng` / `parseCard`, folder functions (D-036, D-068).
 Files you may change: new `apps/desktop/src/importCharacters.ts`, `App.tsx` (`importFiles` calls the new function — **same notices and same behaviour**), `files.ts` (a Blob → PNG avatar helper next to `imageFileToPngAvatar`), `packages/schemas/src/library.ts` (**only** the optional `source` field below), tests.
 Schema change (allowed here, exactly this): `Character.source: z.object({ site: z.string(), id: z.string(), url: z.string(), addedAt: z.number() }).optional()`, with a doc comment "Where it was added from (Card Browser). Not exported in cards. D-0xx (Claude fills the number)". No migration.
-API to provide: `importCharacterFile(svc, bytes, fileName, opts?)`, `importFromSite(svc, file: CardFile, item: CardItem, opts: { folderId?: string; tags: "all" | "mine" | "none" })` → the saved character + notice lines, `siteIndex(characters)` → `Map<"site:id", characterId>`, `cardPngForSite(file, item)` → PNG bytes for **Save as PNG** (nothing imported).
+API to provide: `importCharacterFile(svc, bytes, fileName, opts?)`, `importFromSite(svc, file: CardFile, item: CardItem, opts: { folder: { id: string } | "from-the-web" | null; importTags: boolean })` (`"from-the-web"` = the Characters folder named **From the Web**, created if missing) → the saved character + notice lines, `siteIndex(characters)` → `Map<"site:id", characterId>`, `cardPngForSite(file, item)` → PNG bytes for **Save as PNG** (nothing imported).
 Do not touch: the importer modules' output, card export (the `source` field must not appear in exported PNG/JSON — test it).
 Done when:
-- [ ] unit tests: file import unchanged (existing tests pass untouched); site import sets `source`, applies tags all/mine/none, puts it in the folder; JSON + webp picture → PNG avatar; Save as PNG round-trips through `importCardPng`; export has no `source`
+- [ ] unit tests: file import unchanged (existing tests pass untouched); site import sets `source`, keeps or drops the tags, puts it in the chosen folder / creates **From the Web** once and reuses it; JSON + webp picture → PNG avatar; Save as PNG round-trips through `importCardPng`; export has no `source`
 - [ ] existing click tests for Import still pass: `npx playwright test e2e/library.e2e.ts e2e/people.e2e.ts`
 - [ ] npm run typecheck · npm test
 Size: S–M.
 
-### T-010 · Card Browser 4: the screen, functional (ChubAI)                  Status: Blocked (waits for Daniel's OK on UI-PLAN "Card Browser")
-Goal: the Card Browser works end to end with ChubAI, exactly as `docs/UI-PLAN.md` → "Card Browser" says. **Function only**: Claude does the visual pass afterwards.
-Context: UI-PLAN "Card Browser" (copy every label, state and behaviour from it; Title Case labels). Reuse, do not re-create: `GalleryCard`, `CardPicture`, `SheetSection`, `SizeSwitch` (`ui/Gallery.tsx`, `ui/CollectionTools.tsx`), the kit (`ui/kit.tsx`: `Button`, `Icon`, `Help`, menus), notices, the Characters sheet pattern, `CommandPalette` actions (`App.tsx` `paletteItems`).
-Files you may change: new `apps/desktop/src/ui/CardBrowser.tsx` (+ a small state module `cardBrowserState.ts` if useful), `ui/Gallery.tsx` (the **Card Browser** button and the empty-page line only), `App.tsx` (view wiring, palette action), `styles.css` **layout only** (grid/sheet/toolbar placement with existing tokens; no new colours, fonts, shadows or animation), new `e2e/card-browser.e2e.ts`.
-Do not touch: other screens, the look, motion (`ui/motion.ts`).
+### T-010 · Card Browser 4: the screen, finished (ChubAI)                    Status: Ready (after T-009)
+Goal: the Card Browser works end to end with ChubAI, exactly as `docs/UI-PLAN.md` → "Card Browser" says, and **looks finished**: like the Characters page, in every look (Mono, Quiet, Graphite).
+Context: UI-PLAN "Card Browser" (copy every label, state and behaviour from it; Title Case labels; Daniel's answers at its end). Reuse, do not re-create: `GalleryCard`, `CardPicture`, `SheetSection`, `SizeSwitch` (`ui/Gallery.tsx`, `ui/CollectionTools.tsx`), the Characters toolbar/sheet markup and classes, the kit (`ui/kit.tsx`: `Button`, `Icon`, `Help`, menus), notices, page entrance motion as other pages use it (`ui/motion.ts`, unchanged), `CommandPalette` Go To (`App.tsx` `paletteItems`), sidebar places (`theme/navigation.ts` `places`: add `{ id: "card-browser", label: "Card Browser", icon: "globe" }` between Characters and Library; add a `globe` line icon to the kit if missing, same stroke as the others).
+Files you may change: new `apps/desktop/src/ui/CardBrowser.tsx` (+ `cardBrowserState.ts`), `ui/Gallery.tsx` (the empty-page line only), `ui/kit.tsx` (the globe icon only), `theme/navigation.ts` (the place only), `App.tsx` / `ui/Sidebar.tsx` (view wiring, palette entry), `styles.css` (new `.card-browser*` rules built **only from existing tokens and the Characters page's patterns** — no new colours, fonts, radii, shadows or animations), new `e2e/card-browser.e2e.ts`, `e2e/navigation.e2e.ts` if a test counts the places.
+Do not touch: other screens' look or behaviour, motion code, themes/tokens.
 Must: stable `data-testid`s (`card-browser`, `cb-source`, `cb-search`, `cb-sort`, `cb-tags`, `cb-filters`, `cb-nsfw`, `cb-grid`, `cb-card`, `cb-load-more`, `cb-sheet`, `cb-add`, `cb-notice`) so the visual pass keeps the tests; thumbnails only for cards on screen, max 4 at a time; state kept while the app is open and the §5 prefs in browser storage `h2.cardBrowser` (try/catch).
 Done when:
-- [ ] click tests with `__h2FakeCardSites`: open from Characters and from Ctrl+K; search waits for typing to stop; sort; tags must-have/hide + chips; filters count; Load More appends; select → sheet → Add to Characters → ✓ on the card, **Chat Now**, the character is in Characters with its picture; already-added shows **Open in Characters**; Add Again makes a copy; Save as PNG; empty results; a paused site shows its notice with both buttons; details failed still allows Add; leaving and coming back keeps the place; preview without the fake shows the desktop-only line
+- [ ] click tests with `__h2FakeCardSites`: open from the sidebar, from Ctrl+K and from the empty Characters page; search waits for typing to stop; sort; tags must-have/hide + chips; filters count; Load More appends; select → sheet → Add to Characters → ✓ on the card, **Chat Now**, the character is in Characters → From the Web with its picture; another folder chosen; Import Tags off adds no tags; already-added shows **Open in Characters**; Add Again makes a copy; Save as PNG; empty results; a paused site shows its notice with both buttons; details failed still allows Add; leaving and coming back keeps the place; preview without the fake shows the desktop-only line
+- [ ] screenshots in Mono and Quiet at 1400 px and 900 px wide attached to the report (`docs/images/card-browser-*.png`), so Claude can review the look without running it
 - [ ] live check on the PC (desktop app): one ChubAI search + one import; result in the report
 - [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts e2e/library.e2e.ts
-Size: M (tests not counted). If it passes ~400 lines, stop after search + sheet + Add and say what is left.
+Size: M–L (tests not counted). Daniel allows up to ~700 changed lines for this card; past that, stop after search + sheet + Add and say what is left.
 
 ### T-011 · Card Browser 5: Wyvern, Pygmalion, DataCat                       Status: Ready (after T-010)
 Goal: three more sources in the source picker, each tested like ChubAI.
@@ -124,6 +126,21 @@ Done when:
 - [ ] live check on the PC; if Cloudflare blocks the desktop app, say so in the report — the screen must show the notice with **Open JannyAI** and **Import a Downloaded File…**
 - [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts
 Size: M.
+
+### T-013 · Card Browser 7: JanitorAI (sign-in window, public cards)       Status: Ready (after T-012)
+Goal: JanitorAI in the source picker: Daniel signs in once in a JanitorAI window, then searches it and adds cards whose definition is public.
+Context: `docs/CARD-BROWSER.md` §7 (the whole spec, incl. what is **not** done) and UI-PLAN "Card Browser" → "JanitorAI". Reference: Glaze (github.com/hydall/Glaze, AGPL-3.0) at f1fe39e: `lib/features/catalog/services/janitor_webview_proxy.dart` (`_findTokenJs`, the in-page `fetch`, Cloudflare handling), `janitor_provider.dart` (`_hampterUrl`, search params, `_convertToGlaze`, `janitorDefinitionPublic`, tag ids), `janitor_public_lorebook.dart`, `greeting_normalizer.dart`. Clone it into `.refs/glaze` (git-ignored) to read it.
+**Step 1 — spike (stop if it fails):** a hidden Tauri webview window on `https://janitorai.com`, a fixed script run with `eval`, its answer back through the single command `janitor_report` granted to that remote origin only. Must work on Windows (WebView2) and Linux (WebKitGTK; check in CI's Linux build at least that it compiles). If it can't be done cleanly, commit nothing of it and write in the report what blocked it.
+**Step 2:** source `janitor` in the package (search, details, tags, public lorebooks; pictures through `card_site_request` with `ella.janitorai.com`, already allowed), the window and its states in the UI exactly as the UI-PLAN says (Sign In…, Signed in as … · Sign Out, hidden definition → Add disabled with the sentence and Open on JanitorAI).
+Files you may change: `apps/desktop/src-tauri/src/lib.rs` (window + `janitor_report` + nonce map + tests), `apps/desktop/src-tauri/capabilities/` (a new capability file for the remote origin with only `janitor_report`), `tauri.conf.json` only if the window must be declared there, `apps/desktop/src/janitorWindow.ts` (new), `packages/card-browser/src/sources/janitor.ts` + tests/fixtures, `CardBrowser.tsx` / `cardBrowserState.ts` (the JanitorAI states only), `CREDITS.md`.
+Never: read or store the password; read the token outside the page script; change anything in the user's JanitorAI account (no presets, no chats, no settings, no PATCH/POST/DELETE to `/hampter` — GET only); port Glaze's hidden-definition extraction (`janitor_extractor.dart`, `janitor_separate.dart`, `janitor_field_diff.dart`, `janitor_lorebook_rebuilder.dart`, the `generateAlpha` capture). Cargo dependencies: none new unless the spike proves one necessary — say which and why.
+Done when:
+- [ ] Rust tests: `janitor_report` drops unknown nonces, enforces the cap and the timeout; the capability grants nothing else to the remote origin
+- [ ] unit tests: search URL/params, mapping of a recorded search and card, `showdefinition` false → details without definition and `canAdd: false`, public lorebook → entries
+- [ ] click tests with fakes: Sign In shown when signed out; signed in → search and Add; hidden definition → Add disabled
+- [ ] live check on Daniel's PC: sign in, one search, one public card added; report what worked
+- [ ] cargo test · npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts
+Size: M–L. Split at the spike if needed (spike = one session).
 
 ### T-002 · Tests for the late-30/10 additions                           Status: Ready
 Goal: the things Claude added on the night of 30/10 have click tests, so later changes cannot break them silently.

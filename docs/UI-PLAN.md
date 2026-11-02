@@ -6,25 +6,25 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
-## Card Browser — CLAUDE, 2026-11-02 · ⏳ text waiting for Daniel's OK
+## Card Browser — CLAUDE, 2026-11-02 · ✅ text approved with Daniel's four answers (below); CODEX builds it (T-007 … T-013), Claude reviews
 
-**What it is for:** find a character on ChubAI, JannyAI, Wyvern, Pygmalion or DataCat, read it, and have it in Characters in one
+**What it is for:** find a character on ChubAI, JannyAI, JanitorAI, Wyvern, Pygmalion or DataCat, read it, and have it in Characters in one
 click — no file to download and import by hand. **When Daniel looks at it:** looking for something new to play; looking for a
 specific card he heard of. Technical plan: `docs/CARD-BROWSER.md`. From v1 (`classic-card-browser.js`) and Marinara (Card Browser).
-**Proposed process:** Daniel approves this text → CODEX builds it functional with the existing kit (T-010), no styling of its own →
-Claude reviews and does the visual pass on the `ui` branch → Daniel judges it in the app (no separate HTML draft, as with Regex).
+**Process (Daniel, 11/02: he is short on Claude quota — "CODEX does the heavy work now, then you only review"; no HTML draft "for now"):**
+CODEX builds it **finished**, looking like the Characters page (same cards, sheet, toolbar, tokens — nothing new invented) → Claude
+reviews the `gpt` diff and merges → Daniel judges it in the app.
 
 ### Where it opens
-- **Characters** toolbar: a **Card Browser** button (globe icon) beside **Import**.
-- Empty Characters page: under "Import cards from SillyTavern", a second line **or find characters online**.
-- **Ctrl+K:** "Card Browser" in Actions.
-- It takes the Characters content area (the sidebar stays). **‹ Characters** at the top left goes back. Esc with no sheet open
-  also goes back.
+- **Its own place in the sidebar** (Daniel: "a tab with Stories, Characters and Library"): **Stories · Characters · Card Browser ·
+  Library**, globe icon. It is a destination like the others (no back button).
+- Empty Characters page: under "Import cards from SillyTavern", a second line **or find characters in the Card Browser** (opens it).
+- **Ctrl+K:** "Card Browser" under Go To.
 
 ### Layout (top to bottom)
-1. **Head:** ‹ Characters · title **Card Browser** · "?" (help: searches go straight from this app to each site, the site sees what
+1. **Head:** title **Card Browser** · "?" (help: searches go straight from this app to each site, the site sees what
    you search as in a browser; card text is shown as plain text and nothing from the sites runs in the app) · on the right the
-   **source picker**: the site's name + ▾. Menu: ChubAI, JannyAI, Wyvern, Pygmalion, DataCat, each with a grey one-liner of its
+   **source picker**: the site's name + ▾. Menu: ChubAI, JannyAI, JanitorAI, Wyvern, Pygmalion, DataCat, each with a grey one-liner of its
    NSFW rule ("Adult cards with NSFW on", "Safe cards only", "Adult cards only"), the current one checked.
 2. **Toolbar:** search (placeholder "Search ChubAI…", searches by itself ½ s after typing stops; Ctrl+F focuses it) · **Sort**
    (that site's orders, its default first) · **Tags** (count when any) · **Filters** (count; hidden when the site has none) ·
@@ -45,11 +45,13 @@ Changing source keeps the search text, clears tags and filters (they differ by s
 ### The card sheet (on the right, like the Characters sheet, D-029)
 Click a card = the sheet opens beside the grid (the grid stays; ↑↓←→ move the selection, Esc closes).
 - **Top:** big picture, name, "by <creator>", figures, badges (**Lorebook**, **N Greetings**, **NSFW**), up to 12 tags + "+N".
-- **Main action:** **Add to Characters**. Under it, small: **Folder:** [No Folder ▾] (the last one used is remembered).
+- **Main action:** **Add to Characters**. Under it, small: **Folder:** [From the Web ▾] — the default is a folder **From the Web**
+  (made the first time it is needed); the menu lists every Characters folder + "No Folder" + "New Folder…" (Daniel: "From the Web by
+  default, but able to choose which folder"). The last choice is remembered.
+  **Import Tags** switch beside it (Daniel: "choose whether to import the tags or not"); on by default, remembered.
   While adding: "Adding…". After: the button becomes **Chat Now**, with "In your Characters · Open" under it.
   Already added before: **Open in Characters** is the main action; **Add Again** (a copy) moves into ⋯.
-- **Secondary:** **Save as PNG** (a card file, nothing added) · **Open on ChubAI** (system browser) · ⋯ (**Tags From the Site:**
-  All · Only Ones I Use · None — remembered; Add Again).
+- **Secondary:** **Save as PNG** (a card file, nothing added) · **Open on ChubAI** (system browser) · ⋯ (Add Again).
 - **Text, read-only, plain text,** each folded at a few lines with "More": Creator's Notes (open first), Description,
   First Message (‹ 1/N › to read the alternate greetings), Scenario, Personality, Example Dialogue, System Prompt,
   Post-History Instructions. Empty ones are not shown. Links open in the system browser; pictures inside the text are not loaded.
@@ -69,17 +71,27 @@ Click a card = the sheet opens beside the grid (the grid stays; ↑↓←→ mov
 
 ### Remembered
 While the app is open: source, search, sort, tags, filters, results, selected card, scroll — coming back shows the same place.
-Between runs: last source, sort and NSFW per source, card size, folder, tags choice.
+Between runs: last source, sort and NSFW per source, card size, folder, Import Tags.
 
 ### Left out (for now)
 Selecting several cards and adding them together; "update available" for cards added earlier; PlotLight and CharacterTavern;
 Pygmalion login; personas from sites.
 
-### Open questions for Daniel
-1. Is the **Card Browser** button on Characters + Ctrl+K enough, or also an item in the sidebar?
-2. New cards: no folder by default (proposed), or always a folder like "From the Web"?
-3. Tags from the site: **All** by default (proposed)? Chub cards often bring 10–20 tags.
-4. The process: OK to skip the HTML draft (CODEX builds it plain, Claude styles it, you judge it in the app)?
+### JanitorAI (T-013) — Daniel asked for it from Glaze (github.com/hydall/Glaze)
+- JanitorAI needs the user's own account and sits behind Cloudflare, so it works through a **JanitorAI window**: picking the
+  source the first time shows "JanitorAI needs you to sign in. **Sign In…**" → a window with janitorai.com opens; Daniel signs in
+  there himself (the app never sees the password) and closes it. Then it is searched like the other sites.
+  "Signed in as <name> · **Sign Out**" in the source menu.
+- Cards whose creator made the definition **public** are added like any other (with the public lorebooks they list).
+- Cards with a **hidden definition**: the sheet shows the public parts (picture, bio, greetings) and "The creator keeps this
+  card's definition hidden." with **Open on JanitorAI**; **Add to Characters** is disabled. Glaze's extraction of hidden
+  definitions is **not** part of this (see `docs/CARD-BROWSER.md` §7).
+
+### Daniel's answers (2026-11-02)
+1. A **Card Browser** place in the sidebar, beside Stories, Characters and Library.
+2. New cards go to a **From the Web** folder by default, with a choice of folder.
+3. A choice to **import the tags or not**.
+4. No HTML draft for now; CODEX builds it, Claude reviews.
 
 ---
 
