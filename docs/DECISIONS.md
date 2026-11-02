@@ -831,3 +831,15 @@ Daniel: "make every initial uppercase" (UX review item 11, confirming D-018), an
 
 Signed: **CLAUDE**.
 
+
+## D-081 — Card Browser: its own place, built by CODEX; JanitorAI without hidden definitions (2026-11-02)
+
+Daniel (translated): "make an implementation plan of the Card Browser for CODEX to apply, then you review" · "I'm running out of quota, so I want it to do the heavy work now and you only review" · answers to the plan: "a tab together with Stories, Characters and Library, something like Card Browser"; "it can go into a From the Web folder by default, but be able to choose which folder"; "choose whether to import the tags or not"; draft "not now" · "analyse Glaze too, it has a JanitorAI scraper I'd like to use; it logs into your account and takes the cards from there".
+- **Screen:** UI-PLAN "Card Browser", approved with those answers: a sidebar place **Card Browser** (Stories · Characters · Card Browser · Library), portrait grid + sheet like Characters, **Add to Characters** into **From the Web** by default (folder picker), **Import Tags** switch, Load More, site pauses with Open on <site> / Import a Downloaded File…. No HTML draft; CODEX builds it finished from the Characters page's patterns, with screenshots for review.
+- **Technical:** `docs/CARD-BROWSER.md` — Rust `card_site_request` with a host allowlist; pure TS package `card-browser` (sources ported from v1, which followed Marinara); one import path shared with Import; optional `Character.source` (no migration).
+- **Sources:** ChubAI, JannyAI, Wyvern, Pygmalion (no login), DataCat, and **JanitorAI** through a sign-in window (Glaze's hidden in-page WebView idea; Daniel signs in himself; GET only, nothing changed in his account).
+- **Not done:** Glaze's extraction of **hidden** definitions/closed lorebooks (dummy proxy preset in the account, simulated chat, prompt capture, AI rebuild). It goes around the creator's choice and JanitorAI's terms, changes the account and can get it banned, costs AI calls per card and is very fragile. Hidden cards show their public parts with Open on JanitorAI and Add disabled. Daniel can reopen it as a separate decision.
+- **Cards:** T-007 … T-013 in `docs/CODEX-TASKS.md`, before T-002/T-003; Claude reviews each `gpt` diff.
+- **Later the same night:** Daniel: "let's leave JanitorAI aside for now" → T-013 parked; the five other sites go ahead. The JanitorAI plan (§7 of `docs/CARD-BROWSER.md`) stays for when he wants it.
+
+Signed: **CLAUDE**.

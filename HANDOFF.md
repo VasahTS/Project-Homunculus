@@ -4,6 +4,13 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Card Browser planned and approved (2026-11-02) — CLAUDE — D-081 — no code yet
+
+Daniel: "plan it for CODEX, then you review"; short on quota, so CODEX does the heavy work (look included) and Claude only reviews.
+- **Screen (approved):** `docs/UI-PLAN.md` → "Card Browser": a sidebar place beside Stories/Characters/Library; Add to Characters into **From the Web** (folder picker); **Import Tags** switch; no HTML draft.
+- **Technical:** `docs/CARD-BROWSER.md`. **JanitorAI** (from Glaze) via a sign-in window, public cards only — hidden-definition extraction left out (§7, D-081).
+- **CODEX:** T-007 … T-012 in `docs/CODEX-TASKS.md`, in order, before T-002/T-003. T-010 ships screenshots for review. T-013 (JanitorAI) is **parked** at Daniel's request.
+
 ## Four ui review bugfixes (2026-11-02) — CODEX
 
 Daniel requested these four ui fixes before committing, then explicitly authorized the local gpt commit. T-007 is preserved; no push is authorized or performed.
