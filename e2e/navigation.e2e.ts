@@ -34,7 +34,7 @@ test("Stories is a peer of Characters and collection filters use actual chat act
   await page.setViewportSize({ width: 1512, height: 988 });
   await page.goto("/");
   await openLibrary(page, "Characters");
-  await expect(page.getByTestId("place-list").getByRole("button")).toHaveText([/Stories/, /Characters/, /Library/]);
+  await expect(page.getByTestId("place-list").getByRole("button")).toHaveText([/Stories/, /Characters/, /Card Browser/, /Library/]);
   await page.getByRole("button", { name: "Recently Played", exact: true }).click();
   await expect(page.getByTestId("character-list").getByRole("button", { name: "Lyra", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "All characters", exact: true }).click();

@@ -15,6 +15,9 @@ import { UpdateBar } from "./ui/UpdateBar.tsx";
 import { useUpdates } from "./updates.ts";
 import { SettingsPage, type SettingsTab } from "./ui/SettingsPage.tsx";
 import { imageFileToPngAvatar, readFileBytes, saveExport } from "./files.ts";
+import { cardPngForSite, importCharacterFile, importFromSite, picturePng } from "./importCharacters.ts";
+import { CardBrowser } from "./ui/CardBrowser.tsx";
+import { desktopCardSites } from "./cardSites.ts";
 import { ChatView } from "./ui/ChatView.tsx";
 import { turns, useTurns } from "./turns.ts";
 import { FolderSelect, FolderView, folderAndBelow, folderLabel, VirtualTile, type FolderItem } from "./ui/Folders.tsx";
@@ -63,7 +66,8 @@ type View =
   | { kind: "agents"; id: string | null; fromSession?: boolean }
   | { kind: "vault"; tab: VaultTab; id: string | null }
   | { kind: "story"; id: string }
-  | { kind: "kit"; id: string };
+  | { kind: "kit"; id: string }
+  | { kind: "card-browser" };
 export interface Notice { kind: "ok" | "warn" | "error"; title: string; lines: string[]; action?: { label: string; run: () => void } }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -710,25 +714,16 @@ export function App() {
   };
 
   const importFiles = async (files: File[]) => {
-    const importers = svc.core.characterImporters.all();
     const imported: string[] = [];
     const problems: string[] = [];
     const warnings: string[] = [];
     let lastId: string | null = null;
     for (const file of files) {
-      const importer = importers.find((i) => i.extensions.some((ext) => file.name.toLowerCase().endsWith(ext)));
-      if (!importer) { problems.push(`${file.name}: this kind of file can't be imported.`); continue; }
       try {
-        for (const r of await importer.import(await readFileBytes(file), file.name)) {
-          const saved = await svc.store.saveCharacter({ ...r.character, id: crypto.randomUUID() });
-          if (r.avatar) await svc.store.setAvatar(saved.id, r.avatar);
-          // its embedded lorebook becomes a lorebook linked to it; books it names as its world get linked too
-          const book = await adoptEmbeddedLorebook(svc.store, saved);
-          await linkCharacterToNamedBooks(svc.store, (await svc.store.getCharacter(saved.id)) ?? saved);
-          if (book) warnings.push(`${saved.name}: its embedded lorebook "${book.name}" (${book.entries.length} entries) was added to your lorebooks and is used with ${saved.name}.`);
-          imported.push(saved.name);
+        for (const r of await importCharacterFile(svc, await readFileBytes(file), file.name)) {
+          imported.push(r.character.name);
           warnings.push(...r.warnings);
-          lastId = saved.id;
+          lastId = r.character.id;
         }
       } catch (e) {
         problems.push(`${file.name}: ${errorText(e)}`);
@@ -1149,10 +1144,29 @@ export function App() {
     </div>
   );
 
-  const place: Place = libraryCategory ? "library" : view.kind === "settings" ? "settings" : view.kind === "characters" ? "characters"
+  const place: Place = libraryCategory ? "library" : view.kind === "settings" ? "settings" : view.kind === "characters" ? "characters" : view.kind === "card-browser" ? "card-browser"
     : view.kind === "story" || (view.kind === "vault" && view.tab === "stories") || (view.kind === "session" && active?.storyId) ? "stories" : null;
   let content;
-  if (view.kind === "characters") {
+  if (view.kind === "card-browser") {
+    content = (
+      <CardBrowser lead={lead} transport={desktopCardSites} characters={characters} folders={foldersOf("character")}
+        onAdd={async (file, item, opts) => {
+          const r = await importFromSite(svc, file, item, opts, picturePng);
+          await refresh(svc);
+          setNotice({ kind: r.warnings.length ? "warn" : "ok", title: `Added ${r.character.name} to Characters`, lines: r.warnings });
+          return r.character.id;
+        }}
+        onSavePng={async (file, item) => {
+          const where = await saveExport({ fileName: `${item.name.replace(/[\\/:*?"<>|]+/g, "_").trim() || "character"}.png`, mime: "image/png", bytes: await cardPngForSite(file, picturePng) });
+          if (where) setNotice({ kind: "ok", title: `Saved ${item.name} as a PNG card`, lines: [`Saved to: ${where}`] });
+        }}
+        onOpenCharacter={(id) => setView({ kind: "characters", id })}
+        onChat={(id) => void newSession(id, null)}
+        onImportFiles={(files) => void importFiles(files)}
+        onNewFolder={async (name) => { const f = await svc.store.saveFolder({ id: crypto.randomUUID(), kind: "character", name, parentId: null, createdAt: Date.now() }); await refresh(svc); return f.id; }}
+        onError={(title, message) => setNotice({ kind: "error", title, lines: [message] })} />
+    );
+  } else if (view.kind === "characters") {
     const editing = view.id === "new" ? null : view.id ? byId[view.id] ?? null : undefined;
     const importHelp = svc.core.characterImporters.all().map((i) => i.help).join(" ");
     const sheetOf = view.id && view.id !== "new" ? byId[view.id] : characters.find((c) => inOpenFolder("character", "characters")(c.id));
@@ -1160,7 +1174,7 @@ export function App() {
       <CharacterGallery lead={lead} title="Characters" characters={characters} avatars={avatars} selectedId={sheetOf?.id ?? null}
         activity={Object.fromEntries(characters.map((c) => [c.id, chatsWith(c.id)[0]?.when ?? 0]))}
         importHelp={importHelp} onSelect={(id) => setView({ kind: "characters", id })} onNew={() => setView({ kind: "characters", id: "new" })}
-        onImport={(files) => void importFiles(files)}
+        onImport={(files) => void importFiles(files)} onBrowse={() => setView({ kind: "card-browser" })}
         folders={folderView("character", "characters", "characters", characters.map((c) => ({ id: c.id, name: c.name, avatar: avatars[c.id] })))}
         prefs={prefsOf("characters")} onPrefs={setPrefs("characters")} folderHits={(q) => folderHits("character", q)} onOpenFolder={openFound("characters", () => {})}
         inFolder={(c) => inOpenFolder("character", "characters")(c.id)}
@@ -1547,6 +1561,7 @@ export function App() {
     return [
       { id: "go:stories", name: "Stories", group: "Go to", onOpen: go(() => { setVaultQuery(""); setView({ kind: "vault", tab: "stories", id: null }); }) },
       { id: "go:characters", name: "Characters", group: "Go to", onOpen: go(() => setView({ kind: "characters", id: null })) },
+      { id: "go:card-browser", name: "Card Browser", group: "Go to", keywords: "find download chub janny wyvern pygmalion web online", onOpen: go(() => setView({ kind: "card-browser" })) },
       ...sections.map((it) => ({ id: `go:${it.id}`, name: it.label, group: "Go to", hint: "Library", keywords: "library", onOpen: go(() => openLibrary(it.id)) })),
       { id: "go:settings", name: "Settings", group: "Go to", onOpen: go(() => setView({ kind: "settings", tab: "connections" })) },
       ...sessions.slice(0, 5).map((x) => ({ id: `recent:${x.id}`, name: x.title, group: "Recent chats", hint: storyOf(x) ?? leadOf(x), onOpen: openChat(x) })),
@@ -1602,6 +1617,7 @@ export function App() {
           onOpenStory={(id) => setView({ kind: "story", id })}
           onNewStory={() => setNewStoryOpen({ cardId: null })}
           onOpenCharacters={() => setView({ kind: "characters", id: null })}
+          onOpenCardBrowser={() => setView({ kind: "card-browser" })}
           onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "connections" })}

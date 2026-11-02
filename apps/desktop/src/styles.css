@@ -3072,3 +3072,72 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
   transition: transform var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out); }
 /* the sideways slide must never make the window scroll sideways (D-080) */
 .library-workspace { overflow-x: clip; }
+
+/* ---- Card Browser (D-081): the Characters page's grid and sheet, plus its own toolbar pieces. CLAUDE, 2026-11-02. */
+.cb-tools { flex-wrap: wrap; row-gap: 10px; }
+.cb-tools-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; flex: 1; }
+.cb-search { flex: 1 1 220px; max-width: 360px; }
+.cb-sort select { min-width: 0; max-width: 190px; }
+.cb-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: var(--accent-ink); font-family: var(--font-figures); font-size: 11px; }
+.cb-nsfw { display: inline-flex; align-items: center; gap: 6px; color: var(--label-2); font-size: var(--size-small); }
+.cb-nsfw:has(.switch:disabled) { opacity: .55; }
+.cb-pop-wrap, .cb-menu { position: relative; display: inline-flex; }
+.cb-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 240px; max-width: min(340px, 90vw); padding: 10px; border-radius: var(--radius-group); background: var(--pop, var(--surface)); box-shadow: var(--shadow-pop); border: 1px solid var(--glass-edge); }
+.cb-caret { display: inline-flex; transform: rotate(90deg); }
+.cb-sheet-label { display: flex; align-items: center; justify-content: space-between; }
+.cb-sheet-close { display: none; }
+.cb-pop.cb-pop-right { display: grid; min-width: 160px; padding: 4px; }
+.cb-pop.cb-pop-right button { text-align: left; padding: 6px 10px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--label); }
+.cb-pop.cb-pop-right button:hover { background: var(--fill-hover); }
+.cb-sources { display: grid; gap: 2px; }
+.cb-source { display: flex; gap: 8px; align-items: flex-start; text-align: left; padding: 7px 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--label); }
+.cb-source:hover { background: var(--fill-hover); }
+.cb-source > span:last-child { display: grid; gap: 1px; }
+.cb-source .hint { font-size: 12px; }
+.cb-source-check { width: 14px; flex: none; padding-top: 2px; color: var(--accent); }
+.cb-tag-panel { display: grid; gap: 8px; }
+.cb-tag-new { display: flex; gap: 6px; flex-wrap: wrap; }
+.cb-tag-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; display: grid; gap: 1px; }
+.cb-tag-list li { display: flex; align-items: center; border-radius: var(--radius-control); }
+.cb-tag-list li:hover { background: var(--fill-hover); }
+.cb-tag-name { flex: 1; display: flex; align-items: center; gap: 6px; text-align: left; padding: 5px 6px; border: 0; background: transparent; color: var(--label); }
+.cb-tag-mark { width: 14px; flex: none; text-align: center; color: var(--accent); }
+.cb-tag-list li.exclude .cb-tag-mark, .cb-tag-list li.exclude .cb-tag-name { color: var(--danger); }
+.cb-tag-hide { flex: none; width: 26px; height: 24px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--label-3); font-size: 15px; }
+.cb-tag-hide:hover, .cb-tag-hide[aria-pressed="true"] { background: var(--danger-soft); color: var(--danger); }
+.cb-filter-panel { display: grid; gap: 10px; }
+.cb-filter-panel fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
+.cb-check { display: flex; align-items: center; gap: 8px; color: var(--label); }
+.cb-token-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cb-token-row label { display: grid; gap: 4px; }
+.cb-token-row input { width: 100%; }
+.cb-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -10px 6px 16px; }
+.cb-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 0; border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--label); font-size: var(--size-small); }
+.cb-chip.hide { background: var(--danger-soft); }
+.cb-chip:hover { background: var(--fill-selected); }
+.cb-card-wrap { display: grid; min-width: 0; }
+.cb-marks { position: absolute; top: 6px; right: 6px; z-index: 1; display: flex; gap: 4px; pointer-events: none; }
+.cb-mark { display: inline-grid; place-items: center; min-height: 20px; padding: 0 6px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--window) 82%, transparent); color: var(--label); font-size: 10px; font-weight: 600; letter-spacing: .02em; }
+.cb-mark.added { width: 20px; padding: 0; background: var(--accent); color: var(--accent-ink); }
+.cb-ghost { aspect-ratio: 2 / 3.6; background: var(--fill); animation: cb-breathe 1.4s var(--ease-out) infinite alternate; }
+@keyframes cb-breathe { from { opacity: .55; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cb-ghost { animation: none; } }
+.cb-more { grid-column: 1 / -1; display: flex; justify-content: center; padding: 8px 0 4px; }
+.cb-notice { display: grid; justify-items: center; gap: 12px; max-width: 520px; margin: 24px auto; color: var(--label); }
+.cb-notice p { margin: 0; line-height: 1.5; }
+.cb-notice-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.cb-add-options { display: grid; gap: 8px; }
+.cb-add-options .row-line { gap: 10px; }
+.cb-add-options .field-label { flex: 0 0 92px; }
+.cb-tags-switch { justify-content: flex-start; }
+.cb-in { margin: -4px 0 0; }
+.cb-greet-head { display: flex; align-items: center; justify-content: space-between; }
+.cb-greet-nav { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-figures); font-size: 12px; color: var(--label-2); font-weight: 400; }
+.cb-sheet .vs-text a { color: var(--accent); }
+@media (max-width: 900px) { .cb-search { max-width: none; } }
+/* narrow window: the sheet comes over the grid from the right instead of sitting under every card */
+@media (max-width: 1000px) {
+  .card-browser .gallery-sheet:not(.has-card) { display: none; }
+  .card-browser .gallery-sheet.has-card { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 92vw); z-index: 40; overflow-y: auto; background: var(--pop, var(--surface)); box-shadow: var(--shadow-pop); border-radius: 0; }
+  .card-browser .cb-sheet-close { display: inline-flex; }
+}

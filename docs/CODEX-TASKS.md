@@ -47,14 +47,14 @@ Report: questions for Daniel go in the HANDOFF entry, not in code.
 
 ## Queue
 
-> **Card Browser (T-007 … T-012; T-013 JanitorAI is parked)** — Daniel asked for it on 2026-11-02 and approved the screen text the same day. He is short on
+> **Card Browser — done 2026-11-02 (T-007 CODEX; T-008 … T-012 Claude; DataCat left out; T-013 JanitorAI parked)** — Daniel asked for it on 2026-11-02 and approved the screen text the same day. He is short on
 > Claude quota: **CODEX does the heavy work, including a finished look; Claude only reviews.** Do them **in number order, one card
 > per session**; they come before T-002/T-003. The whole design is `docs/CARD-BROWSER.md` (technical) and `docs/UI-PLAN.md` →
 > "Card Browser" (screen, approved — copy it, do not redesign it).
 > All site knowledge comes from v1 (`VasahTS/Homunculus` at 0884338a: `src/endpoints/classic-card-browser.js` = server,
 > `public/scripts/classic-card-browser.js` = client). `npm run refs` fetches it into `.refs/homunculus/`. Port, test, credit.
 
-### T-008 · Card Browser 2: package `card-browser` + ChubAI                  Status: Ready (after T-007)
+### T-008 · Card Browser 2: package `card-browser` + ChubAI                  Status: Done (by Claude, 2026-11-02)
 Goal: a pure TypeScript package that searches ChubAI, reads a card's details and gets its card file, with site pauses — tested without network.
 Context: `docs/CARD-BROWSER.md` §3 (interfaces `CardSource`, `CardQuery`, `CardPage`, `CardItem`, `CardDetails`, `CardFile`; `pauses.ts`; `build.ts`; thumbnails) and the ChubAI row. v1 server L29–L340 (constants, pauses, `buildCard`, `chub*`), client `CHUB_SORTS`, `CHUB_TAGS`, `MUST_HAVE`, `SOURCES.chub`.
 Files you may change: new `packages/card-browser/` (`package.json` named `@homunculus/card-browser` like the other packages, `src/{types,pauses,build,thumbs,index}.ts`, `src/sources/chub.ts`, `test/`, `test/fixtures/chub-*.json`), root `package.json`/`tsconfig.json`/`vitest.config.ts` only to add the package the same way `st-regex` is added, `package-lock.json` for that workspace entry only, `CREDITS.md`.
@@ -68,7 +68,7 @@ Done when:
 - [ ] npm run typecheck · npm test
 Size: M.
 
-### T-009 · Card Browser 3: import path, `Character.source`, Save as PNG     Status: Ready (after T-008)
+### T-009 · Card Browser 3: import path, `Character.source`, Save as PNG     Status: Done (by Claude, 2026-11-02)
 Goal: one import function used by file Import and by the Card Browser; a card added from a site remembers where it came from.
 Context: `docs/CARD-BROWSER.md` §4. Today: `App.tsx` `importFiles` (L688–L719), `adoptEmbeddedLorebook`, `linkCharacterToNamedBooks`, `files.ts` `imageFileToPngAvatar` / `saveExport`, `st-cards` `importCardPng` / `importCardJson` / `exportCardPng` / `parseCard`, folder functions (D-036, D-068).
 Files you may change: new `apps/desktop/src/importCharacters.ts`, `App.tsx` (`importFiles` calls the new function — **same notices and same behaviour**), `files.ts` (a Blob → PNG avatar helper next to `imageFileToPngAvatar`), `packages/schemas/src/library.ts` (**only** the optional `source` field below), tests.
@@ -81,7 +81,7 @@ Done when:
 - [ ] npm run typecheck · npm test
 Size: S–M.
 
-### T-010 · Card Browser 4: the screen, finished (ChubAI)                    Status: Ready (after T-009)
+### T-010 · Card Browser 4: the screen, finished (ChubAI)                    Status: Done (by Claude, 2026-11-02)
 Goal: the Card Browser works end to end with ChubAI, exactly as `docs/UI-PLAN.md` → "Card Browser" says, and **looks finished**: like the Characters page, in every look (Mono, Quiet, Graphite).
 Context: UI-PLAN "Card Browser" (copy every label, state and behaviour from it; Title Case labels; Daniel's answers at its end). Reuse, do not re-create: `GalleryCard`, `CardPicture`, `SheetSection`, `SizeSwitch` (`ui/Gallery.tsx`, `ui/CollectionTools.tsx`), the Characters toolbar/sheet markup and classes, the kit (`ui/kit.tsx`: `Button`, `Icon`, `Help`, menus), notices, page entrance motion as other pages use it (`ui/motion.ts`, unchanged), `CommandPalette` Go To (`App.tsx` `paletteItems`), sidebar places (`theme/navigation.ts` `places`: add `{ id: "card-browser", label: "Card Browser", icon: "globe" }` between Characters and Library; add a `globe` line icon to the kit if missing, same stroke as the others).
 Files you may change: new `apps/desktop/src/ui/CardBrowser.tsx` (+ `cardBrowserState.ts`), `ui/Gallery.tsx` (the empty-page line only), `ui/kit.tsx` (the globe icon only), `theme/navigation.ts` (the place only), `App.tsx` / `ui/Sidebar.tsx` (view wiring, palette entry), `styles.css` (new `.card-browser*` rules built **only from existing tokens and the Characters page's patterns** — no new colours, fonts, radii, shadows or animations), new `e2e/card-browser.e2e.ts`, `e2e/navigation.e2e.ts` if a test counts the places.
@@ -94,7 +94,7 @@ Done when:
 - [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts e2e/library.e2e.ts
 Size: M–L (tests not counted). Daniel allows up to ~700 changed lines for this card; past that, stop after search + sheet + Add and say what is left.
 
-### T-011 · Card Browser 5: Wyvern, Pygmalion, DataCat                       Status: Ready (after T-010)
+### T-011 · Card Browser 5: Wyvern, Pygmalion (DataCat left out, D-081)     Status: Done (by Claude, 2026-11-02)
 Goal: three more sources in the source picker, each tested like ChubAI.
 Context: `docs/CARD-BROWSER.md` §3 table; v1 server L668–L930, client `SOURCES.wyvern`, `SOURCES.pygmalion`, `SOURCES.datacat`. Pygmalion without login (NSFW "never"); DataCat NSFW "always", session token with one retry on 401, tag list loaded once (cache 1 h).
 Files you may change: `packages/card-browser/src/sources/{wyvern,pygmalion,datacat}.ts`, `src/index.ts` (register them, in the UI-PLAN menu order), their tests and fixtures, `cardBrowserState.ts`/`CardBrowser.tsx` **only** for the DataCat first-time confirmation and the disabled NSFW reasons the UI-PLAN describes.
@@ -105,7 +105,7 @@ Done when:
 - [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts
 Size: M.
 
-### T-012 · Card Browser 6: JannyAI                                          Status: Ready (after T-011)
+### T-012 · Card Browser 6: JannyAI                                          Status: Done (by Claude, 2026-11-02)
 Goal: JannyAI in the source picker, working when the site lets the app through and failing clearly when Cloudflare does not.
 Context: `docs/CARD-BROWSER.md` §3 JannyAI row; v1 server L416–L666 (`getJannyToken`, `jannySearchHeaders`, `/janny/search` with one key refresh on 401/403, `parseJannyPage` + `decodeAstro`, `jannyCard` → `jannyCardFile` with `expect: "card"`), client `JANNY_TAGS`, `SOURCES.janny`. v1's Node/Bun child-process trick does **not** apply (we are not Bun).
 Files you may change: `packages/card-browser/src/sources/janny.ts`, `src/index.ts`, tests and fixtures (a trimmed character page HTML is fine as a fixture).

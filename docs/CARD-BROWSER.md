@@ -1,9 +1,9 @@
 # Card Browser — technical plan
 
-Author: CLAUDE, 2026-11-02. Status: **plan**. The screen's behaviour is in `docs/UI-PLAN.md` → "Card Browser" (waits for Daniel's OK);
+Author: CLAUDE, 2026-11-02. Status: **built** on `ui` (T-007 by CODEX; T-008 … T-012 by Claude the same night, at Daniel's request). The screen's behaviour is in `docs/UI-PLAN.md` → "Card Browser" (waits for Daniel's OK);
 the work is split into CODEX cards T-007 … T-013 in `docs/CODEX-TASKS.md`, in this order: T-007 native request → T-008 package + ChubAI → T-009 import path → T-010 the screen, finished (usable with ChubAI from here) → T-011 Wyvern, Pygmalion, DataCat → T-012 JannyAI. T-013 JanitorAI (sign-in window) is parked. Claude reviews each card's diff. BLUEPRINT §8 (`card-browser` module), §10 slice 9.
 
-**What it is:** find character cards on public sites (ChubAI, JannyAI, Wyvern, Pygmalion, DataCat), read them, and add them to
+**What it is:** find character cards on public sites (ChubAI, JannyAI, Wyvern, Pygmalion), read them, and add them to
 Characters in one click — without downloading a file and importing it by hand. v1 had it (`classic-card-browser.js`); Marinara too
 (`bot-browser*`). We port the **site knowledge** (addresses, query parameters, field mapping, refusals); the screen is ours.
 
@@ -93,11 +93,20 @@ type CardFile = { kind: "png"; bytes: Uint8Array } | { kind: "json"; card: objec
 | **ChubAI** | T-008 | v1 server `chub*` L338–L414, client `SOURCES.chub` L202–L262 | v1 `CHUB_SORTS` (Most Downloaded …) | toggle (off) | Card file: `avatars.charhub.io/avatars/<path>/chara_card_v2.png`; when it has no card inside, build one from `definition` (v1 `chubCard`). Filters: must have, direction, tokens. |
 | **Wyvern** | T-011 | server L668–L726, client `SOURCES.wyvern` | Popular, Popular NSFW, Recommended, New, Most Likes, Most Messages | toggle | Built card + `imagedelivery.net` picture (`wyvernAvatarUrl`). |
 | **Pygmalion** | T-011 | server L871–L930, client `SOURCES.pygmalion` | Downloads, Stars, Views, Newest, Tokens, Name | never | No login (v1 keeps it out; Marinara's token login is **not** ported). |
-| **DataCat** | T-011 | server L728–L869, client `SOURCES.datacat` | Relevance, Fresh (Last 24h) | always | Session token (`/api/liberator/identify`, new one on 401); tags loaded once (32 MB cap, 1 h cache). |
+| ~~**DataCat**~~ (left out, D-081) | — | server L728–L869, client `SOURCES.datacat` | Relevance, Fresh (Last 24h) | always | Session token (`/api/liberator/identify`, new one on 401); tags loaded once (32 MB cap, 1 h cache). |
 | **JannyAI** | T-012 | server L416–L666, client `SOURCES.janny` | Newest, Oldest, Most Tokens, Fewest Tokens, Relevance | toggle (off) | Meilisearch key read from the site's page bundle (fallback key in v1), details from the page's `astro-island` props, card via `api.jannyai.com/api/v1/download` → file link (`expect: "card"`). Often behind Cloudflare → the pause message offers "Open on JannyAI" and "Import a Downloaded File…". The Node/Bun trick in v1 does not apply. |
 
 Left out on purpose: CharacterTavern (no API; Marinara shows a notice), PlotLight (new in Marinara, not in v1 — later if Daniel
 wants it), Pygmalion login, card "galleries"/expressions download.
+
+**DataCat, left out (checked live on 2026-11-02):** its characters are JanitorAI cards whose hidden definitions were extracted
+(`llm_request_payload`, `intercepted_chat_data`, `extraction_session_id`, "recovered" badges, creator-policy fields), the
+same thing §7 leaves out of Glaze. The adapter would be small (v1 L728–L869) if Daniel decides otherwise.
+
+**What changed while building:** the grid shows tokens like Characters (downloads stay in the sheet); clicking a card does not
+close the sheet; in a window under 1000 px the sheet comes over the grid from the right with a Close button (on Characters it sits
+under every card, which with 48+ results is far away). Chub and JannyAI refuse the cloud test machine (Cloudflare), so their
+fixtures follow v1's shapes; Wyvern and Pygmalion fixtures were recorded live.
 
 ## 4. Import and "already in your Characters" (T-009)
 

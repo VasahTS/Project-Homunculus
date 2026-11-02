@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Card Browser built (2026-11-02) — CLAUDE + CODEX — D-081 — on `ui`
+
+- **Card Browser** is a sidebar place (Stories · Characters · Card Browser · Library) and in Ctrl+K: ChubAI, JannyAI, Wyvern, Pygmalion; search by itself, Sort, Tags (must have / hide), Filters, NSFW per site, S·M·L, Load More; the sheet with details and greetings ‹ 1/N ›; **Add to Characters** into **From the Web** (folder picker, **Import Tags** switch), then Chat Now; Save as PNG; Open on <site>; a ✓ on cards already added. A site that pauses us shows its message with Open <site> / Import a Downloaded File….
+- **T-007** (Rust `card_site_request`) by CODEX, reviewed; **T-008 … T-012** by Claude: package `packages/card-browser`, one import path (`apps/desktop/src/importCharacters.ts`, used by Import too), optional `Character.source`, `ui/CardBrowser.tsx`.
+- **DataCat left out:** its cards are extracted JanitorAI hidden definitions (checked live) — same reason as Glaze (D-081). JanitorAI itself (T-013) stays parked.
+- Checks: typecheck, 465 unit tests (+24), new `e2e/card-browser.e2e.ts` (4) and the full browser suite. Seen in the browser preview with fake sites; **not tried against the real sites from the desktop app** (ChubAI/JannyAI block the cloud machine; Wyvern/Pygmalion answered live and their recorded answers are in the tests).
+- **To try:** branch `ui` → Card Browser in the sidebar → search, open a card, Add to Characters.
+
 ## Card Browser planned and approved (2026-11-02) — CLAUDE — D-081 — no code yet
 
 Daniel: "plan it for CODEX, then you review"; short on quota, so CODEX does the heavy work (look included) and Claude only reviews.

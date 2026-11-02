@@ -70,6 +70,8 @@ export const Character = z.object({
   regexScripts: z.array(RegexScript).optional(),
   /** The original imported file (e.g. a SillyTavern V2/V3 card), kept intact for lossless export. */
   original: Json.optional(),
+  /** Where it was added from (Card Browser: the site, its id there and its page). Not exported in cards. D-081. */
+  source: z.object({ site: z.string(), id: z.string(), url: z.string(), addedAt: z.number() }).optional(),
 });
 export type Character = z.infer<typeof Character>;
 /** What callers may pass in: optional card fields can be left out. */

@@ -23,7 +23,7 @@ export type LibraryArea = "characters" | LibraryCategory;
 export type Place = NavigationPlace | "settings" | null;
 
 export function Sidebar({ sessions, stories, characters, avatars, lastLines, branchCounts = {}, activeSessionId, activeStoryId, activeChatId = null, place, status,
-  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenLibrary, onOpenVault, onOpenSettings }: {
+  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenCardBrowser, onOpenLibrary, onOpenVault, onOpenSettings }: {
   navigation: NavigationProfile;
   searchItems: SidebarSearchItem[];
   /** Play / Assistant (D-062): the switch at the top. */
@@ -48,6 +48,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
   onOpenStory: (id: string) => void;
   onNewStory: () => void;
   onOpenCharacters: () => void;
+  onOpenCardBrowser?: () => void;
   onOpenLibrary: () => void;
   onOpenVault: () => void;
   onOpenSettings: () => void;
@@ -114,7 +115,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
 
       <ul className="side-list side-places" data-testid="place-list">
         {navigation.places.map((item) => {
-          const actions = { stories: onOpenStories, characters: onOpenCharacters, library: onOpenLibrary, vault: onOpenVault };
+          const actions = { stories: onOpenStories, characters: onOpenCharacters, "card-browser": onOpenCardBrowser ?? (() => {}), library: onOpenLibrary, vault: onOpenVault };
           const count = item.id === "stories" ? stories.length : item.id === "characters" ? characters.length : null;
           const busy = item.id === "stories" && sessions.some((session) => session.storyId && live.get(session.id) && live.get(session.id)!.phase !== "done");
           return <li key={item.id}><button className={`side-item${place === item.id ? " on" : ""}`} aria-current={place === item.id ? "page" : undefined} onClick={actions[item.id]}>

@@ -1,0 +1,33 @@
+{
+ "totalItems": "4549",
+ "characters": [
+  {
+   "id": "6b67ca81-f58e-4a16-bf29-5f36313f29b7",
+   "displayName": "World RPG",
+   "avatarUrl": "https://assets.pygmalion.chat/45066110-285f-410a-8579-31a9a205f163",
+   "description": "An RPG where you can do anything you want!",
+   "stars": 569,
+   "views": 99034,
+   "downloads": 2489,
+   "chatCount": 17189,
+   "personalityTokenCount": 52,
+   "owner": {
+    "username": ""
+   }
+  },
+  {
+   "id": "870b199e-4a8d-4871-9b5b-7a639741b25a",
+   "displayName": "Monika",
+   "avatarUrl": "https://assets.pygmalion.chat/72ea7c69-1d30-4a7a-aea5-9495fcf10fd7",
+   "description": "\"Okay, everyone!\"",
+   "stars": 325,
+   "views": 28762,
+   "downloads": 1523,
+   "chatCount": 4583,
+   "personalityTokenCount": 1605,
+   "owner": {
+    "username": "localfultonextractor"
+   }
+  }
+ ]
+}

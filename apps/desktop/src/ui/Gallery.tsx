@@ -56,15 +56,16 @@ export function cardTokens(c: Character): number {
 export const shortTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k tok` : `${n} tok`);
 
 /** One card of a grid. */
-export function GalleryCard({ name, avatar, by, summary, tags = [], size, selected, onClick, picture, dragId }: {
+export function GalleryCard({ name, avatar, by, summary, tags = [], size, selected, onClick, picture, dragId, testId }: {
   name: string; avatar?: Avatar | undefined; by?: string | undefined; summary?: string | undefined; tags?: string[]; size?: string | undefined; selected: boolean; onClick: () => void;
   /** A picture of its own (e.g. a story's people), instead of the avatar. */
   picture?: ReactNode;
   /** Can be dragged onto a folder (round 3). */
   dragId?: string | undefined;
+  testId?: string;
 }) {
   return (
-    <button type="button" className={`gallery-card${selected ? " on" : ""}`} onClick={onClick} aria-pressed={selected} aria-label={name} {...(dragId ? dragItem(dragId, name, avatar) : {})}>
+    <button type="button" className={`gallery-card${selected ? " on" : ""}`} onClick={onClick} aria-pressed={selected} aria-label={name} data-testid={testId} {...(dragId ? dragItem(dragId, name, avatar) : {})}>
       {picture ?? <CardPicture name={name} avatar={avatar} />}
       <span className="gallery-body">
         <strong className="gallery-name">{name}</strong>
@@ -93,7 +94,7 @@ export function SheetSection({ title, children, lines = 4, prose = false }: { ti
 }
 
 /** Library → Characters: the cards, and the selected one's sheet (or the editor, when editing). */
-export function CharacterGallery({ lead, tabs, title = "Library", characters, avatars, selectedId, importHelp, onSelect, onNew, onImport, sheet, folders, inFolder, folderOf, chatsOf, activity = {}, prefs, onPrefs, folderHits, onOpenFolder }: {
+export function CharacterGallery({ lead, tabs, title = "Library", characters, avatars, selectedId, importHelp, onSelect, onNew, onImport, sheet, folders, inFolder, folderOf, chatsOf, activity = {}, prefs, onPrefs, folderHits, onOpenFolder, onBrowse }: {
   lead: ReactNode;
   tabs?: ReactNode;
   title?: string;
@@ -118,6 +119,8 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   prefs?: CollectionPrefs; onPrefs?: (p: CollectionPrefs) => void;
   /** Folders whose name matches a search, and opening one. */
   folderHits?: (q: string) => FolderHit[]; onOpenFolder?: (id: string) => void;
+  /** Opens the Card Browser (D-081). */
+  onBrowse?: () => void;
 }) {
   const [q, setQ] = useState("");
   const everything = prefs?.view === "everything";
@@ -163,6 +166,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
             <span>Import cards from SillyTavern</span>
             <span className="hint">PNG or JSON, several at once</span>
           </button>}
+          {characters.length === 0 && onBrowse && <p className="hint gallery-empty"><a href="#" data-testid="empty-browse" onClick={(e) => { e.preventDefault(); onBrowse(); }}>or find characters in the Card Browser</a></p>}
           {characters.length > 0 && shown.length === 0 && <p className="hint gallery-empty">{searching ? (hits.length ? "No character matches by name; open a folder above." : "No character or folder matches.") : "Nothing here yet. Drag cards here, or pick a Folder on a card's sheet."}</p>}
         </div>
         <aside className="gallery-sheet" data-region="sheet">
