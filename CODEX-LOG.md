@@ -2,6 +2,15 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## Card Browser readable details (2026-11-02) — CODEX
+
+Daniel explicitly authorized UI changes on gpt and supplied v1 screenshots as the target for larger artwork and full, scrollable, collapsible fields.
+CardBrowser.tsx and styles.css: full-width contained portrait; eight independently collapsible text sections with bounded scrolling and keyboard focus; greeting changes reset text scroll.
+New e2e/card-browser-details.e2e.ts: desktop/narrow layouts, all long fields, keyboard reading/folding, greetings and card changes; three cases failed before the fix and pass now.
+Checks: typecheck/build; 488 unit passes (3 skips); 13 related browser passes. Visual review uses synthetic content and bundled sample artwork; native app/live sites untested this round.
+Actual checkout: Project-Homunculus/Homunculus-gpt (gpt); the configured Homunculus2 path no longer exists. Existing lockfile edits preserved, not attributed to this task.
+Status: committed locally on gpt with Daniel's authorization; no push; no schema/dependency/personal-data changes. Signed: **CODEX**.
+
 ## JannyAI publication authorized (2026-11-02) — CODEX
 
 Daniel confirmed the working fix and explicitly requested its push to gpt.

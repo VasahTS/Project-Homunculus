@@ -3131,7 +3131,22 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .cb-add-options .field-label { flex: 0 0 92px; }
 .cb-tags-switch { justify-content: flex-start; }
 .cb-in { margin: -4px 0 0; }
-.cb-greet-head { display: flex; align-items: center; justify-content: space-between; }
+/* Card Browser: full-width portrait and complete, collapsible fields. CODEX, 2026-11-02. */
+.card-browser .gallery-sheet { flex-basis: min(440px, 43%); min-width: 0; }
+.card-browser .view-sheet.cb-sheet { grid-template-columns: minmax(0, 1fr); }
+.card-browser .view-sheet.cb-sheet > .vs-pic { grid-column: 1; grid-row: auto; width: 100%; height: auto; max-height: min(50vh, 480px); aspect-ratio: 4 / 5; object-fit: contain; background: var(--group); }
+.card-browser .view-sheet.cb-sheet > .vs-head { grid-column: 1; grid-row: auto; }
+.card-browser .cb-sheet > * { min-width: 0; }
+.card-browser .cb-field { display: block; padding-top: 0; }
+.cb-field > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; cursor: pointer; list-style: none; }
+.cb-field > summary::-webkit-details-marker { display: none; }
+.cb-field > summary:hover { color: var(--accent); }
+.cb-field > summary h3 { color: inherit; }
+.cb-field > summary svg { flex: none; }
+.cb-field[open] > summary svg { transform: rotate(90deg); }
+.cb-sheet .cb-field-text { display: block; max-height: clamp(180px, 38vh, 360px); overflow-y: auto; -webkit-line-clamp: unset; overflow-wrap: anywhere; padding: 0 8px 4px 0; }
+.cb-field-text:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cb-field > .cb-greet-nav { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 .cb-greet-nav { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-figures); font-size: 12px; color: var(--label-2); font-weight: 400; }
 .cb-sheet .vs-text a { color: var(--accent); }
 @media (max-width: 900px) { .cb-search { max-width: none; } }

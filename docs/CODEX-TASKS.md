@@ -27,6 +27,13 @@ Documentation/captures complete; typecheck, 420 unit tests (3 skipped), 174 clic
 Direct follow-up requested by Daniel: expand the English 0.1.0 → 0.2.0 changelog and synchronize the published release/updater notes.
 Files: CHANGELOG.md, HANDOFF.md, CODEX-LOG.md and this card. Documentation/release metadata only; preserve installers, signatures, platform entries and the version tag.
 
+### Card Browser readable details · Status: Done (local) — CODEX
+Direct request from Daniel on 2026-11-02: UI work authorized on gpt; use the supplied v1 screenshots for larger artwork and complete scrollable/collapsible fields.
+Files: apps/desktop/src/ui/CardBrowser.tsx, apps/desktop/src/styles.css, e2e/card-browser-details.e2e.ts and signed work records.
+Done: contained large portrait; eight independent disclosures with full scrollable text; greeting reading-position reset; desktop/narrow keyboard regressions.
+Validation: typecheck/build; 488 unit passes (3 skips); 13 related browser passes. Browser preview only; no native/live-site checks this round.
+Committed locally on gpt with Daniel's authorization; no push; existing lockfiles preserved. Signed: **CODEX**.
+
 ## Card template (Claude fills this in)
 
 ```

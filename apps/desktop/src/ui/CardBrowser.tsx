@@ -9,7 +9,7 @@ import type { CardDetails, CardFile, CardFilters, CardItem, CardSource, MustHave
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { Help } from "./Help.tsx";
-import { CardPicture, GalleryCard, SheetSection } from "./Gallery.tsx";
+import { CardPicture, GalleryCard } from "./Gallery.tsx";
 import { SizeSwitch, type CollectionPrefs } from "./CollectionTools.tsx";
 import { childrenOf } from "./Folders.tsx";
 import { openLink } from "./MessageText.tsx";
@@ -426,24 +426,38 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
       {tags.length > 0 && <div className="vs-tags">{tags.slice(0, 12).map((t) => <span key={t} className="gallery-tag">{t}</span>)}{tags.length > 12 && <span className="gallery-more">+{tags.length - 12}</span>}</div>}
       {d === null && <p className="hint">Loading…</p>}
       {(d === "failed" || full?.partial) && <p className="hint" data-testid="cb-partial">The details didn't load. You can still add it.</p>}
-      {(full?.creatorNotes || (d === "failed" && item.tagline)) && <SheetSection title="Creator's Notes" lines={8} prose><Linked text={full?.creatorNotes || item.tagline} /></SheetSection>}
-      {full?.description && <SheetSection title="Description" lines={6}><Linked text={full.description} /></SheetSection>}
+      {(full?.creatorNotes || (d === "failed" && item.tagline)) && <CardField title="Creator's Notes" prose><Linked text={full?.creatorNotes || item.tagline} /></CardField>}
+      {full?.description && <CardField title="Description"><Linked text={full.description} /></CardField>}
       {greetings.length > 0 && (
-        <section className="vs-sec">
-          <h3 className="cb-greet-head">First Message{greetings.length > 1 && <span className="cb-greet-nav">
+        <CardField title="First Message" prose contentKey={greeting} toolbar={greetings.length > 1 && (
+          <div className="cb-greet-nav" role="group" aria-label="Greetings">
             <IconButton label="Previous greeting" disabled={greeting === 0} onClick={() => setGreeting(greeting - 1)}><Icon name="back" size={13} /></IconButton>
             <span>{greeting + 1}/{greetings.length}</span>
             <IconButton label="Next greeting" disabled={greeting >= greetings.length - 1} onClick={() => setGreeting(greeting + 1)}><Icon name="chevron" size={13} /></IconButton>
-          </span>}</h3>
-          <div className="vs-text prose" style={{ WebkitLineClamp: 6 }}><Linked text={greetings[Math.min(greeting, greetings.length - 1)]!} /></div>
-        </section>
+          </div>
+        )}>
+          <Linked text={greetings[Math.min(greeting, greetings.length - 1)]!} />
+        </CardField>
       )}
-      {full?.scenario && <SheetSection title="Scenario" prose><Linked text={full.scenario} /></SheetSection>}
-      {full?.personality && <SheetSection title="Personality"><Linked text={full.personality} /></SheetSection>}
-      {full?.exampleDialogue && <SheetSection title="Example Dialogue"><Linked text={full.exampleDialogue} /></SheetSection>}
-      {full?.systemPrompt && <SheetSection title="System Prompt"><Linked text={full.systemPrompt} /></SheetSection>}
-      {full?.postHistory && <SheetSection title="Post-History Instructions"><Linked text={full.postHistory} /></SheetSection>}
+      {full?.scenario && <CardField title="Scenario" prose><Linked text={full.scenario} /></CardField>}
+      {full?.personality && <CardField title="Personality"><Linked text={full.personality} /></CardField>}
+      {full?.exampleDialogue && <CardField title="Example Dialogue"><Linked text={full.exampleDialogue} /></CardField>}
+      {full?.systemPrompt && <CardField title="System Prompt"><Linked text={full.systemPrompt} /></CardField>}
+      {full?.postHistory && <CardField title="Post-History Instructions"><Linked text={full.postHistory} /></CardField>}
     </div>
+  );
+}
+
+// Full fields stay independently scrollable and keyboard-accessible. CODEX, 2026-11-02.
+function CardField({ title, children, prose = false, toolbar, contentKey }: {
+  title: string; children: ReactNode; prose?: boolean; toolbar?: ReactNode; contentKey?: number;
+}) {
+  return (
+    <details className="vs-sec cb-field" open>
+      <summary><h3>{title}</h3><Icon name="chevron" size={14} /></summary>
+      {toolbar}
+      <div key={contentKey} className={`vs-text cb-field-text${prose ? " prose" : ""}`} role="region" aria-label={title} tabIndex={0}>{children}</div>
+    </details>
   );
 }
 

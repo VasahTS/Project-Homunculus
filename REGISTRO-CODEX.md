@@ -1,5 +1,17 @@
 # CODEX change record
 
+## 2026-11-02 — Card Browser readable details — CODEX
+
+Status: **committed locally on gpt, not pushed**, as Daniel authorized after reviewing the completed work. Daniel authorized UI work on gpt and specified the supplied v1 screenshots as the reference for this correction.
+Files: apps/desktop/src/ui/CardBrowser.tsx and apps/desktop/src/styles.css: enlarge and contain the portrait above the title, slightly widen this sheet, replace clipped field excerpts with native disclosure sections and full independently scrollable text, and reset reading position on greeting changes.
+Tests: e2e/card-browser-details.e2e.ts; original three failures reproduced the 65px portrait and inaccessible full-text regions; final three pass at desktop/narrow widths, covering all eight fields, keyboard folding/reading, greetings, card switches and narrow-sheet close.
+Records: HANDOFF.md, CODEX-LOG.md, docs/CODEX-TASKS.md and this file.
+Validation: npm run typecheck; npm test (488 pass, 3 skips); npm run build -w @homunculus/desktop; 13 related browser flows pass; git diff --check.
+Visual captures: card-browser-image.png and card-browser-fields.png in this chat's visualizations directory; synthetic definitions and the repository-distributed default_Seraphina.png only. No private database or credentials used. Native app and live sites untested this round.
+The checkout moved to C:/Users/danie/Documents/SillyBunny-Classic-Dev/Project-Homunculus/Homunculus-gpt; branch gpt at 8571866. Fetched dev; it adds no commits beyond HEAD, so no merge was needed.
+Pre-existing package-lock.json and apps/desktop/src-tauri/Cargo.lock edits preserved and excluded from this task's authorship. No schema, dependency, transport, release or workflow change.
+Signed: **CODEX**.
+
 ## 2026-11-02 — Authorized JannyAI commit and push — CODEX
 
 Daniel confirmed the correction works and explicitly requested publication to origin/gpt.
