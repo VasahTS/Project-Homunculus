@@ -68,7 +68,7 @@ export function slideIn(elements: Iterable<Element>, dir: 1 | -1, distance = 16)
 
 /**
  * Switching pages (D-076, the Coffra reference and Daniel's notes "staggered fade-up"): the old page goes at once; the new
- * one's blocks come up out of a light blur, one after another, top to bottom. The page title rises by itself (RiseText).
+ * one's blocks fade and rise, one after another (no blur: Daniel, 11/02), top to bottom. The page title rises by itself (RiseText).
  * Blocks are found without knowing the page: anything taller than most of the page is opened up, so a list or a form
  * arrives as its parts, not as one slab. Only what is on screen moves.
  */
@@ -89,7 +89,7 @@ export function pageIn(root: HTMLElement | null): void {
   visit(root, 0);
   blocks.forEach((el, i) => {
     el.animate(
-      [{ opacity: 0, transform: "translateY(12px)", filter: "blur(6px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }],
+      [{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }],
       { duration: ms(720), delay: ms(60 + i * 70), easing: EASE_OUT, fill: "backwards" },
     );
   });

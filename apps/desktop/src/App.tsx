@@ -1543,7 +1543,8 @@ export function App() {
   return (
     <div className="app" data-region="app">
       {sidebarOpen && mode === "assistant" && (
-        <AssistantSidebar st={asst} onMode={setMode} status={svc.isDesktop ? "saved on this PC" : "preview · not saved"} />
+        <AssistantSidebar st={asst} onMode={setMode} status={svc.isDesktop ? "saved on this PC" : "preview · not saved"}
+          onSettings={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }} />
       )}
       {sidebarOpen && mode === "play" && (
         <Sidebar
@@ -1586,6 +1587,7 @@ export function App() {
         {noticeBar}
         {mode === "assistant" ? (
           <AssistantView svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary}
+            listModels={listModels} onManageConnections={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }}
             userName={personas.find((p) => p.id === defaultPersonaId)?.name ?? ""}
             onChanged={() => void refresh(svc)}
             onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else setView({ kind: "vault", tab: "narrators", id }); }}

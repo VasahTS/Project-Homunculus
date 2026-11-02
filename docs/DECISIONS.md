@@ -777,11 +777,22 @@ Signed: **CLAUDE**.
 
 Daniel (11/02, after trying the app; Coffra recording and notes he got from Gemini about it, summarized in `docs/MOTION-NOTES.md`):
 - **Assistant message box like Flint's:** inside the box only **+** (Add context…, Attach a file…), **Options** (sliders icon), the context meter and Send. Options is a short list — Assistant ›, Preset ›, Model › (each opens its choices in place, ‹ goes back), Draft first and Search the web as switches, "Edit assistants and presets…". What is chosen shows as quiet text under the box (assistant · preset · Drafts · Web · model in figures). Test ids kept (`pick-*`, `assistant-add-context`); new `assistant-plus`, `assistant-options`, `assistant-summary`.
-- **Switching pages** ("switching between menus should have a better thought-out animation; not every menu has one yet"): every place, Library tab, Vault tab, Settings tab and Assistant page now enters the same way — the old page goes at once, the new one's blocks rise 12 px out of a 6 px blur, 70 ms apart (`pageIn` in `ui/motion.ts`, keyed in `App.tsx`). Chats and the character editor keep their own cascades. Follows Customize → Motion (speed, off).
+- **Switching pages** ("switching between menus should have a better thought-out animation; not every menu has one yet"): every place, Library tab, Vault tab, Settings tab and Assistant page now enters the same way — the old page goes at once, the new one's blocks fade in and rise 12 px, 70 ms apart (the first version also had a 6 px blur; Daniel: "the blur looks bad, the rest is good", removed 11/02) (`pageIn` in `ui/motion.ts`, keyed in `App.tsx`). Chats and the character editor keep their own cascades. Follows Customize → Motion (speed, off).
 - **Menus** grow from the button that opened them (fade-scale with transform-origin): Assistant pops, the look ⋯ menu.
 - **Switching looks** opens the new look as a circle from the click (View Transitions; D-072's planned circular switch). Where the window has no View Transitions the look just changes.
 - **Fixes:** a dialogue/narration color set in Messages can be taken back ("Theme's" returns to the look's color — the user's colors are `--dialogue-user` / `--narration-user` now); the look ⋯ menu was cut by its group, and two could be open at once; the selection ring on full-picture cards was hidden by the picture (now drawn above it, inside the card).
 - Not yet (from the notes): side sheets sliding in over a dimmed page, toasts rising from the bottom, drag lift/snap, figures counting up as in Coffra.
+
+Signed: **CLAUDE**.
+
+## D-077 — Assistant: model under the box (Quick Connection), the box at the bottom, Settings in its sidebar (2026-11-02)
+
+Daniel (after trying D-076): "three clicks to change the model — do it like Flint: click the model name under the box (reuse Quick Connection)"; "the assistant switch is broken"; "move the box down, more like Flint; add Settings at the bottom like Play's menu"; also "remove the blur when switching" (D-076 updated).
+- **Model:** the model name under the message box opens **Quick Connection** (`QuickConnectMenu`, now shared by Play and the Assistant through a small target interface). In the Assistant a pick is for this chat only (`picks.connectionId` / `picks.model`, context size from the list); the saved connection is not changed. Model left Options.
+- **Assistant switch:** the Assistant's popovers open toward the side with more room and are never taller than it (the list was cut off at the top).
+- **Start screen like Flint's:** centered title, one line, suggestions; the message box is at the bottom, where it stays once the chat starts.
+- **Settings** at the bottom of the Assistant's sidebar (opens Settings in Play).
+- **UX review** of the whole app: `docs/UX-REVIEW.md` (13 items, nothing changed yet).
 
 Signed: **CLAUDE**.
 

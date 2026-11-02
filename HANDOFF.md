@@ -4,11 +4,16 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Assistant like Flint (model under the box, box at the bottom, Settings); no blur; UX review (2026-11-02) — CLAUDE — D-077
+
+- Model under the box opens Quick Connection (this chat only); the assistant list opens where there is room; start screen with the box at the bottom; Settings at the bottom of the Assistant's sidebar; page switches without blur.
+- `docs/UX-REVIEW.md`: 13 findings across the app, waiting for Daniel's pick (suggested: tabs, page heads, empty panes, one message box — with drafts first).
+
 ## Flint-style Assistant bar, page entrances, fixes (2026-11-02) — CLAUDE — D-076
 
 Daniel tried the app: Assistant bar "cleaner, like Flint's"; Messages color didn't go back to the theme's; the look menu was cut; a picture covered the selection ring; switching menus needs a better animation (Coffra recording + notes, `docs/MOTION-NOTES.md`).
 - **Assistant:** + · Options (Assistant ›, Preset ›, Model ›, Draft first, Search the web) · meter · Send; the choices as quiet text under the box.
-- **Motion:** every page/tab switch enters with a blur-rise cascade; menus grow from their button; switching looks opens as a circle from the click.
+- **Motion:** every page/tab switch enters with a fade-and-rise cascade (blur removed after Daniel tried it); menus grow from their button; switching looks opens as a circle from the click.
 - **Fixes:** "Theme's" resets dialogue/narration colors; the ⋯ menu is whole and one at a time; the ring sits above full-picture cards.
 - Checks: typecheck, 430 unit tests, full browser suite (3 new tests in `customize.e2e.ts`; Assistant tests open Options first). Browser preview only.
 

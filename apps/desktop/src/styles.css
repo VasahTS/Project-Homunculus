@@ -2997,7 +2997,7 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-opt-back { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border: 0; background: none; color: var(--label-2); font: inherit; cursor: pointer; border-radius: var(--radius-control); }
 .asst-opt-back:hover { color: var(--label); background: var(--fill); }
 .asst-send { display: grid; place-items: center; }
-.asst-under { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px 16px; margin-top: -12px; padding: 0 8px; font-size: 12px; color: var(--label-3); }
+.asst-under { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; padding: 0 8px; font-size: 12px; color: var(--label-3); }
 .asst-msgs-composer .asst-under, .asst-under { min-height: 16px; }
 .asst-under-model { font-family: var(--font-figures); color: var(--label-2); }
 
@@ -3010,3 +3010,17 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 
 /* Switching looks: the new look opens as a circle from where you clicked (View Transitions; D-076) */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+/* D-077: the Assistant's popovers open toward the side with room; the model under the box is a Quick Connection */
+.asst-pop-wrap.open-down .asst-pop { bottom: auto; top: calc(100% + 8px); }
+.asst-pop-wrap.up-left.open-down .asst-pop { transform-origin: top left; }
+.asst-under { position: relative; align-items: center; }
+.asst-model-btn { border: 0; background: none; padding: 2px 6px; margin: -2px -6px; border-radius: var(--radius-control); font: 12px var(--font-figures); color: var(--label-2); cursor: pointer; }
+.asst-model-btn:hover, .asst-model-btn.on { background: var(--fill); color: var(--label); }
+.asst-under .qc-pop { left: auto; right: 0; transform: none; bottom: calc(100% + 8px); }
+
+/* D-077: the Assistant's start screen, Flint-style — centered title, line and suggestions; the box is at the bottom */
+.asst-hello { justify-items: center; text-align: center; gap: 12px; }
+.asst-hello .asst-knows { margin: 0 0 12px; max-width: 520px; color: var(--label-2); font-size: 13px; }
+.asst-hello .asst-qs { width: 100%; text-align: left; }
+.asst-under .qc-pop { width: min(640px, calc(100vw - 48px)); }

@@ -17,7 +17,9 @@ import { readFileBytes } from "../files.ts";
 import { bytesToBase64 } from "@homunculus/st-cards";
 import { Button, Icon, IconButton, type ICONS } from "./kit.tsx";
 import { CASCADE, slideIn, useEnter } from "./motion.ts";
-import { AssistantCustomizePage, ModelRow } from "./AssistantCustomize.tsx";
+import { AssistantCustomizePage } from "./AssistantCustomize.tsx";
+import { QuickConnectMenu, type QuickConnectTarget } from "./QuickConnect.tsx";
+import type { ConnectionConfig, ModelInfo } from "@homunculus/core";
 import { Modal } from "./Vault.tsx";
 import { MessageText, openLink } from "./MessageText.tsx";
 
@@ -60,7 +62,7 @@ export function ModeSwitch({ mode, onMode }: { mode: AppMode; onMode: (m: AppMod
   );
 }
 
-export function AssistantSidebar({ st, onMode, status }: { st: AssistantState; onMode: (m: AppMode) => void; status: string }) {
+export function AssistantSidebar({ st, onMode, status, onSettings }: { st: AssistantState; onMode: (m: AppMode) => void; status: string; onSettings: () => void }) {
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
   // search reads the chats' messages too (Flint: "search past transcripts"); a line around the first match is shown
@@ -106,6 +108,12 @@ export function AssistantSidebar({ st, onMode, status }: { st: AssistantState; o
           </button></li>
         ))}
       </ul>
+      {/* D-077: Settings at the bottom, as in Play */}
+      <div className="side-bottom">
+        <ul className="side-list">
+          <li><button className="side-item" onClick={onSettings} data-testid="assistant-settings"><span className="side-icon"><Icon name="gear" /></span><span className="side-text"><strong>Settings</strong></span></button></li>
+        </ul>
+      </div>
     </nav>
   );
 }
@@ -120,8 +128,10 @@ const QUICK: Array<{ title: string; text: string; prompt: string }> = [
   { title: "Make a narrator", text: "How your stories are told: voice, rules, pacing.", prompt: "Make a narrator that " },
 ];
 
-export function AssistantView({ svc, st, connection, library, userName, lead, onOpenItem, onStartKit, onChanged }: {
+export function AssistantView({ svc, st, connection, library, userName, lead, onOpenItem, onStartKit, onChanged, listModels, onManageConnections }: {
   svc: AppServices; st: AssistantState; connection: ConnectionState; library: LibraryEntry[]; userName: string; lead: ReactNode;
+  /** For the model switch under the message box (Quick Connection, D-077). */
+  listModels: (config: ConnectionConfig, signal: AbortSignal) => Promise<ModelInfo[]>; onManageConnections: () => void;
   onOpenItem: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void;
   /** Library items were made or changed (App reloads its lists). */
   onChanged: () => void;
@@ -177,7 +187,23 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     <PicksBar settings={settings} picks={picks} setPicks={setPicks} svc={svc} connection={connection}
       model={pickedModel} used={lastUsed} chat={chat} onCustomize={() => st.setPage("customize")} />
   ) : null;
-  const summary = settings && resolved ? <PicksSummary settings={settings} picks={picks} model={pickedModel} /> : null;
+  const modelProfile = connection.byId.get(picks.connectionId ?? resolved?.assistant.connectionId ?? connection.defaultId ?? "");
+  const qcTarget: QuickConnectTarget = {
+    current: modelProfile,
+    currentModel: effective?.model,
+    footnote: "Used in this Assistant chat only; your saved connections don't change.",
+    useProfile: (p) => setPicks({ connectionId: p.id, model: undefined, contextLength: undefined }),
+    useModel: (p, model, info) => setPicks({ connectionId: p.id, model, contextLength: info?.contextLength }),
+  };
+  const summary = settings && resolved ? (
+    <PicksSummary settings={settings} picks={picks}
+      modelSwitch={<QuickConnectMenu svc={svc} c={connection} listModels={listModels} target={qcTarget} onManage={onManageConnections}
+        trigger={(open, toggle) => (
+          <button type="button" className={`asst-model-btn${open ? " on" : ""}`} data-testid="assistant-model" aria-expanded={open} title="Switch the model for this chat" onClick={toggle}>
+            {shortModel(pickedModel)}
+          </button>
+        )} />} />
+  ) : null;
 
   const addFiles = async (files: File[]) => {
     const out: AssistantAttachment[] = [];
@@ -345,12 +371,9 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       <div className="asst-scroll" ref={scroller}>
         {empty ? (
           <div className="asst-col asst-hello">
+            {/* D-077, like Flint: the start screen is a title and suggestions; the message box sits at the bottom, where it stays in a chat */}
             <h1>Assistant</h1>
-            <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: true }} />
-            {summary}
-            <p className="asst-knows">Reads your library when it needs to · {library.length} items</p>
-            {error && <p className="asst-error" role="alert">{error}</p>}
-            <div className="asst-qs-h">Quick start</div>
+            <p className="asst-knows">Makes and fixes characters, lorebooks, Kits and narrators. Reads your library when it needs to · {library.length} items</p>
             <div className="asst-qs">
               {QUICK.map((q) => (
                 <button key={q.title} type="button" className="asst-q" onClick={() => { setText(q.prompt); if (q.title === "Build a Kit") setPicking(true); }}>
@@ -371,13 +394,11 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
           </div>
         )}
       </div>
-      {!empty && (
-        <div className="asst-bottom"><div className="asst-col">
-          {error && <p className="asst-error" role="alert">{error}</p>}
-          <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar }} />
-          {summary}
-        </div></div>
-      )}
+      <div className="asst-bottom"><div className="asst-col">
+        {error && <p className="asst-error" role="alert">{error}</p>}
+        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty }} />
+        {summary}
+      </div></div>
       <input ref={fileInput} type="file" multiple hidden accept=".json,.jsonl,.md,.markdown,.txt,.csv,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" data-testid="assistant-file"
         onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; if (fs.length) void addFiles(fs); }} />
       {picking && <ContextPicker library={library} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
@@ -654,7 +675,18 @@ const shortModel = (m: string) => m.split("/").pop() ?? m;
 /** A small menu that opens above its button and closes on a click outside or Esc. */
 function Pop({ label, title, children, testId, className = "", icon = false }: { label: ReactNode; title: string; children: (close: () => void) => ReactNode; testId?: string; className?: string; icon?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState<{ down: boolean; max: number }>({ down: false, max: 480 });
   const box = useRef<HTMLSpanElement>(null);
+  const toggle = () => {
+    if (!open && box.current) {
+      // open toward the side with more room, never taller than that room (D-077: the assistant list was cut off)
+      const r = box.current.getBoundingClientRect();
+      const above = r.top - 16, below = window.innerHeight - r.bottom - 16;
+      const down = below > above;
+      setPlace({ down, max: Math.max(160, Math.min(560, down ? below : above)) });
+    }
+    setOpen(!open);
+  };
   useEffect(() => {
     if (!open) return;
     const off = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
@@ -663,9 +695,9 @@ function Pop({ label, title, children, testId, className = "", icon = false }: {
     return () => { document.removeEventListener("mousedown", off); document.removeEventListener("keydown", esc); };
   }, [open]);
   return (
-    <span className={`asst-pop-wrap ${className}`.trim()} ref={box}>
-      <button type="button" className={`asst-pick${icon ? " icon" : ""}${open ? " on" : ""}`} title={title} aria-label={icon ? title : undefined} aria-expanded={open} onClick={() => setOpen(!open)} data-testid={testId}>{label}</button>
-      {open && <div className="asst-pop" role="dialog" aria-label={title}>{children(() => setOpen(false))}</div>}
+    <span className={`asst-pop-wrap ${className}${open && place.down ? " open-down" : ""}`.trim()} ref={box}>
+      <button type="button" className={`asst-pick${icon ? " icon" : ""}${open ? " on" : ""}`} title={title} aria-label={icon ? title : undefined} aria-expanded={open} onClick={toggle} data-testid={testId}>{label}</button>
+      {open && <div className="asst-pop" role="dialog" aria-label={title} style={{ maxHeight: place.max }}>{children(() => setOpen(false))}</div>}
     </span>
   );
 }
@@ -714,13 +746,13 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
   settings: AssistantSettings; picks: Picks; setPicks: (p: Partial<Picks>) => void; svc: AppServices; connection: ConnectionState;
   assistant: ReturnType<typeof resolveFor>["assistant"]; preset: ReturnType<typeof resolveFor>["preset"]; webOn: boolean; model: string; close: () => void; onCustomize: () => void;
 }) {
-  const [sub, setSub] = useState<null | "assistant" | "preset" | "model">(null);
+  const [sub, setSub] = useState<null | "assistant" | "preset">(null);
   const body = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => { if (body.current) slideIn([body.current], sub ? 1 : -1, 12); }, [sub]);
   const back = (title: string) => (
     <button type="button" className="asst-opt-back" onClick={() => setSub(null)}><Icon name="back" size={14} /> {title}</button>
   );
-  const Row = ({ id, label, value }: { id: "assistant" | "preset" | "model"; label: string; value: string }) => (
+  const Row = ({ id, label, value }: { id: "assistant" | "preset"; label: string; value: string }) => (
     <button type="button" className="asst-opt-row" data-testid={`pick-${id}`} onClick={() => setSub(id)}>
       <b>{label}</b><span className="asst-opt-val">{value}</span><Icon name="chevron" size={14} />
     </button>
@@ -730,7 +762,6 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
       {sub === null && <>
         <Row id="assistant" label="Assistant" value={assistant.name} />
         <Row id="preset" label="Preset" value={preset?.name ?? "No preset"} />
-        <Row id="model" label="Model" value={shortModel(model)} />
         <div className="asst-opt-sep" />
         <label className="asst-opt-row">
           <b>Draft first</b><span className="asst-opt-val" />
@@ -768,18 +799,12 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
           <button type="button" role="radio" aria-checked={!preset} className={`asst-pop-item${!preset ? " on" : ""}`} onClick={() => { setPicks({ presetId: "none" }); setSub(null); }}><span className="asst-pop-emoji"><Icon name="none" size={14} /></span><span><b>No preset</b><small>Only the assistant's own instructions.</small></span></button>
         </div>
       </>}
-      {sub === "model" && <>
-        {back("Model for this chat")}
-        <ModelRow svc={svc} connection={connection} connectionId={picks.connectionId ?? null} model={picks.model ?? ""}
-          onChange={(connectionId, m) => setPicks({ connectionId, model: m })} onInfo={(m) => setPicks({ contextLength: m.contextLength })} />
-        {(picks.connectionId !== undefined || picks.model) && <button type="button" className="asst-pop-foot" onClick={() => setPicks({ connectionId: undefined, model: undefined, contextLength: undefined })}>Use {assistant.name}'s model</button>}
-      </>}
     </div>
   );
 }
 
 /** The quiet line under the message box: who answers, the preset, the model, and what is on (D-076). */
-function PicksSummary({ settings, picks, model }: { settings: AssistantSettings; picks: Picks; model: string }) {
+function PicksSummary({ settings, picks, modelSwitch }: { settings: AssistantSettings; picks: Picks; modelSwitch: ReactNode }) {
   const { assistant, preset } = resolveFor(picks, settings);
   const webOn = picks.webSearch ?? !settings.toolsOff.includes("web");
   return (
@@ -788,7 +813,7 @@ function PicksSummary({ settings, picks, model }: { settings: AssistantSettings;
       {preset && <span>{preset.name}</span>}
       {picks.draftFirst && <span>Drafts</span>}
       {webOn && <span>Web</span>}
-      <span className="asst-under-model">{shortModel(model)}</span>
+      {modelSwitch}
     </div>
   );
 }

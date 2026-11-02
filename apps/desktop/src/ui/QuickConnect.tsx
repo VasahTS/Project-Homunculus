@@ -3,7 +3,7 @@
 // A link button in the message box opens a menu over it: saved connections on the left (a click uses one in this chat),
 // the models of that connection on the right (a click uses one and saves it into the connection). Models can be pinned
 // with a star; a typed ID that is not listed can be used too; Manage opens Settings → Connections.
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import type { ConnectionProfile, Session, SetupLayer } from "@homunculus/schemas";
 import { profileToConfig, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
@@ -20,6 +20,21 @@ const HELP = "Switch the AI without leaving the chat. Left: your saved connectio
 const PINS = "quickConnectPins";
 type Pins = Record<string, string[]>;
 
+/** What the menu changes: a Play chat (QuickConnect below) or an Assistant chat (D-077). */
+export interface QuickConnectTarget {
+  /** The connection in use now. */
+  current: ConnectionProfile | undefined;
+  /** The model in use now (when it is not simply the connection's own). */
+  currentModel?: string | undefined;
+  /** A connection was clicked. */
+  useProfile: (p: ConnectionProfile) => void;
+  /** A model was clicked (of connection `p`). */
+  useModel: (p: ConnectionProfile, model: string, info?: ModelInfo) => Promise<void> | void;
+  /** One line at the bottom saying what a click does. */
+  footnote: string;
+}
+
+/** The Quick Connection button of a Play chat: a connection is used in this chat; a model is saved into its connection. */
 export function QuickConnect({ svc, c, session, storySetup, listModels, onChangeSession, onManage }: {
   svc: AppServices;
   c: ConnectionState;
@@ -30,8 +45,47 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
   onChangeSession: (s: Session) => void;
   onManage: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const current = c.storyProfileFor(session, storySetup);
+  const target: QuickConnectTarget = {
+    current,
+    footnote: "A connection you pick is used in this chat. A model you pick is saved into its connection.",
+    useProfile: (p) => {
+      const inherited = storySetup?.connectionId ?? c.defaultId;
+      if (session.setup.connectionId !== (p.id === inherited ? undefined : p.id)) {
+        const setup = { ...session.setup };
+        if (p.id === inherited) delete setup.connectionId; else setup.connectionId = p.id;
+        onChangeSession({ ...session, setup });
+      }
+    },
+    useModel: async (p, model) => {
+      if (p.id !== current?.id) target.useProfile(p);
+      if (p.model !== model) await c.save({ ...p, model });
+    },
+  };
+  return (
+    <QuickConnectMenu svc={svc} c={c} listModels={listModels} target={target} onManage={onManage}
+      trigger={(open, toggle) => (
+        <IconButton className={`qc-btn${open ? " on" : ""}`} aria-expanded={open} data-testid="quick-connect"
+          label={current ? `Quick Connection: ${current.name}${current.model ? ` (${current.model})` : ""}` : "Quick Connection: switch connection and model"}
+          onClick={toggle}>
+          <Icon name="link" size={17} />
+        </IconButton>
+      )} />
+  );
+}
+
+/** The menu itself: connections on the left, the viewed connection's models on the right (search, pins, typed IDs). */
+export function QuickConnectMenu({ svc, c, listModels, target, onManage, trigger, className = "" }: {
+  svc: AppServices;
+  c: ConnectionState;
+  listModels: (config: ConnectionConfig, signal: AbortSignal) => Promise<ModelInfo[]>;
+  target: QuickConnectTarget;
+  onManage: () => void;
+  trigger: (open: boolean, toggle: () => void) => ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = target.current;
   const [viewId, setViewId] = useState<string | null>(null);
   const viewing = c.byId.get(viewId ?? "") ?? current;
   const [query, setQuery] = useState("");
@@ -80,26 +134,18 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
     return () => window.removeEventListener("keydown", key);
   }, [open]);
 
-  /** Uses a connection in this chat (back to the inherited one when it is the story's / the default). */
   const useProfile = (p: ConnectionProfile) => {
-    const inherited = storySetup?.connectionId ?? c.defaultId;
-    if (session.setup.connectionId !== (p.id === inherited ? undefined : p.id)) {
-      const setup = { ...session.setup };
-      if (p.id === inherited) delete setup.connectionId; else setup.connectionId = p.id;
-      onChangeSession({ ...session, setup });
-    }
+    target.useProfile(p);
     setViewId(p.id);
     setQuery("");
     void load(p);
   };
 
-  /** Uses a model: saved into the connection being viewed, which this chat then uses. */
   const useModel = async (id: string) => {
     const p = viewing;
     const model = id.trim();
     if (!p || !model) return;
-    if (p.id !== current?.id) useProfile(p);
-    if (p.model !== model) await c.save({ ...p, model });
+    await target.useModel(p, model, (models ?? []).find((m) => m.id === model));
     close();
   };
 
@@ -130,7 +176,7 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
   };
 
   const row = (m: ModelInfo, isPinned: boolean) => {
-    const here = viewing?.model === m.id;
+    const here = viewing?.id === current?.id ? (target.currentModel ?? viewing?.model) === m.id : viewing?.model === m.id;
     return (
       <div key={m.id} className={`qc-model${here ? " on" : ""}`} data-testid="qc-model">
         <button type="button" className="qc-model-pick" title={m.id} onClick={() => void useModel(m.id)}>
@@ -145,12 +191,8 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
   };
 
   return (
-    <span className="qc-wrap">
-      <IconButton className={`qc-btn${open ? " on" : ""}`} aria-expanded={open} data-testid="quick-connect"
-        label={current ? `Quick Connection: ${current.name}${current.model ? ` (${current.model})` : ""}` : "Quick Connection: switch connection and model"}
-        onClick={() => (open ? close() : openMenu())}>
-        <Icon name="link" size={17} />
-      </IconButton>
+    <span className={`qc-wrap ${className}`.trim()}>
+      {trigger(open, () => (open ? close() : openMenu()))}
       {open && (
         <>
           <div className="pop-scrim" onClick={close} />
@@ -198,7 +240,7 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
               </div>
             </div>
             <footer className="qc-foot">
-              <span className="hint grow">A connection you pick is used in this chat. A model you pick is saved into its connection.</span>
+              <span className="hint grow">{target.footnote}</span>
               <Button small onClick={() => { close(); onManage(); }}><Icon name="plug" size={14} /> Manage</Button>
             </footer>
           </section>
