@@ -6,6 +6,95 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Card Browser — CLAUDE, 2026-11-02 · ✅ text approved with Daniel's four answers (below); CODEX builds it (T-007 … T-012), Claude reviews
+
+**What it is for:** find a character on ChubAI, JannyAI, Wyvern, Pygmalion or DataCat, read it, and have it in Characters in one
+click — no file to download and import by hand. **When Daniel looks at it:** looking for something new to play; looking for a
+specific card he heard of. Technical plan: `docs/CARD-BROWSER.md`. From v1 (`classic-card-browser.js`) and Marinara (Card Browser).
+**Process (Daniel, 11/02: he is short on Claude quota — "CODEX does the heavy work now, then you only review"; no HTML draft "for now"):**
+CODEX builds it **finished**, looking like the Characters page (same cards, sheet, toolbar, tokens — nothing new invented) → Claude
+reviews the `gpt` diff and merges → Daniel judges it in the app.
+
+### Where it opens
+- **Its own place in the sidebar** (Daniel: "a tab with Stories, Characters and Library"): **Stories · Characters · Card Browser ·
+  Library**, globe icon. It is a destination like the others (no back button).
+- Empty Characters page: under "Import cards from SillyTavern", a second line **or find characters in the Card Browser** (opens it).
+- **Ctrl+K:** "Card Browser" under Go To.
+
+### Layout (top to bottom)
+1. **Head:** title **Card Browser** · "?" (help: searches go straight from this app to each site, the site sees what
+   you search as in a browser; card text is shown as plain text and nothing from the sites runs in the app) · on the right the
+   **source picker**: the site's name + ▾. Menu: ChubAI, JannyAI, Wyvern, Pygmalion, DataCat, each with a grey one-liner of its
+   NSFW rule ("Adult cards with NSFW on", "Safe cards only", "Adult cards only"), the current one checked.
+2. **Toolbar:** search (placeholder "Search ChubAI…", searches by itself ½ s after typing stops; Ctrl+F focuses it) · **Sort**
+   (that site's orders, its default first) · **Tags** (count when any) · **Filters** (count; hidden when the site has none) ·
+   **NSFW** switch (disabled with its reason on Pygmalion and DataCat) · **S · M · L** (the same card sizes as Characters, D-068).
+3. **Active tags and filters** as a row of chips only when there are any: "Fantasy ×", "− Furry ×", "Has Lorebook ×",
+   "Clear All". Click a chip = remove it.
+4. **Results:** the same portrait cards as Characters (D-068): picture, name, "by <creator>", one line of tagline; a quiet line of
+   figures (downloads · tokens). Marks in the picture's corner: **NSFW**, and **✓** when it is already in Characters.
+   Above the grid, quiet: "12,340 cards" (or "Page 2" when the site gives no total).
+5. **Load More** at the end (a button, not endless scrolling: these sites throttle bursts of requests). The page keeps its place.
+
+**Tags** (a panel under the button): its own search, the site's tags (suggested or from the results); click = **must have**
+(✓), the − at the row's end = **hide** (−); typing a tag the list lacks shows "Must Have “x”" / "Hide “x”".
+**Filters** (a panel): "Must have" (Lorebook, Alternate Greetings, Gallery, Expressions — only what the site supports),
+Min tokens / Max tokens, Ascending order (Chub, Pygmalion), Show Low Quality (JannyAI).
+Changing source keeps the search text, clears tags and filters (they differ by site).
+
+### The card sheet (on the right, like the Characters sheet, D-029)
+Click a card = the sheet opens beside the grid (the grid stays; ↑↓←→ move the selection, Esc closes).
+- **Top:** big picture, name, "by <creator>", figures, badges (**Lorebook**, **N Greetings**, **NSFW**), up to 12 tags + "+N".
+- **Main action:** **Add to Characters**. Under it, small: **Folder:** [From the Web ▾] — the default is a folder **From the Web**
+  (made the first time it is needed); the menu lists every Characters folder + "No Folder" + "New Folder…" (Daniel: "From the Web by
+  default, but able to choose which folder"). The last choice is remembered.
+  **Import Tags** switch beside it (Daniel: "choose whether to import the tags or not"); on by default, remembered.
+  While adding: "Adding…". After: the button becomes **Chat Now**, with "In your Characters · Open" under it.
+  Already added before: **Open in Characters** is the main action; **Add Again** (a copy) moves into ⋯.
+- **Secondary:** **Save as PNG** (a card file, nothing added) · **Open on ChubAI** (system browser) · ⋯ (Add Again).
+- **Text, read-only, plain text,** each folded at a few lines with "More": Creator's Notes (open first), Description,
+  First Message (‹ 1/N › to read the alternate greetings), Scenario, Personality, Example Dialogue, System Prompt,
+  Post-History Instructions. Empty ones are not shown. Links open in the system browser; pictures inside the text are not loaded.
+- Embedded lorebook: nothing to answer — it is added and linked as with any import (D-027), and the notice says so.
+
+### States
+- **Loading:** grey card shapes in the grid; "Loading…" in the sheet. A thumbnail that fails = the letter picture.
+- **Empty:** "Nothing on ChubAI matches “elf queen”." + **Clear Tags and Filters** when any are on.
+- **Site pausing us** (rate limit / Cloudflare / human check): a notice in place of the grid with the site's message ("ChubAI
+  asked this app to slow down. Try again in about 10 min."), **Open ChubAI** and **Import a Downloaded File…** (the normal Import).
+- **Site not answering:** "JannyAI did not answer." + **Try Again**.
+- **Details failed:** the sheet keeps the picture and the basics: "The details didn't load. You can still add it."
+- **Add failed:** the usual error notice with the reason; the card stays selected.
+- **DataCat, first time:** a small confirmation: "DataCat lists adult cards only." **Continue** · **Back** (remembered).
+- **Browser preview:** "The Card Browser works in the desktop app."
+- **Many results:** only cards on screen load their pictures; 500+ loaded cards stay smooth.
+
+### Remembered
+While the app is open: source, search, sort, tags, filters, results, selected card, scroll — coming back shows the same place.
+Between runs: last source, sort and NSFW per source, card size, folder, Import Tags.
+
+### Left out (for now)
+Selecting several cards and adding them together; "update available" for cards added earlier; PlotLight and CharacterTavern;
+Pygmalion login; personas from sites.
+
+### JanitorAI (T-013) — ⏸ parked (Daniel, 11/02: "leave JanitorAI aside for now"); kept for later
+- JanitorAI needs the user's own account and sits behind Cloudflare, so it works through a **JanitorAI window**: picking the
+  source the first time shows "JanitorAI needs you to sign in. **Sign In…**" → a window with janitorai.com opens; Daniel signs in
+  there himself (the app never sees the password) and closes it. Then it is searched like the other sites.
+  "Signed in as <name> · **Sign Out**" in the source menu.
+- Cards whose creator made the definition **public** are added like any other (with the public lorebooks they list).
+- Cards with a **hidden definition**: the sheet shows the public parts (picture, bio, greetings) and "The creator keeps this
+  card's definition hidden." with **Open on JanitorAI**; **Add to Characters** is disabled. Glaze's extraction of hidden
+  definitions is **not** part of this (see `docs/CARD-BROWSER.md` §7).
+
+### Daniel's answers (2026-11-02)
+1. A **Card Browser** place in the sidebar, beside Stories, Characters and Library.
+2. New cards go to a **From the Web** folder by default, with a choice of folder.
+3. A choice to **import the tags or not**.
+4. No HTML draft for now; CODEX builds it, Claude reviews.
+
+---
+
 ## Customize (look, tweaks, motion, advanced) — CLAUDE, 2026-11-01 · ✅ text and draft (page 2 of `docs/drafts/neutral-look/`) approved; in the app (D-075)
 
 **What it is for:** one place to change how the app looks — the look (profile), its tweaks, motion, and for the curious its colors and extra CSS. Everything applies at once (v1's Customize drawer, `classic-themes.js` `renderPanel`, on top of D-018's tokens/profiles/`data-region`).

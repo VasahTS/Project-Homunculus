@@ -2,6 +2,22 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## Four ui review bugfixes (2026-11-02) — CODEX
+
+Daniel requested these four ui fixes before committing, then explicitly authorized the local gpt commit. T-007 is preserved; no push is authorized or performed.
+Quick Connection is viewport-clamped and portaled, preserving Assistant width; Library remembers the last saved item without replacing new drafts; Settings restores arrow navigation/focus; summary help reveals on hover.
+Added e2e/ui-review-fixes.e2e.ts: original four cases failed before fixes; seven final regression cases cover both chat modes, resizing, all three editors, draft protection, tab wrap/focus and help by mouse/keyboard.
+Validation: typecheck; **441 unit passes (3 skips); 40 affected browser flows pass**, including the seven new cases. No native UI/real-provider/private-data checks.
+No dependency, lockfile, schema or existing native-command changes in this follow-up. Signed: **CODEX**.
+
+## T-007 Card Browser desktop transport (2026-11-02) — CODEX
+
+Fast-forwarded gpt to ui f7417e8 as Daniel requested; copied the three Card Browser planning documents from dev 4966f63, preserving CLAUDE authorship.
+Added card_site_request and cardSites.ts: public-only HTTPS, host/header rules, bounded redirects and sizes, image/card checks, native metadata and the browser fake. Existing web commands are unchanged.
+Checks: typecheck; **441 unit passes (3 skips), including 11 new transport tests; 20 native passes (11 new)**; diff check. No live site or native UI check.
+Native tests used identical source/dependencies in an isolated copy: only its temporary lock's root-package version was aligned to 0.2.0 (the repository lock still says 0.1.0 and was preserved).
+T-007 is complete; T-008 remains Ready. Daniel explicitly authorized committing this work locally on gpt on 2026-11-02 after the earlier approval rejection. No push. Signed: **CODEX**.
+
 ## Expanded 0.2.0 changelog (2026-11-01) — CODEX
 
 Daniel requested fuller English notes after reviewing the release summary. Compared v0.1.0..v0.2.0 commits, shipped source, decisions and reliability reports.

@@ -35,8 +35,8 @@ export function MasterDetail({ list, detail, collapsed = false, onExpand }: {
 function useAutoOpen(kind: string, ids: string[], selectedId: string | null, onSelect: (id: string) => void, open: boolean): void {
   const key = `h2.lastOpen.${kind}`;
   useEffect(() => {
-    if (open) return; // something is already open (a new item being made, a draft)
     if (selectedId && selectedId !== "new") { try { localStorage.setItem(key, selectedId); } catch { /* a convenience only */ } return; }
+    if (open) return; // keep an unsaved new item or draft open after remembering any saved selection
     if (selectedId === "new" || !ids.length) return;
     let last: string | null = null;
     try { last = localStorage.getItem(key); } catch { /* private window */ }

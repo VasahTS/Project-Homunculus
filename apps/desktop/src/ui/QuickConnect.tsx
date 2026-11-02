@@ -3,7 +3,8 @@
 // A link button in the message box opens a menu over it: saved connections on the left (a click uses one in this chat),
 // the models of that connection on the right (a click uses one and saves it into the connection). Models can be pinned
 // with a star; a typed ID that is not listed can be used too; Manage opens Settings → Connections.
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { ConnectionProfile, Session, SetupLayer } from "@homunculus/schemas";
 import { profileToConfig, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
@@ -93,7 +94,28 @@ export function QuickConnectMenu({ svc, c, listModels, target, onManage, trigger
   const [note, setNote] = useState("");
   const [pins, setPins] = useState<Pins>({});
   const search = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLSpanElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
   const loadSeq = useRef(0);
+
+  // CODEX: viewport positioning keeps both columns reachable despite usage text or a narrow chat pane.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const anchor = box.current?.querySelector<HTMLElement>("button[aria-expanded]")?.getBoundingClientRect();
+      const menu = panel.current;
+      if (!anchor || !menu) return;
+      const left = Math.max(16, Math.min(anchor.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16));
+      const top = Math.max(8, Math.min(anchor.top - menu.offsetHeight - 8, window.innerHeight - menu.offsetHeight - 8));
+      setPosition((before) => before.left === left && before.top === top ? before : { left, top });
+    };
+    const scroll = (e: Event) => { if (!panel.current?.contains(e.target as Node)) place(); };
+    place();
+    window.addEventListener("resize", place);
+    document.addEventListener("scroll", scroll, true);
+    return () => { window.removeEventListener("resize", place); document.removeEventListener("scroll", scroll, true); };
+  }, [open]);
 
   useEffect(() => { void svc.store.getAppSetting<Pins>(PINS).then((p) => setPins(p ?? {})); }, [svc]);
 
@@ -191,12 +213,14 @@ export function QuickConnectMenu({ svc, c, listModels, target, onManage, trigger
   };
 
   return (
-    <span className={`qc-wrap ${className}`.trim()}>
+    <span ref={box} className={`qc-wrap ${className}`.trim()}>
       {trigger(open, () => (open ? close() : openMenu()))}
-      {open && (
+      {open && createPortal(
         <>
           <div className="pop-scrim" onClick={close} />
-          <section className="qc-pop" aria-label="Quick Connection" data-testid="quick-connect-menu">
+          <section ref={panel} className={`qc-pop${box.current?.closest(".asst-under") ? " qc-assistant" : ""}`}
+            style={{ position: "fixed", ...position, right: "auto", bottom: "auto", transform: "none" }}
+            aria-label="Quick Connection" data-testid="quick-connect-menu">
             <header className="qc-head">
               <Icon name="link" size={15} /> <strong>Quick Connection</strong>
               <span className="grow" />
@@ -244,7 +268,7 @@ export function QuickConnectMenu({ svc, c, listModels, target, onManage, trigger
               <Button small onClick={() => { close(); onManage(); }}><Icon name="plug" size={14} /> Manage</Button>
             </footer>
           </section>
-        </>
+        </>, document.body,
       )}
     </span>
   );

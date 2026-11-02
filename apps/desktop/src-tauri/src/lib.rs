@@ -413,6 +413,161 @@ async fn web_get(url: String) -> Result<serde_json::Value, String> {
     }
     Err("Too many redirects (maximum 5).".into())
 }
+// ---- Card Browser transport. CODEX, 2026-11-02 (T-007); reuses T-005's public-only client.
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum CardSiteExpect { Json, Text, Image, Card }
+impl CardSiteExpect {
+    fn cap(self) -> usize {
+        (match self { Self::Json | Self::Text => 8, Self::Image => 15, Self::Card => 64 }) * 1024 * 1024
+    }
+    fn seconds(self) -> u64 { if matches!(self, Self::Card) { 60 } else { 30 } }
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CardSiteRequest {
+    url: String,
+    method: String,
+    #[serde(default)]
+    headers: BTreeMap<String, String>,
+    body: Option<String>,
+    expect: CardSiteExpect,
+}
+const CARD_SITE_HOSTS: &[&str] = &[
+    "api.chub.ai", "avatars.charhub.io", "*.charhub.io", "*.chub.ai", "jannyai.com", "api.jannyai.com",
+    "search.jannyai.com", "image.jannyai.com", "api.wyvern.chat", "*.wyvern.chat", "imagedelivery.net",
+    "*.imagedelivery.net", "server.pygmalion.chat", "pygmalion.chat", "*.pygmalion.chat", "datacat.run",
+    "media.datacat.run", "ella.janitorai.com",
+];
+fn check_card_site_url(url: &reqwest::Url, expect: CardSiteExpect) -> Result<(), String> {
+    check_web_url(url)?;
+    if url.scheme() != "https" || url.port_or_known_default() != Some(443) {
+        return Err("Card sites require HTTPS on port 443.".into());
+    }
+    let host = url.host_str().unwrap_or("").trim_end_matches('.').to_ascii_lowercase();
+    if matches!(expect, CardSiteExpect::Card) || CARD_SITE_HOSTS.iter().any(|allowed| {
+        allowed.strip_prefix("*.").map_or(host == *allowed, |suffix| host.ends_with(&format!(".{suffix}")))
+    }) { return Ok(()); }
+    Err("That host is not an allowed card site.".into())
+}
+fn card_site_headers(input: &BTreeMap<String, String>) -> Result<reqwest::header::HeaderMap, String> {
+    use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+    let mut headers = HeaderMap::new();
+    for (name, value) in input {
+        if !matches!(name.to_ascii_lowercase().as_str(), "accept" | "content-type" | "authorization" | "origin"
+            | "referer" | "cache-control" | "x-session-token" | "x-meilisearch-client") {
+            return Err(format!("Header {name} is not allowed for card sites."));
+        }
+        let name = HeaderName::from_bytes(name.as_bytes()).map_err(|_| "Invalid card-site header name.".to_string())?;
+        let value = HeaderValue::from_str(value).map_err(|_| "Invalid card-site header value.".to_string())?;
+        headers.insert(name, value);
+    }
+    Ok(headers)
+}
+fn card_site_method(method: &str) -> Result<reqwest::Method, String> {
+    match method { "GET" => Ok(reqwest::Method::GET), "POST" => Ok(reqwest::Method::POST),
+        _ => Err("Card sites support only GET and POST.".into()) }
+}
+fn card_site_redirect(from: &reqwest::Url, to: &reqwest::Url, expect: CardSiteExpect, status: u16, hop: u8,
+    method: &mut reqwest::Method, headers: &mut reqwest::header::HeaderMap, body: &mut Option<String>) -> Result<(), String> {
+    check_card_site_url(to, expect)?;
+    if hop >= 5 { return Err("Too many redirects (maximum 5).".into()); }
+    // Follow browser redirect semantics; never forward site credentials to another origin.
+    if from.origin() != to.origin() { headers.remove("authorization"); headers.remove("x-session-token"); }
+    if status == 303 || (matches!(status, 301 | 302) && *method == reqwest::Method::POST) {
+        *method = reqwest::Method::GET; *body = None; headers.remove("content-type");
+    }
+    Ok(())
+}
+async fn card_site_body(mut response: reqwest::Response, host: &str, cap: usize) -> Result<Vec<u8>, String> {
+    let too_large = || format!("Card-site response exceeds the {} MB limit.", cap / (1024 * 1024));
+    if response.content_length().is_some_and(|len| len > cap as u64) { return Err(too_large()); }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| web_error(host, e))? {
+        if chunk.len() > cap - bytes.len() { return Err(too_large()); }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
+}
+fn card_site_image_mime(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") { Some("image/png") }
+    else if bytes.starts_with(b"\xff\xd8\xff") { Some("image/jpeg") }
+    else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") { Some("image/gif") }
+    else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" { Some("image/webp") }
+    else { None }
+}
+fn card_site_is_card(bytes: &[u8]) -> bool {
+    if card_site_image_mime(bytes) != Some("image/png") { return false; }
+    let mut at = 8usize;
+    let mut found = false;
+    while at + 12 <= bytes.len() {
+        let len = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+        let Some(end) = at.checked_add(12).and_then(|n| n.checked_add(len)).filter(|n| *n <= bytes.len()) else { return false; };
+        let kind = &bytes[at + 4..at + 8];
+        if at == 8 && (kind != b"IHDR" || len != 13) { return false; }
+        let data = &bytes[at + 8..end - 4];
+        if kind == b"tEXt" {
+            found |= [b"chara\0".as_slice(), b"ccv3\0".as_slice()].iter()
+                .any(|key| data.strip_prefix(*key).is_some_and(|text| !text.is_empty()));
+        }
+        if kind == b"IEND" { return len == 0 && found; }
+        at = end;
+    }
+    false
+}
+async fn card_site_response(response: reqwest::Response, target: &reqwest::Url, expect: CardSiteExpect, now: u64) -> Result<serde_json::Value, String> {
+    use base64::Engine;
+    let status = response.status();
+    let headers = response.headers();
+    let content_type = headers.get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+    let retry = headers.get("retry-after").and_then(|v| v.to_str().ok()).and_then(|v| web_retry_after(v, now));
+    let mut out = serde_json::json!({ "status": status.as_u16(), "finalUrl": target, "contentType": content_type,
+        "cfMitigated": headers.contains_key("cf-mitigated") });
+    if let Some(seconds) = retry { out["retryAfterSecs"] = seconds.into(); }
+    let bytes = card_site_body(response, target.host_str().unwrap_or(""), expect.cap()).await?;
+    // Rate limits and Cloudflare pages must reach pauses.ts even when a picture/card was requested.
+    if !status.is_success() || matches!(expect, CardSiteExpect::Json | CardSiteExpect::Text) {
+        out["text"] = String::from_utf8_lossy(&bytes).into_owned().into();
+    } else {
+        let mime = card_site_image_mime(&bytes).ok_or("The card site did not return a PNG, JPEG, WebP or GIF image.")?;
+        if matches!(expect, CardSiteExpect::Card) && !card_site_is_card(&bytes) {
+            return Err("The card site did not return a PNG with a chara or ccv3 text chunk.".into());
+        }
+        out["base64"] = base64::engine::general_purpose::STANDARD.encode(&bytes).into();
+        out["mime"] = mime.into();
+    }
+    Ok(out)
+}
+#[tauri::command]
+async fn card_site_request(request: CardSiteRequest) -> Result<serde_json::Value, String> {
+    let mut target = reqwest::Url::parse(&request.url).map_err(|_| "Invalid card-site address.".to_string())?;
+    check_card_site_url(&target, request.expect)?;
+    let mut method = card_site_method(&request.method)?;
+    let mut headers = card_site_headers(&request.headers)?;
+    let mut body = request.body;
+    let timeout = std::time::Duration::from_secs(request.expect.seconds());
+    let started = std::time::Instant::now();
+    let client = web_client(request.expect.seconds())?;
+    for hop in 0..=5 {
+        let host = target.host_str().unwrap_or("");
+        let left = timeout.checked_sub(started.elapsed()).ok_or_else(|| format!("{host} did not answer in time."))?;
+        let mut call = client.request(method.clone(), target.clone()).headers(headers.clone()).timeout(left);
+        if let Some(text) = &body { call = call.body(text.clone()); }
+        let response = call.send().await.map_err(|e| web_error(host, e))?;
+        if matches!(response.status().as_u16(), 301 | 302 | 303 | 307 | 308) {
+            if let Some(location) = response.headers().get("location") {
+                let next = location.to_str().ok().and_then(|url| target.join(url).ok()).ok_or("Invalid card-site redirect.")?;
+                card_site_redirect(&target, &next, request.expect, response.status().as_u16(), hop, &mut method, &mut headers, &mut body)?;
+                target = next; continue;
+            }
+        }
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        return card_site_response(response, &target, request.expect, now).await;
+    }
+    Err("Too many redirects (maximum 5).".into())
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -459,7 +614,8 @@ pub fn run() {
             save_download,
             update_channel,
             web_search_page,
-            web_get
+            web_get,
+            card_site_request
         ])
         .run(tauri::generate_context!())
         .expect("error while running Homunculus");
@@ -545,5 +701,232 @@ mod web_tests {
             let address = case["address"].as_str().unwrap();
             assert_eq!(is_public_ip(address.parse().unwrap()), case["public"].as_bool().unwrap(), "{address}");
         }
+    }
+}
+
+// T-007: synthetic responses and a loopback HTTP fixture; no site requests or personal app state. CODEX, 2026-11-02.
+#[cfg(test)]
+mod card_site_tests {
+    use super::*;
+    use CardSiteExpect::{Card, Image, Json, Text};
+    fn url(input: &str) -> reqwest::Url { reqwest::Url::parse(input).unwrap() }
+    fn response(status: u16, bytes: Vec<u8>, headers: &[(&str, &str)]) -> reqwest::Response {
+        let mut out = tauri::http::Response::builder().status(status);
+        for (key, value) in headers { out = out.header(*key, *value); }
+        reqwest::Response::from(out.body(bytes).unwrap())
+    }
+    // Response::from(Vec) has an exact body length, ignoring a synthetic Content-Length header.
+    // A loopback fixture exercises unknown-length chunks and advertised limits like a real server.
+    async fn streamed_response(bytes: Vec<u8>, advertised: Option<usize>) -> reqwest::Response {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0]; if socket.read(&mut byte).unwrap() == 0 { break; } request.push(byte[0]);
+            }
+            if let Some(len) = advertised {
+                write!(socket, "HTTP/1.1 200 OK\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n").unwrap();
+            } else {
+                socket.write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n").unwrap();
+                for part in bytes.chunks(3) {
+                    write!(socket, "{:x}\r\n", part.len()).unwrap(); socket.write_all(part).unwrap(); socket.write_all(b"\r\n").unwrap();
+                }
+                socket.write_all(b"0\r\n\r\n").unwrap();
+            }
+        });
+        let response = reqwest::Client::builder().no_proxy().timeout(std::time::Duration::from_secs(5)).build().unwrap()
+            .get(format!("http://{address}/synthetic")).send().await.unwrap();
+        server.join().unwrap(); response
+    }
+    // The gate checks PNG framing and card keywords, not decoding pixels/JSON (the importer does that).
+    fn chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
+        let mut out = (data.len() as u32).to_be_bytes().to_vec(); out.extend(kind); out.extend(data); out.extend([0; 4]); out
+    }
+    fn png(text: Option<&[u8]>) -> Vec<u8> {
+        let mut out = b"\x89PNG\r\n\x1a\n".to_vec(); out.extend(chunk(b"IHDR", &[0; 13]));
+        out.extend(chunk(b"IDAT", &[1, 2, 3]));
+        if let Some(text) = text { out.extend(chunk(b"tEXt", text)); }
+        out.extend(chunk(b"IEND", &[])); out
+    }
+    #[test]
+    fn allowed_hosts_wildcards_and_trailing_dot_are_precise() {
+        for host in ["api.chub.ai", "avatars.charhub.io", "cdn.charhub.io", "a.b.charhub.io", "cdn.chub.ai",
+            "jannyai.com", "api.jannyai.com", "search.jannyai.com", "image.jannyai.com", "api.wyvern.chat",
+            "cdn.wyvern.chat", "imagedelivery.net", "cdn.imagedelivery.net", "server.pygmalion.chat",
+            "pygmalion.chat", "cdn.pygmalion.chat", "datacat.run", "media.datacat.run", "ella.janitorai.com",
+            "API.CHUB.AI", "api.chub.ai."] {
+            for expect in [Json, Text, Image, Card] {
+                assert!(check_card_site_url(&url(&format!("https://{host}/")), expect).is_ok(), "{host}");
+            }
+        }
+        for host in ["chub.ai.evil.com", "evilchub.ai", "chub.ai", "charhub.io", "evilcharhub.io", "evilwyvern.chat",
+            "evilpygmalion.chat", "evilimagedelivery.net", "evil.datacat.run", "api.chub.ai.evil.com.", "example.org"] {
+            for expect in [Json, Text, Image] {
+                assert!(check_card_site_url(&url(&format!("https://{host}/")), expect).is_err(), "{host}");
+            }
+        }
+    }
+    #[test]
+    fn card_exception_still_refuses_private_addresses_credentials_http_and_ports() {
+        for expect in [Json, Text, Image, Card] {
+            for address in ["http://api.chub.ai/", "https://api.chub.ai:80/", "https://api.chub.ai:444/",
+                "https://127.0.0.1/", "https://[::1]/", "https://[::ffff:127.0.0.1]/", "https://10.2.3.4/",
+                "https://169.254.1.1/", "https://2130706433/", "https://0x7f000001/", "https://localhost/",
+                "https://a.localhost./", "https://user:pass@api.chub.ai/", "ftp://api.chub.ai/", "file:///tmp/card.png"] {
+                assert!(check_card_site_url(&url(address), expect).is_err(), "{address}");
+            }
+            assert!(check_card_site_url(&url("https://api.chub.ai:443/card"), expect).is_ok());
+        }
+        assert!(check_card_site_url(&url("https://8.8.8.8/card.png"), Card).is_ok());
+        assert!(check_card_site_url(&url("https://public-files.example/card.png"), Card).is_ok());
+        assert!(check_card_site_url(&url("https://public-files.example/card.png"), Image).is_err());
+    }
+    #[test]
+    fn only_documented_methods_and_headers_are_accepted() {
+        for method in ["GET", "POST"] { assert!(card_site_method(method).is_ok()); }
+        for method in ["get", "PUT", "DELETE", "CONNECT", "HEAD", "", "POST\r\n"] { assert!(card_site_method(method).is_err()); }
+        let allowed = BTreeMap::from_iter(["Accept", "Content-Type", "Authorization", "Origin", "Referer", "Cache-Control",
+            "X-Session-Token", "x-meilisearch-client"].map(|h| (h.to_string(), "synthetic".to_string())));
+        assert_eq!(card_site_headers(&allowed).unwrap().len(), 8);
+        assert!(card_site_headers(&BTreeMap::from([("aCcEpT".into(), "text/plain".into())])).is_ok());
+        for name in ["Cookie", "Host", "User-Agent", "X-Arbitrary", "Content-Length", "Proxy-Authorization"] {
+            assert!(card_site_headers(&BTreeMap::from([(name.into(), "synthetic".into())])).is_err());
+        }
+        assert!(card_site_headers(&BTreeMap::from([("Accept".into(), "text/plain\r\nHost: evil.test".into())])).is_err());
+    }
+    #[test]
+    fn request_deserialization_has_bounded_expectation_and_optional_fields() {
+        let input = serde_json::json!({"url":"https://api.chub.ai/", "method":"GET", "expect":"json"});
+        let request: CardSiteRequest = serde_json::from_value(input.clone()).unwrap();
+        assert!(request.headers.is_empty()); assert!(request.body.is_none());
+        for invalid in [serde_json::json!({"expect":"binary"}), serde_json::json!({"extra":"unknown"})] {
+            let mut changed = input.clone(); changed.as_object_mut().unwrap().extend(invalid.as_object().unwrap().clone());
+            assert!(serde_json::from_value::<CardSiteRequest>(changed).is_err());
+        }
+    }
+    #[test]
+    fn redirects_recheck_each_target_limit_hops_and_drop_cross_origin_secrets() {
+        let from = url("https://api.chub.ai/start");
+        let mut method = reqwest::Method::POST;
+        let mut body = Some("synthetic body".into());
+        let mut headers = card_site_headers(&BTreeMap::from([("Authorization".into(), "Bearer synthetic".into()),
+            ("X-Session-Token".into(), "synthetic".into()), ("Content-Type".into(), "application/json".into())])).unwrap();
+        card_site_redirect(&from, &url("https://api.chub.ai/next"), Json, 307, 0, &mut method, &mut headers, &mut body).unwrap();
+        assert_eq!(method, reqwest::Method::POST); assert!(body.is_some()); assert!(headers.contains_key("authorization"));
+        card_site_redirect(&from, &url("https://media.datacat.run/end"), Json, 302, 1, &mut method, &mut headers, &mut body).unwrap();
+        assert_eq!(method, reqwest::Method::GET); assert!(body.is_none());
+        for h in ["authorization", "x-session-token", "content-type"] { assert!(!headers.contains_key(h)); }
+        for next in ["https://example.org/", "http://api.chub.ai/", "https://127.0.0.1/", "https://api.chub.ai:444/"] {
+            assert!(card_site_redirect(&from, &url(next), Json, 302, 1, &mut method, &mut headers, &mut body).is_err());
+        }
+        assert!(card_site_redirect(&from, &url("https://files.example/card"), Card, 307, 4, &mut method, &mut headers, &mut body).is_ok());
+        assert!(card_site_redirect(&from, &from, Card, 307, 5, &mut method, &mut headers, &mut body).is_err());
+        for status in [301, 302, 303, 307, 308] {
+            let mut method = reqwest::Method::POST; let mut body = Some("body".into());
+            card_site_redirect(&from, &from, Json, status, 0, &mut method, &mut headers, &mut body).unwrap();
+            assert_eq!(method == reqwest::Method::POST, matches!(status, 307 | 308));
+            assert_eq!(body.is_some(), matches!(status, 307 | 308));
+        }
+    }
+    #[test]
+    fn images_are_identified_by_bytes_not_the_claimed_content_type() {
+        for (bytes, mime) in [(b"\x89PNG\r\n\x1a\n".as_slice(), "image/png"), (b"\xff\xd8\xffrest", "image/jpeg"),
+            (b"GIF87arest", "image/gif"), (b"GIF89arest", "image/gif"), (b"RIFF\0\0\0\0WEBPrest", "image/webp")] {
+            assert_eq!(card_site_image_mime(bytes), Some(mime));
+        }
+        for bytes in [b"<html>challenge</html>".as_slice(), b"", b"\x89PNG", b"RIFF\0\0\0\0WAVE", b"GIF90a"] {
+            assert_eq!(card_site_image_mime(bytes), None);
+        }
+    }
+    #[test]
+    fn card_metadata_requires_exact_text_keyword_and_complete_png_chunks() {
+        for key in [b"chara\0e30=".as_slice(), b"ccv3\0e30="] { assert!(card_site_is_card(&png(Some(key)))); }
+        for text in [None, Some(b"comment\0chara".as_slice()), Some(b"charade\0e30="), Some(b"chara\0"), Some(b"ccv3") ] {
+            assert!(!card_site_is_card(&png(text)));
+        }
+        let valid = png(Some(b"chara\0e30="));
+        for end in 0..valid.len() { assert!(!card_site_is_card(&valid[..end]), "truncated at {end}"); }
+        let mut bad_length = valid.clone(); bad_length[8..12].copy_from_slice(&u32::MAX.to_be_bytes());
+        assert!(!card_site_is_card(&bad_length));
+        let mut bad_header = valid.clone(); bad_header[12..16].copy_from_slice(b"tEXt");
+        assert!(!card_site_is_card(&bad_header));
+        let mut embedded = png(None); embedded.extend(chunk(b"tEXt", b"chara\0e30="));
+        assert!(!card_site_is_card(&embedded));
+    }
+    #[test]
+    fn caps_and_total_request_timeouts_are_exact() {
+        for (expect, mb, seconds) in [(Json, 8, 30), (Text, 8, 30), (Image, 15, 30), (Card, 64, 60)] {
+            assert_eq!(expect.cap(), mb * 1024 * 1024); assert_eq!(expect.seconds(), seconds);
+        }
+        tauri::async_runtime::block_on(async {
+            for (len, succeeds) in [(7, true), (8, true), (9, false)] {
+                let result = card_site_body(response(200, vec![b'x'; len], &[]), "example.org", 8).await;
+                assert_eq!(result.is_ok(), succeeds);
+                if let Ok(bytes) = result { assert_eq!(bytes.len(), len); }
+            }
+            for (len, succeeds) in [(7, true), (8, true), (9, false)] {
+                let input = streamed_response(vec![b'x'; len], None).await;
+                assert!(input.content_length().is_none());
+                assert_eq!(card_site_body(input, "loopback fixture", 8).await.is_ok(), succeeds);
+            }
+            assert!(card_site_body(streamed_response(vec![], Some(9)).await, "loopback fixture", 8).await.is_err());
+            assert!(card_site_response(response(200, vec![b'x'; Json.cap() + 1], &[]), &url("https://api.chub.ai/"), Json, 0).await.is_err());
+        });
+    }
+    #[test]
+    fn non_success_bodies_keep_rate_limit_and_cloudflare_metadata_for_every_expectation() {
+        tauri::async_runtime::block_on(async {
+            for expect in [Json, Text, Image, Card] {
+                for status in [202, 301, 403, 404, 429, 503] {
+                    let input = response(status, b"Cloudflare challenge".to_vec(), &[("retry-after", "Thu, 01 Jan 1970 00:00:30 GMT"),
+                        ("cf-mitigated", "challenge"), ("content-type", "text/html")]);
+                    // 202 is a successful HTTP status: binary expectations still validate their bytes.
+                    let out = card_site_response(input, &url("https://api.chub.ai/final"), expect, 0).await;
+                    if status == 202 && matches!(expect, Image | Card) { assert!(out.is_err()); continue; }
+                    let out = out.unwrap();
+                    assert_eq!(out["status"], status); assert_eq!(out["retryAfterSecs"], 30); assert_eq!(out["cfMitigated"], true);
+                    assert_eq!(out["text"], "Cloudflare challenge"); assert_eq!(out["finalUrl"], "https://api.chub.ai/final");
+                    assert_eq!(out["contentType"], "text/html"); assert!(out.get("base64").is_none());
+                }
+            }
+        });
+    }
+    #[test]
+    fn successful_binary_text_and_false_image_responses_have_the_right_shape() {
+        tauri::async_runtime::block_on(async {
+            let address = url("https://public-files.example/card.png"); let card = png(Some(b"ccv3\0e30="));
+            let out = card_site_response(response(200, card.clone(), &[("content-type", "application/octet-stream")]), &address, Card, 0).await.unwrap();
+            use base64::Engine;
+            assert_eq!(out["mime"], "image/png"); assert_eq!(out["cfMitigated"], false); assert!(out.get("retryAfterSecs").is_none());
+            assert_eq!(base64::engine::general_purpose::STANDARD.decode(out["base64"].as_str().unwrap()).unwrap(), card);
+            for expect in [Image, Card] {
+                assert!(card_site_response(response(200, b"<html>not an image</html>".to_vec(), &[("content-type", "image/png")]), &address, expect, 0).await.is_err());
+            }
+            assert!(card_site_response(response(200, png(None), &[]), &address, Image, 0).await.is_ok());
+            assert!(card_site_response(response(200, png(None), &[]), &address, Card, 0).await.is_err());
+            for (bytes, mime) in [(b"\xff\xd8\xffrest".as_slice(), "image/jpeg"), (b"GIF89arest", "image/gif"), (b"RIFF\0\0\0\0WEBP", "image/webp")] {
+                let out = card_site_response(response(200, bytes.to_vec(), &[]), &address, Image, 0).await.unwrap();
+                assert_eq!(out["mime"], mime);
+                assert!(card_site_response(response(200, bytes.to_vec(), &[]), &address, Card, 0).await.is_err());
+            }
+            let out = card_site_response(response(200, vec![0xff, b'a'], &[]), &address, Text, 0).await.unwrap();
+            assert_eq!(out["text"], "�a"); assert!(out.get("base64").is_none());
+            let out = card_site_response(response(429, vec![], &[("retry-after", "17")]), &address, Json, 0).await.unwrap();
+            assert_eq!(out["retryAfterSecs"], 17);
+        });
+    }
+    #[test]
+    fn native_command_rejects_bad_requests_before_making_any_network_call() {
+        tauri::async_runtime::block_on(async {
+            for (address, method, name) in [("https://example.org/", "GET", "Accept"), ("https://127.0.0.1/", "GET", "Accept"),
+                ("https://api.chub.ai/", "DELETE", "Accept"), ("https://api.chub.ai/", "GET", "Cookie"), ("not a URL", "GET", "Accept")] {
+                let input = CardSiteRequest { url: address.into(), method: method.into(), headers: BTreeMap::from([(name.into(), "synthetic".into())]), body: None, expect: Json };
+                assert!(card_site_request(input).await.is_err());
+            }
+        });
     }
 }

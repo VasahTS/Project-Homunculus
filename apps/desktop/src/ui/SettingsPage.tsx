@@ -69,11 +69,19 @@ function SettingsTabs({ tab, onTab }: { tab: SettingsTab; onTab: (t: SettingsTab
   const line = useRef<HTMLSpanElement>(null);
   useSlidingPill(nav, line, '[aria-current="page"]', tab);
   return (
-    <nav ref={nav} className="library-tabs gliding" aria-label="Settings sections" role="tablist">
+    <nav ref={nav} className="library-tabs gliding" aria-label="Settings sections" role="tablist"
+      onKeyDown={(e) => {
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        e.preventDefault();
+        const index = SECTIONS.findIndex((x) => x.value === tab);
+        const next = SECTIONS[(index + (e.key === "ArrowRight" ? 1 : -1) + SECTIONS.length) % SECTIONS.length]!;
+        onTab(next.value);
+        requestAnimationFrame(() => nav.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
+      }}>
       <span className="slide-pill tab-line" ref={line} aria-hidden />
       {SECTIONS.map((x) => (
         <button key={x.value} type="button" role="tab" aria-selected={tab === x.value} className="library-tab" aria-current={tab === x.value ? "page" : undefined}
-          data-testid={`settings-${x.value}`} onClick={() => onTab(x.value)}><span>{x.label}</span></button>
+          data-testid={`settings-${x.value}`} tabIndex={tab === x.value ? 0 : -1} onClick={() => onTab(x.value)}><span>{x.label}</span></button>
       ))}
     </nav>
   );

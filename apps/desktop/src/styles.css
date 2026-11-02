@@ -3023,14 +3023,14 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-hello { justify-items: center; text-align: center; gap: 12px; }
 .asst-hello .asst-knows { margin: 0 0 12px; max-width: 520px; color: var(--label-2); font-size: 13px; }
 .asst-hello .asst-qs { width: 100%; text-align: left; }
-.asst-under .qc-pop { width: min(640px, calc(100vw - 48px)); }
+.asst-under .qc-pop, .qc-pop.qc-assistant { width: min(640px, calc(100vw - 48px)); }
 
 /* D-078 (UX review): the chat's ⋯ menu; "?" helps stay out of sight until their row is pointed at or focused */
 .chat-menu { position: relative; display: inline-flex; }
 .chat-menu-pop { right: 0; top: calc(100% + 4px); }
 .help-btn { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
 :is(.label-row, .row, .group-head, .side-head, .toolbar, label, .det-head, .q-k, .v-label, .v-pill, .v-line, .field, .ce-k, .cust-field):hover .help-btn,
-.help-btn:focus-visible, .help-btn[aria-expanded="true"] { opacity: 1; }
+summary:hover .help-btn, .help:hover .help-btn, .help-btn:focus-visible, .help-btn[aria-expanded="true"] { opacity: 1; }
 
 /* D-078: Settings in the Library's frame; its sections scroll inside */
 .settings-content { flex-direction: column; overflow: hidden; }
