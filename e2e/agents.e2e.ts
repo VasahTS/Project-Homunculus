@@ -78,7 +78,7 @@ test("a rewrite leaves a quiet mark beside the name, with Undo", async ({ page }
   await expect(mark).toBeVisible({ timeout: 15_000 });
   await expect(reply.locator(".text")).toContainText("Offline test AI");
   await mark.click();
-  await page.getByTestId("diff-sheet").getByRole("button", { name: "Undo all" }).click();
+  await page.getByTestId("diff-sheet").getByRole("button", { name: "Undo All" }).click();
   await expect(reply.locator(".text")).toContainText("You said: Hello again.");
   await expect(reply.getByTestId("mark-rewrite")).toHaveCount(0);
 });
@@ -94,9 +94,9 @@ test("a manual agent runs from the ✦ panel, its note stays there, and Details 
   await menu.getByRole("button", { name: /Actor Interview/ }).first().click();
   await expect(menu).toContainText("Offline test AI");
   await expect(page.getByTestId("message").last().getByTestId("agent-notes")).toHaveCount(0);
-  await menu.getByRole("button", { name: "Details · why it did this" }).click();
+  await menu.getByRole("button", { name: "Details · Why It Did This" }).click();
   const sheet = page.getByTestId("run-sheet");
-  await sheet.getByRole("tab", { name: "What it read" }).click();
+  await sheet.getByRole("tab", { name: "What It Read" }).click();
   await expect(sheet).toContainText("Step outside the story");
   await sheet.getByRole("tab", { name: "Compare" }).click();
   await sheet.getByRole("button", { name: "Compare" }).click();
@@ -123,7 +123,7 @@ test("a story switches an agent on for its chats", async ({ page }) => {
   await create.getByLabel("Story name").fill("Agents Story");
   await create.getByRole("button", { name: /Narrated adventure/ }).click();
   await create.getByLabel("An empty story").check();
-  await create.getByTestId("setup-agents").getByRole("button", { name: "Choose agents…" }).click();
+  await create.getByTestId("setup-agents").getByRole("button", { name: "Choose Agents…" }).click();
   await page.getByTestId("setup-agents-sheet").getByLabel("Don't Write for User").check();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("setup-agents-sheet")).toBeHidden();
@@ -143,7 +143,7 @@ test("a rewrite opens a word-by-word comparison; putting one change back saves t
   const sheet = page.getByTestId("diff-sheet");
   await expect(sheet.locator(".df-del").first()).toBeVisible();
   await expect(sheet.locator(".df-ins").first()).toContainText("Offline test AI");
-  await sheet.getByRole("tab", { name: "Side by side" }).click();
+  await sheet.getByRole("tab", { name: "Side by Side" }).click();
   await expect(sheet.getByRole("heading", { name: "Original" })).toBeVisible();
   await sheet.getByRole("tab", { name: "Changes" }).click();
   await sheet.getByRole("button", { name: "Put the original words back" }).first().click();

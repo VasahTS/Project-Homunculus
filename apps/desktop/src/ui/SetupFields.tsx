@@ -171,7 +171,7 @@ function AgentsSummary({ agents, chat, layer, above, onChange }: { agents: Agent
           <span>{on.length === 0 ? "None on" : `${on.length} on`}</span>
           <small>{on.length ? on.map((a) => a.name).join(" · ") : `${agents.length} in your Library`}{changedHere ? ` · ${changedHere} changed in this chat` : ""}</small>
         </span>
-        <span className="setup-v"><Button small onClick={() => setOpen(true)}>Choose agents…</Button></span>
+        <span className="setup-v"><Button small onClick={() => setOpen(true)}>Choose Agents…</Button></span>
       </div>
       {open && (
         <Modal title={chat ? "Agents in this chat" : "Agents in this story"} onClose={() => { setOpen(false); setQ(""); }} testId="setup-agents-sheet" className="modal-small agents-pick">
@@ -182,7 +182,7 @@ function AgentsSummary({ agents, chat, layer, above, onChange }: { agents: Agent
           </div>
           <span className="row-line">
             <span className="hint grow">{chat ? "Changes here only affect this chat." : "Every new chat of this story starts with these."}</span>
-            {on.length > 0 && <Button small variant="plain" onClick={() => onChange(agents.reduce((l, a) => layerWithTracker(l, a.id, false, inherited(a.id)), layer))}>Turn all off</Button>}
+            {on.length > 0 && <Button small variant="plain" onClick={() => onChange(agents.reduce((l, a) => layerWithTracker(l, a.id, false, inherited(a.id)), layer))}>Turn All Off</Button>}
           </span>
         </Modal>
       )}
@@ -262,7 +262,7 @@ function ChangedChip({ onUndo }: { onUndo: () => void }) {
   return (
     <span className="changed-wrap">
       <span className="changed-chip">changed in this chat</span>
-      <button type="button" className="link" onClick={onUndo}>Use the story's</button>
+      <button type="button" className="link" onClick={onUndo}>Use the Story's</button>
     </span>
   );
 }

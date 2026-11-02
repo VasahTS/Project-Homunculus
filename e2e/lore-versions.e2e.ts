@@ -34,7 +34,7 @@ test("a story edits its own version of a lorebook; the original stays; changes c
   await expect(editor.getByTestId("lore-entry")).toHaveCount(1);
 
   await bar.getByLabel("Lorebook version").selectOption({ index: 1 });
-  await bar.getByRole("button", { name: "Apply to the original…" }).click();
+  await bar.getByRole("button", { name: "Apply to the Original…" }).click();
   await page.getByTestId("lore-apply").getByRole("button", { name: "Apply 1" }).click();
   await expect(bar).toContainText("Same as the original");
   await bar.getByLabel("Lorebook version").selectOption({ label: "Original (the Library's book)" });

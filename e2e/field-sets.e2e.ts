@@ -83,7 +83,7 @@ test("Export saves the whole set, the AI guide downloads, invalid files append n
   expect(data.sets[0].id).toBeUndefined(); expect(data.sets[0].trackerId).toBeUndefined();
 
   const guide = page.waitForEvent("download");
-  await files(page).getByRole("button", { name: "AI guide", exact: true }).click();
+  await files(page).getByRole("button", { name: "AI Guide", exact: true }).click();
   const md = await readFile((await (await guide).path())!, "utf8");
   expect(md).toContain("homunculus-field-sets");
 

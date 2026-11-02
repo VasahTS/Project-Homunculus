@@ -88,6 +88,6 @@ test("a story's note reaches its chats; a chat can change it and go back to the 
   await chatNote.getByLabel("Author's Note").fill("Only this chat: the road is safe.");
   await chatNote.getByLabel("Author's Note").blur();
   await expect(chatNote).toContainText("changed in this chat");
-  await chatNote.getByRole("button", { name: "Use the story's" }).click();
+  await chatNote.getByRole("button", { name: "Use the Story's" }).click();
   await expect(chatNote.getByLabel("Author's Note")).toHaveValue("The road is cursed.");
 });

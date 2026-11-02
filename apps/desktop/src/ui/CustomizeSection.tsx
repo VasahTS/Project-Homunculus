@@ -160,7 +160,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
         </Row>
         <Row label="Story font" help="The face of messages and story text.">
           <Segmented small label="Story font" value={tweaks.storyFont ?? "prose"} onChange={(storyFont) => void setTweaks(look.id, { storyFont })}
-            options={[{ value: "prose", label: "Literata" }, { value: "ui", label: "Interface font" }]} />
+            options={[{ value: "prose", label: "Literata" }, { value: "ui", label: "Interface Font" }]} />
         </Row>
         <Row label="Story text size">
           <span className="size-row">
@@ -191,7 +191,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
 
       <Group title="Advanced">
         <details className="cz-adv" data-testid="edit-colors">
-          <summary>Edit colors</summary>
+          <summary>Edit Colors</summary>
           {builtin && <p className="hint">{look.name} is built in and stays as it is: your first change makes a copy, “{look.name} (edited)”, and switches to it.</p>}
           {!builtin && (
             <label className="token-row">

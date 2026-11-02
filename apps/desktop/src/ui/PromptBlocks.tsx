@@ -101,7 +101,7 @@ export function PromptBlocks({ preset, layer, above, level, onChange, onSavePres
           ? <><span>Edits change <b>{preset.name}</b> wherever it is used.</span>
               <button type="button" className="link quiet" disabled={busy} onClick={() => switchScope("local")}>Only {here}…</button></>
           : <><span>Edits apply to <b>{here} only</b>.</span>
-              <button type="button" className="link quiet" disabled={busy} onClick={() => switchScope("preset")}>Edit the shared preset</button></>}
+              <button type="button" className="link quiet" disabled={busy} onClick={() => switchScope("preset")}>Edit the Shared Preset</button></>}
       </div>
       {changed && <div className="row-line"><span className="hint">Some blocks are changed in {here}.</span>
         <button type="button" className="link" disabled={busy} onClick={() => { pending.current = null; setEditing(null); void run(() => saveLayer((l) => withoutPresetOverride(l, preset.id)), "Inherited blocks restored."); }}>
@@ -143,7 +143,7 @@ export function PromptBlocks({ preset, layer, above, level, onChange, onSavePres
                 <div className="row-line inline-prompt-foot">
                   <span className="hint" role="status">{status || "Saves as you type."}</span>
                   {opened && (text !== opened.content || keepText !== opened.noOverride) &&
-                    <button type="button" className="link quiet" disabled={busy} onClick={() => undoChanges(b.id)}>Undo changes</button>}
+                    <button type="button" className="link quiet" disabled={busy} onClick={() => undoChanges(b.id)}>Undo Changes</button>}
                 </div>
               </div>)}
           </div>

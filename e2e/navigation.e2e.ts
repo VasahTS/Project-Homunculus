@@ -35,7 +35,7 @@ test("Stories is a peer of Characters and collection filters use actual chat act
   await page.goto("/");
   await openLibrary(page, "Characters");
   await expect(page.getByTestId("place-list").getByRole("button")).toHaveText([/Stories/, /Characters/, /Library/]);
-  await page.getByRole("button", { name: "Recently played", exact: true }).click();
+  await page.getByRole("button", { name: "Recently Played", exact: true }).click();
   await expect(page.getByTestId("character-list").getByRole("button", { name: "Lyra", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "All characters", exact: true }).click();
   await page.screenshot({ path: info.outputPath("characters.png") });
@@ -43,7 +43,7 @@ test("Stories is a peer of Characters and collection filters use actual chat act
   await page.getByTestId("new-story").getByTestId("create-story").click();
   await openLibrary(page, "Stories");
   await expect(page.getByTestId("vault-stories").getByRole("button", { name: "Lyra", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Recently played", exact: true }).click();
+  await page.getByRole("button", { name: "Recently Played", exact: true }).click();
   await expect(page.getByTestId("vault-stories").getByRole("button")).toHaveCount(0);
   await page.getByRole("button", { name: "All stories", exact: true }).click();
   await page.getByTestId("vault-stories").getByRole("button", { name: "Lyra", exact: true }).click();

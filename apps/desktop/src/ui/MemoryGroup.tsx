@@ -96,7 +96,7 @@ function ChapterRow({ n, c, onSave, onRemove }: { n: number; c: Chapter; onSave:
           <textarea rows={6} aria-label={`Chapter ${n} summary`} value={text.value} onChange={(e) => text.change(e.target.value)}
             onBlur={() => { if (text.dirty()) onSave({ summary: text.value, edited: true }); }} />
           <span className="row-line"><span className="hint">Edits save when you click away. The app never rewrites a chapter you edited.</span>
-            <span className="spacer" /><button type="button" className="link quiet danger-hover" title="Its messages go back to the AI word for word (or into the next chapter)." onClick={onRemove}>Remove chapter</button></span>
+            <span className="spacer" /><button type="button" className="link quiet danger-hover" title="Its messages go back to the AI word for word (or into the next chapter)." onClick={onRemove}>Remove Chapter</button></span>
         </div>}
       </div>
     </Row>

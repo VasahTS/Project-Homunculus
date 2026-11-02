@@ -162,7 +162,7 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
             {r?.direction && <p className="hint">Last run's direction: “{r.direction}”</p>}
             {!r && <p className="hint">Nothing on the latest reply yet.</p>}
             <span className="agp-links">
-              {r && <button type="button" className="link" onClick={() => setDetails(i)}>Details · why it did this</button>}
+              {r && <button type="button" className="link" onClick={() => setDetails(i)}>Details · Why It Did This</button>}
               {n && <button type="button" className="link quiet" onClick={() => void navigator.clipboard?.writeText(n.content).catch(() => {})}>Copy</button>}
             </span>
           </div>
@@ -196,7 +196,7 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
               {(showOff || needle) && off.map(row)}
             </>}
           </div>
-          <div className="agp-foot"><button type="button" className="link quiet" onClick={() => { m.setOpen(false); onOpen(null); }}>Manage agents</button></div>
+          <div className="agp-foot"><button type="button" className="link quiet" onClick={() => { m.setOpen(false); onOpen(null); }}>Manage Agents</button></div>
           {error && <p className="error-text agp-error" role="alert">{error}</p>}
         </div>
       )}
@@ -221,7 +221,7 @@ export function RunSheet({ svc, item, run, session, messageId, connection, onClo
     <Modal title={`${item.name} · why it did this`} onClose={onClose} className="modal-small modal-run" testId="run-sheet"
       head={<span className="hint">{meta}</span>}>
       <Segmented small tabs label="Run details" value={tab} onChange={setTab} options={[
-        { value: "reasoning", label: "Reasoning" }, { value: "read", label: "What it read" }, { value: "raw", label: "Raw answer" },
+        { value: "reasoning", label: "Reasoning" }, { value: "read", label: "What It Read" }, { value: "raw", label: "Raw Answer" },
         { value: "result", label: "Result" }, { value: "compare", label: "Compare" }]} />
       {!run && tab !== "compare" && <p className="hint">It has not run on this reply.</p>}
       {run && tab === "reasoning" && (run.reasoning

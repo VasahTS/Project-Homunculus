@@ -28,7 +28,7 @@ async function twoBranches(page: Page) {
   await sendMessage(page, "A1");
   await sendMessage(page, "A2");
   await expect(msgs(page)).toHaveCount(5);
-  await msgs(page).nth(2).getByRole("button", { name: "Branch from here" }).click();
+  await msgs(page).nth(2).getByRole("button", { name: "Branch from Here" }).click();
   // at once: on the new branch, ending at the message it was made from; no form, no banner
   await expect(page.getByTestId("branch-button")).toContainText("Branch 2");
   await expect(msgs(page)).toHaveCount(3);
@@ -62,7 +62,7 @@ test("Branch from here puts you on the new branch at once, and the marker shows 
 test("Branch from here on the last message: a new branch right away; what you do next stays in it", async ({ page }) => {
   await page.goto("/");
   await sendMessage(page, "Status");
-  await msgs(page).last().getByRole("button", { name: "Branch from here" }).click();
+  await msgs(page).last().getByRole("button", { name: "Branch from Here" }).click();
   await expect(page.getByTestId("branch-button")).toContainText("Branch 2");
   await expect(msgs(page)).toHaveCount(3);
   // a new version here is only this branch's
@@ -87,7 +87,7 @@ test("Branch from here on the last message: a new branch right away; what you do
 test("a branch inside a branch, and from your own message (then Get a Reply)", async ({ page }) => {
   await twoBranches(page);
   // inside Dark path, from B1 (your message)
-  await msgs(page).nth(3).getByRole("button", { name: "Branch from here" }).click();
+  await msgs(page).nth(3).getByRole("button", { name: "Branch from Here" }).click();
   await expect(page.getByTestId("branch-button")).toContainText("Branch 2"); // the next free name ("Dark path" was Branch 2)
   await expect(msgs(page)).toHaveCount(4);
   await msgs(page).last().getByRole("button", { name: "Get a Reply" }).click();

@@ -36,7 +36,7 @@ export function NarratorPromptGroup({ layer, above, onChange, level, disclosure 
       <Row label="Sent as"><select aria-label="Narrator role" value={value.role} onChange={(e) => set({ role: e.target.value as ResolvedNarratorPrompt["role"] })}><option value="system">System</option><option value="user">User</option><option value="assistant">AI</option></select></Row>
       <Row label="Order at the same depth"><NumberInput label="Narrator injection order" value={value.order} onCommit={(n) => set({ order: n })} /></Row>
     </>}
-    {Object.keys(own).length > 0 && <Row wide><span className="row-line wrap"><span className="hint">changed in this {level}</span><button className="link" type="button" onClick={() => { const out = { ...layer }; delete out.narratorPrompt; void save(out); }}>Use inherited placement</button></span></Row>}
+    {Object.keys(own).length > 0 && <Row wide><span className="row-line wrap"><span className="hint">changed in this {level}</span><button className="link" type="button" onClick={() => { const out = { ...layer }; delete out.narratorPrompt; void save(out); }}>Use Inherited Placement</button></span></Row>}
     {error && <Row wide><p role="alert" className="error-text">{error}</p></Row>}
   </>;
   if (disclosure) {

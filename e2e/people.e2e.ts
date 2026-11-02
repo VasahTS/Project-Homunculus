@@ -34,7 +34,7 @@ test("a character version is edited apart from Main, picked per session, and use
   await send(page, "Hi");
   await page.getByRole("button", { name: "Details" }).last().click();
   await expect(page.getByTestId("reply-cast")).toHaveText("Lyra (Modern)");
-  await page.getByRole("button", { name: "Open the full prompt" }).click();
+  await page.getByRole("button", { name: "Open the Full Prompt" }).click();
   await expect(page.getByTestId("reply-prompt")).toContainText("A barista in a rainy city.");
 });
 

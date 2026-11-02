@@ -136,7 +136,7 @@ test("the receipt opens the Reply tab: what was sent, settings used, what change
   await expect(pane).toContainText("Chat history");
   await expect(pane).toContainText("Offline test AI");
   await expect(page.getByTestId("reply-changes")).toContainText("Nothing in the scene changed");
-  await pane.getByRole("button", { name: "Open the full prompt" }).click();
+  await pane.getByRole("button", { name: "Open the Full Prompt" }).click();
   const sheet = page.getByTestId("reply-prompt");
   await expect(sheet).toContainText("Show me the receipt");
   await page.keyboard.press("Escape");

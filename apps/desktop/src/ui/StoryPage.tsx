@@ -267,7 +267,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                         <option value="own">Written for this story…</option>
                       </select>
                     </label>
-                    {pickers && <button type="button" className="link align-start" onClick={() => pickers.narrator(vaultNarrator?.id ?? null, (id) => pickNarrator(`vault:${id}`))}>Browse the Library's narrators…</button>}
+                    {pickers && <button type="button" className="link align-start" onClick={() => pickers.narrator(vaultNarrator?.id ?? null, (id) => pickNarrator(`vault:${id}`))}>Browse the Library's Narrators…</button>}
                     {vaultNarrator && <p className="hint">{vaultNarrator.about.trim() || `${vaultNarrator.instructions.slice(0, 180)}${vaultNarrator.instructions.length > 180 ? "…" : ""}`} <button className="link" onClick={() => onOpenNarrator(vaultNarrator.id)}>Edit in the Library</button></p>}
                     {narratorCard && narratorCard.variants.length > 0 && (
                       <label className="row-line"><span className="field-label label-row">Version <Help text="Which version of the card tells this story. Main = the card as imported." /></span>
@@ -410,7 +410,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
             <SetupSection title="How you play">
               <div className="setup-row column">
                 <Segmented label="How you play" value={draft.userRole} onChange={(userRole) => change({ userRole })}
-                  options={[{ value: "player", label: "Player" }, { value: "coauthor", label: "Co-author" }, { value: "director", label: "Director" }]} />
+                  options={[{ value: "player", label: "Player" }, { value: "coauthor", label: "Co-Author" }, { value: "director", label: "Director" }]} />
                 <p className="hint">{ROLE_HELP[draft.userRole]}</p>
               </div>
             </SetupSection>
@@ -425,7 +425,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               if (!changedBlocks) return null;
               return <p className="hint row-line wrap" data-testid="story-prompt-changes">
                 <span>This story changes {changedBlocks === 1 ? "1 prompt block" : `${changedBlocks} prompt blocks`} of its preset.</span>
-                <button type="button" className="link" onClick={() => { const next = { ...draft.setup }; delete next.presetOverrides; change({ setup: next }); }}>Use the preset as it is</button>
+                <button type="button" className="link" onClick={() => { const next = { ...draft.setup }; delete next.presetOverrides; change({ setup: next }); }}>Use the Preset as It Is</button>
               </p>;
             })()}
 
@@ -503,7 +503,7 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
         <SetupSection title="Setup">
           <div className="setup-row">
             <span className="setup-k grow"><span>Same as the story</span><small>{summary}</small></span>
-            <button type="button" className="link" onClick={() => setChanging(true)}>Change for this chat…</button>
+            <button type="button" className="link" onClick={() => setChanging(true)}>Change for This Chat…</button>
           </div>
         </SetupSection>
       ) : (

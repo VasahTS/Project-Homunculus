@@ -360,7 +360,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
           <h3 className="q-empty-title">Follow this scene</h3>
           <p className="pane-note">{trackers.length ? "Trackers keep who is here, where and when, and what each person wants, up to date after every reply." : "No trackers yet."}</p>
           {trackers.length > 0 && onToggleAll && <Button variant="prominent" onClick={() => onToggleAll(trackers.map((t) => t.agent.id), true)} data-testid="scene-follow-all">Switch On All {trackers.length}</Button>}
-          {trackers.length ? <details className="q-empty-pick"><summary>Or pick which ones</summary><div className="q-group">{switches}</div></details> : <button className="link" onClick={onNewTracker}>Create One</button>}
+          {trackers.length ? <details className="q-empty-pick"><summary>Or Pick Which Ones</summary><div className="q-group">{switches}</div></details> : <button className="link" onClick={onNewTracker}>Create One</button>}
         </section>
       )}
 
@@ -712,7 +712,7 @@ function BriefDetails({ p, disabled, onFull }: { p: Person; disabled: boolean; o
       {lead.map((c) => <div key={c.f.key} className="q-lead" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
       {rest.length > 0 && <div className="q-group">{rest.map((c) => <KeyValue key={c.f.key} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>}
       <p className="q-brief-foot">
-        <button type="button" className="link" data-testid="full-sheet" onClick={onFull}>Full sheet ›</button>
+        <button type="button" className="link" data-testid="full-sheet" onClick={onFull}>Full Sheet ›</button>
         <span className="hint">kept as it was when they left</span>
       </p>
     </section>

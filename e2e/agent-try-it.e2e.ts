@@ -41,7 +41,7 @@ async function editor(page:Page,name="Prose Polisher"){
 }
 const modal=(page:Page)=>page.getByTestId("agent-try-it");
 async function openPreview(page:Page,name="Prose Polisher"){
- const ed=await editor(page,name);await ed.getByRole("button",{name:"Try it",exact:true}).click();
+ const ed=await editor(page,name);await ed.getByRole("button",{name:"Try It",exact:true}).click();
  await expect(modal(page).getByTestId("agent-try-run")).toBeEnabled();return modal(page);
 }
 
@@ -54,19 +54,19 @@ test("opening is free; a failed autosave still previews the exact current draft 
  await ed.getByLabel("Agent instructions").fill("CURRENT UNSAVED INSTRUCTIONS: preserve the gate.");
  await expect(ed.getByTestId("agent-save-state")).toHaveText("Not saved");
  const before=await snapshot(page);
- await ed.getByRole("button",{name:"Try it",exact:true}).click();const dialog=modal(page);
+ await ed.getByRole("button",{name:"Try It",exact:true}).click();const dialog=modal(page);
  await expect(dialog.getByTestId("agent-try-run")).toBeEnabled();expect(await count(page)).toBe(0);
  await dialog.getByRole("button",{name:"Run test",exact:true}).click();
  await expect(dialog.getByRole("status")).toHaveText("Test complete");expect(await count(page)).toBe(1);
  await expect(dialog.getByRole("tabpanel")).toContainText("Offline test AI");
  await expect(dialog.getByRole("tab",{name:"Reasoning",exact:true})).toHaveCount(0);
- await dialog.getByRole("tab",{name:"What it read",exact:true}).click();
+ await dialog.getByRole("tab",{name:"What It Read",exact:true}).click();
  await expect(dialog.getByRole("tabpanel")).toContainText("CURRENT UNSAVED INSTRUCTIONS");
- await dialog.getByRole("tab",{name:"Raw answer",exact:true}).click();
+ await dialog.getByRole("tab",{name:"Raw Answer",exact:true}).click();
  await expect(dialog.getByRole("tabpanel")).toContainText("Offline test AI");
  expect(await snapshot(page)).toBe(before);
  await page.keyboard.press("Escape");await expect(dialog).toHaveCount(0);
- await expect(ed.getByRole("button",{name:"Try it",exact:true})).toBeFocused();
+ await expect(ed.getByRole("button",{name:"Try It",exact:true})).toBeFocused();
  await expect(ed.getByLabel("Agent instructions")).toHaveValue("CURRENT UNSAVED INSTRUCTIONS: preserve the gate.");
 });
 
@@ -81,7 +81,7 @@ test("Stop and Escape discard late answers, keep focus inside, and reopen a fres
  await page.waitForTimeout(950);expect(await count(page)).toBe(1);await expect(dialog).not.toContainText("LATE ANSWER");
  await dialog.getByTestId("agent-try-run").click();await expect.poll(()=>count(page)).toBe(2);
  await page.keyboard.press("Escape");await page.waitForTimeout(950);await expect(dialog).toHaveCount(0);
- await page.getByTestId("agent-editor").getByRole("button",{name:"Try it",exact:true}).click();
+ await page.getByTestId("agent-editor").getByRole("button",{name:"Try It",exact:true}).click();
  await expect(dialog).not.toContainText("LATE ANSWER");await expect(dialog.getByRole("tab")).toHaveCount(0);
  expect(await snapshot(page)).toBe(before);
 });
@@ -92,7 +92,7 @@ test("choices are inert; changing the selected history marks the captured result
  await dialog.getByTestId("agent-try-run").click();await expect(dialog.getByRole("status")).toHaveText("Test complete");
  await expect(dialog.locator(".preview-list li")).toHaveCount(2);
  await expect(dialog.getByRole("button",{name:"Look around",exact:true})).toHaveCount(0);
- await dialog.getByRole("tab",{name:"What it read",exact:true}).click();
+ await dialog.getByRole("tab",{name:"What It Read",exact:true}).click();
  const input=await dialog.getByRole("tabpanel").textContent();
  await dialog.getByLabel("Message",{exact:true}).selectOption({index:0});
  await expect(dialog.getByRole("status")).toHaveText("Preview is outdated");
@@ -106,7 +106,7 @@ test("text agents expand macros without a model request or saved agent requireme
  await page.goto("/");await instrument(page);await openLibrary(page,"Agents");
  await page.getByRole("button",{name:"New Agent",exact:true}).click();const ed=page.getByTestId("agent-editor");
  await ed.getByLabel("Agent instructions").fill("Leave {{user}} room to answer {{char}}.");
- await ed.getByRole("button",{name:"Try it",exact:true}).click();const dialog=modal(page);
+ await ed.getByRole("button",{name:"Try It",exact:true}).click();const dialog=modal(page);
  await expect(dialog.getByTestId("agent-try-run")).toBeEnabled();
  await expect(dialog.getByLabel("Connection",{exact:true})).toBeDisabled();
  await dialog.getByTestId("agent-try-run").click();await expect(dialog.getByRole("status")).toHaveText("Test complete");
@@ -118,10 +118,10 @@ test("provider errors and malformed answers keep exact inputs/raw text available
  await page.goto("/");await instrument(page);await control(page,{fail:true});
  const dialog=await openPreview(page,"CYOA Choices");
  await dialog.getByTestId("agent-try-run").click();await expect(dialog.getByRole("alert")).toHaveText("Simulated provider unavailable");
- await dialog.getByRole("tab",{name:"What it read",exact:true}).click();await expect(dialog.getByRole("tabpanel")).toContainText("Answer with ONLY");
+ await dialog.getByRole("tab",{name:"What It Read",exact:true}).click();await expect(dialog.getByRole("tabpanel")).toContainText("Answer with ONLY");
  await control(page,{fail:false,answer:"<script>globalThis.executed=true</script>"});
  await dialog.getByRole("button",{name:"Try again",exact:true}).click();await expect(dialog.getByRole("status")).toHaveText("Test failed");
- await dialog.getByRole("tab",{name:"Raw answer",exact:true}).click();
+ await dialog.getByRole("tab",{name:"Raw Answer",exact:true}).click();
  await expect(dialog.getByRole("tabpanel")).toHaveText("<script>globalThis.executed=true</script>");
  expect(await page.evaluate(()=>(globalThis as typeof globalThis & {executed?:boolean}).executed)).toBeUndefined();
  await control(page,{answer:'["Wait safely"]',reasoning:"Reported fixture reasoning"});
@@ -137,7 +137,7 @@ test("unsupported standalone modes explain why Run is disabled",async({page})=>{
   const update=AgentDraft.prototype.update;
   AgentDraft.prototype.update=function(value:Record<string,unknown>){return update.call(this,{...value,runMode:"inline"});};
  });
- await instrument(page);const ed=await editor(page);await ed.getByLabel("Agent instructions").fill("Unsupported imported mode");await ed.getByRole("button",{name:"Try it",exact:true}).click();
+ await instrument(page);const ed=await editor(page);await ed.getByLabel("Agent instructions").fill("Unsupported imported mode");await ed.getByRole("button",{name:"Try It",exact:true}).click();
  const dialog=modal(page);await expect(dialog.getByTestId("agent-try-run")).toBeDisabled();
  await expect(dialog).toContainText("This mode cannot be previewed on its own.");expect(await count(page)).toBe(0);
 });
@@ -156,7 +156,7 @@ for(const width of [1366,620,390])test("approved layout remains usable at "+widt
  });
  expect(geometry.left).toBeGreaterThanOrEqual(0);expect(geometry.right).toBeLessThanOrEqual(geometry.width);
  expect(geometry.overflow).toBeLessThanOrEqual(1);expect(geometry.footer).toBeLessThanOrEqual(geometry.bottom);
- await dialog.getByRole("tab",{name:"Raw answer",exact:true}).click();await page.keyboard.press("Escape");await expect(dialog).toHaveCount(0);
+ await dialog.getByRole("tab",{name:"Raw Answer",exact:true}).click();await page.keyboard.press("Escape");await expect(dialog).toHaveCount(0);
 });
 
 test("a context-read failure retries without a model call; an empty before-turn context explains what is missing",async({page})=>{
@@ -167,15 +167,15 @@ test("a context-read failure retries without a model call; an empty before-turn 
   (globalThis as typeof globalThis & {tryContextFail:boolean}).tryContextFail=true;
   store.messagesOf=async(id:string)=>{if((globalThis as typeof globalThis & {tryContextFail:boolean}).tryContextFail)throw new Error("Simulated context load failure");return read(id);};
  });
- const ed=await editor(page);await ed.getByRole("button",{name:"Try it",exact:true}).click();const dialog=modal(page);
+ const ed=await editor(page);await ed.getByRole("button",{name:"Try It",exact:true}).click();const dialog=modal(page);
  await expect(dialog.getByRole("alert")).toHaveText("Simulated context load failure");
  await page.evaluate(()=>{(globalThis as typeof globalThis & {tryContextFail:boolean}).tryContextFail=false;});
  await dialog.getByRole("button",{name:"Try again",exact:true}).click();
  await expect(dialog.getByRole("status")).toHaveText("Ready to run");expect(await count(page)).toBe(0);
  await page.keyboard.press("Escape");await ed.getByRole("button",{name:"Close",exact:true}).click();
  await page.getByRole("button",{name:"New Agent",exact:true}).click();
- await ed.getByRole("radio",{name:/^Its own AI call/}).click();
- await ed.getByRole("button",{name:"Try it",exact:true}).click();
+ await ed.getByRole("radio",{name:/^Its Own AI Call/}).click();
+ await ed.getByRole("button",{name:"Try It",exact:true}).click();
  await expect(dialog.getByTestId("agent-try-run")).toBeDisabled();
  await expect(dialog).toContainText("This chat has no user message to test yet.");
  expect(await count(page)).toBe(0);
@@ -194,11 +194,11 @@ test("large structured answers and eight cast cards stay readable with long name
  });
  await control(page,{answer:JSON.stringify(Array.from({length:25},(_,i)=>"Choice "+i+" "+("long_content_without_spaces_".repeat(15))))});
  const ed=await editor(page,"CYOA Choices");await ed.getByLabel("Agent name").fill("Long agent name "+("without_spaces_".repeat(14)));
- await ed.getByRole("button",{name:"Try it",exact:true}).click();const dialog=modal(page);
+ await ed.getByRole("button",{name:"Try It",exact:true}).click();const dialog=modal(page);
  await dialog.evaluate(node=>{const sizes=[node,...node.querySelectorAll<HTMLElement>("*")].map(el=>[el,parseFloat(getComputedStyle(el).fontSize)*1.5] as const);for(const [el,size] of sizes)(el as HTMLElement).style.fontSize=size+"px";});
  await expect(dialog.getByTestId("agent-try-run")).toBeEnabled();await dialog.getByTestId("agent-try-run").click();
  await expect(dialog.getByRole("status")).toHaveText("Test complete");await expect(dialog.locator(".preview-list li")).toHaveCount(25);
- await dialog.getByRole("tab",{name:"What it read",exact:true}).click();
+ await dialog.getByRole("tab",{name:"What It Read",exact:true}).click();
  for(let i=0;i<8;i++)await expect(dialog.getByRole("tabpanel")).toContainText("Fixture cast member "+i);
  const overflow=await dialog.locator(".try-scroll").evaluate(node=>node.scrollWidth-node.clientWidth);
  expect(overflow).toBeLessThanOrEqual(1);
@@ -214,7 +214,7 @@ test("a slow previous chat cannot replace the selected context; leaving the edit
   const slow=(await store.listSessions())[0].id,read=store.messagesOf.bind(store);
   store.messagesOf=async(id:string)=>{const rows=await read(id);if(id===slow)await new Promise(r=>setTimeout(r,700));return rows;};
  });
- await ed.getByRole("button",{name:"Try it",exact:true}).click();const dialog=modal(page);
+ await ed.getByRole("button",{name:"Try It",exact:true}).click();const dialog=modal(page);
  const chat=dialog.getByLabel("Chat",{exact:true}),ids=await chat.locator("option").evaluateAll(nodes=>nodes.map(n=>(n as HTMLOptionElement).value));
  await chat.selectOption(ids[0]!);await chat.selectOption(ids[1]!);
  await expect(dialog.getByTestId("agent-try-run")).toBeEnabled();

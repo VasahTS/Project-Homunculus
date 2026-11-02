@@ -255,7 +255,7 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
           <section className={`te-card${settingsOpen ? " open" : ""}`}>
             <button type="button" className="te-card-head" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
               <Icon name="gear" size={15} />
-              <span className="grow"><b>Tracker settings</b><span className="te-sub">Name, what it does, instructions for the AI</span></span>
+              <span className="grow"><b>Tracker Settings</b><span className="te-sub">Name, what it does, instructions for the AI</span></span>
               <span className={`te-chev${settingsOpen ? " open" : ""}`}><Icon name="chevron" size={14} /></span>
             </button>
             <Collapse open={settingsOpen}>
@@ -391,13 +391,13 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
                         );
                       }} />
                     <button type="button" className="te-add" aria-label={`Add Field to ${groupLabel(g.name)}`} onClick={() => addField(g.name)}>
-                      <Icon name="plus" size={13} />Add field
+                      <Icon name="plus" size={13} />Add Field
                     </button>
                   </Collapse>
                 </div>
               );
             }} />
-          <button type="button" className="te-add-group" onClick={addGroup}><Icon name="plus" size={13} />Add group</button>
+          <button type="button" className="te-add-group" onClick={addGroup}><Icon name="plus" size={13} />Add Group</button>
           {exists && (
             <div className="editor-actions">
               <p className="hint">To use it, open a session and switch it on in the Scene panel.</p>
@@ -522,8 +522,8 @@ function FieldSettings({ f, n, groups, shows, onChange, onStep, onRemove }: {
           Send to the AI <Help text="The current value goes into the prompt of the story's replies (in a short 'Current scene' part), so the AI writes with it in mind." />
         </label>
         <span className="spacer" />
-        <button className="link" onClick={() => onStep(-1)} aria-label={`Move ${n} up`}>↑ Move up</button>
-        <button className="link" onClick={() => onStep(1)} aria-label={`Move ${n} down`}>↓ Move down</button>
+        <button className="link" onClick={() => onStep(-1)} aria-label={`Move ${n} up`}>↑ Move Up</button>
+        <button className="link" onClick={() => onStep(1)} aria-label={`Move ${n} down`}>↓ Move Down</button>
         <button className="link danger-link" onClick={onRemove}>Remove Field</button>
       </div>
     </div>

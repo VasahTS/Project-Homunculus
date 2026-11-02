@@ -188,11 +188,11 @@ test("a story's setup reaches its chats; a chat can change a row for itself and 
   await expect(page.getByTestId("chat-setup").getByRole("checkbox", { name: "Scene: Plot" })).not.toBeChecked();
   await expect(page.getByTestId("chat-setup").getByRole("checkbox", { name: "Scene: World" })).toBeChecked();
 
-  // back to the first chat: "Use the story's" undoes its change
+  // back to the first chat: "Use the Story's" undoes its change
   await page.getByTestId("story-page-button").click();
   await page.getByTestId("story-chats").getByTestId("chat-row").filter({ hasText: "Chat 1" }).locator(".cl-main").click();
   await openTab(page, "prompt");
-  await page.getByTestId("chat-setup").getByTestId("setup-tracker-scene-plot").getByRole("button", { name: "Use the story's" }).click();
+  await page.getByTestId("chat-setup").getByTestId("setup-tracker-scene-plot").getByRole("button", { name: "Use the Story's" }).click();
   await expect(page.getByTestId("chat-setup").getByRole("checkbox", { name: "Scene: Plot" })).not.toBeChecked();
   await expect(page.getByTestId("chat-setup")).not.toContainText("changed in this chat");
 });

@@ -48,7 +48,7 @@ test("leaving Prompt with an open edit saves it; Undo changes restores the text 
   await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
   await name.click(); await name.click(); // reopen: Undo goes back to the text the block was opened with
   await text.fill("UNDO THIS EDIT.");
-  await blocks.getByRole("button", { name: "Undo changes", exact: true }).click();
+  await blocks.getByRole("button", { name: "Undo Changes", exact: true }).click();
   await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
   await name.click(); await name.click(); await expect(text).toHaveValue("SAVED WHEN LEAVING PROMPT.");
 });

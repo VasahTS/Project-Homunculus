@@ -822,3 +822,12 @@ Daniel: "apply the other items of the review now" (straight on `ui`).
 
 Signed: **CLAUDE**.
 
+## D-080 — Title Case on every button; side-by-side tabs slide instead of blinking (2026-11-02)
+
+Daniel: "make every initial uppercase" (UX review item 11, confirming D-018), and, with a recording: "every time we switch between these panels that sit side by side, the page reloads with a blink as if it were a menu change — could it slide left or right depending on the panel?"
+- **Title Case** on every button, tab, segmented option and menu item (≈80 labels: "Add Context…", "Edit Colors", "Switch On All", "Try It", "What It Read"…). Small words stay lower case (a, an, the, and, or, of, to, in, on, for, with, as, at, by, from, into). Choices inside a select (lorebook conditions, tracker scopes) and sentences are unchanged.
+- **Tabs side by side (Library, Settings):** the title and the tab row no longer replay; only the content slides in from the side of the tab you went to (from the right when it is to the right, 48 px, fading in; `slideTab`). The underline glides along the row instead of jumping. Switching to another place (Stories, Characters, Settings…) keeps the page entrance (D-076).
+- Fixed on the way: the sideways slide made a narrow window scroll sideways; `.library-workspace` clips horizontally.
+
+Signed: **CLAUDE**.
+

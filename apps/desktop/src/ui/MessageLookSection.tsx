@@ -41,7 +41,7 @@ export function MessageLookRows() {
         </Row>
         <Row label="Images from links" help="Some cards and replies show pictures from web addresses. Loading one tells that site you opened it, so by default you click to see each one.">
           <Segmented small label="Images from links" value={look.images} onChange={(images) => void setMessageLook({ images })}
-            options={[{ value: "ask", label: "Click to show" }, { value: "always", label: "Always" }, { value: "never", label: "Never" }]} />
+            options={[{ value: "ask", label: "Click to Show" }, { value: "always", label: "Always" }, { value: "never", label: "Never" }]} />
         </Row>
         <Row label="Colors and styles from the AI" help="Lets the AI color and style its own text (<font color>, <span style>, <b>…), as presets often ask. Only text styles: it can never run code, load anything or change the app. Regex scripts' formatting is always shown.">
           <Switch label="Colors and styles from the AI" checked={look.html} onChange={(html) => void setMessageLook({ html })} />

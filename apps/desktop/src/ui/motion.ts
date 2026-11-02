@@ -96,6 +96,16 @@ export function pageIn(root: HTMLElement | null): void {
 }
 
 /**
+ * Switching between tabs that sit side by side (Library, Settings): the title and the tab row stay; only the content
+ * slides in from the side of the tab you went to — from the right when it is to the right. D-080 (Daniel: "every
+ * time we switch, the page reloads with a blink").
+ */
+export function slideTab(el: Element | null, dir: 1 | -1): void {
+  if (!el || reducedMotion() || !(el instanceof HTMLElement) || typeof el.animate !== "function") return;
+  el.animate([{ opacity: 0, transform: `translateX(${dir * 48}px)` }, { opacity: 1, transform: "none" }], { duration: ms(460), easing: EASE_OUT });
+}
+
+/**
  * The new look opens as a circle from the click (D-072's "circular theme switch", D-076). Uses View Transitions where
  * the window has them (WebView2 on Windows); elsewhere the look just changes.
  */

@@ -46,7 +46,7 @@ export function SetFileLinks({ sets, current, onImport, say }: {
   return <span className="set-files" data-testid="field-set-files">
     <button type="button" className="link quiet" onClick={() => input.current?.click()} title="Add field sets from a file to this tracker">Import…</button>
     <button type="button" className="link quiet" onClick={() => void exportSet()} title="Save this set to a file, to keep or to share">Export…</button>
-    <button type="button" className="link quiet" onClick={() => void saveGuide()} title="Instructions for another AI to write field sets you can import">AI guide</button>
+    <button type="button" className="link quiet" onClick={() => void saveGuide()} title="Instructions for another AI to write field sets you can import">AI Guide</button>
     <input ref={input} type="file" accept=".json,application/json" aria-label="Import field sets JSON" hidden onChange={(e) => {
       const file = e.target.files?.[0]; e.target.value = ""; if (file) void importFile(file);
     }} />

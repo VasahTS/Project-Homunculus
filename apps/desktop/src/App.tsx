@@ -3,7 +3,7 @@
 // 2026-10-28 (slice 1, D-019): versions of characters, personas, history, the Trash; (slice 1b, D-020): Settings.
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { pageIn } from "./ui/motion.ts";
+import { pageIn, slideTab } from "./ui/motion.ts";
 import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript } from "@homunculus/schemas";
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
@@ -172,11 +172,26 @@ export function App() {
     : view.kind === "vault" ? `vault:${view.tab}`
     : view.kind === "story" || view.kind === "kit" ? `${view.kind}:${view.id}`
     : view.kind;
+  // D-080: between tabs of the same place (Library, Settings) the head and the tab row stay; the content slides from
+  // the side of the tab you went to. Anything else is a new page and gets the entrance above.
+  const lastTab = useRef<{ nav: string; index: number } | null>(null);
   useLayoutEffect(() => {
-    if (!pageKey) return;
+    if (!pageKey) { lastTab.current = null; return; }
     const root = contentRef.current;
-    const page = root ? [...root.children].filter((c) => !c.matches(".notice, .update-bar, [data-testid='notice']")).pop() : null;
-    pageIn((page as HTMLElement | null) ?? null);
+    const page = (root ? [...root.children].filter((c) => !c.matches(".notice, .update-bar, [data-testid='notice']")).pop() : null) as HTMLElement | null;
+    const ws = page?.matches(".library-workspace") ? page : page?.querySelector<HTMLElement>(".library-workspace") ?? null;
+    const nav = ws?.querySelector<HTMLElement>(".library-tabs");
+    if (ws && nav) {
+      const tabs = [...nav.querySelectorAll(".library-tab")];
+      const here = { nav: nav.getAttribute("aria-label") ?? "", index: tabs.findIndex((t) => t.getAttribute("aria-current") === "page") };
+      const before = lastTab.current;
+      lastTab.current = here;
+      if (before && before.nav === here.nav && here.index >= 0 && before.index !== here.index) {
+        slideTab(ws.querySelector(".library-workspace-content"), here.index > before.index ? 1 : -1);
+        return;
+      }
+    } else lastTab.current = null;
+    pageIn(page);
   }, [pageKey]);
   // Ctrl+Shift+0: turns the look's extra CSS off until restart, a way out of CSS that broke the screen (D-075)
   useEffect(() => {

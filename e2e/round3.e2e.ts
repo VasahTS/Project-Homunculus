@@ -168,7 +168,7 @@ test("Save to the Library: someone the tracker knows becomes a Library NPC, in a
   await tom.getByTestId("save-to-vault").click();
   const dialog = page.getByTestId("save-npc");
   await dialog.getByLabel("NPC name").fill("Tom the Miller");
-  await dialog.getByRole("button", { name: "+ New folder" }).click();
+  await dialog.getByRole("button", { name: "+ New Folder" }).click();
   await dialog.getByLabel("New folder name").fill("Villagers");
   await dialog.getByTestId("save-npc-confirm").click();
   await expect(page.getByTestId("notice")).toContainText("Tom the Miller is in the Library");

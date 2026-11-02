@@ -17,7 +17,7 @@ export function CollectionTools({ label, query, onQuery, recent, onRecent, prefs
     <div className="collection-tools" data-region="collection-tools">
       <div className="collection-filters" role="group" aria-label={`${label} filters`}>
         <Button variant="plain" aria-pressed={!recent} onClick={() => onRecent(false)}>All {label}</Button>
-        <Button variant="plain" aria-pressed={recent} onClick={() => onRecent(true)}>Recently played</Button>
+        <Button variant="plain" aria-pressed={recent} onClick={() => onRecent(true)}>Recently Played</Button>
         {prefs && onPrefs && <ViewSwitch prefs={prefs} onPrefs={onPrefs} />}
       </div>
       <span className="collection-right">

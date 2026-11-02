@@ -395,7 +395,7 @@ export function FolderView({ label, folders, map, items, current, currentName, o
                   <div className="fd-menu" role="menu">
                     <button type="button" role="menuitem" onClick={() => { setMenu(null); setRenaming({ id: f.id, name: f.name }); }}>Rename</button>
                     <button type="button" role="menuitem" className="danger-text" onClick={() => { setMenu(null); onDelete(f.id); }}
-                      title="What is inside moves up one level; nothing is deleted">Delete folder</button>
+                      title="What is inside moves up one level; nothing is deleted">Delete Folder</button>
                   </div>
                 )}
               </div>

@@ -139,7 +139,7 @@ export function AgentTryIt({ draft,svc,sessions,stories,characters,connection,de
   if(event.shiftKey&&document.activeElement===items[0]){event.preventDefault();items.at(-1)?.focus();}
   else if(!event.shiftKey&&document.activeElement===items.at(-1)){event.preventDefault();items[0]?.focus();}
  };
- const tabs:Array<{id:Tab;label:string}>=[{id:"result",label:"Result"},{id:"input",label:"What it read"},{id:"raw",label:"Raw answer"},
+ const tabs:Array<{id:Tab;label:string}>=[{id:"result",label:"Result"},{id:"input",label:"What It Read"},{id:"raw",label:"Raw Answer"},
   ...(preview?.result.reasoning?[{id:"reasoning" as const,label:"Reasoning"}]:[])];
  const selectedTab=tabs.some((t)=>t.id===tab)?tab:"result";
  const hasDetails=!!preview&&(preview.result.output!==undefined||!!preview.result.prompt?.length||preview.result.raw!==undefined);

@@ -280,7 +280,7 @@ export function TreeSheet({ svc, sessionId, title, info, current, speakerName, o
       head={<>
         <span className="hint">Tree · {info.list.length} branch{info.list.length === 1 ? "" : "es"}</span>
         <span className="grow" />
-        <Segmented small label="Show" value={compact} onChange={setCompact} options={[{ value: "all", label: "Every message" }, { value: "splits", label: "Only where it splits" }]} />
+        <Segmented small label="Show" value={compact} onChange={setCompact} options={[{ value: "all", label: "Every Message" }, { value: "splits", label: "Only Where It Splits" }]} />
       </>}>
       <div className="tree-body">
         <div className="tree" role="tree" aria-label="Messages and branches">{messages ? lane(null, null, 0) : <p className="hint">Loading…</p>}</div>
@@ -294,7 +294,7 @@ export function TreeSheet({ svc, sessionId, title, info, current, speakerName, o
               </div>
               <span className="row-line">
                 {selBranch && <Button variant="prominent" onClick={() => { onClose(); onGoTo(selBranch, sel.id); }} data-testid="tree-go">Go Here</Button>}
-                <Button onClick={() => { onClose(); onBranchFrom(sel.id); }}>Branch from here</Button>
+                <Button onClick={() => { onClose(); onBranchFrom(sel.id); }}>Branch from Here</Button>
               </span>
               {startHere.length > 0 && (
                 <>

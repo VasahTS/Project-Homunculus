@@ -52,7 +52,7 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
   const a = s.assistants.find((x) => x.id === sel) ?? s.assistants[0];
   const set = (patch: Partial<AssistantPersona>) => a && put({ ...s, assistants: s.assistants.map((x) => (x.id === a.id ? { ...x, ...patch } : x)) });
   const add = (base?: AssistantPersona) => {
-    const n = AssistantPersona.parse({ ...(base ?? {}), id: crypto.randomUUID(), name: base ? `${base.name} (copy)` : "New assistant", emoji: base?.emoji ?? "✧", builtin: false });
+    const n = AssistantPersona.parse({ ...(base ?? {}), id: crypto.randomUUID(), name: base ? `${base.name} (copy)` : "New Assistant", emoji: base?.emoji ?? "✧", builtin: false });
     put({ ...s, assistants: [...s.assistants, n] }); setSel(n.id);
   };
   return (
@@ -64,13 +64,13 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
             <span className="cust-item-t"><b>{x.name}{x.id === s.defaultAssistantId && <span className="cust-badge">Default</span>}</b><small>{x.description || "No description"}</small></span>
           </button>
         ))}
-        <Button small variant="plain" onClick={() => add()} data-testid="cust-new-assistant"><Icon name="plus" size={12} /> New assistant</Button>
+        <Button small variant="plain" onClick={() => add()} data-testid="cust-new-assistant"><Icon name="plus" size={12} /> New Assistant</Button>
       </>}
       detail={a && <div className="cust-form">
         <div className="cust-head">
           <input className="cust-emoji-in" value={a.emoji} maxLength={4} aria-label="Emoji" onChange={(e) => set({ emoji: e.target.value })} />
           <input className="cust-name" value={a.name} aria-label="Name" onChange={(e) => set({ name: e.target.value || "Assistant" })} />
-          {a.id !== s.defaultAssistantId ? <Button small onClick={() => put({ ...s, defaultAssistantId: a.id })}>Use for new chats</Button> : <span className="cust-badge big">Used for new chats</span>}
+          {a.id !== s.defaultAssistantId ? <Button small onClick={() => put({ ...s, defaultAssistantId: a.id })}>Use for New Chats</Button> : <span className="cust-badge big">Used for new chats</span>}
         </div>
         <label className="cust-field"><span>What it is for</span><input value={a.description} placeholder="One line, shown when you pick it" onChange={(e) => set({ description: e.target.value })} /></label>
         <label className="cust-field"><span>Instructions</span>
@@ -89,7 +89,7 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
           <Button small onClick={() => add(a)}>Duplicate</Button>
           <span className="grow" />
           {a.builtin
-            ? <Button small variant="plain" onClick={() => { const b = builtinAssistant(a.id); if (b) set({ ...b, connectionId: a.connectionId, model: a.model }); }}>Reset to the app's version</Button>
+            ? <Button small variant="plain" onClick={() => { const b = builtinAssistant(a.id); if (b) set({ ...b, connectionId: a.connectionId, model: a.model }); }}>Reset to the App's Version</Button>
             : <ConfirmButton label="Delete" confirmLabel="Delete this assistant" onConfirm={() => { put({ ...s, assistants: s.assistants.filter((x) => x.id !== a.id), defaultAssistantId: s.defaultAssistantId === a.id ? "homunculus" : s.defaultAssistantId }); setSel(s.defaultAssistantId); }} />}
         </div>
       </div>}
@@ -149,12 +149,12 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
             <span className="cust-item-t"><b>{x.name}{x.id === s.defaultPresetId && <span className="cust-badge">Default</span>}</b><small>{x.rules.length} rules · {x.notes.length} notes · {x.memory.length} memories · ~{size(x)} tokens</small></span>
           </button>
         ))}
-        <Button small variant="plain" onClick={() => add()} data-testid="cust-new-preset"><Icon name="plus" size={12} /> New preset</Button>
+        <Button small variant="plain" onClick={() => add()} data-testid="cust-new-preset"><Icon name="plus" size={12} /> New Preset</Button>
       </>}
       detail={p && <div className="cust-form">
         <div className="cust-head">
           <input className="cust-name" value={p.name} aria-label="Preset name" onChange={(e) => set({ name: e.target.value || "Preset" })} />
-          {p.id !== s.defaultPresetId ? <Button small onClick={() => put({ ...s, defaultPresetId: p.id })}>Use for new chats</Button> : <span className="cust-badge big">Used for new chats</span>}
+          {p.id !== s.defaultPresetId ? <Button small onClick={() => put({ ...s, defaultPresetId: p.id })}>Use for New Chats</Button> : <span className="cust-badge big">Used for new chats</span>}
         </div>
         <label className="cust-field"><span>About</span><input value={p.description} placeholder="e.g. “My dark fantasy setting”" onChange={(e) => set({ description: e.target.value })} /></label>
         <label className="cust-field"><span>How I like things written</span>
@@ -186,7 +186,7 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
             <small className="hint">~{Math.round(n.text.length / 3.6)} tokens</small>
           </div>
         ))}
-        <Button small variant="plain" onClick={() => set({ notes: [...p.notes, { id: crypto.randomUUID(), title: "", text: "", on: true }] })}><Icon name="plus" size={12} /> Add a note</Button>
+        <Button small variant="plain" onClick={() => set({ notes: [...p.notes, { id: crypto.randomUUID(), title: "", text: "", on: true }] })}><Icon name="plus" size={12} /> Add a Note</Button>
 
         <h4 className="cust-sub">Memory</h4>
         <div className="cust-row plain"><span className="grow hint">Things it learned about you. Sent while this preset is used.</span><span className="hint">On</span><Switch label="Memory on" checked={p.memoryOn} onChange={(memoryOn) => set({ memoryOn })} /></div>

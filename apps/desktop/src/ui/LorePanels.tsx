@@ -168,7 +168,7 @@ export function LoreSettingsSection({ settings, onSave, books, defaultSetup, onS
       <Group title="Order and groups">
         <Row label="When books compete" help="For the budget: the character's books first, the other books first, or all mixed by each entry's order.">
           <Segmented small label="When books compete" value={s.insertionStrategy} onChange={(v) => put({ insertionStrategy: v })}
-            options={[{ value: "characterFirst", label: "Character's first" }, { value: "globalFirst", label: "Others first" }, { value: "evenly", label: "Mixed" }]} />
+            options={[{ value: "characterFirst", label: "Character's First" }, { value: "globalFirst", label: "Others First" }, { value: "evenly", label: "Mixed" }]} />
         </Row>
         {sw("useGroupScoring", "Groups pick by most keywords", "In a group, the entries with the most keyword hits win. Otherwise a weighted roll picks one.")}
       </Group>

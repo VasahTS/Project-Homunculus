@@ -3064,3 +3064,11 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .defaults-more .hint { margin: 4px 0 8px; }
 /* D-079: portrait cards inside a scrolling grid keep their height (overflow:hidden let the rows squeeze them to 50 px) */
 .gallery-grid.portrait { grid-auto-rows: max-content; }
+
+/* D-080: the tab rows' underline glides (one line that moves) instead of jumping from tab to tab */
+.library-tabs.gliding { position: relative; }
+.library-tabs.gliding .library-tab[aria-current="page"]::after { display: none; }
+.library-tabs .tab-line { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; background: transparent; box-shadow: inset 0 -2px 0 var(--accent);
+  transition: transform var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out); }
+/* the sideways slide must never make the window scroll sideways (D-080) */
+.library-workspace { overflow-x: clip; }

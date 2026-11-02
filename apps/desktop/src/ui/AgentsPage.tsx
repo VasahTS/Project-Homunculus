@@ -49,7 +49,7 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
     </div>
   );
   const empty = agents.length === 0
-    ? <p className="hint ag-empty">No agents yet. <button type="button" className="link" onClick={onNew}>Make one</button>.</p>
+    ? <p className="hint ag-empty">No agents yet. <button type="button" className="link" onClick={onNew}>Make One</button>.</p>
     : filtered.length === 0 ? <p className="hint ag-empty">No agent matches.</p> : null;
 
   return (

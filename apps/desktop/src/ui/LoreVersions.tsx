@@ -44,9 +44,9 @@ export function LoreVersionBar({ book, stories, storyId, agentName, onPick, onSa
         ? (changes.size ? `${changes.size} change${changes.size === 1 ? "" : "s"} in ${story.name}. Edits here change only this story.` : `Same as the original. Edits here change only ${story.name}.`)
         : usable.length ? "Stories that change this book keep their own version; the original stays as it is." : ""}</span>
       {story && changes.size > 0 && <span className="lv-acts">
-        <button type="button" className="btn btn-bordered btn-small" onClick={onSaveAsNew}>Save as a new lorebook</button>
-        <button type="button" className="btn btn-bordered btn-small" onClick={() => setApplying(true)}>Apply to the original…</button>
-        <button type="button" className="btn btn-plain btn-small" onClick={onReset}>Back to the original</button>
+        <button type="button" className="btn btn-bordered btn-small" onClick={onSaveAsNew}>Save as a New Lorebook</button>
+        <button type="button" className="btn btn-bordered btn-small" onClick={() => setApplying(true)}>Apply to the Original…</button>
+        <button type="button" className="btn btn-plain btn-small" onClick={onReset}>Back to the Original</button>
       </span>}
       {applying && story && (
         <ApplySheet items={[...changes].map(([id, c]) => ({ id, change: c, title: title(id), by: by(id) }))} story={story.name}

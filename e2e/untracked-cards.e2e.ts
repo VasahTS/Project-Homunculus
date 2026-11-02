@@ -16,14 +16,14 @@ async function newStory(page: Page, name: string) {
   await expect(page.getByTestId("story-page")).toBeVisible();
 }
 
-test("Characters: 'Don't track' is the card's default; the chat can change it; the Prompt tab says where the card goes", async ({ page }) => {
+test("Characters: 'Don't Track' is the card's default; the chat can change it; the Prompt tab says where the card goes", async ({ page }) => {
   await page.goto("/");
   await openLibrary(page, "Characters");
   await editCharacter(page, "Lyra");
   const kind = page.getByTestId("card-kind");
-  await expect(kind.getByRole("radio", { name: "Track as a person" })).toHaveAttribute("aria-checked", "true");
+  await expect(kind.getByRole("radio", { name: "Track as a Person" })).toHaveAttribute("aria-checked", "true");
   await expect(kind).toContainText("a card with several characters");
-  await kind.getByRole("radio", { name: "Don't track" }).click();
+  await kind.getByRole("radio", { name: "Don't Track" }).click();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("✓ Saved")).toBeVisible();
   await page.getByLabel("Character editor").getByRole("button", { name: "Close" }).click();

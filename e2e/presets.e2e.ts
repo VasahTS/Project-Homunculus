@@ -50,7 +50,7 @@ test("the default preset: blocks can be switched, moved and added; the next repl
   await send(page, "Hello there");
   await page.getByTestId("receipt").click();
   await expect(page.getByTestId("reply-preset")).toHaveText("Homunculus Default");
-  await page.getByRole("button", { name: "Open the full prompt" }).click();
+  await page.getByRole("button", { name: "Open the Full Prompt" }).click();
   await expect(page.getByTestId("reply-prompt")).toContainText("Always answer in rhyme, User.");
 });
 
@@ -147,7 +147,7 @@ test("a SillyTavern preset imports, is picked per session, and exports back", as
   await page.getByTestId("receipt").click();
   await expect(page.getByTestId("reply-preset")).toHaveText("Second Person");
   await expect(page.getByTestId("reply-pane").locator(".row", { hasText: "Temperature" })).toContainText("0.8");
-  await page.getByRole("button", { name: "Open the full prompt" }).click();
+  await page.getByRole("button", { name: "Open the Full Prompt" }).click();
   await expect(page.getByTestId("reply-prompt")).toContainText("Narrate for Lyra in second person.");
   await page.getByTestId("reply-prompt").getByRole("button", { name: "Close" }).click();
 

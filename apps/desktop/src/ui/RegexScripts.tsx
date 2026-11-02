@@ -66,7 +66,7 @@ export function RegexList({ scripts, onChange, sample, waiting, onAllow, emptyTe
               onDelete={() => { onChange(scripts.filter((x) => x.id !== s.id)); setOpen(null); }} />
           )} />
       )}
-      <Button small variant="plain" onClick={add} data-testid="regex-new"><Icon name="plus" size={12} /> New script</Button>
+      <Button small variant="plain" onClick={add} data-testid="regex-new"><Icon name="plus" size={12} /> New Script</Button>
     </div>
   );
 }
@@ -141,7 +141,7 @@ function RegexEditor({ script: s, onChange, onDuplicate, onDelete, sample, error
               <label className="rx-check"><input type="checkbox" checked={s.runOnEdit} onChange={(e) => set({ runOnEdit: e.target.checked })} /> Also when I edit a message</label>
               <div className="rx-field"><span className="rx-lbl">Macros in Find</span>
                 <Segmented small label="Macros in Find" value={s.findMacros} onChange={(v) => set({ findMacros: v })}
-                  options={[{ value: "none", label: "No" }, { value: "raw", label: "Yes" }, { value: "escaped", label: "Yes, as plain text" }]} />
+                  options={[{ value: "none", label: "No" }, { value: "raw", label: "Yes" }, { value: "escaped", label: "Yes, as Plain Text" }]} />
               </div>
               <div className="rx-field"><span className="rx-lbl">Only messages at depth</span>
                 <span className="rx-depth">
@@ -289,7 +289,7 @@ export function RegexReview({ groups, sample, onAllow, onClose }: {
         </section>
       ))}
       <div className="modal-foot">
-        <Button variant="plain" onClick={onClose} data-testid="regex-review-later">Not now</Button>
+        <Button variant="plain" onClick={onClose} data-testid="regex-review-later">Not Now</Button>
         <span className="grow" />
         <Button variant="prominent" disabled={picked.size === 0} data-testid="regex-review-allow"
           onClick={() => { onAllow(all.filter((s) => picked.has(s.id))); onClose(); }}>

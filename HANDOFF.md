@@ -4,6 +4,12 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Title Case everywhere; tabs slide sideways (2026-11-02) — CLAUDE — D-080
+
+- Every button/tab/menu label in Title Case (Daniel's choice; tests updated).
+- Library and Settings tabs: the head stays, the content slides from the side of the new tab, the underline glides (Daniel's recording: "the page blinks on every switch").
+- Checks: typecheck, 430 unit, **187/187 browser tests**.
+
 ## UX review round 2 on `ui` (2026-11-02) — CLAUDE — D-079
 
 - Defaults regrouped (new chats first, per-tracker connections folded); Narrators as a portrait grid until one is open (and portrait cards no longer squeezed in scrolling grids); Scene tab with none on: "Switch On All" + folded single switches; built-in assistants drawn with line icons.

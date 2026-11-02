@@ -114,7 +114,7 @@ export function ModelPicker({ cacheKey, current, load, onPick, onClose, onLoaded
         ))}
         {models && shown.length === 0 && <li className="side-empty">No model matches. Try fewer words.</li>}
       </ul>
-      {!loading && !models && !error && <Button small onClick={() => void fetchList()}>Load the models</Button>}
+      {!loading && !models && !error && <Button small onClick={() => void fetchList()}>Load the Models</Button>}
     </div>
   );
 }

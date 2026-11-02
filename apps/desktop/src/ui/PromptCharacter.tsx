@@ -98,7 +98,7 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
             {cards.map((c) => <option key={c.character.id} value={c.character.id}>{effectiveCharacter(c.character, c.variantId).name}</option>)}
           </select>
         )}
-        <button type="button" className="link quiet" onClick={() => { flush(); onOpenEditor(card.character.id); }}>Full editor</button>
+        <button type="button" className="link quiet" onClick={() => { flush(); onOpenEditor(card.character.id); }}>Full Editor</button>
       </div>
       <Collapse open={open}>
         <div className="group pc-fields">

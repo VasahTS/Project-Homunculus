@@ -89,7 +89,7 @@ export function AgentMarks({ results, agents, current, canWriteAgain, onSaveText
           {(close) => <>
             {failed.map((r) => <span key={r.id}><b>{name(r.agentId)}</b> · {(r.output as { reason?: string }).reason || "the reply did not pass."}</span>)}
             <span className="mk-acts">
-              {canWriteAgain && <button type="button" className="link" onClick={() => { close(); onWriteAgain(); }}>Write again</button>}
+              {canWriteAgain && <button type="button" className="link" onClick={() => { close(); onWriteAgain(); }}>Write Again</button>}
               <button type="button" className="link quiet" onClick={() => { close(); setIgnored(true); }}>Ignore</button>
             </span>
           </>}
@@ -109,7 +109,7 @@ export function CheckLines({ results, agents, canWriteAgain, onWriteAgain }: {
   return <>{lines.map((r) => (
     <div key={r.id} className="check-line" role="note" data-testid="check-line">
       <span>{warn}<b>{agents.find((a) => a.id === r.agentId)?.name}</b> · {(r.output as { reason?: string }).reason || "the reply did not pass."}</span>
-      {canWriteAgain && <button type="button" className="link" onClick={onWriteAgain}>Write again</button>}
+      {canWriteAgain && <button type="button" className="link" onClick={onWriteAgain}>Write Again</button>}
       <button type="button" className="link quiet" onClick={() => setIgnored((x) => [...x, r.id])}>Ignore</button>
     </div>
   ))}</>;
@@ -136,7 +136,7 @@ export function DiffSheet({ who, before, after, onSave, onClose }: {
     <Modal title={`Changes by ${who}`} onClose={onClose} className="modal-wide modal-diff" testId="diff-sheet"
       head={<span className="hint">{changes === 1 ? "1 change" : `${changes} changes`}{kept.size ? ` · ${kept.size} put back` : ""}</span>}>
       <Segmented small tabs label="Compare" value={view} onChange={setView} options={[
-        { value: "changes", label: "Changes" }, { value: "side", label: "Side by side" }, { value: "before", label: "Original" }, { value: "after", label: "Rewritten" }]} />
+        { value: "changes", label: "Changes" }, { value: "side", label: "Side by Side" }, { value: "before", label: "Original" }, { value: "after", label: "Rewritten" }]} />
       <div className="df-body">
         {view === "changes" && <div className="df-text">{parts.map((p, i) => p.kind === "same" ? <span key={i}>{p.text}</span> : (
           <span key={i} className={`df-chg${kept.has(p.id) ? " kept" : ""}`} role="button" tabIndex={0}
@@ -151,7 +151,7 @@ export function DiffSheet({ who, before, after, onSave, onClose }: {
       </div>
       <div className="modal-foot">
         <span className="hint grow">{view === "changes" ? "Click a change to put the original words back just there (click again to undo)." : "The rewritten text is the one in the chat; the original is kept."}</span>
-        <button type="button" className="btn btn-bordered btn-small" onClick={() => onSave(before)}>Undo all</button>
+        <button type="button" className="btn btn-bordered btn-small" onClick={() => onSave(before)}>Undo All</button>
         {kept.size > 0
           ? <button type="button" className="btn btn-prominent btn-small" onClick={() => onSave(result)}>Save {kept.size} put back</button>
           : <button type="button" className="btn btn-prominent btn-small" onClick={onClose}>Done</button>}

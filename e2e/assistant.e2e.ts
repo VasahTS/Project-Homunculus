@@ -74,7 +74,7 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await page.getByTestId("assistant-customize").click();
   await expect(page.getByTestId("cust-assistant")).toHaveCount(5);
   await page.getByTestId("cust-new-assistant").click();
-  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("New assistant");
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("New Assistant");
   await page.getByTestId("cust-presets").click();
   await page.getByTestId("assistant-new-rule").fill("Cards in English.");
   await page.getByTestId("assistant-new-rule").press("Enter");

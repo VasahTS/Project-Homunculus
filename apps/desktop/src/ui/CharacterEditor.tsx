@@ -300,7 +300,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
     <div className="card-kind" data-testid="card-kind">
       <span className="label-row">In the Scene <Help text="The default for every story and chat with this card; each can change it in its cast (Story → Characters, or “Who is in this story” in a chat)." /></span>
       <Segmented small label="In the Scene" value={draft.tracked === false ? "no" : "yes"}
-        options={[{ value: "yes", label: "Track as a person" }, { value: "no", label: "Don't track" }]}
+        options={[{ value: "yes", label: "Track as a Person" }, { value: "no", label: "Don't Track" }]}
         onChange={(k) => setDraft((d) => { const { tracked: _t, ...rest } = d; return k === "no" ? { ...rest, tracked: false } : rest; })} />
       <small className="hint card-kind-hint">{draft.tracked === false
         ? "Sent whole to the AI, but the Scene does not list it as one person. If it holds several characters, each one is added by name as they appear."

@@ -6,6 +6,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type { LibraryCategory, NavigationProfile } from "../theme/navigation.ts";
 import { Icon } from "./kit.tsx";
+import { useSlidingPill } from "./motion.ts";
 import { Toolbar } from "./Toolbar.tsx";
 
 export function LibraryWorkspace({ lead, category, navigation, counts, onOpen, children }: {
@@ -14,6 +15,8 @@ export function LibraryWorkspace({ lead, category, navigation, counts, onOpen, c
 }) {
   // in a narrow window the row scrolls sideways: keep the open section in view (also when Ctrl+K opened it)
   const nav = useRef<HTMLElement>(null);
+  const line = useRef<HTMLSpanElement>(null);
+  useSlidingPill(nav, line, '[aria-current="page"]', category); // D-080: the underline glides to the tab
   useEffect(() => { nav.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [category]);
   const groups = navigation.groups.filter((g) => !g.trailing);
   const trailing = navigation.groups.filter((g) => g.trailing).flatMap((g) => g.items);
@@ -25,7 +28,8 @@ export function LibraryWorkspace({ lead, category, navigation, counts, onOpen, c
   return (
     <section className="library-workspace" data-region="library-workspace">
       <Toolbar lead={lead} title="Library" subtitle="Reusable material for your characters and stories" />
-      <nav ref={nav} className="library-tabs" aria-label="Library categories" data-testid="library-list" data-region="library-navigation">
+      <nav ref={nav} className="library-tabs gliding" aria-label="Library categories" data-testid="library-list" data-region="library-navigation">
+        <span className="slide-pill tab-line" ref={line} aria-hidden />
         {groups.map((group) => (
           <div className="library-tab-group" role="group" key={group.id} aria-label={group.label}>
             {group.items.map((item) => tab(item))}

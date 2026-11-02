@@ -185,7 +185,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
         )}
         {rec.promptNotes?.map((n, i) => <Row key={i} wide><span className="hint warn-text" data-testid="reply-note">{n}</span></Row>)}
         <Row wide>
-          <Button small onClick={() => setPromptOpen(true)}><Icon name="eye" size={13} />Open the full prompt</Button>
+          <Button small onClick={() => setPromptOpen(true)}><Icon name="eye" size={13} />Open the Full Prompt</Button>
         </Row>
       </Group>
       {promptOpen && (

@@ -221,7 +221,7 @@ export function ReplaceBar({ entries, openId, focusTick, onOpenEntry, onApply, o
         <button type="button" className="btn btn-bordered btn-small" onClick={replaceOne} title="Replace the selected match and go to the next (Enter)">Replace</button>
         <button type="button" className="btn btn-bordered btn-small" onClick={replaceAll} title="Replace every match (Ctrl+Alt+Enter)">Replace All</button>
         <Segmented small label="Where to search" value={scope} onChange={setScope}
-          options={[{ value: "all", label: "All entries" }, ...(openId ? [{ value: "entry" as const, label: "Open entry" }] : [])]} />
+          options={[{ value: "all", label: "All Entries" }, ...(openId ? [{ value: "entry" as const, label: "Open Entry" }] : [])]} />
         <label className="lore-rp-check"><input type="checkbox" checked={meta} onChange={(e) => setMeta(e.target.checked)} /> Titles and keywords too</label>
       </div>
     </div>

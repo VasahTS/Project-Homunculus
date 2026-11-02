@@ -210,7 +210,7 @@ export function NarratorForm({ value, onChange, starts = [] }: { value: Narrator
             return (
               <div key={c.key} className="nf-srow"><b>{c.label}</b>
                 <span className="nf-opts">
-                  <button type="button" className={`fchip${!cur ? " on" : ""}`} onClick={() => style(c.key, "")}>Not set</button>
+                  <button type="button" className={`fchip${!cur ? " on" : ""}`} onClick={() => style(c.key, "")}>Not Set</button>
                   {c.options.map((o) => <button key={o} type="button" className={`fchip${cur === o ? " on" : ""}`} onClick={() => style(c.key, o)}>{o}</button>)}
                   <input aria-label={c.label} placeholder="or your words" value={custom ? cur : ""} onChange={(e) => style(c.key, e.target.value)} />
                 </span>
@@ -221,7 +221,7 @@ export function NarratorForm({ value, onChange, starts = [] }: { value: Narrator
       )}
 
       <div className="row-line nf-blocks-head"><b>Instructions</b><span className="hint">blocks, sent in this order inside &lt;narrator&gt;</span><span className="spacer" />
-        <button type="button" className="link" onClick={() => { const id = newBlockId(); setBlocks([...blocks, { id, name: "New block", on: true, text: "" }]); setOpen(id); }}>+ Add a block</button></div>
+        <button type="button" className="link" onClick={() => { const id = newBlockId(); setBlocks([...blocks, { id, name: "New block", on: true, text: "" }]); setOpen(id); }}>+ Add a Block</button></div>
       {blocks.length === 0 && (
         <div className="nf-blank">
           <p className="hint">A blank narrator. Write a block, or start from one of these (it copies their blocks and style; change anything after):</p>
@@ -244,7 +244,7 @@ export function NarratorForm({ value, onChange, starts = [] }: { value: Narrator
             {open === b.id && (
               <div className="nf-block-body">
                 <div className="row-line"><input aria-label="Block name" value={b.name} onChange={(e) => setBlocks(blocks.map((x) => (x.id === b.id ? { ...x, name: e.target.value } : x)))} />
-                  <span className="spacer" /><button type="button" className="link quiet" onClick={() => setBlocks(blocks.filter((x) => x.id !== b.id))}>Remove block</button></div>
+                  <span className="spacer" /><button type="button" className="link quiet" onClick={() => setBlocks(blocks.filter((x) => x.id !== b.id))}>Remove Block</button></div>
                 <textarea rows={12} aria-label={`${b.name || "Block"} text`} className="mono" value={b.text} onChange={(e) => setBlocks(blocks.map((x) => (x.id === b.id ? { ...x, text: e.target.value } : x)))} />
               </div>
             )}
@@ -293,7 +293,7 @@ export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTr
       {error && <div className="error-bar inline" role="alert">{error}</div>}
       <div className="ne-tabs" role="tablist" aria-label="Narrator">
         <button type="button" role="tab" aria-selected={tab === "edit"} className={`fchip${tab === "edit" ? " on" : ""}`} onClick={() => setTab("edit")}>Edit</button>
-        <button type="button" role="tab" aria-selected={tab === "sent"} className={`fchip${tab === "sent" ? " on" : ""}`} onClick={() => setTab("sent")}>What the AI gets</button>
+        <button type="button" role="tab" aria-selected={tab === "sent"} className={`fchip${tab === "sent" ? " on" : ""}`} onClick={() => setTab("sent")}>What the AI Gets</button>
       </div>
       <div className="ne-body">
         <div className="ne-form">
@@ -620,7 +620,7 @@ export function SaveNpcSheet({ draft, fieldSets, story, folders, onSave, onClose
         {folders.map((f) => option(`folder:${f.id}`, "folder", f.label, "", f.depth))}
         {option("loose", "users", "Loose", "Not in a story or a folder")}
         {naming === null
-          ? <div className="setup-row"><button type="button" className="link" onClick={() => { setNaming(""); setWhere("new"); }}>+ New folder</button></div>
+          ? <div className="setup-row"><button type="button" className="link" onClick={() => { setNaming(""); setWhere("new"); }}>+ New Folder</button></div>
           : <div className="setup-row"><Icon name="folder" size={15} /><input autoFocus aria-label="New folder name" placeholder="Folder name" value={naming}
               onChange={(e) => { setNaming(e.target.value); setWhere("new"); }} /></div>}
       </SetupSection>

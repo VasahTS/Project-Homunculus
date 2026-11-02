@@ -366,7 +366,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
           {(close) => <>
             <button type="button" className="asst-pop-item" onClick={() => { close(); setRenaming(true); }}><span className="asst-pop-emoji"><Icon name="pencil" size={14} /></span><span><b>Rename</b></span></button>
             <button type="button" className="asst-pop-item" onClick={() => { close(); void saveExport({ fileName: `${chat.title.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60) || "assistant-chat"}.md`, mime: "text/markdown", bytes: new TextEncoder().encode(chatMarkdown(chat)) }); }}><span className="asst-pop-emoji"><Icon name="download" size={14} /></span><span><b>Export as Markdown</b></span></button>
-            <button type="button" className="asst-pop-item danger" onClick={() => { close(); void deleteChat(svc.store, chat.id).then(() => { st.setActiveId(null); void st.reload(); }); }}><span className="asst-pop-emoji"><Icon name="trash" size={14} /></span><span><b>Delete chat</b></span></button>
+            <button type="button" className="asst-pop-item danger" onClick={() => { close(); void deleteChat(svc.store, chat.id).then(() => { st.setActiveId(null); void st.reload(); }); }}><span className="asst-pop-emoji"><Icon name="trash" size={14} /></span><span><b>Delete Chat</b></span></button>
           </>}
         </Pop>}
         <button type="button" className={`asst-details-btn${details ? " on" : ""}`} onClick={() => setDetails(!details)} aria-pressed={details} data-testid="assistant-details-toggle"><Icon name="inspector" size={14} /> Details</button>
@@ -443,10 +443,10 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
         <Pop title="Add" testId="assistant-plus" className="up-left" icon label={<Icon name="plus" size={16} />}>
           {(close) => <>
             <button type="button" className="asst-pop-item" data-testid="assistant-add-context" onClick={() => { close(); onPick(); }}>
-              <span className="asst-pop-emoji"><Icon name="book" size={14} /></span><span><b>Add context…</b><small>Characters, lorebooks, narrators from your library (or type @)</small></span>
+              <span className="asst-pop-emoji"><Icon name="book" size={14} /></span><span><b>Add Context…</b><small>Characters, lorebooks, narrators from your library (or type @)</small></span>
             </button>
             <button type="button" className="asst-pop-item" onClick={() => { close(); onFiles(); }} aria-label="Attach">
-              <span className="asst-pop-emoji"><Icon name="paperclip" size={14} /></span><span><b>Attach a file…</b><small>.json, .jsonl, .md, .txt, PNG cards, pictures</small></span>
+              <span className="asst-pop-emoji"><Icon name="paperclip" size={14} /></span><span><b>Attach a File…</b><small>.json, .jsonl, .md, .txt, PNG cards, pictures</small></span>
             </button>
           </>}
         </Pop>
@@ -541,7 +541,7 @@ function ResultCard({ r, onAct, onOpen, onStartKit }: { r: AssistantResult; onAc
     <div className="asst-res" data-testid="assistant-result">
       <div className="asst-res-line"><span className="asst-res-ic">{kindMark}</span>
         <span className="asst-res-t"><b>{r.name}</b><small className={r.undone ? "" : "ok"}>{KIND_ONE[r.kind]} · {r.undone ? (r.kind === "tracker" ? "removed" : "moved to the Trash") : "created"}{r.detail && !r.undone ? ` · ${r.detail}` : ""}</small></span>
-        {!r.undone && r.kind === "kit" && <button className="asst-lnk" onClick={() => onStartKit(r.itemId)}>Start a story</button>}
+        {!r.undone && r.kind === "kit" && <button className="asst-lnk" onClick={() => onStartKit(r.itemId)}>Start a Story</button>}
         {!r.undone && <button className="asst-lnk" onClick={() => onOpen(r.kind, r.itemId)}>Open</button>}
         {!r.undone ? <button className="asst-lnk" onClick={() => onAct("undo")}>Undo</button> : r.kind !== "tracker" && <button className="asst-lnk" onClick={() => onAct("restore")}>Restore</button>}
       </div>
@@ -737,7 +737,7 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
           {!ctx && <p className="hint">Pick the model with “Browse…” in the model menu to see how full the context is.</p>}
           <div className="asst-pop-h">This chat</div>
           <div className="asst-kv"><span>Replies</span><b>{replies.length}</b><span>Tokens</span><b>{spent.tokens ? fmtK(spent.tokens) : "not reported"}</b><span>Cost</span><b>{spent.cost ? `$${spent.cost.toFixed(3)}` : "not reported"}</b></div>
-          <button type="button" className="asst-pop-foot" onClick={onCustomize}>Limits and usage…</button>
+          <button type="button" className="asst-pop-foot" onClick={onCustomize}>Limits and Usage…</button>
         </div>}
       </Pop>
     </span>
@@ -779,7 +779,7 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
             title={`Web search (DuckDuckGo) is ${webOn ? "on" : "off"} for this chat — click to turn it ${webOn ? "off" : "on"}`}
             className={`switch${webOn ? " on" : ""}`} onClick={() => setPicks({ webSearch: !webOn })}><span /></button>
         </label>
-        <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit assistants and presets…</button>
+        <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit Assistants and Presets…</button>
       </>}
       {sub === "assistant" && <>
         {back("Who answers")}
@@ -799,7 +799,7 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
               <span className="asst-pop-emoji"><Icon name="preset" size={14} /></span><span><b>{p.name}</b><small>{p.description || `${p.rules.length} rules · ${p.notes.length} notes · ${p.memory.length} memories`}</small></span>
             </button>
           ))}
-          <button type="button" role="radio" aria-checked={!preset} className={`asst-pop-item${!preset ? " on" : ""}`} onClick={() => { setPicks({ presetId: "none" }); setSub(null); }}><span className="asst-pop-emoji"><Icon name="none" size={14} /></span><span><b>No preset</b><small>Only the assistant's own instructions.</small></span></button>
+          <button type="button" role="radio" aria-checked={!preset} className={`asst-pop-item${!preset ? " on" : ""}`} onClick={() => { setPicks({ presetId: "none" }); setSub(null); }}><span className="asst-pop-emoji"><Icon name="none" size={14} /></span><span><b>No Preset</b><small>Only the assistant's own instructions.</small></span></button>
         </div>
       </>}
     </div>

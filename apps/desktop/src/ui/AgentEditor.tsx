@@ -66,7 +66,7 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
         <span className={status === "error" ? "error-text" : "hint"} role="status" data-testid="agent-save-state">
           {status === "saving" ? "Saving…" : status === "error" ? "Not saved" : "✓ Saved"}
         </span>
-        <button type="button" className="btn btn-bordered btn-small" onClick={() => onTry(draft)}>Try it</button>
+        <button type="button" className="btn btn-bordered btn-small" onClick={() => onTry(draft)}>Try It</button>
         {onClose && <button className="btn btn-bordered btn-small" onClick={() => { void draft.flush().then((saved) => { if (saved) onClose(); }); }}>Close</button>}
       </div>
       <div className="editor-body ae-body">
@@ -113,11 +113,11 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
         <Sec title="How it runs" help="v1 Execution: Companion (its own call) or Inline (inside the main reply).">
           <div className="ae-tiles" role="radiogroup" aria-label="How it runs">
             <button type="button" role="radio" aria-checked={d.runMode === "separate"} className={`ae-tile${d.runMode === "separate" ? " on" : ""}`}
-              onClick={() => set({ runMode: "separate", input: { ...input, messages: Math.max(4, input.messages) } })}><b>Its own AI call</b><span>A separate request; can use another model (v1 companion)</span></button>
+              onClick={() => set({ runMode: "separate", input: { ...input, messages: Math.max(4, input.messages) } })}><b>Its Own AI Call</b><span>A separate request; can use another model (v1 companion)</span></button>
             <button type="button" role="radio" aria-checked={d.runMode === "inline"} disabled={!inlineOk} className={`ae-tile${d.runMode === "inline" ? " on" : ""}`}
-              onClick={() => set({ runMode: "inline" })}><b>Inside the main reply</b><span>The story's AI writes it in a hidden block; no extra call (v1 inline)</span></button>
+              onClick={() => set({ runMode: "inline" })}><b>Inside the Main Reply</b><span>The story's AI writes it in a hidden block; no extra call (v1 inline)</span></button>
             <button type="button" role="radio" aria-checked={textMode} disabled={out !== "inject"} className={`ae-tile${textMode ? " on" : ""}`}
-              onClick={() => set({ runMode: "text", input: { ...input, messages: 0 } })}><b>No AI call</b><span>Sends its own text as written; {"{{random::a::b}}"} picks one</span></button>
+              onClick={() => set({ runMode: "text", input: { ...input, messages: 0 } })}><b>No AI Call</b><span>Sends its own text as written; {"{{random::a::b}}"} picks one</span></button>
           </div>
         </Sec>
 
@@ -317,7 +317,7 @@ function VariablesEditor({ vars, onChange }: { vars: NonNullable<AgentConfig["va
           <button type="button" className="link quiet" onClick={() => onChange(vars.filter((_, j) => j !== i))}>Remove</button>
         </div>
       ))}
-      <button type="button" className="link" onClick={() => { let k = "value"; let n = 1; while (vars.some((x) => x.key === k)) k = `value_${++n}`; onChange([...vars, { key: k, label: "", value: "" }]); }}>+ Add a variable</button>
+      <button type="button" className="link" onClick={() => { let k = "value"; let n = 1; while (vars.some((x) => x.key === k)) k = `value_${++n}`; onChange([...vars, { key: k, label: "", value: "" }]); }}>+ Add a Variable</button>
     </div>
   );
 }
@@ -349,7 +349,7 @@ function StylesEditor({ styles, styleId, onChange }: { styles: NonNullable<Agent
           <textarea rows={2} aria-label={`${x.name} text`} placeholder="What this version changes (replaces {{style}} in the instructions)" value={x.text} onChange={(e) => patch(i, { text: e.target.value })} />
         </div>
       ))}
-      <button type="button" className="link" onClick={add}>+ Add a style</button>
+      <button type="button" className="link" onClick={add}>+ Add a Style</button>
     </div>
   );
 }

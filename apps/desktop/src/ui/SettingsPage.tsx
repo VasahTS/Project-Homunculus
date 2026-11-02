@@ -4,7 +4,7 @@
 import { CustomizeSection } from "./CustomizeSection.tsx";
 import type { Lorebook, LoreSettings } from "@homunculus/schemas";
 import { LoreSettingsSection } from "./LorePanels.tsx";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ConnectionProfile, type Persona, type Preset, type SetupLayer } from "@homunculus/schemas";
 import { AUTHORS_NOTE_DEFAULTS, profileToConfig, type Completion, type ConnectionConfig, type ModelInfo, type ProviderDefinition } from "@homunculus/core";
 import { keyNameOf, needsKey, newProfile, suggestName, type ConnectionState } from "../connection.ts";
@@ -12,6 +12,7 @@ import { cachedModels, ModelPicker, modelMeta } from "./ModelPicker.tsx";
 import type { Tracker } from "../trackers.ts";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { Button, Group, Icon, Row, Segmented, Switch } from "./kit.tsx";
+import { useSlidingPill } from "./motion.ts";
 import { AuthorsNoteGroup } from "./AuthorsNote.tsx";
 import { ParamRows } from "./ConnectionPanel.tsx";
 import { Toolbar } from "./Toolbar.tsx";
@@ -48,12 +49,7 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
     // UX review items 1–2 (D-078): Settings is a place like Library — a big title and the same row of tabs under it
     <section className="library-workspace settings-workspace" data-region="library-workspace">
       <Toolbar lead={lead} title="Settings" subtitle="Connections, defaults for new chats, and how the app looks" />
-      <nav className="library-tabs" aria-label="Settings sections" role="tablist">
-        {SECTIONS.map((x) => (
-          <button key={x.value} type="button" role="tab" aria-selected={tab === x.value} className="library-tab" aria-current={tab === x.value ? "page" : undefined}
-            data-testid={`settings-${x.value}`} onClick={() => onTab(x.value)}><span>{x.label}</span></button>
-        ))}
-      </nav>
+      <SettingsTabs tab={tab} onTab={onTab} />
       <div className="library-workspace-content settings-content">
       {tab === "about" ? <AboutSection u={updates} />
         : tab === "customize" ? <CustomizeSection notify={notify} />
@@ -64,6 +60,22 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
             onSetDefaultSetup={onSetDefaultSetup} onSetDefaultPersona={onSetDefaultPersona} />}
       </div>
     </section>
+  );
+}
+
+/** Settings' tab row, with the underline gliding to the open section (D-080). */
+function SettingsTabs({ tab, onTab }: { tab: SettingsTab; onTab: (t: SettingsTab) => void }) {
+  const nav = useRef<HTMLElement>(null);
+  const line = useRef<HTMLSpanElement>(null);
+  useSlidingPill(nav, line, '[aria-current="page"]', tab);
+  return (
+    <nav ref={nav} className="library-tabs gliding" aria-label="Settings sections" role="tablist">
+      <span className="slide-pill tab-line" ref={line} aria-hidden />
+      {SECTIONS.map((x) => (
+        <button key={x.value} type="button" role="tab" aria-selected={tab === x.value} className="library-tab" aria-current={tab === x.value ? "page" : undefined}
+          data-testid={`settings-${x.value}`} onClick={() => onTab(x.value)}><span>{x.label}</span></button>
+      ))}
+    </nav>
   );
 }
 
@@ -355,7 +367,7 @@ function DefaultsSection({ c, trackers, presets, defaultPresetId, personas, defa
 
       {trackers.length > 0 && (
         <details className="cz-adv defaults-more" data-testid="defaults-per-tracker">
-          <summary>A connection for one tracker</summary>
+          <summary>A Connection for One Tracker</summary>
           <p className="hint">For example a smarter model for the plot and a cheap one for the clock. Empty = the agents' connection.</p>
           <Group>
           {trackers.map((t) => (
