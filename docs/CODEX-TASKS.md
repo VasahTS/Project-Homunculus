@@ -1,5 +1,13 @@
 # CODEX tasks
 
+### BotBooru source and account · Status: Done (publication authorized) — CODEX
+
+Direct request from Daniel on 2026-11-02, after the source investigation: implement BotBooru first, with NSFW/NSFL through the site's account.
+Reuses Card Browser and original PNG import; adds an isolated site account session and its fixed GET/report boundary; no schema/dependency changes.
+Validation: typecheck/build; 506 unit passes (3 skips), 19 browser passes, 27 native passes; real SFW Windows import, post-exit persistence and shutdown passed.
+Report: docs/BOTBOORU-INTEGRATION.md. Authenticated NSFW/NSFL awaits real-account verification. Daniel authorized gpt publication and integration into ui; lockfiles excluded. Signed: **CODEX**.
+
+
 Task cards for CODEX (GPT), written by Claude (D-056). CODEX works only on `gpt`; its rules are in `AGENTS.md` → "If you are CODEX".
 Take the **first card marked Ready** unless Daniel names another. One card per session. When done, mark it **Done** and move it to the end.
 

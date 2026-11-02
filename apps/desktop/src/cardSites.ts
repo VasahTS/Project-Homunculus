@@ -1,5 +1,6 @@
 // Card Browser desktop transport and browser-test seam. CODEX, 2026-11-02 (T-007).
 import { base64ToBytes, importCardPng } from "@homunculus/st-cards";
+import type { BotbooruAccountState } from "@homunculus/card-browser";
 import { isDesktop } from "./db.ts";
 
 export interface SiteRequest {
@@ -20,7 +21,7 @@ export interface SiteResponse {
   bytes?: Uint8Array;
   mime?: string;
 }
-export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse>; decodeCard?(bytes: Uint8Array): Record<string, unknown> }
+export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse>; decodeCard?(bytes: Uint8Array): Record<string, unknown>; botbooruAccount?(action: "status" | "open" | "logout"): Promise<BotbooruAccountState> }
 type NativeResponse = Omit<SiteResponse, "bytes"> & { base64?: string };
 
 // Prefer Marinara's browser route; a challenged download can complete in the site's own native session.
@@ -38,6 +39,20 @@ async function browserJson(request: SiteRequest): Promise<SiteResponse | undefin
 }
 
 export const desktopCardSites: SiteTransport = {
+  async botbooruAccount(action) {
+    if (!isDesktop) {
+      const fake = (globalThis as { __h2FakeCardSites?: SiteTransport }).__h2FakeCardSites;
+      if (fake?.botbooruAccount) return fake.botbooruAccount(action);
+      throw new Error("BotBooru accounts work in the desktop app.");
+    }
+    const { invoke } = await import("@tauri-apps/api/core");
+    if (action === "open") await invoke("botbooru_window");
+    const r = await invoke<NativeResponse>("botbooru_request", { path: action === "logout" ? "logout" : "/auth/me" });
+    if (r.status === 401) return { username: null, showNsfw: false, showNsfl: false };
+    if (r.status !== 200) throw new Error("Open BotBooru Account to finish signing in or the browser check, then refresh.");
+    const a = JSON.parse(r.text ?? "{}");
+    return { username: typeof a.username === "string" ? a.username : null, showNsfw: a.showNsfw === true, showNsfl: a.showNsfl === true };
+  },
   decodeCard: (bytes) => importCardPng(bytes).character.original as Record<string, unknown>,
   async request(request) {
     if (!isDesktop) {
@@ -48,7 +63,11 @@ export const desktopCardSites: SiteTransport = {
     const jannyJson = request.method === "POST" && request.expect === "json" && ["https://search.jannyai.com/multi-search", "https://api.jannyai.com/api/v1/download"].includes(request.url);
     if (jannyJson) { try { const r = await browserJson(request); if (r) return r; } catch { /* Native fallback handles CORS/network refusals. */ } }
     const { invoke } = await import("@tauri-apps/api/core");
-    let native = await invoke<NativeResponse>("card_site_request", { request });
+    const botbooru = new URL(request.url).origin === "https://botbooru.com" && request.expect === "json";
+    if (botbooru && (request.method !== "GET" || request.body || Object.keys(request.headers ?? {}).length)) throw new Error("BotBooru supports fixed read-only requests.");
+    let native = botbooru
+      ? await invoke<NativeResponse>("botbooru_request", { path: new URL(request.url).pathname + new URL(request.url).search })
+      : await invoke<NativeResponse>("card_site_request", { request });
     if (jannyJson && request.url === "https://api.jannyai.com/api/v1/download" && native.cfMitigated && [403, 503].includes(native.status)) {
       try { const body = JSON.parse(request.body ?? "{}"); const recovered = await invoke<NativeResponse>("janny_card_url", { characterId: body.characterId }); if ((recovered.status >= 200 && recovered.status < 300) || recovered.status === 429) native = recovered; } catch { /* Preserve the original refusal and recovery actions. */ }
     }

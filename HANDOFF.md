@@ -1,5 +1,15 @@
 # HANDOFF — Homunculus 2
 
+## BotBooru source and account — publication authorized (2026-11-02) — CODEX
+
+Daniel directly requested BotBooru first: source/search/filter/details/original-PNG import plus the site's own account window for NSFW/NSFL.
+Fixed GET-only isolated session; no credentials returned to main; account flags respected; logout clears results; closing main also ends the site window.
+Validation: typecheck/build, 506 unit passes (3 skips), 19 browser passes, 27 native passes; real SFW Windows import and post-exit persistence passed.
+Report: docs/BOTBOORU-INTEGRATION.md; evidence: docs/evidence/botbooru-native-2026-11-02.json.
+Real authenticated NSFW/NSFL remains untested; no personal data/API keys, schema or dependency changes; pre-existing lockfiles preserved.
+Daniel explicitly authorized committing/pushing gpt and merging/pushing ui. Existing local lockfile edits remain excluded. Signed: **CODEX**.
+
+
 Notes for Daniel and for the next work sessions (Claude or CODEX). Read before changing anything.
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.

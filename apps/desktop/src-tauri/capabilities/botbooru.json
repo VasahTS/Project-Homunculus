@@ -1,0 +1,16 @@
+{
+  "identifier": "botbooru",
+  "description": "Only a pending bounded response may return from BotBooru. CODEX, 2026-11-02.",
+  "windows": [
+    "botbooru"
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "https://botbooru.com"
+    ]
+  },
+  "permissions": [
+    "allow-botbooru-report"
+  ]
+}

@@ -1,0 +1,5 @@
+# The account page may only return its pending read-only response. CODEX, 2026-11-02.
+[[permission]]
+identifier = "allow-botbooru-report"
+description = "Return one bounded BotBooru response."
+commands.allow = ["botbooru_report"]

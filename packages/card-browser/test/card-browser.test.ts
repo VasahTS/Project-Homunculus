@@ -17,8 +17,8 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 1, 2, 3]);
 beforeEach(() => { pauses.clear(); resetJannyKey(); resetDatacat(); });
 
 describe("sources", () => {
-  it("lists the five sites in the picker's order, each with a default sort it offers", () => {
-    expect(CARD_SOURCES.map((s) => s.name)).toEqual(["ChubAI", "JannyAI", "Wyvern", "Pygmalion", "DataCat"]);
+  it("lists the six sites in the picker's order, each with a default sort it offers", () => {
+    expect(CARD_SOURCES.map((s) => s.name)).toEqual(["ChubAI", "JannyAI", "Wyvern", "Pygmalion", "DataCat", "BotBooru"]);
     for (const s of CARD_SOURCES) expect(s.sorts.map((x) => x.id)).toContain(s.defaultSort);
     expect(cardSource("nope").id).toBe("chub");
   });

@@ -4,9 +4,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { Avatar, Character, Folder } from "@homunculus/schemas";
 import { bytesToBase64 } from "@homunculus/st-cards";
-import { CARD_SOURCES, cardSource, isSourceId, NO_FILTERS, SiteError } from "@homunculus/card-browser";
-import type { CardDetails, CardFile, CardFilters, CardItem, CardSource, MustHave, SiteTransport, SourceId } from "@homunculus/card-browser";
+import { CARD_SOURCES, cardSource, isSourceId, NO_FILTERS, pauses, SiteError } from "@homunculus/card-browser";
+import type { BotbooruAccountState, CardDetails, CardFile, CardFilters, CardItem, CardSource, MustHave, SiteTransport, SourceId } from "@homunculus/card-browser";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
+import { BotbooruAccount } from "./BotbooruAccount.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { Help } from "./Help.tsx";
 import { CardPicture, GalleryCard } from "./Gallery.tsx";
@@ -79,7 +80,7 @@ function useOnScreen<T extends Element>(): [RefObject<T | null>, boolean] {
 }
 
 // ------------------------------------------------------------------ helpers
-const NSFW_NOTE: Record<SourceId, string> = { chub: "Adult cards with NSFW on", janny: "Adult cards with NSFW on", wyvern: "Adult cards with NSFW on", pygmalion: "Safe cards only", datacat: "Adult cards only" };
+const NSFW_NOTE: Record<SourceId, string> = { chub: "Adult cards with NSFW on", janny: "Adult cards with NSFW on", wyvern: "Adult cards with NSFW on", pygmalion: "Safe cards only", datacat: "Adult cards only", botbooru: "NSFW and NSFL with your account" };
 const MUST_LABEL: Record<MustHave, string> = { lorebook: "Has Lorebook", greetings: "Has Alternate Greetings", gallery: "Has Gallery", expressions: "Has Expressions" };
 const MUST_SHORT: Record<MustHave, string> = { lorebook: "Lorebook", greetings: "Alternate Greetings", gallery: "Gallery", expressions: "Expressions" };
 const fmt = (n: number | undefined) => (n === undefined ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n));
@@ -124,7 +125,7 @@ export function CardBrowser(p: CardBrowserProps) {
   const [include, setInclude] = useState<string[]>(m?.include ?? []);
   const [exclude, setExclude] = useState<string[]>(m?.exclude ?? []);
   const [filters, setFilters] = useState<CardFilters>(m?.filters ?? NO_FILTERS);
-  const [items, setItems] = useState<CardItem[]>(m?.items ?? []);
+  const [items, setItems] = useState<CardItem[]>(m?.source === "botbooru" ? [] : m?.items ?? []);
   const [total, setTotal] = useState<number | null>(m?.total ?? null);
   const [hasMore, setHasMore] = useState(m?.hasMore ?? false);
   const [page, setPage] = useState(m?.page ?? 1);
@@ -133,7 +134,10 @@ export function CardBrowser(p: CardBrowserProps) {
   const [busy, setBusy] = useState<"search" | "more" | null>(null);
   const [error, setError] = useState<{ message: string; paused: boolean; desktop: boolean } | null>(null);
   const [open, setOpen] = useState<"source" | "tags" | "filters" | null>(null);
-  const nsfw = source.nsfw === "never" ? false : source.nsfw === "always" ? true : prefs.nsfw[sourceId] ?? false;
+  const [account, setAccount] = useState<BotbooruAccountState | null>(null);
+  const [accountEpoch, setAccountEpoch] = useState(0);
+  const accountReady = sourceId !== "botbooru" || !!(account?.username && account.showNsfw);
+  const nsfw = !accountReady ? false : source.nsfw === "never" ? false : source.nsfw === "always" ? true : prefs.nsfw[sourceId] ?? false;
   const [askAdult, setAskAdult] = useState(false);
   // tags the site lists itself (DataCat), loaded once per source
   const [siteTags, setSiteTags] = useState<string[]>([]);
@@ -143,13 +147,19 @@ export function CardBrowser(p: CardBrowserProps) {
     let live = true;
     source.loadTags(p.transport).then((xs) => { if (live) setSiteTags(xs); }, () => {});
     return () => { live = false; };
-  }, [source, p.transport]);
+  }, [source, p.transport, accountEpoch]);
   const search = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
   const added = useMemo(() => siteIndex(p.characters), [p.characters]);
-  const key = JSON.stringify([sourceId, text.trim(), sort, include, exclude, filters, nsfw]);
+  const accountChanged = useCallback((a: BotbooruAccountState) => {
+    ++seq.current; setBusy(null); setItems([]); setSelected(null); setSeenTags([]); setSiteTags([]);
+    for (const k of details.keys()) if (k.startsWith("botbooru:")) details.delete(k);
+    for (const k of pictures.keys()) if (k.startsWith("https://botbooru.com/")) pictures.delete(k);
+    pauses.verified("botbooru"); setAccount(a); setAccountEpoch((x) => x + 1);
+  }, []);
+  const key = JSON.stringify([sourceId, text.trim(), sort, include, exclude, filters, nsfw, accountEpoch]);
 
   const run = useCallback(async (more: boolean) => {
     const id = ++seq.current;
@@ -250,13 +260,14 @@ export function CardBrowser(p: CardBrowserProps) {
               Filters{activeFilters > 0 && <span className="cb-count">{activeFilters}</span>}</Button>}>
             <FilterPanel source={source} filters={filters} onChange={setFilters} />
           </Pop>}
-          <span className="cb-nsfw" data-testid="cb-nsfw" title={source.nsfw !== "toggle" ? source.nsfwNote : undefined}>
-            <Switch label="NSFW" checked={nsfw} disabled={source.nsfw !== "toggle"} onChange={(v) => setPrefs((x) => ({ ...x, nsfw: { ...x.nsfw, [sourceId]: v } }))} />
+          <span className="cb-nsfw" data-testid="cb-nsfw" title={!accountReady ? "Sign in and enable NSFW in your BotBooru account." : source.nsfw !== "toggle" ? source.nsfwNote : undefined}>
+            <Switch label="NSFW" checked={nsfw} disabled={source.nsfw !== "toggle" || !accountReady} onChange={(v) => setPrefs((x) => ({ ...x, nsfw: { ...x.nsfw, [sourceId]: v } }))} />
             <span>NSFW</span>
           </span>
         </div>
         <span className="collection-right"><SizeSwitch prefs={{ view: "everything", size: prefs.size }} onPrefs={(x) => setPrefs((y) => ({ ...y, size: x.size }))} /></span>
       </div>
+      {sourceId === "botbooru" && <BotbooruAccount transport={p.transport} onChange={accountChanged} />}
       {(include.length > 0 || exclude.length > 0 || activeFilters > 0) && (
         <div className="cb-chips" data-testid="cb-chips">
           {include.map((t) => <button key={`+${t}`} type="button" className="cb-chip" onClick={() => setTag(t, null)}>{t} <Icon name="close" size={11} /></button>)}
@@ -331,7 +342,7 @@ function ResultCard({ item, t, selected, added, onClick }: { item: CardItem; t: 
         summary={item.tagline || undefined} tags={item.tags} size={item.stats.tokens !== undefined ? `${fmt(item.stats.tokens)} tok` : item.stats.downloads !== undefined ? `${fmt(item.stats.downloads)} dl` : undefined}
         picture={<>
           <CardPicture name={item.name} avatar={pic} />
-          {(item.nsfw || added) && <span className="cb-marks">{item.nsfw && <span className="cb-mark">NSFW</span>}{added && <span className="cb-mark added" title="In your Characters" aria-label="In your Characters"><Icon name="check" size={12} /></span>}</span>}
+          {(item.nsfw || added) && <span className="cb-marks">{item.nsfw && <span className="cb-mark">{item.nsfl ? "NSFL" : "NSFW"}</span>}{added && <span className="cb-mark added" title="In your Characters" aria-label="In your Characters"><Icon name="check" size={12} /></span>}</span>}
         </>} />
     </span>
   );
@@ -379,7 +390,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
   walk(null, 0);
   const greetings = full ? [full.firstMessage, ...full.alternateGreetings].filter((x) => x.trim()) : [];
   const tags = full?.tags.length ? full.tags : item.tags;
-  const badges = [full?.hasLorebook && "Lorebook", greetings.length > 1 && `${greetings.length} Greetings`, item.nsfw && "NSFW"].filter(Boolean) as string[];
+  const badges = [full?.hasLorebook && "Lorebook", greetings.length > 1 && `${greetings.length} Greetings`, item.nsfw && (item.nsfl ? "NSFL" : "NSFW")].filter(Boolean) as string[];
   const figs = figures(item);
 
   return (

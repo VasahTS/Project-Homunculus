@@ -1,0 +1,67 @@
+{
+  "author": "CODEX",
+  "time": "2026-11-02T12:22:27.969Z",
+  "mode": "Packaged Windows UI, live public SFW, isolated dev-data",
+  "errors": [],
+  "origin": "http://tauri.localhost",
+  "dataLocation": {
+    "dir": "C:\\Users\\danie\\Documents\\SillyBunny-Classic-Dev\\dev-data\\botbooru-2026-11-02-codex-final",
+    "portable": true
+  },
+  "visibleCards": 40,
+  "accountLabel": "Sign in to browse NSFW and NSFL cards.",
+  "nsfwDisabledWithoutLogin": true,
+  "portraitsLoaded": 4,
+  "definitionLoaded": true,
+  "importNotice": "Added Akari to CharactersDismiss",
+  "persisted": [
+    {
+      "source": {
+        "site": "botbooru",
+        "id": "95050",
+        "url": "https://botbooru.com/character/95050",
+        "addedAt": 1793622159811
+      },
+      "definitionLength": 2444,
+      "personalityLength": 179,
+      "scenarioLength": 88,
+      "greetings": 4,
+      "avatar": true
+    }
+  ],
+  "accountStatus": {
+    "status": 401,
+    "account": {
+      "username": null,
+      "showNsfw": false,
+      "showNsfl": false
+    }
+  },
+  "signOutStatus": 200,
+  "afterSignOut": {
+    "status": 200,
+    "count": 1
+  },
+  "status": "passed",
+  "close": {
+    "author": "CODEX",
+    "pid": 31268,
+    "closeRequested": true,
+    "exitedAfterMainClose": true
+  },
+  "persistedAfterExit": [
+    {
+      "source": {
+        "site": "botbooru",
+        "id": "95050",
+        "url": "https://botbooru.com/character/95050",
+        "addedAt": 1793622159811
+      },
+      "definitionLength": 2444,
+      "personalityLength": 179,
+      "scenarioLength": 88,
+      "greetings": 4,
+      "avatar": true
+    }
+  ]
+}

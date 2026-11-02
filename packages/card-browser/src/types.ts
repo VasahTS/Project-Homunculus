@@ -18,9 +18,10 @@ export interface SiteResponse {
   bytes?: Uint8Array;
   mime?: string;
 }
-export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse>; decodeCard?(bytes: Uint8Array): Record<string, unknown> }
+export interface BotbooruAccountState { username: string | null; showNsfw: boolean; showNsfl: boolean }
+export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse>; decodeCard?(bytes: Uint8Array): Record<string, unknown>; botbooruAccount?(action: "status" | "open" | "logout"): Promise<BotbooruAccountState> }
 
-export type SourceId = "chub" | "janny" | "wyvern" | "pygmalion" | "datacat";
+export type SourceId = "chub" | "janny" | "wyvern" | "pygmalion" | "datacat" | "botbooru";
 export type MustHave = "lorebook" | "greetings" | "gallery" | "expressions";
 
 export interface CardFilters { must: MustHave[]; ascending: boolean; minTokens?: number; maxTokens?: number; lowQuality: boolean }
@@ -38,6 +39,7 @@ export interface CardItem {
   /** A picture address the transport can fetch with expect "image"; "" = none. */
   thumb: string;
   nsfw: boolean;
+  nsfl?: boolean;
   /** The card's page on the site. */
   url: string;
   stats: CardStats;

@@ -3079,6 +3079,9 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .cb-search { flex: 1 1 220px; max-width: 360px; }
 .cb-sort select { min-width: 0; max-width: 190px; }
 .cb-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--accent); color: var(--accent-ink); font-family: var(--font-figures); font-size: 11px; }
+/* BotBooru account controls; existing tokens and responsive wrap. CODEX, 2026-11-02. */
+.cb-account { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 0 0 12px; }
+.cb-account > .hint:last-of-type { flex-basis: 100%; }
 .cb-nsfw { display: inline-flex; align-items: center; gap: 6px; color: var(--label-2); font-size: var(--size-small); }
 .cb-nsfw:has(.switch:disabled) { opacity: .55; }
 .cb-pop-wrap, .cb-menu { position: relative; display: inline-flex; }

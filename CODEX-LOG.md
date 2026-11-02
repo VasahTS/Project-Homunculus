@@ -1,5 +1,15 @@
 # Work log — CODEX
 
+## BotBooru source and account — publication authorized (2026-11-02) — CODEX
+
+Daniel directly requested BotBooru first: source/search/filter/details/original-PNG import plus the site's own account window for NSFW/NSFL.
+Fixed GET-only isolated session; no credentials returned to main; account flags respected; logout clears results; closing main also ends the site window.
+Validation: typecheck/build, 506 unit passes (3 skips), 19 browser passes, 27 native passes; real SFW Windows import and post-exit persistence passed.
+Report: docs/BOTBOORU-INTEGRATION.md; evidence: docs/evidence/botbooru-native-2026-11-02.json.
+Real authenticated NSFW/NSFL remains untested; no personal data/API keys, schema or dependency changes; pre-existing lockfiles preserved.
+Daniel explicitly authorized committing/pushing gpt and merging/pushing ui. Existing local lockfile edits remain excluded. Signed: **CODEX**.
+
+
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
 ## Card Browser review and ui promotion (2026-11-02) — CODEX

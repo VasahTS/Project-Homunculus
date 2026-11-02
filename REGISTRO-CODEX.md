@@ -1,5 +1,17 @@
 # CODEX change record
 
+## BotBooru source and account — publication authorized (2026-11-02) — CODEX
+
+Daniel directly requested BotBooru first: source/search/filter/details/original-PNG import plus the site's own account window for NSFW/NSFL.
+Fixed GET-only isolated session; no credentials returned to main; account flags respected; logout clears results; closing main also ends the site window.
+Validation: typecheck/build, 506 unit passes (3 skips), 19 browser passes, 27 native passes; real SFW Windows import and post-exit persistence passed.
+Report: docs/BOTBOORU-INTEGRATION.md; evidence: docs/evidence/botbooru-native-2026-11-02.json.
+Real authenticated NSFW/NSFL remains untested; no personal data/API keys, schema or dependency changes; pre-existing lockfiles preserved.
+Daniel explicitly authorized committing/pushing gpt and merging/pushing ui. Existing local lockfile edits remain excluded. Signed: **CODEX**.
+
+Files: packages/card-browser/src/{sources/botbooru,types,index,pauses}.ts; package tests and original-query fixture; apps/desktop/src/{cardSites.ts,ui/BotbooruAccount.tsx,ui/CardBrowser.tsx,styles.css} and new bridge/transport tests; native src/{botbooru.rs,botbooru.js,lib.rs}, capabilities/botbooru.json, permissions/{botbooru,janny}.toml; e2e/botbooru.e2e.ts; CREDITS.md; report/evidence and signed work records. CODEX.
+
+
 ## 2026-11-02 — Review of readable details and authorized ui promotion — CODEX
 
 Daniel explicitly requested publishing gpt, then bringing it into ui; this overrides the repository's usual gpt-only publication rule for this operation.

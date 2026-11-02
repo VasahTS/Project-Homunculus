@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 mod janny;
+mod botbooru;
 
 // ---- Where the app keeps its data (D-030, CLAUDE 2026-10-29: portable mode, like SillyTavern).
 // Portable: a file `portable.txt` next to Homunculus.exe → everything (database, backups, API keys,
@@ -438,7 +439,7 @@ const CARD_SITE_HOSTS: &[&str] = &[
     "api.chub.ai", "avatars.charhub.io", "*.charhub.io", "*.chub.ai", "jannyai.com", "api.jannyai.com",
     "search.jannyai.com", "image.jannyai.com", "api.wyvern.chat", "*.wyvern.chat", "imagedelivery.net",
     "*.imagedelivery.net", "server.pygmalion.chat", "pygmalion.chat", "*.pygmalion.chat", "datacat.run",
-    "media.datacat.run", "ella.janitorai.com",
+    "media.datacat.run", "ella.janitorai.com", "botbooru.com",
 ];
 fn check_card_site_url(url: &reqwest::Url, expect: CardSiteExpect) -> Result<(), String> {
     check_web_url(url)?;
@@ -573,7 +574,14 @@ async fn card_site_request(request: CardSiteRequest) -> Result<serde_json::Value
 pub fn run() {
     tauri::Builder::default()
         .manage(janny::JannyBridge::default())
+        .manage(botbooru::BotbooruBridge::default())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        // A hidden account window must not keep the app alive after its main window closes. CODEX, 2026-11-02.
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(account) = window.app_handle().get_webview_window("botbooru") { let _ = account.destroy(); }
+            }
+        })
         .setup(|app| {
             // updates from GitHub Releases (D-037): checked and started only from the screen, never on its own
             #[cfg(desktop)]
@@ -619,7 +627,10 @@ pub fn run() {
             web_get,
             card_site_request,
             janny::janny_card_url,
-            janny::janny_card_report
+            janny::janny_card_report,
+            botbooru::botbooru_window,
+            botbooru::botbooru_request,
+            botbooru::botbooru_report
         ])
         .run(tauri::generate_context!())
         .expect("error while running Homunculus");
