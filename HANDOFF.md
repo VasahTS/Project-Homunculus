@@ -4,6 +4,14 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## Card Browser review and gpt → ui publication (2026-11-02) — CODEX
+
+Daniel explicitly requested pushing gpt and then integrating it into ui, including the other readable-details change e19bf40.
+Reviewed the larger portrait and collapsible full fields; reproduced and fixed ArrowDown stealing focus from text and selecting another card.
+Validation: typecheck/build; 488 unit passes (3 skips); 14 related browser passes. Report: docs/CARD-BROWSER-DETAILS-REVIEW.md.
+Publication is authorized for gpt and ui; existing local lockfile edits in both checkouts are preserved and excluded.
+No schema, dependency or native transport change in this follow-up. Signed: **CODEX**.
+
 ## Card Browser readable details (2026-11-02) — CODEX
 
 Daniel explicitly authorized UI changes on gpt and supplied v1 screenshots as the target for larger artwork and full, scrollable, collapsible fields.

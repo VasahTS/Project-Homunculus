@@ -2,6 +2,13 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## Card Browser review and ui promotion (2026-11-02) — CODEX
+
+Daniel authorized gpt push followed by gpt → ui integration; e19bf40 is included with the JannyAI fix.
+The details review found one keyboard bug: arrows in full-text fields were intercepted by grid navigation; failing regression added, minimal focus-scope fix applied.
+Checks: typecheck/build, 488 units (3 skips), 14 related browser flows. Report: docs/CARD-BROWSER-DETAILS-REVIEW.md.
+Both checkouts' existing lockfile edits are preserved; no native transport, schema or dependency changes. Signed: **CODEX**.
+
 ## Card Browser readable details (2026-11-02) — CODEX
 
 Daniel explicitly authorized UI changes on gpt and supplied v1 screenshots as the target for larger artwork and full, scrollable, collapsible fields.

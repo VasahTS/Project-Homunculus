@@ -212,7 +212,8 @@ export function CardBrowser(p: CardBrowserProps) {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); search.current?.focus(); return; }
     if (e.key === "Escape") { if (open) setOpen(null); else if (selected) setSelected(null); return; }
-    if (typing || !items.length || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+    const reading = e.target instanceof Element && e.target.closest(".cb-sheet");
+    if (typing || reading || !items.length || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
     e.preventDefault();
     const cards = gridRef.current?.querySelectorAll<HTMLElement>("[data-testid=cb-card]");
     const perRow = cards && cards.length > 1 ? Math.max(1, [...cards].filter((c) => c.offsetTop === cards[0]!.offsetTop).length) : 1;

@@ -1,5 +1,18 @@
 # CODEX change record
 
+## 2026-11-02 — Review of readable details and authorized ui promotion — CODEX
+
+Daniel explicitly requested publishing gpt, then bringing it into ui; this overrides the repository's usual gpt-only publication rule for this operation.
+Reviewed pre-existing CODEX commit e19bf40: enlarged contained portrait, complete scrollable fields and native collapsible sections. Its authorship/history is retained.
+Found and reproduced a keyboard regression before fixing it: ArrowDown in the Description text moved focus to another card. Added a regression to e2e/card-browser-details.e2e.ts.
+Changed apps/desktop/src/ui/CardBrowser.tsx only to scope grid arrow navigation away from the details sheet; standard text scrolling and grid navigation both pass.
+Validation: typecheck, production frontend build, 488 unit passes (3 skips), 14 related browser flows. New review record: docs/CARD-BROWSER-DETAILS-REVIEW.md.
+Updated HANDOFF.md, CODEX-LOG.md, docs/CODEX-TASKS.md and this record. Native transport, dependencies, schemas and lockfiles are unchanged by this follow-up.
+Existing package-lock.json and apps/desktop/src-tauri/Cargo.lock edits in both checkouts remain local and are not attributed to this work.
+Publication to gpt and ui is authorized; integration must preserve both checkouts' local changes and use a normal push.
+
+Signed: **CODEX**.
+
 ## 2026-11-02 — Card Browser readable details — CODEX
 
 Status: **committed locally on gpt, not pushed**, as Daniel authorized after reviewing the completed work. Daniel authorized UI work on gpt and specified the supplied v1 screenshots as the reference for this correction.

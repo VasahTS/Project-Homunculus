@@ -180,6 +180,12 @@ Size: S–M.
 
 ## Done
 
+### Direct request · Card Browser review and ui promotion (2026-11-02)    Status: Done (review/fix; publication authorized)
+Daniel requested gpt push then gpt → ui integration and review of e19bf40.
+Reviewed the new readable details; fixed proven arrow-key focus stealing in CardBrowser.tsx and added the regression to e2e/card-browser-details.e2e.ts.
+Validation: typecheck/build, 488 unit passes (3 skips), 14 related browser passes. Report: docs/CARD-BROWSER-DETAILS-REVIEW.md.
+Existing lockfile changes in both checkouts are excluded from publication and preserved. Signed: **CODEX**.
+
 ### Direct request · Working JannyAI native-session recovery (2026-11-02)   Status: Done (gpt; publication authorized)
 Daniel asked for a solution after the audit. Added the restricted API-origin browser bridge and fixed the eight reproduced transport/details/import/cache cases.
 Three real public safe cards imported through the packaged Windows UI; definitions, source and avatars verified in isolated native SQLite after exit.

@@ -72,3 +72,20 @@ test("Card Browser: greeting navigation resets reading position and a new card o
   await page.getByTestId("cb-card").nth(1).click();
   await expect(sheet.getByRole("region", { name: "Description", exact: true })).toBeVisible();
 });
+
+test("Card Browser: arrows scroll focused details and still navigate the card grid", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openLongCard(page);
+  const sheet = page.getByTestId("cb-sheet");
+  const field = sheet.getByRole("region", { name: "Description", exact: true });
+  await field.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(field).toBeFocused();
+  await expect.poll(() => field.evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
+  await expect(sheet.getByRole("heading", { name: "Reader 1", exact: true })).toBeVisible();
+  await page.keyboard.press("ArrowUp");
+  await expect(field).toBeFocused();
+  await page.getByTestId("cb-card").first().focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(sheet.getByRole("heading", { name: "Reader 2", exact: true })).toBeVisible();
+});
