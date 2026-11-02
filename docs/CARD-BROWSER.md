@@ -1,9 +1,9 @@
 # Card Browser — technical plan
 
 Author: CLAUDE, 2026-11-02. Status: **plan**. The screen's behaviour is in `docs/UI-PLAN.md` → "Card Browser" (waits for Daniel's OK);
-the work is split into CODEX cards T-007 … T-013 in `docs/CODEX-TASKS.md`, in this order: T-007 native request → T-008 package + ChubAI → T-009 import path → T-010 the screen, finished (usable with ChubAI from here) → T-011 Wyvern, Pygmalion, DataCat → T-012 JannyAI → T-013 JanitorAI (sign-in window). Claude reviews each card's diff. BLUEPRINT §8 (`card-browser` module), §10 slice 9.
+the work is split into CODEX cards T-007 … T-013 in `docs/CODEX-TASKS.md`, in this order: T-007 native request → T-008 package + ChubAI → T-009 import path → T-010 the screen, finished (usable with ChubAI from here) → T-011 Wyvern, Pygmalion, DataCat → T-012 JannyAI. T-013 JanitorAI (sign-in window) is parked. Claude reviews each card's diff. BLUEPRINT §8 (`card-browser` module), §10 slice 9.
 
-**What it is:** find character cards on public sites (ChubAI, JannyAI, JanitorAI, Wyvern, Pygmalion, DataCat), read them, and add them to
+**What it is:** find character cards on public sites (ChubAI, JannyAI, Wyvern, Pygmalion, DataCat), read them, and add them to
 Characters in one click — without downloading a file and importing it by hand. v1 had it (`classic-card-browser.js`); Marinara too
 (`bot-browser*`). We port the **site knowledge** (addresses, query parameters, field mapping, refusals); the screen is ours.
 
@@ -136,7 +136,7 @@ wants it), Pygmalion login, card "galleries"/expressions download.
 - **Live check** (CODEX on Daniel's PC, desktop app): one search + one import per source; write what worked in the report. Sites
   change without warning; a failing source must fail with its message, never break the screen.
 
-## 7. JanitorAI (T-013) — from Glaze
+## 7. JanitorAI (T-013) — from Glaze · ⏸ parked (Daniel, 11/02: "leave JanitorAI aside for now")
 
 Reference: Glaze (github.com/hydall/Glaze, Flutter, AGPL-3.0) at f1fe39e, `lib/features/catalog/services/`:
 `janitor_webview_proxy.dart` (2,047 lines), `janitor_provider.dart`, `janitor_public_lorebook.dart`, `janitor_session.dart`;

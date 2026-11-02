@@ -6,9 +6,9 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
-## Card Browser — CLAUDE, 2026-11-02 · ✅ text approved with Daniel's four answers (below); CODEX builds it (T-007 … T-013), Claude reviews
+## Card Browser — CLAUDE, 2026-11-02 · ✅ text approved with Daniel's four answers (below); CODEX builds it (T-007 … T-012), Claude reviews
 
-**What it is for:** find a character on ChubAI, JannyAI, JanitorAI, Wyvern, Pygmalion or DataCat, read it, and have it in Characters in one
+**What it is for:** find a character on ChubAI, JannyAI, Wyvern, Pygmalion or DataCat, read it, and have it in Characters in one
 click — no file to download and import by hand. **When Daniel looks at it:** looking for something new to play; looking for a
 specific card he heard of. Technical plan: `docs/CARD-BROWSER.md`. From v1 (`classic-card-browser.js`) and Marinara (Card Browser).
 **Process (Daniel, 11/02: he is short on Claude quota — "CODEX does the heavy work now, then you only review"; no HTML draft "for now"):**
@@ -24,7 +24,7 @@ reviews the `gpt` diff and merges → Daniel judges it in the app.
 ### Layout (top to bottom)
 1. **Head:** title **Card Browser** · "?" (help: searches go straight from this app to each site, the site sees what
    you search as in a browser; card text is shown as plain text and nothing from the sites runs in the app) · on the right the
-   **source picker**: the site's name + ▾. Menu: ChubAI, JannyAI, JanitorAI, Wyvern, Pygmalion, DataCat, each with a grey one-liner of its
+   **source picker**: the site's name + ▾. Menu: ChubAI, JannyAI, Wyvern, Pygmalion, DataCat, each with a grey one-liner of its
    NSFW rule ("Adult cards with NSFW on", "Safe cards only", "Adult cards only"), the current one checked.
 2. **Toolbar:** search (placeholder "Search ChubAI…", searches by itself ½ s after typing stops; Ctrl+F focuses it) · **Sort**
    (that site's orders, its default first) · **Tags** (count when any) · **Filters** (count; hidden when the site has none) ·
@@ -77,7 +77,7 @@ Between runs: last source, sort and NSFW per source, card size, folder, Import T
 Selecting several cards and adding them together; "update available" for cards added earlier; PlotLight and CharacterTavern;
 Pygmalion login; personas from sites.
 
-### JanitorAI (T-013) — Daniel asked for it from Glaze (github.com/hydall/Glaze)
+### JanitorAI (T-013) — ⏸ parked (Daniel, 11/02: "leave JanitorAI aside for now"); kept for later
 - JanitorAI needs the user's own account and sits behind Cloudflare, so it works through a **JanitorAI window**: picking the
   source the first time shows "JanitorAI needs you to sign in. **Sign In…**" → a window with janitorai.com opens; Daniel signs in
   there himself (the app never sees the password) and closes it. Then it is searched like the other sites.

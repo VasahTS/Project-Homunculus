@@ -47,7 +47,7 @@ Report: questions for Daniel go in the HANDOFF entry, not in code.
 
 ## Queue
 
-> **Card Browser (T-007 … T-013)** — Daniel asked for it on 2026-11-02 and approved the screen text the same day. He is short on
+> **Card Browser (T-007 … T-012; T-013 JanitorAI is parked)** — Daniel asked for it on 2026-11-02 and approved the screen text the same day. He is short on
 > Claude quota: **CODEX does the heavy work, including a finished look; Claude only reviews.** Do them **in number order, one card
 > per session**; they come before T-002/T-003. The whole design is `docs/CARD-BROWSER.md` (technical) and `docs/UI-PLAN.md` →
 > "Card Browser" (screen, approved — copy it, do not redesign it).
@@ -127,7 +127,7 @@ Done when:
 - [ ] npm run typecheck · npm test · npx playwright test e2e/card-browser.e2e.ts
 Size: M.
 
-### T-013 · Card Browser 7: JanitorAI (sign-in window, public cards)       Status: Ready (after T-012)
+### T-013 · Card Browser 7: JanitorAI (sign-in window, public cards)       Status: Parked (Daniel, 11/02: "leave JanitorAI aside for now") — do not start
 Goal: JanitorAI in the source picker: Daniel signs in once in a JanitorAI window, then searches it and adds cards whose definition is public.
 Context: `docs/CARD-BROWSER.md` §7 (the whole spec, incl. what is **not** done) and UI-PLAN "Card Browser" → "JanitorAI". Reference: Glaze (github.com/hydall/Glaze, AGPL-3.0) at f1fe39e: `lib/features/catalog/services/janitor_webview_proxy.dart` (`_findTokenJs`, the in-page `fetch`, Cloudflare handling), `janitor_provider.dart` (`_hampterUrl`, search params, `_convertToGlaze`, `janitorDefinitionPublic`, tag ids), `janitor_public_lorebook.dart`, `greeting_normalizer.dart`. Clone it into `.refs/glaze` (git-ignored) to read it.
 **Step 1 — spike (stop if it fails):** a hidden Tauri webview window on `https://janitorai.com`, a fixed script run with `eval`, its answer back through the single command `janitor_report` granted to that remote origin only. Must work on Windows (WebView2) and Linux (WebKitGTK; check in CI's Linux build at least that it compiles). If it can't be done cleanly, commit nothing of it and write in the report what blocked it.

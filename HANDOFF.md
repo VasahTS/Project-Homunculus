@@ -9,7 +9,7 @@ Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`,
 Daniel: "plan it for CODEX, then you review"; short on quota, so CODEX does the heavy work (look included) and Claude only reviews.
 - **Screen (approved):** `docs/UI-PLAN.md` → "Card Browser": a sidebar place beside Stories/Characters/Library; Add to Characters into **From the Web** (folder picker); **Import Tags** switch; no HTML draft.
 - **Technical:** `docs/CARD-BROWSER.md`. **JanitorAI** (from Glaze) via a sign-in window, public cards only — hidden-definition extraction left out (§7, D-078).
-- **CODEX:** T-007 … T-013 in `docs/CODEX-TASKS.md`, in order, before T-002/T-003. T-010 ships screenshots for review.
+- **CODEX:** T-007 … T-012 in `docs/CODEX-TASKS.md`, in order, before T-002/T-003. T-010 ships screenshots for review. T-013 (JanitorAI) is **parked** at Daniel's request.
 
 ## Assistant like Flint (model under the box, box at the bottom, Settings); no blur; UX review (2026-11-02) — CLAUDE — D-077
 

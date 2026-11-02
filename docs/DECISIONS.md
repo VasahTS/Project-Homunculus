@@ -805,5 +805,6 @@ Daniel (translated): "make an implementation plan of the Card Browser for CODEX 
 - **Sources:** ChubAI, JannyAI, Wyvern, Pygmalion (no login), DataCat, and **JanitorAI** through a sign-in window (Glaze's hidden in-page WebView idea; Daniel signs in himself; GET only, nothing changed in his account).
 - **Not done:** Glaze's extraction of **hidden** definitions/closed lorebooks (dummy proxy preset in the account, simulated chat, prompt capture, AI rebuild). It goes around the creator's choice and JanitorAI's terms, changes the account and can get it banned, costs AI calls per card and is very fragile. Hidden cards show their public parts with Open on JanitorAI and Add disabled. Daniel can reopen it as a separate decision.
 - **Cards:** T-007 … T-013 in `docs/CODEX-TASKS.md`, before T-002/T-003; Claude reviews each `gpt` diff.
+- **Later the same night:** Daniel: "let's leave JanitorAI aside for now" → T-013 parked; the five other sites go ahead. The JanitorAI plan (§7 of `docs/CARD-BROWSER.md`) stays for when he wants it.
 
 Signed: **CLAUDE**.
