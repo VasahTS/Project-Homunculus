@@ -4,6 +4,30 @@ Notes for Daniel and for the next work sessions (Claude or CODEX). Read before c
 Technical docs: `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`. **Everything in this repository is written in English** (D-038).
 Full plans in the documents of the "Silly" Project: `PROTOTIPO-HOMUNCULUS-2.md`, `HOMUNCULUS-2-FUNDACAO.md`, `HOMUNCULUS-2-ARCHITECTURE.md`, `HOMUNCULUS-2-DECISIONS.md`.
 
+## JannyAI publication authorized (2026-11-02) — CODEX
+
+Daniel confirmed the fix works and authorized committing and pushing it to origin/gpt.
+The tested implementation, regressions and evidence are included; dev/main remain outside this publication.
+Validation retained: 488 unit passes (3 skips), 204 browser passes, 23 Rust passes and three real native imports.
+Two lockfiles were already modified at publication start; preserved locally, excluded from the commit, authorship not established.
+Report: docs/CARD-BROWSER-RELIABILITY-AUDIT.md. Signed: **CODEX**.
+
+## JannyAI fixed and tested in the packaged Windows app (2026-11-02) — CODEX
+
+Protected downloads now run in an isolated API-origin JannyAI webview; the remote window can return only its pending card response.
+Three real safe cards imported through Card Browser and remained in native SQLite with avatars/definitions/source after app exit; origin http://tauri.localhost.
+Full-card details, public-page fallback, field mapping, partial-cache recovery and downloaded-file notice action fixed; all eight audit reproductions are ordinary passing tests.
+Checks: typecheck/build; 488 unit passes (3 skips); 204 browser passes; 23 Rust passes; remote database invocation denied.
+Report: docs/CARD-BROWSER-RELIABILITY-AUDIT.md. Local/uncommitted, no push; no project dependency/lockfile/schema changes. Signed: **CODEX**.
+
+## Card Browser / JannyAI test audit (2026-11-02) — CODEX
+
+Fast-forwarded clean gpt from 7304ab9 to ui 9fac7f5; original authors preserved; no new commit or push.
+Typecheck/build pass; 472 ordinary unit passes + 6 expected failures (3 skips); existing 199 browser flows pass; new Janny cases: 2 passes + 2 expected failures; 20 Rust tests pass.
+Native isolated WebView2: search returns 80 cards, download is Cloudflare 403; Marinara's original helper also hits CORS before its Node fallback gets 403.
+Report: docs/CARD-BROWSER-RELIABILITY-AUDIT.md; seven grouped findings/eight reproductions remain open. Synthetic PNG import preserves fields; no real native import succeeded.
+Only tests, a credited reference fixture and records added; product code and project lockfiles unchanged by this audit. Signed: **CODEX**.
+
 ## Card Browser built (2026-11-02) — CLAUDE + CODEX — D-081 — on `ui`
 
 - **Card Browser** is a sidebar place (Stories · Characters · Card Browser · Library) and in Ctrl+K: ChubAI, JannyAI, Wyvern, Pygmalion; search by itself, Sort, Tags (must have / hide), Filters, NSFW per site, S·M·L, Load More; the sheet with details and greetings ‹ 1/N ›; **Add to Characters** into **From the Web** (folder picker, **Import Tags** switch), then Chat Now; Save as PNG; Open on <site>; a ✓ on cards already added. A site that pauses us shows its message with Open <site> / Import a Downloaded File….

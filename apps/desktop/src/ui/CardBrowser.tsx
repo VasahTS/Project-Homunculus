@@ -110,7 +110,7 @@ export interface CardBrowserProps {
   onImportFiles: (files: File[]) => void;
   onNewFolder: (name: string) => Promise<string>;
   /** Shows an error notice. */
-  onError: (title: string, message: string) => void;
+  onError: (title: string, message: string, recover?: () => void) => void;
 }
 
 export function CardBrowser(p: CardBrowserProps) {
@@ -313,7 +313,7 @@ export function CardBrowser(p: CardBrowserProps) {
         <aside className={`gallery-sheet${chosen ? " has-card" : ""}`} data-region="sheet">
           <div className="collection-detail-label cb-sheet-label">Card details{chosen && <IconButton className="cb-sheet-close" label="Close" onClick={() => setSelected(null)}><Icon name="close" size={13} /></IconButton>}</div>
           {chosen
-            ? <CardSheet key={`${chosen.source}:${chosen.id}`} item={chosen} source={source} {...p} prefs={prefs} setPrefs={setPrefs} addedId={added.get(`${chosen.source}:${chosen.id}`) ?? null} />
+            ? <CardSheet key={`${chosen.source}:${chosen.id}`} item={chosen} source={source} {...p} onImportDownloaded={() => fileInput.current?.click()} prefs={prefs} setPrefs={setPrefs} addedId={added.get(`${chosen.source}:${chosen.id}`) ?? null} />
             : <div className="empty-detail"><p>Pick a card to read it here.</p><p className="hint">Add to Characters saves it in your library, with its lorebook.</p></div>}
         </aside>
       </div>
@@ -337,8 +337,8 @@ function ResultCard({ item, t, selected, added, onClick }: { item: CardItem; t: 
 }
 
 // ------------------------------------------------------------------ the sheet
-function CardSheet({ item, source, transport, characters: _c, folders, onAdd, onSavePng, onOpenCharacter, onChat, onNewFolder, onError, prefs, setPrefs, addedId }: CardBrowserProps & {
-  item: CardItem; source: CardSource; prefs: Prefs; setPrefs: (f: (x: Prefs) => Prefs) => void; addedId: string | null;
+function CardSheet({ item, source, transport, characters: _c, folders, onAdd, onSavePng, onOpenCharacter, onChat, onNewFolder, onError, onImportDownloaded, prefs, setPrefs, addedId }: CardBrowserProps & {
+  onImportDownloaded: () => void; item: CardItem; source: CardSource; prefs: Prefs; setPrefs: (f: (x: Prefs) => Prefs) => void; addedId: string | null;
 }) {
   const k = `${item.source}:${item.id}`;
   const [d, setD] = useState<CardDetails | "failed" | null>(details.get(k) ?? null);
@@ -351,7 +351,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
   useEffect(() => {
     if (details.has(k)) return;
     let live = true;
-    source.details(item, transport).then((x) => { details.set(k, x); if (live) setD(x); }, () => { details.set(k, "failed"); if (live) setD("failed"); });
+    source.details(item, transport).then((x) => { if (!x.partial) details.set(k, x); if (live) setD(x); }, () => { if (live) setD("failed"); });
     return () => { live = false; };
   }, [k]); // eslint-disable-line react-hooks/exhaustive-deps
   const full = d && d !== "failed" ? d : null;
@@ -363,13 +363,13 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
     try {
       const id = await onAdd(await fetchFile(), item, { folder: folderChoice(), importTags: prefs.importTags });
       if (id) setJustAdded(id);
-    } catch (e) { onError(`Could not add ${item.name}`, e instanceof Error ? e.message : String(e)); }
+    } catch (e) { onError(`Could not add ${item.name}`, e instanceof Error ? e.message : String(e), e instanceof SiteError && e.paused ? onImportDownloaded : undefined); }
     finally { setWorking(null); }
   };
   const png = async () => {
     setWorking("png");
     try { await onSavePng(await fetchFile(), item); }
-    catch (e) { onError(`Could not save ${item.name}`, e instanceof Error ? e.message : String(e)); }
+    catch (e) { onError(`Could not save ${item.name}`, e instanceof Error ? e.message : String(e), e instanceof SiteError && e.paused ? onImportDownloaded : undefined); }
     finally { setWorking(null); }
   };
   const folderValue = prefs.folder === "web" || prefs.folder === "" || folders.some((f) => f.id === prefs.folder) ? prefs.folder : "web";

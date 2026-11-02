@@ -1164,7 +1164,7 @@ export function App() {
         onChat={(id) => void newSession(id, null)}
         onImportFiles={(files) => void importFiles(files)}
         onNewFolder={async (name) => { const f = await svc.store.saveFolder({ id: crypto.randomUUID(), kind: "character", name, parentId: null, createdAt: Date.now() }); await refresh(svc); return f.id; }}
-        onError={(title, message) => setNotice({ kind: "error", title, lines: [message] })} />
+        onError={(title, message, recover) => setNotice({ kind: "error", title, lines: [message], ...(recover ? { action: { label: "Import a Downloaded File…", run: recover } } : {}) })} />
     );
   } else if (view.kind === "characters") {
     const editing = view.id === "new" ? null : view.id ? byId[view.id] ?? null : undefined;

@@ -1,5 +1,44 @@
 # CODEX change record
 
+## 2026-11-02 — Authorized JannyAI commit and push — CODEX
+
+Daniel confirmed the correction works and explicitly requested publication to origin/gpt.
+The commit has CODEX authorship and a [CODEX] message; it includes the correction, regression tests, credited reference fixture, evidence and signed records.
+No application source changed during publication; the completed validation remains 488 unit passes (3 skips), 204 browser passes, 23 Rust passes and three real packaged-app imports.
+At publication start, package-lock.json had peer-flag removals and apps/desktop/src-tauri/Cargo.lock had a root-version metadata change. They are preserved locally and excluded from this commit; their authorship is not established by Git.
+Only gpt is being published. Signed: **CODEX**.
+
+## 2026-11-02 — Working JannyAI native-session recovery — CODEX
+
+Status: **local, uncommitted, not pushed**. Follow-up to Daniel's request for a solution after the audit.
+Files: apps/desktop/src-tauri/src/{janny.rs,janny.js,lib.rs}, capabilities/{janny,default}.json and permissions/janny.toml: serialized fixed-origin browser session, bounded report/timeout, local-main command permissions and report-only remote access.
+Files: apps/desktop/src/cardSites.ts and packages/card-browser/src/{types.ts,sources/janny.ts}: browser/native/session routing, shared decoder, PNG details, mirror/page recovery, preserved definition fields and short-lived file sharing.
+Files: apps/desktop/src/ui/CardBrowser.tsx and App.tsx: retry incomplete details and expose the existing downloaded-file import action after download refusal.
+Tests: cardSites-janny-audit.test.ts, packages/card-browser/test/janny-audit.test.ts, e2e/janny-audit.e2e.ts and native janny.rs tests; original eight reproductions now ordinary passes.
+Records: CREDITS.md; docs/CARD-BROWSER-RELIABILITY-AUDIT.md; native/bridge evidence JSON; HANDOFF.md, CODEX-LOG.md, docs/CODEX-TASKS.md and this record.
+Validation: typecheck/frontend and packaged native build; 488 unit passes (3 skips), 204 browser passes, 23 Rust passes.
+Real packaged app at http://tauri.localhost imported three safe public JannyAI cards; after exit, isolated native SQLite retained their avatars, full definition fields and source metadata. The remote window was denied database_url.
+No project schema, dependency, lockfile, workflow, release or personal/portable-data change. No new commit/push; original ui authorship preserved.
+Windows tested; Linux/macOS and interactive human checks unverified. Timeout/refusal retains manual recovery. Details and initial-vs-fixed evidence are in the report.
+
+Signed: **CODEX**.
+
+## 2026-11-02 — ui into gpt and Card Browser/JannyAI test battery — CODEX
+
+Status: **local, uncommitted, not pushed**. Daniel explicitly authorized the ui integration and testing; implementation fixes remain open.
+Clean gpt fast-forwarded from 7304ab9 to ui 9fac7f5 after fetching ui/dev. Existing authorship preserved; no new commit.
+Added tests: apps/desktop/src/cardSites-janny-audit.test.ts; packages/card-browser/test/janny-audit.test.ts; e2e/janny-audit.e2e.ts.
+Added the unchanged Marinara download-helper reference (export/provenance only): packages/card-browser/test/fixtures/marinara-janny-download.ts; credited its original authors in CREDITS.md.
+Added docs/CARD-BROWSER-RELIABILITY-AUDIT.md and docs/evidence/card-browser-native-2026-11-02.json; updated this record, HANDOFF.md, CODEX-LOG.md and the direct-request task entry.
+Validation: typecheck/build pass; 472 ordinary unit passes + 6 expected failures + 3 skips; existing 199 browser cases pass, new Janny cases have 2 ordinary passes + 2 expected failures; 20 Rust tests pass.
+Expected failures are eight unfixed reproductions of seven grouped findings, not fixes. Synthetic full-PNG import preserves definition fields and provenance.
+Native runtime used unchanged Rust/provider source in an isolated hidden WebView2, blank diagnostic page and Dev test profile: search 200/80 cards, download 403/Cloudflare. Marinara's original browser helper also failed CORS, then its Node fallback got 403.
+Native source/dependencies were unchanged; only the temporary lock's stale root version and temporary window configuration were aligned for testing. Project lockfiles are unchanged by this audit.
+The existing suite regenerated seven tracked Try It screenshots; generated copies were archived outside the repository and their initial clean-baseline bytes restored.
+No private/portable data, API keys or real providers accessed; no successful real native import claimed. Details and remaining session/origin validation are in the report.
+
+Signed: **CODEX**.
+
 ## 2026-11-02 — UI integration and T-007 Card Browser transport — CODEX
 
 Status: **local commit on gpt, not pushed**. Implementation and validation are complete. Daniel explicitly authorized the local commit on 2026-11-02 after the earlier automatic approval rejection; push remains outside this authorization.

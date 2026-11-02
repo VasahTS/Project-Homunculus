@@ -1,8 +1,8 @@
 // JannyAI. Port of Homunculus v1 (VasahTS/Homunculus 0884338a): server `janny*` (search key from the site's page bundle,
 // Meilisearch search, the character page's astro-island props, the download API) and client `SOURCES.janny`, `JANNY_TAGS`.
 // v1's Node/Bun child-process trick does not apply here. CLAUDE, 2026-11-02 (T-012).
-import type { CardItem, CardSource, SiteTransport } from "../types.ts";
-import { ask, askJson, detailsFromCard, list, num, plain, slugify, text, withoutExcluded } from "../build.ts";
+import type { CardFile, CardItem, CardSource, SiteTransport } from "../types.ts";
+import { ask, askImage, askJson, buildCard, detailsFromCard, list, num, plain, slugify, text, withoutExcluded } from "../build.ts";
 import { pauses, SiteError } from "../pauses.ts";
 
 const SITE = "https://jannyai.com";
@@ -16,10 +16,10 @@ const SORTS: Record<string, string[]> = { newest: ["createdAtStamp:desc"], oldes
 
 let key = { value: "", fallback: false, at: 0 };
 /** Only for tests. */
-export const resetJannyKey = () => { key = { value: "", fallback: false, at: 0 }; };
+export const resetJannyKey = () => { key = { value: "", fallback: false, at: 0 }; loaded = new WeakMap(); };
 
-async function page(t: SiteTransport, path: string): Promise<string | null> {
-  try { return (await ask(t, "janny:page", { url: SITE + path, method: "GET", expect: "text", headers: { Accept: "text/html,application/xhtml+xml,*/*" } })).text; }
+async function page(t: SiteTransport, path: string, base = SITE): Promise<string | null> {
+  try { return (await ask(t, base === SITE ? "janny:page" : "janny:mirror", { url: base + path, method: "GET", expect: "text", headers: { Accept: "text/html,application/xhtml+xml,*/*" } })).text; }
   catch { return null; }
 }
 /** The public search key JannyAI's own site uses, read from its page bundle; cached 5 min (1 min when the known one was used). */
@@ -62,6 +62,57 @@ export function parseJannyPage(html: string | null): Record<string, unknown> | n
 
 type Hit = { id?: string; name?: string; creatorUsername?: string; description?: string; tagIds?: number[]; avatar?: string; totalToken?: number; isNsfw?: boolean };
 
+type PageData = Record<string, unknown>;
+// Marinara's full-card/page recovery; CODEX, 2026-11-02. The PNG decoder stays at the app boundary.
+let loaded = new WeakMap<SiteTransport, { id: string; at: number; file: Promise<CardFile> }>();
+const pick = (...values: unknown[]) => values.map(text).find(Boolean) ?? "";
+function pageCard(c: PageData, item: CardItem): Record<string, unknown> | null {
+  const d = c.definition && typeof c.definition === "object" && !Array.isArray(c.definition) ? c.definition as PageData : {};
+  const card = buildCard({
+    name: pick(c.name, d.name, item.name), creator: pick(c.creatorUsername, item.creator), tags: item.tags,
+    description: pick(c.personality, c.description, c.definition_character_description, d.description, d.personality),
+    personality: pick(c.tavern_personality, c.definition_personality, c.definition, d.tavern_personality, d.personality),
+    scenario: pick(c.scenario, c.definition_scenario, d.scenario),
+    first_mes: pick(c.firstMessage, c.first_message, c.first_mes, c.definition_first_message, d.firstMessage, d.first_message, d.first_mes),
+    mes_example: pick(c.exampleDialogs, c.example_dialogs, c.mes_example, c.definition_example_messages, d.exampleDialogs, d.example_dialogs, d.mes_example),
+    creator_notes: plain(pick(c.creatorNotes, c.creator_notes, c.creatorNote, c.description_html, d.creator_notes)),
+    alternate_greetings: list(c.alternateGreetings ?? c.alternate_greetings ?? d.alternateGreetings ?? d.alternate_greetings),
+    system_prompt: pick(c.systemPrompt, c.system_prompt, d.systemPrompt, d.system_prompt),
+    post_history_instructions: pick(c.postHistoryInstructions, c.post_history_instructions, d.postHistoryInstructions, d.post_history_instructions),
+    character_version: pick(c.characterVersion, c.character_version, d.characterVersion, d.character_version),
+    character_book: c.character_book ?? c.embedded_lorebook ?? d.character_book, extensions: c.extensions ?? d.extensions,
+  });
+  const detail = detailsFromCard(card);
+  return [detail.description, detail.personality, detail.scenario, detail.firstMessage, detail.exampleDialogue, detail.systemPrompt, detail.postHistory, ...detail.alternateGreetings].some(Boolean) ? card : null;
+}
+async function loadCard(item: CardItem, t: SiteTransport): Promise<CardFile> {
+  let failure: unknown;
+  try {
+    const payload = await askJson<{ status?: string; downloadUrl?: string; error?: string }>(t, "janny:download", {
+      url: DOWNLOAD, method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ characterId: item.id }),
+    });
+    if (payload.status !== "ok" || typeof payload.downloadUrl !== "string") throw new SiteError(payload.error || "JannyAI did not provide the card.", "janny", "data");
+    const r = await ask(t, "janny:download", { url: payload.downloadUrl, method: "GET", expect: "card", headers: { Accept: "image/png,application/octet-stream;q=0.9" } });
+    if (!r.bytes?.length) throw new SiteError("JannyAI sent an empty card file.", "janny", "data");
+    t.decodeCard?.(r.bytes);
+    return { kind: "png", bytes: r.bytes };
+  } catch (e) { if (e instanceof SiteError && e.kind === "rate") throw e; failure = e; }
+  const path = `/characters/${item.id}_character-${slugify(item.name)}`;
+  for (const base of ["https://api.jannyai.com", SITE]) {
+    const c = parseJannyPage(await page(t, path, base));
+    const card = c ? pageCard(c, item) : null;
+    if (card) return { kind: "json", card, avatar: await askImage(t, "janny:avatar", item.thumb) };
+  }
+  throw failure;
+}
+function fullCard(item: CardItem, t: SiteTransport): Promise<CardFile> {
+  const cached = loaded.get(t);
+  if (cached?.id === item.id && Date.now() - cached.at < 60_000) return cached.file;
+  const file = loadCard(item, t).catch((e) => { if (loaded.get(t)?.file === file) loaded.delete(t); throw e; });
+  loaded.set(t, { id: item.id, at: Date.now(), file });
+  return file;
+}
+
 export const janny: CardSource = {
   id: "janny", name: "JannyAI", site: SITE,
   sorts: [{ id: "newest", label: "Newest" }, { id: "oldest", label: "Oldest" }, { id: "tokens_desc", label: "Most Tokens" }, { id: "tokens_asc", label: "Fewest Tokens" }, { id: "relevant", label: "Relevance" }],
@@ -103,22 +154,12 @@ export const janny: CardSource = {
     }
   },
   async details(item, t) {
-    const c = parseJannyPage(await page(t, `/characters/${item.id}_character-${slugify(item.name)}`));
-    if (!c) return { ...detailsFromCard({}, item.tags), creatorNotes: item.tagline, partial: true };
-    return {
-      description: text(c.personality) || text(c.description), personality: text(c.tavern_personality), scenario: text(c.scenario),
-      firstMessage: text(c.firstMessage) || text(c.first_message), alternateGreetings: list(c.alternateGreetings ?? c.alternate_greetings),
-      exampleDialogue: text(c.exampleDialogs) || text(c.example_dialogs), creatorNotes: plain(c.description_html ?? c.creatorNotes),
-      systemPrompt: "", postHistory: "", hasLorebook: false, tags: item.tags,
-    };
+    try {
+      const file = await fullCard(item, t);
+      const card = file.kind === "json" ? file.card : t.decodeCard?.(file.bytes);
+      if (card) return detailsFromCard(card, item.tags);
+    } catch (e) { if (e instanceof SiteError && e.kind === "rate") throw e; }
+    return { ...detailsFromCard({}, item.tags), creatorNotes: item.tagline, partial: true };
   },
-  async download(item, t) {
-    const payload = await askJson<{ status?: string; downloadUrl?: string; error?: string }>(t, "janny:download", {
-      url: DOWNLOAD, method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ characterId: item.id }),
-    });
-    if (payload.status !== "ok" || typeof payload.downloadUrl !== "string") throw new SiteError(payload.error || "JannyAI did not provide the card.", "janny", "data");
-    const r = await ask(t, "janny:download", { url: payload.downloadUrl, method: "GET", expect: "card", headers: { Accept: "image/png,application/octet-stream;q=0.9" } });
-    if (!r.bytes?.length) throw new SiteError("JannyAI sent an empty card file.", "janny", "data");
-    return { kind: "png", bytes: r.bytes };
-  },
+  download: fullCard,
 };

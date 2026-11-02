@@ -18,7 +18,7 @@ export interface SiteResponse {
   bytes?: Uint8Array;
   mime?: string;
 }
-export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse> }
+export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse>; decodeCard?(bytes: Uint8Array): Record<string, unknown> }
 
 export type SourceId = "chub" | "janny" | "wyvern" | "pygmalion" | "datacat";
 export type MustHave = "lorebook" | "greetings" | "gallery" | "expressions";

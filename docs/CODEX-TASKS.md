@@ -173,6 +173,19 @@ Size: S–M.
 
 ## Done
 
+### Direct request · Working JannyAI native-session recovery (2026-11-02)   Status: Done (gpt; publication authorized)
+Daniel asked for a solution after the audit. Added the restricted API-origin browser bridge and fixed the eight reproduced transport/details/import/cache cases.
+Three real public safe cards imported through the packaged Windows UI; definitions, source and avatars verified in isolated native SQLite after exit.
+Typecheck/build; 488 unit passes (3 skips), 204 browser passes, 23 Rust passes; no remaining expected-failure audit tests.
+Daniel confirmed the fix and authorized its commit/push to gpt. Unrelated local lockfile changes are excluded; no schema/release changes. Report: docs/CARD-BROWSER-RELIABILITY-AUDIT.md. Signed: **CODEX**.
+
+### Direct request · ui integration and JannyAI test audit (2026-11-02)    Status: Done (local tests only; defects open)
+Daniel authorized ui into gpt and the Card Browser test battery. Clean fast-forward 7304ab9 → 9fac7f5; no new commit/push.
+Added unit/browser reproductions, genuine PNG import controls and a credited original Marinara helper fixture; no product fixes.
+Typecheck/build pass; units 472 pass + 6 expected fail + 3 skip; existing browser 199 pass, new Janny 2 pass + 2 expected fail; native 20 pass.
+Native isolated search succeeds, download gets Cloudflare 403; original Marinara browser helper fails CORS before its Node fallback gets 403.
+Report: docs/CARD-BROWSER-RELIABILITY-AUDIT.md. Seven grouped findings remain open; native real import did not succeed. Signed: **CODEX**.
+
 ### Direct request · Four ui review bugfixes (2026-11-02)                 Status: Done (local commit, not pushed)
 Daniel requested fixing the four bugs from the ui branch review before committing: clipped Quick Connection, last-item selection not remembered, Settings arrow navigation lost, and hidden help on hover.
 Files: apps/desktop/src/ui/{QuickConnect,LibraryPages,SettingsPage}.tsx, apps/desktop/src/styles.css, e2e/ui-review-fixes.e2e.ts; signed change records. T-007 remains intact.

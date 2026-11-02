@@ -1,0 +1,41 @@
+{
+  "author": "CODEX",
+  "time": "2026-11-02T10:54:10.249Z",
+  "mode": "Packaged release UI and native SQLite, isolated profile, three public safe cards",
+  "origin": "http://tauri.localhost",
+  "added": [
+    "The Wounded Doe",
+    "The Robinson Sisters",
+    "An Alien Space Matriarch Decides To Visit The Planet Her Wayward Kin Disappeared To"
+  ],
+  "errors": [],
+  "persisted": [
+    {
+      "name": "The Wounded Doe",
+      "id": "5d03e1ca-b79d-40dc-b93c-3ff85e918437",
+      "definition": true,
+      "personality": true,
+      "scenario": true,
+      "greetings": 1,
+      "avatar": true
+    },
+    {
+      "name": "The Robinson Sisters",
+      "id": "4a95858a-413b-4eec-b0a9-47864d4831de",
+      "definition": true,
+      "personality": true,
+      "scenario": true,
+      "greetings": 1,
+      "avatar": true
+    },
+    {
+      "name": "An Alien Space Matriarch Decides To Visit The Planet Her Wayward Kin Disappeared To",
+      "id": "2c32face-6d40-4d15-9e33-001120c693c9",
+      "definition": true,
+      "personality": true,
+      "scenario": true,
+      "greetings": 1,
+      "avatar": true
+    }
+  ]
+}

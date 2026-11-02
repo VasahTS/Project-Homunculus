@@ -1,0 +1,66 @@
+{
+  "author": "CODEX",
+  "date": "2026-11-02T10:15:07.142Z",
+  "commit": "9fac7f5a0a1b22c7f64e2af74735329586b74264",
+  "mode": "Unmodified Rust and provider source in an isolated, hidden WebView2; blank diagnostic page; no private data or API profiles.",
+  "native": {
+    "calls": [
+      {
+        "host": "jannyai.com",
+        "method": "GET",
+        "expect": "text",
+        "status": 403,
+        "cf": true
+      },
+      {
+        "host": "search.jannyai.com",
+        "method": "POST",
+        "expect": "json",
+        "status": 200,
+        "cf": false
+      },
+      {
+        "host": "api.jannyai.com",
+        "method": "POST",
+        "expect": "json",
+        "status": 403,
+        "cf": true
+      }
+    ],
+    "search": {
+      "count": 80,
+      "firstId": "5d03e1ca-b79d-40dc-b93c-3ff85e918437"
+    },
+    "details": {
+      "partial": true,
+      "definition": false,
+      "firstMessage": false
+    },
+    "download": {
+      "error": "JannyAI is showing its \"checking your browser\" page to this app, so the card cannot be downloaded from here right now. Open the card on JannyAI, download it there, then use Import a Downloaded File.",
+      "kind": "cloudflare",
+      "status": 403
+    }
+  },
+  "browser": {
+    "status": 502,
+    "contentType": "application/json",
+    "bytes": 44,
+    "png": false
+  },
+  "browserNetwork": [
+    {
+      "host": "api.jannyai.com",
+      "error": "net::ERR_FAILED"
+    }
+  ],
+  "browserErrors": [
+    "Access to fetch at 'https://api.jannyai.com/api/v1/download' from origin 'http://127.0.0.1:1432' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+  ],
+  "backendFallback": [
+    {
+      "status": 403,
+      "cf": "challenge"
+    }
+  ]
+}

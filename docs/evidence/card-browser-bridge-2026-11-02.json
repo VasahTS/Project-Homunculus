@@ -1,0 +1,15 @@
+{
+  "author": "CODEX",
+  "time": "2026-11-02T10:34:01.884Z",
+  "status": 200,
+  "bytes": 409993,
+  "remoteDatabaseDenied": true,
+  "name": "The Wounded Doe",
+  "definition": true,
+  "personality": true,
+  "scenario": true,
+  "greetings": 1,
+  "systemPrompt": false,
+  "postHistory": false,
+  "warnings": []
+}

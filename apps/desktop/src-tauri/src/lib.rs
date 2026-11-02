@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
+mod janny;
 
 // ---- Where the app keeps its data (D-030, CLAUDE 2026-10-29: portable mode, like SillyTavern).
 // Portable: a file `portable.txt` next to Homunculus.exe → everything (database, backups, API keys,
@@ -571,6 +572,7 @@ async fn card_site_request(request: CardSiteRequest) -> Result<serde_json::Value
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(janny::JannyBridge::default())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             // updates from GitHub Releases (D-037): checked and started only from the screen, never on its own
@@ -615,7 +617,9 @@ pub fn run() {
             update_channel,
             web_search_page,
             web_get,
-            card_site_request
+            card_site_request,
+            janny::janny_card_url,
+            janny::janny_card_report
         ])
         .run(tauri::generate_context!())
         .expect("error while running Homunculus");

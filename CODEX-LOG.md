@@ -2,6 +2,29 @@
 
 (Translated to English by CLAUDE on 2026-10-29, D-038: everything in the repository is in English. Content unchanged.)
 
+## JannyAI publication authorized (2026-11-02) — CODEX
+
+Daniel confirmed the working fix and explicitly requested its push to gpt.
+Commit authorship is CODEX with [CODEX]; publication contains the tested correction, tests, provenance and evidence only.
+Existing local package-lock.json/Cargo.lock changes are preserved unstaged and not attributed to CODEX.
+Validation retained: 488 units (3 skips), 204 browser flows, 23 Rust tests; three real native imports. Signed: **CODEX**.
+
+## JannyAI recovery implemented (2026-11-02) — CODEX
+
+Daniel asked for a working solution after the test-only audit. API-origin browser verification now supplies the supported signed PNG; native fetch validation remains unchanged.
+Actual packaged Windows UI imported three public safe cards; persisted avatars, definition fields and source verified after exit. Remote database command denied.
+Eight reproductions now pass normally; extra tests cover caps, rate limits, queue correlation, stale replies, native failure and shared card fetch.
+Validation: typecheck/build, 488 units (3 skips), 204 browser flows, 23 Rust tests; Linux/macOS not validated.
+Local/uncommitted, no push. Report: docs/CARD-BROWSER-RELIABILITY-AUDIT.md. Signed: **CODEX**.
+
+## Card Browser / JannyAI test audit (2026-11-02) — CODEX
+
+Daniel authorized ui into gpt and the test battery; clean fast-forward 7304ab9 → 9fac7f5, no new commit/push.
+Typecheck/build pass; final units 472 pass + 6 expected fail + 3 skip; browser baseline 199 pass plus new Janny 2 pass + 2 expected fail; native 20 pass.
+Eight expected-failure cases record seven unfixed findings; a genuine synthetic PNG import preserves provenance, greetings and prompts.
+Live isolated WebView2: native search 200/80 cards, native download 403; original Marinara browser helper fails CORS and its Node fallback gets 403.
+Report: docs/CARD-BROWSER-RELIABILITY-AUDIT.md. No product fixes or real native import claimed. Signed: **CODEX**.
+
 ## Four ui review bugfixes (2026-11-02) — CODEX
 
 Daniel requested these four ui fixes before committing, then explicitly authorized the local gpt commit. T-007 is preserved; no push is authorized or performed.

@@ -1,0 +1,16 @@
+{
+  "identifier": "janny-card",
+  "description": "Only the active public-card response can return from JannyAI. CODEX, 2026-11-02.",
+  "windows": [
+    "janny-card"
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "https://api.jannyai.com"
+    ]
+  },
+  "permissions": [
+    "allow-janny-card-report"
+  ]
+}
