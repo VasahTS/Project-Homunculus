@@ -38,6 +38,8 @@ export interface CardItem {
   tags: string[];
   /** A picture address the transport can fetch with expect "image"; "" = none. */
   thumb: string;
+  /** The full-size picture for the details sheet, when the site has a bigger one than `thumb`. CLAUDE, 2026-11-03. */
+  image?: string;
   nsfw: boolean;
   nsfl?: boolean;
   /** The card's page on the site. */

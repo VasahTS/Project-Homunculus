@@ -35,35 +35,63 @@ let memory: Memory | null = null;
 const details = new Map<string, CardDetails | "failed">();
 
 // ------------------------------------------------------------------ pictures
-/** Last 300 pictures (as avatars), at most 4 loading at a time, only for cards on screen. */
+/** Last 300 grid pictures and the last 12 full-size ones (as avatars), at most 4 loading at a time, only for cards on screen. */
 const pictures = new Map<string, Avatar | null>();
+const fullPictures = new Map<string, Avatar | null>();
 const waiting: Array<() => void> = [];
 let loading = 0;
-async function picture(t: SiteTransport, url: string): Promise<Avatar | null> {
-  if (pictures.has(url)) return pictures.get(url) ?? null;
+/** Grid pictures are shrunk to what a card shows (sharp on a 2× screen), so a page of full-size pictures stays light.
+ *  Animated GIFs and pictures already small enough are kept as they are. CLAUDE, 2026-11-03. */
+export async function shrinkPicture(bytes: Uint8Array, mime: string, maxHeight = 720): Promise<Avatar> {
+  const original = { mime, base64: bytesToBase64(bytes) };
+  if (mime === "image/gif" || typeof createImageBitmap === "undefined") return original;
+  try {
+    const bitmap = await createImageBitmap(new Blob([bytes as BlobPart], { type: mime }));
+    if (bitmap.height <= maxHeight) { bitmap.close(); return original; }
+    const width = Math.max(1, Math.round((bitmap.width * maxHeight) / bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = width; canvas.height = maxHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { bitmap.close(); return original; }
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, width, maxHeight);
+    bitmap.close();
+    const url = canvas.toDataURL("image/webp", 0.88);
+    const comma = url.indexOf(",");
+    return comma > 0 ? { mime: url.slice(5, url.indexOf(";")), base64: url.slice(comma + 1) } : original;
+  } catch { return original; }
+}
+async function picture(t: SiteTransport, url: string, full = false): Promise<Avatar | null> {
+  const cache = full ? fullPictures : pictures;
+  if (cache.has(url)) return cache.get(url) ?? null;
   if (loading >= 4) await new Promise<void>((go) => waiting.push(go));
   loading++;
   try {
     const r = await t.request({ url, method: "GET", expect: "image" });
-    const a = r.status >= 200 && r.status < 300 && r.bytes && r.mime ? { mime: r.mime, base64: bytesToBase64(r.bytes) } : null;
-    pictures.set(url, a);
-    if (pictures.size > 300) pictures.delete(pictures.keys().next().value!);
+    const ok = r.status >= 200 && r.status < 300 && r.bytes && r.mime;
+    const a = ok ? (full ? { mime: r.mime!, base64: bytesToBase64(r.bytes!) } : await shrinkPicture(r.bytes!, r.mime!)) : null;
+    cache.set(url, a);
+    if (cache.size > (full ? 12 : 300)) cache.delete(cache.keys().next().value!);
     return a;
-  } catch { pictures.set(url, null); return null; }
+  } catch { cache.set(url, null); return null; }
   finally { loading--; waiting.shift()?.(); }
 }
-function usePicture(t: SiteTransport, item: CardItem | null, visible: boolean): Avatar | undefined {
-  const url = item?.thumb ?? "";
-  const [a, setA] = useState<Avatar | null | undefined>(() => (url ? pictures.get(url) : null));
+/** `full`: the sheet's picture (the site's biggest, `item.image`), falling back to the grid one while it loads or if it fails. */
+function usePicture(t: SiteTransport, item: CardItem | null, visible: boolean, full = false): Avatar | undefined {
+  const url = (full ? item?.image || item?.thumb : item?.thumb) ?? "";
+  const cache = full ? fullPictures : pictures;
+  const [a, setA] = useState<Avatar | null | undefined>(() => (url ? cache.get(url) : null));
   useEffect(() => {
     if (!url) { setA(null); return; }
-    if (pictures.has(url)) { setA(pictures.get(url)); return; }
+    if (cache.has(url)) { setA(cache.get(url)); return; }
+    setA(undefined);
     if (!visible) return;
     let live = true;
-    void picture(t, url).then((x) => { if (live) setA(x); });
+    void picture(t, url, full).then((x) => { if (live) setA(x); });
     return () => { live = false; };
-  }, [t, url, visible, item]);
-  return a ?? undefined;
+  }, [t, url, visible, item, full, cache]);
+  const small = item?.thumb ? pictures.get(item.thumb) : undefined;
+  return a ?? (full ? small ?? undefined : undefined);
 }
 function useOnScreen<T extends Element>(): [RefObject<T | null>, boolean] {
   const ref = useRef<T>(null);
@@ -359,7 +387,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [naming, setNaming] = useState<string | null>(null);
-  const pic = usePicture(transport, item, true);
+  const pic = usePicture(transport, item, true, true);
   useEffect(() => {
     if (details.has(k)) return;
     let live = true;

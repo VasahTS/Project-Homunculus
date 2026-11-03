@@ -6,6 +6,8 @@ import { SiteError } from "../pauses.ts";
 
 const API = "https://api.chub.ai";
 const AVATARS = "https://avatars.charhub.io/avatars";
+// avatar.webp is a 200×200 square crop; the grid and sheet use the real picture, chara_card_v2.png (850–1750 px tall,
+// checked live 2026-11-03). The grid shrinks it in the app (CardBrowser.tsx). CLAUDE.
 const SORTS: Record<string, { label: string; sort: string; days: number; special?: string }> = {
   popular_all: { label: "Most Downloaded", sort: "download_count", days: 0 },
   popular_week: { label: "Hot This Week", sort: "download_count", days: 7 },
@@ -53,7 +55,7 @@ export const chub: CardSource = {
       hasMore: Boolean(data.cursor) || nodes.length >= 48,
       items: nodes.filter((n) => n.fullPath).map((n): CardItem => ({
         source: "chub", id: n.fullPath!, name: n.name || "Unnamed", creator: n.fullPath!.split("/")[0] ?? "",
-        tagline: plain(n.tagline), tags: list(n.topics), thumb: `${AVATARS}/${encodePath(n.fullPath!)}/avatar.webp`,
+        tagline: plain(n.tagline), tags: list(n.topics), thumb: `${AVATARS}/${encodePath(n.fullPath!)}/chara_card_v2.png`,
         nsfw: n.nsfw === true || list(n.topics).some((x) => x.toLowerCase() === "nsfw"),
         url: `https://chub.ai/characters/${n.fullPath}`,
         stats: { downloads: num(n.downloadCount) ?? num(n.starCount), chats: num(n.nChats), tokens: num(n.nTokens) },
@@ -76,7 +78,8 @@ export const chub: CardSource = {
       if (r.bytes?.length) return { kind: "png", bytes: r.bytes };
     } catch (e) { if (e instanceof SiteError && e.kind === "rate") throw e; }
     const def = await definition(item, t);
-    const avatar = await askImage(t, "chub:avatar", `${AVATARS}/${encodePath(item.id)}/avatar.webp`);
+    const avatar = await askImage(t, "chub:avatar", `${AVATARS}/${encodePath(item.id)}/chara_card_v2.png`)
+      ?? await askImage(t, "chub:avatar", `${AVATARS}/${encodePath(item.id)}/avatar.webp`);
     return {
       kind: "json", avatar,
       card: buildCard({

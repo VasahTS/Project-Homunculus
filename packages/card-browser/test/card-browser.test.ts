@@ -43,7 +43,7 @@ describe("ChubAI", () => {
     const { t } = sites([[/search/, () => json(JSON.stringify(page))]]);
     const r = await chub.search(query(), t);
     expect(r.total).toBe(2);
-    expect(r.items[0]).toMatchObject({ id: "anna/elf-queen", name: "Elf Queen", creator: "anna", tagline: "Rules the woods", tags: ["Fantasy", "Elf"], nsfw: false, url: "https://chub.ai/characters/anna/elf-queen", thumb: "https://avatars.charhub.io/avatars/anna/elf-queen/avatar.webp", stats: { downloads: 120, chats: 9, tokens: 1800 } });
+    expect(r.items[0]).toMatchObject({ id: "anna/elf-queen", name: "Elf Queen", creator: "anna", tagline: "Rules the woods", tags: ["Fantasy", "Elf"], nsfw: false, url: "https://chub.ai/characters/anna/elf-queen", thumb: "https://avatars.charhub.io/avatars/anna/elf-queen/chara_card_v2.png", stats: { downloads: 120, chats: 9, tokens: 1800 } });
     expect(r.items[1]!.nsfw).toBe(true);
   });
   const def = { node: { definition: { name: "Elf Queen", personality: "Proud.", tavern_personality: "", scenario: "A court.", first_message: "Kneel.", alternate_greetings: ["Rise."], example_dialogs: "", description: "<p>Made with <i>love</i></p>", system_prompt: "", post_history_instructions: "", embedded_lorebook: { entries: [{ keys: ["court"], content: "Old." }] } } } };

@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## Card Browser pictures: real size, not a 200 px square; the sheet closes (2026-11-03) — CLAUDE
+
+Daniel: "the images are in horrible quality and square; the preview on the right can't be closed". Checked live in his browser: ChubAI's `avatar.webp` is a 200×200 square crop; `chara_card_v2.png` is the real picture (850–1750 px tall, about 1.6 MB).
+- ChubAI uses `chara_card_v2.png`; the grid shrinks every picture in the app to 720 px tall (sharp at 2×, light in memory); the sheet loads the biggest picture (`CardItem.image`, new optional field; DataCat's display picture) and shows it at its own shape.
+- The sheet has Close at every width; with no card open the grid takes the whole page.
+- Test: `e2e/card-browser-pictures.e2e.ts`. Next (waiting for a plan/draft): a bigger reading view of a card; Characters/Stories previews; a general Settings page.
+
 ## Review of CODEX's gpt work, with fixes (2026-11-03) — CLAUDE
 
 Daniel asked for a review of CODEX's gpt changes and improvements where possible. Report: docs/GPT-REVIEW-2026-11-03.md.

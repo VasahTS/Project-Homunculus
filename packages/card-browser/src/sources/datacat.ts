@@ -105,7 +105,7 @@ export const datacat: CardSource = {
     const items = rows.filter(rowId).map((r): CardItem => ({
       source: "datacat", id: rowId(r), name: text(r.name) || text(r.chatName) || text(r.chat_name) || "Unnamed", creator: r.creatorName || r.creator_name || "",
       tagline: plain(r.description).slice(0, 220), tags: [...list(r.tags).map(tagName), ...list(r.custom_tags)].filter(Boolean),
-      thumb: datacatAvatarUrl(r.avatarVariantUrls?.thumb || r.avatarDisplayUrl || r.avatar), nsfw: true,
+      thumb: datacatAvatarUrl(r.avatarVariantUrls?.thumb || r.avatarDisplayUrl || r.avatar), image: datacatAvatarUrl(r.avatarDisplayUrl || r.avatar) || undefined, nsfw: true,
       url: `${API}/characters/${rowId(r)}`, stats: { chats: num(r.stats?.chat), tokens: num(r.totalTokens ?? r.total_tokens) },
     }));
     // custom tags DataCat has no id for are matched here

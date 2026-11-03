@@ -3092,7 +3092,9 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .cb-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 240px; max-width: min(340px, 90vw); padding: 10px; border-radius: var(--radius-group); background: var(--pop, var(--surface)); box-shadow: var(--shadow-pop); border: 1px solid var(--glass-edge); }
 .cb-caret { display: inline-flex; transform: rotate(90deg); }
 .cb-sheet-label { display: flex; align-items: center; justify-content: space-between; }
-.cb-sheet-close { display: none; }
+/* The sheet closes at every width; with no card open the grid takes the whole page (no empty pane). CLAUDE, 2026-11-03. */
+.cb-sheet-close { display: inline-flex; }
+.card-browser .gallery-sheet:not(.has-card) { display: none; }
 .cb-pop.cb-pop-right { display: grid; min-width: 160px; padding: 4px; }
 .cb-pop.cb-pop-right button { text-align: left; padding: 6px 10px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--label); }
 .cb-pop.cb-pop-right button:hover { background: var(--fill-hover); }
@@ -3142,6 +3144,8 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .card-browser .gallery-sheet { flex-basis: min(440px, 43%); min-width: 0; }
 .card-browser .view-sheet.cb-sheet { grid-template-columns: minmax(0, 1fr); }
 .card-browser .view-sheet.cb-sheet > .vs-pic { grid-column: 1; grid-row: auto; width: 100%; height: auto; max-height: min(50vh, 480px); aspect-ratio: 4 / 5; object-fit: contain; background: var(--group); }
+/* The full picture at its own shape (no letterbox bars), as tall as the window allows. CLAUDE, 2026-11-03. */
+.card-browser .view-sheet.cb-sheet > img.vs-pic { aspect-ratio: auto; max-height: min(72vh, 760px); background: none; }
 .card-browser .view-sheet.cb-sheet > .vs-head { grid-column: 1; grid-row: auto; }
 .card-browser .cb-sheet > * { min-width: 0; }
 .card-browser .cb-field { display: block; padding-top: 0; }
