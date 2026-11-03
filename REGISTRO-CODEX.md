@@ -1,5 +1,218 @@
 # CODEX change record
 
+## Consolidated gpt publication (2026-11-03) — CODEX
+
+Daniel explicitly authorized reviewing and pushing all local gpt updates; the earlier local-only restriction is superseded.
+Includes UX/Assistant reliability, DataCat, tracker/persona context, message metadata, HTML/CSS, rewrite menus and collection sorting.
+Also includes the two unchanged pre-existing lockfile edits (original authorship unestablished) and seven synthetic test screenshots.
+Validation: typecheck/build; 665 unit passes (3 skips); 261 complete-suite browser passes; no source changed during validation.
+Inventory and limitations: docs/GPT-PUBLICATION-2026-11-03.md; destination origin/gpt only, without force or other-branch/release changes.
+Earlier local/unpublished statuses are historical checkpoints. Signed: **CODEX**.
+
+## ST-style collection sorting (2026-11-03) — CODEX
+
+Daniel requested the ST-style sorting selector for Library, Characters and Stories, supplying its options as the UI reference.
+Shared native selectors support name, dates, applicable favorites/activity/chat counts, estimated tokens and stable random order.
+Choices/seeds persist per collection in existing h2.collectionPrefs; search, folders, view/size preferences and editor selection remain independent.
+Display sorting preserves agent execution order; sorted regex edits map back to original positions and drag handles return in Execution order.
+Validation: 665 unit passes (3 skips), typecheck/build; 42 browser cases pass across final runs, including five new sorting cases.
+Report: docs/COLLECTION-SORTING-2026-11-03.md. Local/uncommitted/unpublished; synthetic data only, no native/live-provider check. Signed: **CODEX**.
+
+Files: apps/desktop/src/collection-sort.ts and ui/CollectionOrder.tsx (new); ui/CollectionTools.tsx, Gallery.tsx, Vault.tsx, LibraryWorkspace.tsx, LibraryPages.tsx, AgentsPage.tsx and RegexScripts.tsx; App.tsx (provider only); styles.css (appended rules only); packages/core/src/storage/store.ts (read-only metadata method only); apps/desktop/test/collection-sort.test.ts, packages/core/test/collection-sort-metadata.test.ts and e2e/collection-sort.e2e.ts (new); report and signed notes. Existing source, lockfile and tracked-screenshot edits were preserved. **CODEX**.
+
+## Named menus for every rewrite agent (2026-11-03) — CODEX
+
+Daniel requested a separate menu for every rewriting agent, labeled with its name instead of the last-only polished marker.
+Each agent now has its own menu and exact saved before/after comparison; repeated runs are grouped with separate comparisons.
+The current final rewrite retains undo/partial-edit controls; earlier snapshots are read-only, and exact undo restores earlier menus.
+Reconstructs tied-timestamp histories by content; names wrap/truncate accessibly and menus fit the actual chat scrollport.
+Validation: 645 unit passes (3 skips), typecheck/build; 35 related browser cases pass across final runs, including three new menu cases.
+Report: docs/REWRITE-MENUS-2026-11-03.md. Local/uncommitted/unpublished; synthetic providers/data, no native/live-provider check. Signed: **CODEX**.
+
+Files: apps/desktop/src/rewrite-history.ts (new); apps/desktop/src/ui/AgentResults.tsx (per-agent menus/snapshots, optional read-only DiffSheet and menu positioning/focus); apps/desktop/src/styles.css (appended rewrite-menu rules only); apps/desktop/test/rewrite-history.test.ts and e2e/rewrite-menus.e2e.ts (new); e2e/agents.e2e.ts (two existing comparisons now open through See changes); this report and signed notes. Earlier UI/source, both lockfiles and tracked screenshot changes are preserved and outside this task. **CODEX**.
+
+## HTML5/CSS3 and Animation Agent rendering (2026-11-03) — CODEX
+
+Daniel supplied both agent prompts and requested completing their rendering support locally on gpt while away.
+Styled chat replies now render in isolated documents, preserving HTML5, classes, CSS variables/layouts/keyframes and Markdown narration.
+Includes stored rewrites and live replies; code samples keep their existing presentation, and HTML/motion/image preferences are respected.
+Separate sanitizer/CSP prevent scripts, frame navigation and unapproved remote resources; expanding/collapsing content resizes without polling.
+Validation: 639 unit passes (3 skips), typecheck/build; 37 related browser passes, including six new integration cases with no page errors.
+Report: docs/MESSAGE-HTML-CSS-2026-11-03.md. Local/uncommitted/unpublished; synthetic provider/output, no native/live-provider test. Signed: **CODEX**.
+
+Files: apps/desktop/src/messageFormat.ts (independent rich sanitizer/Markdown path, CSS protection and frame detection); apps/desktop/src/ui/MessageHtml.tsx (new isolated renderer); MessageText.tsx (chat opt-in and shared click handling); ChatView.tsx (stored/live opt-ins only, prior metadata/UX work preserved); MessageLookSection.tsx (existing HTML option help); apps/desktop/test/message-html.test.ts and e2e/message-html.e2e.ts (new); report and these signed notes. Existing source/lockfile/screenshot changes remain outside this fix. **CODEX**.
+
+## Message date, time, number and separate token counts (2026-11-03) — CODEX
+
+Daniel supplied v1 screenshots as the UI reference and explicitly selected this gpt checkout.
+Chat messages now show local date/time, their 1-based position on the selected path, and separate Text/Reasoning counts.
+Preserves provider reasoning usage in an optional generation-record field; total output/billing semantics remain unchanged.
+Missing breakdowns and edited text use visible ~ estimates; versions/branches retain their own metadata, including hidden reasoning.
+Validation: 629 unit passes (3 skips), typecheck/build; 13 related browser cases pass across final runs, including narrow/large-text checks.
+Report: docs/MESSAGE-METADATA-2026-11-03.md. Local/uncommitted/unpublished; synthetic providers/data only, no native/live-provider check. Signed: **CODEX**.
+
+Files: apps/desktop/src/ui/MessageMetadata.tsx and message-metadata.ts (new); ChatView.tsx (two message hooks); styles.css (metadata rules only); packages/core/src/extensions.ts and turn.ts (optional usage field only); packages/schemas/src/records.ts; packages/provider-openai/src/index.ts and test/provider.test.ts; apps/desktop/test/message-metadata.test.ts, packages/core/test/message-usage.test.ts and e2e/message-metadata.e2e.ts (new); report and these signed notes. Existing local changes in shared files and both lockfiles were preserved. **CODEX**.
+
+## Assistant generation across navigation (2026-11-03) — CODEX
+
+Reproduced Play/Settings navigation dropping the visible live reply and Stop handle while the provider kept running.
+Assistant runtime now belongs to the app-level hook; the mounted view subscribes to its snapshot without rerendering App for each token.
+Preserves pending chat/text/controller/compaction/error across remounts; accepted chats appear in Recents and duplicate starts are guarded.
+Five new browser cases cover live return/Stop, background completion, Settings, chat/draft isolation and first-save failure/retry.
+Validation: 615 unit passes (3 skips), typecheck/build; 19 related browser passes across final runs. Report: docs/ASSISTANT-BACKGROUND-2026-11-03.md.
+Local/uncommitted/unpublished on gpt; synthetic data/providers, no native/private-data test; prior work/lockfiles/screenshots preserved. Signed: **CODEX**.
+
+Files: apps/desktop/src/assistant/runtime.ts (new); apps/desktop/src/ui/Assistant.tsx (runtime ownership/subscription, selected-chat/error continuity and pending-run guards only); e2e/assistant-background.e2e.ts (new); docs/ASSISTANT-BACKGROUND-2026-11-03.md and signed HANDOFF/CODEX-LOG/CODEX-TASKS/REGISTRO entries. Earlier changes in Assistant.tsx, including draft/history/persona/helper/overflow work, were preserved and are outside this follow-up.
+
+## Assistant code word wrap (2026-11-03) — CODEX
+
+Daniel's screenshot showed code paragraphs continuing horizontally: the prior fix contained width but retained white-space: pre.
+Scoped Assistant pre blocks now use pre-wrap/overflow-wrap:anywhere; indentation, blank lines and original Copy text remain intact.
+Updated the existing two browser cases: deterministic streaming gate, actual wrapped-line geometry, no horizontal code scroll, exact mocked clipboard and resize.
+Validation: both cases failed before CSS; final browser 2/2 plus message-format 1/1; 615 unit passes (3 skips), typecheck/build.
+Report: docs/ASSISTANT-CODE-WRAP-2026-11-03.md. Browser screenshots inspected; synthetic data only, no native/provider check.
+Local/uncommitted/unpublished on gpt; earlier source, lockfile and screenshot edits preserved. Signed: **CODEX**.
+
+Files: apps/desktop/src/styles.css (one scoped pre rule and the adjacent CODEX comment); e2e/assistant-overflow.e2e.ts; docs/ASSISTANT-CODE-WRAP-2026-11-03.md and signed HANDOFF/CODEX-LOG/CODEX-TASKS/REGISTRO entries. All other existing styles.css changes predate this follow-up.
+
+## Tracker persona context (2026-11-03) — CODEX
+
+Reproduced missing persona in Scene: Characters at normal and depth placement: starter inputs never enabled that source.
+All three bundled trackers now read it; existing built-ins upgrade once via their agent version; new custom trackers include it too.
+Selected persona versions/macros reach automatic/manual/Compare calls; Not sent now also excludes the separate agent source.
+Validation: 10 new unit cases (8 observed failing before their fixes), 615 full unit passes (3 skips), typecheck/build; 14 related browser passes across final runs.
+Report: docs/TRACKER-PERSONA-CONTEXT-2026-11-03.md. Synthetic data/providers only; no native app or live-provider verification.
+Local/uncommitted/unpublished on gpt; earlier work and lockfile/screenshot edits preserved. Signed: **CODEX**.
+
+Files: apps/desktop/src/starter/trackers.json; apps/desktop/src/trackers.ts; packages/core/src/turn.ts (persona callback guard only); apps/desktop/test/tracker-persona.test.ts; e2e/tracker-persona.e2e.ts; the report and signed HANDOFF/CODEX-LOG/CODEX-TASKS/REGISTRO entries. Existing turn.ts chat-model changes predate this task and were preserved.
+
+## Assistant helper, personas and code overflow (2026-11-03) — CODEX
+
+Daniel chose an optional retrieval model on its own connection; configure Customize → Assistants → Tool helper (off by default).
+Bounded read-only delegation returns evidence/cursors; writes/approvals stay with the principal; helper trace/usage and combined totals are visible.
+Added persona create/change/approval/drafts/Open/Trash; fixed streaming code and expanded-trace overflow at desktop/narrow widths.
+Validation: 605 unit passes (3 skips), typecheck/build; 38 affected browser passes, then 3 final helper/persona passes after snapshot/input refinements.
+Reports: docs/ASSISTANT-TOOL-HELPER-2026-11-03.md and docs/ASSISTANT-PERSONAS-OVERFLOW-2026-11-03.md.
+Optional Assistant schema extensions only; no SQL/dependency change. Synthetic data/providers; live savings/quality and native behavior unverified.
+Local/uncommitted/unpublished on gpt; earlier work, lockfile and screenshot changes preserved. Signed: **CODEX**.
+
+Files: packages/schemas/src/assistant.ts; apps/desktop/src/assistant/{engine,guides,tools,assistant.test,helper,helper.test,persona-tools.test}.ts; apps/desktop/src/ui/{Assistant,AssistantCustomize,AssistantDetails}.tsx; apps/desktop/src/{App.tsx,styles.css}; e2e/assistant-{helper,persona,overflow}.e2e.ts; the two reports and signed HANDOFF/CODEX-LOG/CODEX-TASKS/REGISTRO records. Existing lockfile and seven generated screenshot edits were not modified or attributed to this follow-up.
+
+## Assistant large-card reading (2026-11-03) — CODEX
+
+Reproduced historical reads cut through JSON at 400 characters, losing source cursors after a user continuation.
+Added clean 6k source pages and explicit _read ranges/next arguments; recent read bodies retained within a 24k/known-context budget.
+Older excerpts stay valid and preserve cursors; legacy saved results are upgraded only for replay. Version/lore-entry text pagination now works.
+Validation: six failing regressions fixed; 13 new unit cases, 583 full unit passes (3 skips), typecheck/build; 13 affected browser passes.
+Report: docs/ASSISTANT-LONG-READS-2026-11-03.md. Synthetic model/browser checks; no private chat or live-provider/native verification.
+Local/uncommitted/unpublished on gpt; earlier audit fixes and all prior local work preserved. Signed: **CODEX**.
+
+Files: apps/desktop/src/assistant/{reads,reads.test}.ts, tools.ts, engine.ts, guides.ts, assistant.test.ts, assistant-audit.test.ts; e2e/assistant-long-read.e2e.ts; docs/ASSISTANT-LONG-READS-2026-11-03.md and signed HANDOFF/CODEX-LOG/CODEX-TASKS/REGISTRO records. Existing pagination tests were updated to assert source ranges rather than the removed inline prose suffix.
+
+
+## Assistant field-contract audit (2026-11-03) — CODEX
+
+Audited all five writable item kinds after Daniel requested more bugs like the tracker failures.
+Fixed narrator metadata/style/blocks, Kit links/cast/inheritance, advanced lore/read/stale/operations and partial Character Notes.
+Draft target kinds and unknown/root fields are checked; invalid proposals/new-item approvals return to the model before user action.
+Validation: 20 failing unit cases and a failing browser reproduction fixed; 570 unit passes (3 skips), typecheck/build; 6 affected browser cases pass across final runs.
+Report: docs/ASSISTANT-FIELD-CONTRACT-AUDIT-2026-11-03.md. Synthetic data only; no real-provider/native validation.
+Local/uncommitted/unpublished on gpt; prior changes preserved. Daniel's subsequent long-card reading report is a separate follow-up. Signed: **CODEX**.
+
+Files: apps/desktop/src/assistant/{guides,tools}.ts, apps/desktop/src/ui/Assistant.tsx, apps/desktop/src/assistant/field-contract.test.ts, e2e/assistant-field-contract.e2e.ts, docs/ASSISTANT-FIELD-CONTRACT-AUDIT-2026-11-03.md and signed HANDOFF/CODEX-LOG/CODEX-TASKS/REGISTRO records.
+
+
+## Assistant tracker context and field preservation (2026-11-03) — CODEX
+
+Daniel reported misplaced filling instructions and every field returning to Auto; audited tracker options against editor/schema/runtime.
+Guide now explains help versus note, scoped display choices, locks, prompt inclusion, lists, presence and default-field-set limits.
+Tools retain the complete field schema and nested columns through create/read/approval/change; default-set presence is supported and validated.
+Validation: seven original regression failures fixed; 545 unit passes (3 skips), typecheck/build, 4 related browser passes.
+Report: docs/ASSISTANT-TRACKER-FIELDS-2026-11-03.md. Existing tracker content is not automatically rewritten; real-provider/native checks not run.
+Local/uncommitted/unpublished on gpt; prior UX/DataCat work and lockfile edits preserved. Signed: **CODEX**.
+
+Files changed by CODEX in this follow-up:
+
+- apps/desktop/src/assistant/guides.ts: core reminder and complete tracker guide with editor labels/examples/options/tool boundaries.
+- apps/desktop/src/assistant/tools.ts: complete recursive field mapping/read view, stable keys, presence and option validation.
+- apps/desktop/src/assistant/assistant.test.ts: 16 additional cases; schema/guide coverage and create/approval/read/change preservation.
+- e2e/assistant-tracker-fields.e2e.ts: synthetic tool response through the Assistant to the real tracker editor.
+- docs/ASSISTANT-TRACKER-FIELDS-2026-11-03.md, HANDOFF.md, CODEX-LOG.md, docs/CODEX-TASKS.md and this record.
+
+
+## DataCat V2 description fix (2026-11-03) — CODEX
+
+Reproduced Daniel's public card: legacy personality is null; embedded V2 description contains 3,705 characters.
+Preview and download now share the V2 mapping, with legacy fallbacks and creator download controls preserved.
+Validation: four failing regression cases now pass; typecheck/build; 529 unit passes (3 skips); 11 related browser cases pass across final runs.
+Live public response passed the actual adapter/importer/PNG round-trip in memory; no native Tauri check this follow-up.
+Report: docs/DATACAT-DESCRIPTION-FIX-2026-11-03.md. Re-add earlier incomplete imports; existing characters are unchanged.
+Local/uncommitted/unpublished on gpt; prior UX work and lockfile edits preserved. Signed: **CODEX**.
+
+Files changed by CODEX in this follow-up:
+
+- packages/card-browser/src/sources/datacat.ts
+- packages/card-browser/test/card-browser.test.ts
+- apps/desktop/test/import-characters.test.ts
+- e2e/datacat.e2e.ts
+- docs/DATACAT-DESCRIPTION-FIX-2026-11-03.md
+- docs/evidence/datacat-description-2026-11-03.json
+- HANDOFF.md, CODEX-LOG.md, docs/CODEX-TASKS.md and this record
+
+
+## Twelve UX findings implemented locally (2026-11-03) — CODEX
+
+Daniel directly authorized all R1–R12 on gpt: draft/save protection, keyboard/layout/model/search, fixed card actions, Assistant versions/branches/delete/scroll.
+Compatible optional setup/history fields; shared messages stored once; Library actions are not replayed when selecting paths; no dependency or SQL-table changes.
+Validation: typecheck/build; 516 unit passes (3 skips); 227 full browser passes, then 21 affected passes after final integrity/action-position changes.
+Report: docs/UX-IMPLEMENTATION-2026-11-03.md. Local/uncommitted/unpublished; dev/ui unchanged; original lockfile edits preserved.
+Seven test-regenerated screenshots remain local: automatic review rejected restoring them under the no-discard rule; cleanup awaits approval. Signed: **CODEX**.
+
+Files in this authorized implementation and its records:
+
+- `apps/desktop/src/ui/Assistant.tsx`
+- `apps/desktop/src/assistant/engine.ts`
+- `packages/schemas/src/assistant.ts`
+- `apps/desktop/src/ui/ChatView.tsx`
+- `apps/desktop/src/App.tsx`
+- `apps/desktop/src/ui/SettingsPage.tsx`
+- `apps/desktop/src/ui/CharacterEditor.tsx`
+- `apps/desktop/src/ui/CommandPalette.tsx`
+- `apps/desktop/src/ui/QuickConnect.tsx`
+- `apps/desktop/src/ui/CardBrowser.tsx`
+- `apps/desktop/src/styles.css`
+- `packages/schemas/src/setup.ts`
+- `apps/desktop/src/assistant/history.ts`
+- `apps/desktop/src/assistant/history.test.ts`
+- `apps/desktop/src/ui/ux.tsx`
+- `apps/desktop/src/main.tsx`
+- `apps/desktop/src/ui/PersonaEditor.tsx`
+- `apps/desktop/src/ui/PresetEditor.tsx`
+- `apps/desktop/src/ui/TrackerEditor.tsx`
+- `packages/core/src/setup.ts`
+- `packages/core/src/turn.ts`
+- `packages/core/test/ux-model.test.ts`
+- `e2e/ux-review.e2e.ts`
+- `e2e/assistant-history.e2e.ts`
+- `apps/desktop/src/ui/Inspector.tsx`
+- `apps/desktop/src/ui/ConnectionPanel.tsx`
+- `apps/desktop/src/ui/CustomizeSection.tsx`
+- `e2e/quick-connect.e2e.ts`
+- `e2e/card-browser.e2e.ts`
+- `e2e/ui.ts`
+- `e2e/background.e2e.ts`
+- `e2e/trackers.e2e.ts`
+- `e2e/card-browser-details.e2e.ts`
+- `apps/desktop/src/ui/SetupFields.tsx`
+- `HANDOFF.md`
+- `CODEX-LOG.md`
+- `docs/CODEX-TASKS.md`
+- `REGISTRO-CODEX.md`
+- `docs/UX-IMPLEMENTATION-2026-11-03.md`
+- `packages/core/src/storage/store.ts`
+
+Generated test captures also changed: `docs/drafts/agent-try-it/integration/actual-{1366,390,620}-{ready,result}.png` and `actual-full-620.png`. Cleanup was rejected by automatic review; no restoration or bypass was performed. No personal play folder, private data or API key was used. Author: **CODEX**.
+
 ## BotBooru source and account — publication authorized (2026-11-02) — CODEX
 
 Daniel directly requested BotBooru first: source/search/filter/details/original-PNG import plus the site's own account window for NSFW/NSFL.

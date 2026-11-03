@@ -30,9 +30,11 @@ import { approxTokens, fmtTokens, ReplyPane } from "./ReplyPane.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
 import { RegexReview, SessionRegex } from "./RegexScripts.tsx";
 import { MessageText } from "./MessageText.tsx";
+import { MessageMetadata, MessageTime } from "./MessageMetadata.tsx";
 import { AuthorsNoteGroup, noteMarkAt } from "./AuthorsNote.tsx";
 import { QuickConnect } from "./QuickConnect.tsx";
 import { Toolbar } from "./Toolbar.tsx";
+import { useDraft, useSendKey } from "./ux.tsx";
 import { CASCADE, enter } from "./motion.ts";
 import { BranchMenu, ForkMarker, subtreeOf, TreeSheet, useBranches } from "./Branches.tsx";
 import type { ReactNode } from "react";
@@ -121,7 +123,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const [path, setPath] = useState<Message[]>([]);
   const [siblings, setSiblings] = useState<Record<string, SiblingInfo>>({});
   const [error, setError] = useState("");
-  const [input, setInput] = useState("");
+  const [sendKey] = useSendKey();
+  const [input, setInput] = useDraft(`play:${session.id}`, "");
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(session.title);
   const endRef = useRef<HTMLDivElement>(null);
@@ -314,8 +317,14 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     setInput("");
     run({ parentId, userText: text }, async (signal, streamTo) => {
       const r = connection.forRequest();
-      const { reply } = await svc.chat.send(session.id, parentId, text, r.connection, { signal, connections: r.connections, ...streamTo });
-      return reply.id;
+      try {
+        const { reply } = await svc.chat.send(session.id, parentId, text, r.connection, { signal, connections: r.connections, ...streamTo });
+        return reply.id;
+      } catch (e) {
+        const accepted = await svc.store.childrenOf(session.id, parentId).then(ms => ms.some(m => m.speaker.kind === "user" && m.content === text), () => false);
+        if (!accepted) setInput(current => current || input);
+        throw e;
+      }
     });
   };
 
@@ -479,7 +488,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     const text = show(m.content, m, depth);
     const before = typeof m.meta.beforeRegex === "string" ? m.meta.beforeRegex : null;
     const fromRegex = REGEX_HTML.test(text) && ((regex.scripts.length > 0 && !REGEX_HTML.test(m.content)) || (before !== null && !REGEX_HTML.test(before)));
-    return <MessageText text={text} htmlFromRegex={fromRegex} />;
+    return <MessageText text={text} htmlFromRegex={fromRegex} richHtml />;
   };
 
   const lastAi = [...visible].reverse().find((m) => m.speaker.kind !== "user");
@@ -620,7 +629,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                 {noteAt === i && noteMark}
                 <li className={`msg ${m.speaker.kind}${hidden ? " hidden-ai" : ""}${isLast ? " last" : ""}`} data-testid="message" data-region="message" data-mid={m.id}>
                   <div className="msg-body">
-                  <div className="who">{speakerName(m)}
+                  <div className="who">{speakerName(m)} <MessageTime at={m.createdAt} />
                     {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} current={m.content} canWriteAgain={isLastAi && m.parentId !== null && !busy}
                       onSaveText={(t) => void saveText(m, t)} onWriteAgain={() => regenerate(m)} />}
                     {m.meta.incomplete === true && <span className="warn"> · incomplete</span>}
@@ -657,6 +666,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     <Choices results={agentResults.get(m.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(m.id)} />
                   )}
                   </div>
+                  <MessageMetadata svc={svc} message={m} position={i + 1} />
                   {deletingMsg === m.id ? (
                     <div className="msg-delete" data-testid="message-delete-confirm">
                       <span><strong>Delete {gone.length > 1 ? `this message and the ${gone.length - 1} after it` : "this message"} for good?</strong>
@@ -722,7 +732,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     <div className="reasoning-text">{pending.reasoning}</div>
                   </details>
                 )}
-                <div className="text prose">{pending.text ? <MessageText text={show(pending.text)} /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
+                <div className="text prose">{pending.text ? <MessageText text={show(pending.text)} richHtml /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
               </li>
             )}
           </ol>
@@ -742,18 +752,18 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         {lastAi && !busy && !pending && <ComposerChoices results={agentResults.get(lastAi.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(lastAi.id)} />}
         <form className="composer" data-region="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
           <div className="composer-box">
-            <textarea value={input} rows={2} aria-label="Your message" title="Enter sends · Shift+Enter makes a new line · Enter in an empty box gets a reply"
+            <textarea value={input} rows={2} aria-label="Your message" title={sendKey === "enter" ? "Enter sends · Shift+Enter makes a new line · Empty Enter continues" : "Ctrl+Enter sends or continues · Enter makes a new line"}
               placeholder="Write your message"
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (sendKey === "enter" || e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } }} />
             {busy
               ? <Button variant="prominent" onClick={() => turns.stop(session.id)}>Stop</Button>
               : <Button variant="prominent" type="submit" disabled={!input.trim() && !headId}
-                  title={input.trim() ? undefined : "Empty: the AI writes the next message"}>Send</Button>}
+                  title={input.trim() ? undefined : "Empty: the AI writes the next message"}>{input.trim() ? "Send" : "Continue"}</Button>}
           </div>
           {/* UX review item 4 (D-078): the same shape as the Assistant's box — the model under the box opens Quick Connection;
               samplers stay a quiet link to the Prompt tab */}
-          <div className="composer-meta">
+          <div className="composer-meta"><span className="composer-hint">{sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to {input.trim() ? "send" : "continue"} · Shift+Enter for a new line</span>
             <span className="grow" />
             {(params.temperature !== undefined || params.reasoningEffort) && (
               <button type="button" className="link quiet" onClick={() => { setTab("prompt"); if (!inspectorOpen) onToggleInspector(); }} title="Sampling: open the Prompt tab">
@@ -780,7 +790,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       )}
 
       {inspectorOpen && headId !== undefined && (
-        <Inspector tab={tab} onTab={setTab}
+        <Inspector tab={tab} onTab={setTab} onClose={onToggleInspector}
           scene={<ScenePanel svc={svc} session={session} storySetup={storySetup} messageId={last?.id ?? null} busy={busy} refreshKey={sceneKey}
             trackers={trackers} connection={connection} avatars={sceneAvatars} onToggle={onToggleTracker} onToggleAll={onToggleTrackers} onPickSet={onPickFieldSet} onEditTracker={onEditTracker}
             onNewTracker={onNewTracker} onChanged={() => setSceneKey((k) => k + 1)} onChangeSession={onChangeSession} onSaveToVault={onSaveNpcToVault} />}

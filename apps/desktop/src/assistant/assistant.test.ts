@@ -1,13 +1,13 @@
 // Tests for the Assistant (D-062): the tool loop, light reading, proposals, files, and the guides. Author: CLAUDE, 2026-11-01.
 import initSqlJs from "sql.js";
 import { describe, expect, it } from "vitest";
-import { Character, LoreEntry, Lorebook, Narrator, Story, TrackerField, AssistantChat, type AssistantMessage } from "@homunculus/schemas";
+import { Character, Persona, LoreEntry, Lorebook, Narrator, Story, TrackerField, FieldDisplay, FieldType, AssistantChat, type AssistantMessage } from "@homunculus/schemas";
 import { HomunculusCore, SqlJsDriver, SqlStore, coreMigrations, migrate, type GenerateRequest, type StreamChunk } from "@homunculus/core";
 import { compactChat, loadChat, needsCompaction, runAssistant, saveSettings, toTurns, loadSettings } from "./engine.ts";
-import { applyChange, redoMove, runTool, undoMove, type ToolContext } from "./tools.ts";
+import { applyChange, approveNew, redoMove, runTool, undoMove, type ToolContext } from "./tools.ts";
 import { parseFile, readPart } from "./files.ts";
 import { GUIDES } from "./guides.ts";
-import { listTrackers } from "../trackers.ts";
+import { blankSet, blankTracker, listTrackers, saveTracker } from "../trackers.ts";
 
 async function setup(script: (req: GenerateRequest, call: number) => StreamChunk[]) {
   const SQL = await initSqlJs();
@@ -30,6 +30,149 @@ const chatWith = (...messages: AssistantMessage[]) => AssistantChat.parse({ id: 
 const ctxOf = (store: SqlStore): ToolContext => ({ store, saveNew: true, newId: () => crypto.randomUUID(), files: new Map(), images: new Map(), results: [], guides: new Set(), remember: async () => {} });
 
 describe("the Assistant", () => {
+  // Tracker help is the filling instruction; note explains the story consequences. Keep both through every tool path. CODEX, 2026-11-03.
+  const quest = {
+    key: "quest", label: "Quest", type: "text", scope: "global", display: "block", icon: "scroll",
+    help: "Write the active quest, its giver and known objectives. Leave empty when no quest is active. Never invent hidden traps.",
+    note: "A quest is a commitment; its stakes and known conditions should shape the story.",
+  };
+  it.each([true, false])("preserves separate tracker field help and note when saveNew is %s", async (saveNew) => {
+    const { store } = await setup(() => []);
+    const ctx = { ...ctxOf(store), saveNew };
+    expect((await runTool("create", JSON.stringify({ kind: "tracker", data: { name: "Adventure", help: "Track the adventure.", fields: [quest] } }), ctx)).error).toBeFalsy();
+    if (!saveNew) {
+      expect(await listTrackers(store)).toHaveLength(0);
+      await approveNew(store, ctx.results[0] as Extract<(typeof ctx.results)[number], { type: "new" }>, ctx.newId);
+    }
+    const t = (await listTrackers(store))[0]!;
+    expect(t.agent.help).toBe("Track the adventure.");
+    expect(t.sets[0]!.fields[0]).toMatchObject({ help: quest.help, note: quest.note, display: quest.display, icon: quest.icon });
+  });
+  it("reads field help and note separately and retains them when applying a tracker change", async () => {
+    const { store } = await setup(() => []);
+    const draft = blankTracker(); draft.name = "Adventure";
+    draft.sets[0]!.fields = [TrackerField.parse(quest)];
+    await saveTracker(store, draft);
+    const ctx = ctxOf(store), ref = `tracker:${draft.id}`;
+    const current = JSON.parse((await runTool("read", JSON.stringify({ id: ref, fields: ["fields"] }), ctx)).result);
+    expect(current.fields[0]).toMatchObject({ help: quest.help, note: quest.note });
+    const updated = { ...current.fields[0], help: "Write only the currently accepted quest. Leave empty after completion." };
+    expect((await runTool("change", JSON.stringify({ id: ref, changes: { fields: [updated] } }), ctx)).error).toBeFalsy();
+    const proposal = ctx.results[0] as Extract<(typeof ctx.results)[number], { type: "change" }>;
+    expect(await applyChange(store, proposal, ctx.newId)).toBe("applied");
+    expect((await listTrackers(store))[0]!.sets[0]!.fields[0]).toMatchObject({ help: updated.help, note: quest.note });
+  });
+  it("gives the Assistant the two tracker field meanings, their editor labels and a correctly split Quest example", async () => {
+    const { store, core, seen } = await setup((_req, i) => i === 0 ? [call("guide", { kind: "tracker" })] : ["Ready."]);
+    await runAssistant({ core, store, chat: chatWith(userMsg("Build a Quest tracker")), main, connections: {}, onUpdate: () => {} });
+    expect(String(seen[0]!.rich![0]!.content)).toContain("fields[].help");
+    const guide = seen[1]!.rich!.find((t) => t.role === "tool")!.content as string;
+    expect(guide).toContain('help: "What the AI should write here — and when to leave it empty"');
+    expect(guide).toContain('note: "What it means in the story"');
+    expect(guide).toContain("tracker AI");
+    expect(guide).toContain("story AI");
+    expect(guide).toContain('"label": "Quest"');
+    const example = JSON.parse(guide.match(/\{ "label": "Quest"[^\n]+/u)![0]);
+    expect(example.help).toMatch(/leave.*empty/i);
+    expect(example.note).toBeTruthy();
+    expect(example.help).not.toBe(example.note);
+  });
+  // Full field-schema audit after the reported all-Auto problem. CODEX, 2026-11-03.
+  it("retains presentation, manual locks, list columns and presence through create, read and change", async () => {
+    const { store } = await setup(() => []), ctx = ctxOf(store);
+    const fields = [
+      TrackerField.parse({ ...quest, display: "block", icon: "scroll", color: "#336699", lockedForAgents: true, required: false, toPrompt: false, section: "Adventure" }),
+      TrackerField.parse({ key: "present", label: "Presence", type: "status", options: ["here", "away"], scope: "perCharacter", display: "line", icon: "pin", help: "Where they are.", section: "Now" }),
+      TrackerField.parse({ key: "inventory", label: "Inventory", type: "list", scope: "perCharacter", display: "block", icon: "bag", fields: [
+        TrackerField.parse({ key: "title", label: "Title", type: "text", help: "The item's name." }),
+        TrackerField.parse({ key: "quantity", label: "Quantity", type: "number", min: 0, max: 99, help: "How many they carry." }),
+      ] }),
+    ];
+    const presence = { field: "present", value: "here" };
+    const result = await runTool("create", JSON.stringify({ kind: "tracker", data: { name: "All options", fields, characters: "anyone", presence } }), ctx);
+    expect(result.error, result.result).toBeFalsy();
+    const t = (await listTrackers(store))[0]!;
+    expect(t.sets[0]).toMatchObject({ fields, characters: "anyone", presence });
+    const current = JSON.parse((await runTool("read", JSON.stringify({ id: `tracker:${t.agent.id}` }), ctx)).result);
+    // read omits empty/default values to save tokens; the schema restores those without losing nondefault options.
+    expect({ ...current, fields: current.fields.map((f: unknown) => TrackerField.parse(f)) }).toMatchObject({ fields, presence });
+    current.fields[0].note = "Updated story meaning.";
+    expect((await runTool("change", JSON.stringify({ id: `tracker:${t.agent.id}`, changes: { fields: current.fields } }), ctx)).error).toBeFalsy();
+    const proposal = ctx.results.at(-1) as Extract<(typeof ctx.results)[number], { type: "change" }>;
+    expect(await applyChange(store, proposal, ctx.newId)).toBe("applied");
+    expect((await listTrackers(store))[0]!.sets[0]).toMatchObject({ fields: current.fields, presence });
+    await runTool("change", JSON.stringify({ id: `tracker:${t.agent.id}`, changes: { presence: null } }), ctx);
+    expect(await applyChange(store, ctx.results.at(-1) as typeof proposal, ctx.newId)).toBe("applied");
+    expect((await listTrackers(store))[0]!.sets[0]!.presence).toBeUndefined();
+  });
+  it("preserves every schema field type and every supported presentation instead of coercing them to text or Auto", async () => {
+    const { store } = await setup(() => []), ctx = ctxOf(store);
+    const fields = [
+      ...["auto", "header", "block"].map((display, i) => ({ key: `global${i}`, label: `Global ${i}`, type: "text", scope: "global", display })),
+      ...["auto", "subtitle", "lead", "pill", "line", "tile", "block", "note"].map((display, i) => ({ key: `person${i}`, label: `Person ${i}`, type: "text", scope: "perCharacter", display })),
+      { key: "date", label: "Date", type: "datetime" },
+      { key: "group", label: "Legacy group", type: "group", fields: [{ key: "child", label: "Child", type: "meter", help: "A whole number.", min: 0, max: 10 }] },
+      { key: "trust", label: "Trust", type: "meter", scope: "perPair", display: "tile", min: 0, max: 10 },
+    ];
+    const result = await runTool("create", JSON.stringify({ kind: "tracker", data: { name: "Layouts and types", fields } }), ctx);
+    expect(result.error, result.result).toBeFalsy();
+    const saved = (await listTrackers(store))[0]!.sets[0]!.fields;
+    for (const field of fields) {
+      const actual = saved.find(f => f.key === field.key)!;
+      expect(actual.type).toBe(field.type);
+      if ("display" in field) expect(actual.display ?? "auto").toBe(field.display);
+      if ("fields" in field) expect(actual.fields[0]).toMatchObject(field.fields![0]!);
+    }
+  });
+  it("explains the tracker options and the default-field-set tool boundary", () => {
+    const guide = GUIDES.tracker!.text;
+    for (const term of ["display", '"header"', '"block"', '"tile"', '"pill"', "lockedForAgents", "icon", "color", "columns", "presence", "default field set", "key", "complete replacement"]) expect(guide).toContain(term);
+    for (const option of [...FieldDisplay.options, ...FieldType.options]) expect(guide).toContain(`"${option}"`);
+    const fieldShape = (TrackerField as unknown as { unwrap(): { shape: Record<string, unknown> } }).unwrap().shape;
+    for (const name of Object.keys(fieldShape)) expect(GUIDES.tracker!.fields).toContain(name);
+  });
+  it("generates unique permanent keys for new fields and nested list columns with no supplied keys", async () => {
+    const { store } = await setup(() => []);
+    const out = await runTool("create", JSON.stringify({ kind: "tracker", data: { name: "New table", fields: [
+      { label: "Items", type: "list", fields: [{ label: "Name", type: "text" }, { label: "Name", type: "number" }] },
+      { key: "items", label: "Existing key", type: "text" },
+    ] } }), ctxOf(store));
+    expect(out.error, out.result).toBeFalsy();
+    const fields = (await listTrackers(store))[0]!.sets[0]!.fields;
+    expect(new Set(fields.map(f => f.key)).size).toBe(2);
+    expect(fields[1]!.key).toBe("items");
+    const columns = fields[0]!.fields;
+    expect(new Set(columns.map(f => f.key)).size).toBe(2);
+    for (const f of [...fields, ...columns]) expect(f.key).toMatch(/^[A-Za-z][\w-]*$/);
+  });
+  it("keeps nondefault field sets untouched and detects a manual help-only edit before applying a proposal", async () => {
+    const { store } = await setup(() => []), ctx = ctxOf(store);
+    const draft = blankTracker(); draft.name = "Sets"; draft.sets[0]!.fields = [TrackerField.parse(quest)];
+    const other = blankSet("Other"); other.fields = [TrackerField.parse({ key: "mana", label: "Mana", type: "meter", scope: "perCharacter", display: "tile", icon: "bolt", help: "Only for mages.", min: 0, max: 20 })];
+    draft.sets.push(other); await saveTracker(store, draft);
+    const ref = `tracker:${draft.id}`;
+    await runTool("change", JSON.stringify({ id: ref, changes: { fields: [{ ...quest, note: "New meaning." }] } }), ctx);
+    expect(await applyChange(store, ctx.results.at(-1) as Extract<(typeof ctx.results)[number], { type: "change" }>, ctx.newId)).toBe("applied");
+    expect((await listTrackers(store))[0]!.sets.find(s => s.id === other.id)).toMatchObject({ fields: other.fields });
+    await runTool("change", JSON.stringify({ id: ref, changes: { fields: [quest] } }), ctx);
+    const latest = (await listTrackers(store))[0]!;
+    await store.saveTrackerSchema({ ...latest.sets[0]!, fields: latest.sets[0]!.fields.map(f => ({ ...f, help: "Edited by hand after the proposal." })) });
+    expect(await applyChange(store, ctx.results.at(-1) as Extract<(typeof ctx.results)[number], { type: "change" }>, ctx.newId)).toBe("stale");
+  });
+  it.each([
+    { fields: [{ ...quest, type: "imaginary" }] },
+    { fields: [{ ...quest, display: "bubble" }] },
+    { fields: [{ ...quest, display: "tile" }] },
+    { fields: [{ ...quest, type: "list", fields: "not a list" }] },
+    { fields: [quest], characters: "everyone" },
+    { fields: [quest], presence: { field: "quest", value: "here" } },
+    { fields: [quest, { ...quest, label: "Duplicate key" }] },
+  ])("refuses invalid tracker options instead of silently defaulting them (%j)", async (data) => {
+    const { store } = await setup(() => []);
+    const result = await runTool("create", JSON.stringify({ kind: "tracker", data: { name: "Invalid", ...data } }), ctxOf(store));
+    expect(result.error).toBe(true);
+    expect(await listTrackers(store)).toHaveLength(0);
+  });
   it("runs tools until it answers: reads the guide, creates a tracker, and the chat is saved with its steps", async () => {
     const { store, core, seen } = await setup((_req, i) => [
       [call("guide", { kind: "tracker" })],
@@ -52,7 +195,7 @@ describe("the Assistant", () => {
 
   it("never sends the library: only counts; find pages 25 lines; a lorebook is read as an index", async () => {
     const { store, core, seen } = await setup(() => ["ok"]);
-    for (let i = 0; i < 60; i++) await store.saveCharacter(Character.parse({ id: `c${i}`, name: `Person ${i}`, description: "x".repeat(5000) }));
+    for (let i = 0; i < 60; i++) await store.saveCharacter(Character.parse({ id: `c${i}`, name: `Person ${i}`, description: "x".repeat(9000) }));
     await store.saveLorebook(Lorebook.parse({ id: "b1", name: "Woods", entries: Array.from({ length: 30 }, (_, i) => LoreEntry.parse({ id: `e${i}`, title: `Place ${i}`, keys: [`p${i}`], content: "long ".repeat(200) })) }));
     await runAssistant({ core, store, chat: chatWith(userMsg("hi")), main, connections: {}, onUpdate: () => {} });
     const sys = String(seen[0]!.rich![0]!.content);
@@ -64,8 +207,9 @@ describe("the Assistant", () => {
     expect(page).toContain("35 more; page 2");
     expect((await runTool("find", JSON.stringify({ query: "person 42" }), ctx)).result.split("\n")[0]).toContain("character:c42");
     const char = (await runTool("read", JSON.stringify({ id: "character:c3" }), ctx)).result;
-    expect(char.length).toBeLessThan(3000);
-    expect(char).toContain("read with fields [\\\"description\\\"] and offset 2500");
+    // Paging now has clean data and a machine-readable cursor rather than prose embedded in description. CODEX.
+    expect(char.length).toBeLessThan(7000);
+    expect(JSON.parse(char)._read[0].next).toMatchObject({ fields: ["description"], offset: 6000 });
     const book = (await runTool("read", JSON.stringify({ id: "lorebook:b1" }), ctx)).result;
     expect(book).toContain("e7 · Place 7 — keys: p7");
     expect(book).not.toContain("long long");
@@ -120,7 +264,8 @@ describe("the Assistant", () => {
 
     const old: AssistantMessage = { ...userMsg(""), role: "assistant", rounds: [{ text: "", calls: [{ id: "t1", name: "read", arguments: "{}" }] }], steps: [{ id: "t1", name: "read", args: "{}", result: "z".repeat(3000), label: "", error: false }], text: "ok" };
     const img = { type: "image" as const, id: "i1", name: "a.png", mime: "image/png", base64: "AAAA" };
-    const chat = chatWith(userMsg("one", { attachments: [img] }), old, userMsg("two"), userMsg("three"));
+    // A tiny known context forces an excerpt; recent reads normally remain intact within the read budget. CODEX.
+    const chat = { ...chatWith(userMsg("one", { attachments: [img] }), old, userMsg("two"), userMsg("three")), contextLength: 1 };
     const turns = toTurns(chat, await loadSettings(store), "characters: 1");
     expect(String(turns.find((t) => t.role === "tool")!.content).length).toBeLessThan(500);
     expect(turns[1]!.content).toContain("[Image i1: a.png (sent earlier)]");
@@ -273,10 +418,10 @@ describe("the Assistant", () => {
 
   it("each guide only names fields the app really has", () => {
     const shape = (s: { shape: Record<string, unknown> }) => Object.keys(s.shape);
-    const have: Record<string, string[]> = {
+    const have: Record<string, string[]> = { persona: shape(Persona),
       character: shape(Character),
       lorebook: [...shape(Lorebook), ...shape(LoreEntry)],
-      tracker: ["name", "help", "prompt", "messages", "fields", "characters", ...shape((TrackerField as unknown as { unwrap(): never }).unwrap())],
+      tracker: ["name", "help", "prompt", "messages", "fields", "characters", "presence", ...shape((TrackerField as unknown as { unwrap(): never }).unwrap())],
       kit: [...shape(Story), "narratorId", "lorebookIds"],
       narrator: [...shape(Narrator), ...shape(Narrator.shape.style.unwrap() as never)],
     };

@@ -113,6 +113,8 @@ export const GenerationRecord = z.object({
   agents: z.record(z.string(), z.array(Id)).default({}),
   tokensIn: z.number().int().optional(),
   tokensOut: z.number().int().optional(),
+  // CODEX: optional breakdown of total output usage; older records stay valid.
+  tokensReasoning: z.number().int().nonnegative().optional(),
   cost: z.number().optional(),
   durationMs: z.number().int().min(0),
   createdAt: z.number().int(),

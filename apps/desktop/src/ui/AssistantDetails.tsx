@@ -45,7 +45,7 @@ export function AssistantDetails({ chat, live, settings, modelName, modelFrom, o
   const estimated = !used?.lastPrompt;
   const ctx = chat?.contextLength;
   const pct = ctx && total ? Math.min(100, Math.round((total / ctx) * 100)) : null;
-  const spent = replies.reduce((a, m) => ({ tin: a.tin + (m.used?.tokensIn ?? 0), tout: a.tout + (m.used?.tokensOut ?? 0), cost: a.cost + (m.used?.cost ?? 0) }), { tin: 0, tout: 0, cost: 0 });
+  const spent = replies.reduce((a, m) => ({ tin: a.tin + (m.used?.tokensIn ?? 0) + (m.used?.helper?.tokensIn ?? 0), tout: a.tout + (m.used?.tokensOut ?? 0) + (m.used?.helper?.tokensOut ?? 0), cost: a.cost + (m.used?.cost ?? 0) + (m.used?.helper?.cost ?? 0) }), { tin: 0, tout: 0, cost: 0 });
   const cut = chat?.compact ? chat.messages.findIndex((m) => m.id === chat.compact!.uptoId) : -1;
   const atts = (chat?.messages ?? []).flatMap((m, i) => m.attachments.map((a) => ({ a, gone: i <= cut })));
   const readCount = (id: string) => (chat?.messages ?? []).reduce((n, m) => n + m.steps.filter((s) => s.args.includes(id)).length, 0);

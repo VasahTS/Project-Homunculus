@@ -116,7 +116,7 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
       {!inStory && <Group title="Connections" help="Which saved connection writes this story, and which one the agents and trackers use. Create and edit connections in Settings → Connections.">
         <Row label="Story" help="Writes the replies. 'Default' follows the default connection in Settings.">
           <select aria-label="Story connection" value={session.setup.connectionId ?? INHERIT}
-            onChange={(e) => (e.target.value === INHERIT ? setLayer({}, ["connectionId"]) : setLayer({ connectionId: e.target.value }, []))}>
+            onChange={(e) => (e.target.value === INHERIT ? setLayer({ modelOverride: "" }, ["connectionId"]) : setLayer({ connectionId: e.target.value, modelOverride: "" }, []))}>
             <option value={INHERIT}>Default ({defaultName})</option>
             {c.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -135,7 +135,7 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
         </Row>
         <Row wide>
           <span className="hint" data-testid="story-connection">
-            {story ? <>{providers.find((p) => p.id === story.providerId)?.name ?? story.providerId}{needsKey(story.providerId) ? ` · ${story.model || "no model set"}` : ""}
+            {story ? <>{providers.find((p) => p.id === story.providerId)?.name ?? story.providerId}{needsKey(story.providerId) ? ` · ${(session.setup.modelOverride ?? storySetup?.modelOverride) || story.model || "no model set"}` : ""}
               {status && status.kind !== "saved" ? " · no key saved" : ""}. </> : "No connection. "}
             <button className="link" onClick={onOpenSettings}>Edit Connections</button>
           </span>

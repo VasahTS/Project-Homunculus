@@ -237,6 +237,56 @@ describe("DataCat (shapes checked live 2026-11-02; synthetic text)", () => {
     const item = (await dc.search(query(), t)).items[0]!;
     await expect(dc.download(item, t)).rejects.toThrow("The creator turned off downloads of this card on DataCat.");
   });
+  // The reported public card has personality:null and its definition only in the V2 card. CODEX, 2026-11-03.
+  const v2 = buildCard({
+    name: "Mira", description: "A resourceful cartographer.\nKeeps a notebook.", personality: "Patient.", scenario: "A quiet library.",
+    first_mes: "Welcome.", alternate_greetings: ["Welcome.", "A new map?"], mes_example: "{{char}}: Follow the river.",
+    creator_notes: "<p>Creator's introduction.</p>", system_prompt: "Use the map.", post_history_instructions: "Stay in character.",
+    character_book: { entries: [{ keys: ["map"], content: "The map is old.", id: 0 }] },
+    tags: ["🧝 Elf", "maps"], creator: "map-maker", character_version: "2", extensions: { custom: { enabled: true } },
+  });
+  it.each(["object", "JSON string"])("uses the embedded V2 %s for both details and download when legacy personality is null", async (format) => {
+    const { t } = sites(routes({ personality: null, chara_card_v2_json: format === "object" ? v2 : JSON.stringify(v2) }));
+    const item = (await dc.search(query(), t)).items[0]!;
+    expect(await dc.details(item, t)).toMatchObject({
+      description: "A resourceful cartographer.\nKeeps a notebook.", personality: "Patient.", scenario: "A quiet library.",
+      firstMessage: "Welcome.", alternateGreetings: ["A new map?"], exampleDialogue: "{{char}}: Follow the river.",
+      creatorNotes: "Creator's introduction.", systemPrompt: "Use the map.", postHistory: "Stay in character.", hasLorebook: true, tags: ["Elf", "maps"],
+    });
+    const f = await dc.download(item, t);
+    expect(f.kind === "json" && f.card.data).toMatchObject({
+      ...(v2.data as Record<string, unknown>), alternate_greetings: ["A new map?"], tags: ["Elf", "maps"],
+      extensions: { custom: { enabled: true }, datacat: { id: "c-1" } },
+    });
+  });
+  it("prefers the V2 definition to a nonempty legacy personality and keeps intentionally empty V2 fields", async () => {
+    const embedded = buildCard({ description: "Current definition.", scenario: "", first_mes: "", creator_notes: "" });
+    const { t } = sites(routes({ chara_card_v2_json: embedded }));
+    const item = (await dc.search(query(), t)).items[0]!;
+    expect(await dc.details(item, t)).toMatchObject({ description: "Current definition.", personality: "", scenario: "", firstMessage: "", creatorNotes: "" });
+    const f = await dc.download(item, t);
+    expect(f.kind === "json" && f.card.data).toMatchObject({ description: "Current definition.", scenario: "", first_mes: "", creator_notes: "" });
+  });
+  it.each(["{broken", { data: [] }, { data: null }, null])("keeps the legacy definition when the embedded card is invalid (%j)", async (embedded) => {
+    const { t } = sites(routes({ chara_card_v2_json: embedded }));
+    const item = (await dc.search(query(), t)).items[0]!;
+    expect(await dc.details(item, t)).toMatchObject({ description: "Quick hands.", personality: "", creatorNotes: "Made with care" });
+    const f = await dc.download(item, t);
+    expect(f.kind === "json" && f.card.data).toMatchObject({ description: "Quick hands.", creator_notes: "Made with care" });
+  });
+  it("falls back per field for a partial V2 card and does not mistake creator notes for a missing definition", async () => {
+    const { t } = sites(routes({ chara_card_v2_json: { spec: "chara_card_v2", data: { description: "  ", personality: "Separate traits." } } }));
+    const item = (await dc.search(query(), t)).items[0]!;
+    expect(await dc.details(item, t)).toMatchObject({ description: "Quick hands.", personality: "Separate traits.", scenario: "A port town.", creatorNotes: "Made with care" });
+    const missing = sites(routes({ personality: null }));
+    expect(await dc.details(item, missing.t)).toMatchObject({ description: "", creatorNotes: "Made with care" });
+  });
+  it.each(["downloadsDisabled", "downloads_disabled", "deletedByCreatorPolicy", "deleted_by_creator_policy"])("honors %s even when a complete V2 card is present", async (flag) => {
+    const { t, seen } = sites(routes({ [flag]: true, chara_card_v2_json: v2 }));
+    const item = (await dc.search(query(), t)).items[0]!;
+    await expect(dc.download(item, t)).rejects.toThrow("The creator turned off downloads of this card on DataCat.");
+    expect(seen.some((r) => r.expect === "image")).toBe(false);
+  });
 });
 
 describe("pauses (v1 timings and messages)", () => {

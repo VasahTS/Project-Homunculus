@@ -1,3 +1,4 @@
+import { useUnsavedChanges, useGuardedNavigation } from "./ux.tsx";
 // Homunculus 2 — create / edit a character, its versions (variants) and its history. Author: CLAUDE, 2026-10-23;
 // 2026-10-28 (slice 1): versions side by side, a picture per version, history of saves, Move to Trash.
 // 2026-11-01 (D-070): three layouts the user picks (Sheet · Tabs · Writer, remembered), a greetings editor (alternates
@@ -156,7 +157,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
   useSlidingPill(tabbar, tabLine, "button.on", `${layout}:${tab}`);
 
   const save = async (d: Character = draft) => {
-    if (!d.name.trim()) { setError("The character needs a name."); return; }
+    if (!d.name.trim()) { setError("The character needs a name."); return false; }
     setError("");
     try {
       const clean = pruneVariants<Fields, Character>({
@@ -168,8 +169,10 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
       setSaved(true);
       setDirty(false);
       if (historyOpen) refreshHistory();
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
   };
+  useUnsavedChanges(dirty, () => save());
   const saveRef = useRef(save);
   saveRef.current = save;
   useEffect(() => {

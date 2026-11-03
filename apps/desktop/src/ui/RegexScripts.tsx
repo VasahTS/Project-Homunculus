@@ -8,6 +8,8 @@ import { Button, Collapse, Icon, Segmented, Switch } from "./kit.tsx";
 import { SortableList, move } from "./Sortable.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { Modal } from "./Vault.tsx";
+import { useCollectionOrder } from "./CollectionOrder.tsx";
+import { preserveDisplayEdits } from "../collection-sort.ts";
 
 const TARGETS: Array<{ id: RegexTarget; label: string }> = [
   { id: "user", label: "My messages" }, { id: "ai", label: "AI replies" }, { id: "lore", label: "Lorebook entries" },
@@ -39,8 +41,8 @@ function chipsOf(s: RegexScript): string[] {
 }
 
 /** The scripts of one place, in order. `waiting` marks scripts the user has not allowed yet (presets and cards). */
-export function RegexList({ scripts, onChange, sample, waiting, onAllow, emptyText, testId = "regex-list" }: {
-  scripts: RegexScript[]; onChange: (next: RegexScript[]) => void; sample?: string;
+export function RegexList({ scripts, onChange, sample, waiting, onAllow, emptyText, testId = "regex-list", canReorder = true }: {
+  scripts: RegexScript[]; onChange: (next: RegexScript[]) => void; sample?: string; canReorder?: boolean;
   waiting?: (s: RegexScript) => boolean; onAllow?: (s: RegexScript[]) => void; emptyText?: string; testId?: string;
 }) {
   const [open, setOpen] = useState<string | null>(null);
@@ -58,9 +60,9 @@ export function RegexList({ scripts, onChange, sample, waiting, onAllow, emptyTe
       )}
       {scripts.length === 0 ? <p className="hint rx-empty">{emptyText ?? "No scripts."}</p> : (
         <SortableList items={scripts} id={(s) => s.id} name={(s) => s.name || "Script"} label="Regex scripts" itemTestId="regex-script"
-          onReorder={(from, to) => onChange(move(scripts, from, to))}
+          onReorder={(from, to) => { if (canReorder) onChange(move(scripts, from, to)); }}
           render={(s, handle) => (
-            <RegexRow script={s} handle={handle} open={open === s.id} onToggle={() => setOpen(open === s.id ? null : s.id)}
+            <RegexRow script={s} handle={canReorder ? handle : null} open={open === s.id} onToggle={() => setOpen(open === s.id ? null : s.id)}
               onChange={put} sample={sample} waiting={waiting?.(s) ?? false}
               onDuplicate={() => { const c = { ...s, id: crypto.randomUUID(), name: `${s.name} (copy)` }; const i = scripts.indexOf(s); onChange([...scripts.slice(0, i + 1), c, ...scripts.slice(i + 1)]); setOpen(c.id); }}
               onDelete={() => { onChange(scripts.filter((x) => x.id !== s.id)); setOpen(null); }} />
@@ -222,7 +224,8 @@ export function RegexPage({ lead, scripts, onChange, onImport, onExport, sample 
 }) {
   const file = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
-  const shown = q.trim() ? scripts.filter((s) => `${s.name}\n${s.find}`.toLowerCase().includes(q.trim().toLowerCase())) : scripts;
+  const ordered = useCollectionOrder("regex", scripts);
+  const shown = q.trim() ? ordered.items.filter((s) => `${s.name}\n${s.find}`.toLowerCase().includes(q.trim().toLowerCase())) : ordered.items;
   return (
     <section className="rx-page" data-testid="regex-page">
       <Toolbar lead={lead} title="Regex" subtitle="Find and replace that runs by itself, on every chat"
@@ -233,12 +236,12 @@ export function RegexPage({ lead, scripts, onChange, onImport, onExport, sample 
             onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; if (fs.length) onImport(fs); }} />
         </>} />
       <div className="rx-page-body">
-        <p className="hint">These run first, in this order; then the scripts of the chat's preset and character. Drag to change the order.</p>
+        <p className="hint">{ordered.mode === "original" ? "These run first, in this order; then the scripts of the chat's preset and character. Drag to change the order." : "Display order only. Select Execution order to change the order in which scripts run."}</p>
         {scripts.length > 8 && (
           <label className="search-box"><Icon name="search" size={13} /><input aria-label="Search scripts" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} /></label>
         )}
-        <RegexList scripts={shown} sample={sample}
-          onChange={(next) => onChange(q.trim() ? mergeFiltered(scripts, shown, next) : next)}
+        <RegexList scripts={shown} sample={sample} canReorder={ordered.mode === "original"}
+          onChange={(next) => onChange(ordered.mode !== "original" ? preserveDisplayEdits(scripts, shown, next) : q.trim() ? mergeFiltered(scripts, shown, next) : next)}
           emptyText="No scripts. Import them from SillyTavern or make one." />
       </div>
     </section>

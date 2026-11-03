@@ -40,7 +40,7 @@ export interface ChatTurn {
 export type StreamChunk =
   | string
   | { reasoning: string }
-  | { usage: { tokensIn?: number; tokensOut?: number; cost?: number } }
+  | { usage: { tokensIn?: number; tokensOut?: number; tokensReasoning?: number; cost?: number } }
   | { toolCalls: ToolCall[] };
 
 // ---- tool calling and images (the Library Assistant, D-062) ----
@@ -129,6 +129,7 @@ export interface Completion {
   model: string;
   tokensIn?: number;
   tokensOut?: number;
+  tokensReasoning?: number;
   cost?: number;
 }
 

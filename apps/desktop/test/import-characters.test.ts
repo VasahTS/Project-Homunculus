@@ -2,8 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { HomunculusCore } from "@homunculus/core";
 import { createSillyTavernCardsModule, exportCardJson, importCardPng, solidPng, setTextChunks, bytesToBase64, utf8 } from "@homunculus/st-cards";
-import { buildCard } from "@homunculus/card-browser";
-import type { CardItem } from "@homunculus/card-browser";
+import { buildCard, cardSource, pauses, resetDatacat } from "@homunculus/card-browser";
+import type { CardItem, SiteTransport } from "@homunculus/card-browser";
 import { newTestStore } from "../../../packages/core/test/helpers.ts";
 import { cardPngForSite, FROM_THE_WEB, importCharacterFile, importFromSite, siteIndex } from "../src/importCharacters.ts";
 
@@ -18,6 +18,35 @@ const item: CardItem = { source: "chub", id: "anna/elf-queen", name: "Elf Queen"
 const toPng = async () => ({ mime: "image/png", base64: bytesToBase64(solidPng(2, 3, [1, 2, 3])) });
 
 describe("importing characters", () => {
+  // Source → shared importer → stored character → PNG: the DataCat V2 description survives every step. CODEX, 2026-11-03.
+  it("imports and exports the DataCat V2 definition when legacy personality is null", async () => {
+    pauses.clear(); resetDatacat();
+    const embedded = buildCard({
+      name: "Map Keeper", description: "Maintains the town's maps.\nCarries a green notebook.", personality: "Methodical.",
+      first_mes: "Which road?", alternate_greetings: ["A new route?"], creator_notes: "A creator's introduction.",
+      character_book: { entries: [{ keys: ["river"], content: "The river runs north.", id: 0 }] },
+    });
+    const t: SiteTransport = { async request(r) {
+      return { status: 200, finalUrl: r.url, contentType: "application/json", cfMitigated: false, text: JSON.stringify(
+        r.url.endsWith("identify") ? { success: true, sessionToken: "test" } : { character: {
+          personality: null, description: "<p>Public biography.</p>", chara_card_v2_json: embedded,
+          llm_request_payload: { userConfig: { irrelevant: "not card data" }, chatMessages: ["not a definition"] },
+        } },
+      ) };
+    } };
+    const datacatItem: CardItem = { ...item, source: "datacat", id: "dc-map", name: "Map Keeper", thumb: "", url: "https://datacat.run/characters/dc-map", nsfw: true };
+    const file = await cardSource("datacat").download(datacatItem, t);
+    const svc = await services();
+    const r = await importFromSite(svc, file, datacatItem, { folder: "from-the-web", importTags: true }, toPng);
+    expect(await svc.store.getCharacter(r.character.id)).toMatchObject({
+      name: "Map Keeper", description: "Maintains the town's maps.\nCarries a green notebook.", personality: "Methodical.",
+      firstMessages: ["Which road?", "A new route?"], creatorNotes: "A creator's introduction.", source: { site: "datacat", id: "dc-map" },
+    });
+    expect(r.character.lorebookIds).toHaveLength(1);
+    const png = await cardPngForSite(file, toPng);
+    expect(importCardPng(png).character.description).toBe(r.character.description);
+    expect(JSON.stringify(file)).not.toMatch(/llm_request_payload|userConfig|chatMessages|Public biography/);
+  });
   it("a file still imports as before (lorebook adopted, no source, no folder)", async () => {
     const svc = await services();
     const [r] = await importCharacterFile(svc, utf8.encode(JSON.stringify(card)), "elf.json");

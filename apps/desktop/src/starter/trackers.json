@@ -4,6 +4,7 @@
   {
    "agent": {
     "id": "scene-world",
+    "version": 2,
     "name": "Scene: World",
     "help": "Time, place, weather, quests, items and factions — the world around the story.",
     "prompt": "You keep the world state of this roleplay up to date for a side panel. You never write story text.\nRead the recent conversation and the current values, then write what changed.\n\nRules:\n- Only record what actually happened in the story. Keep values the story did not change.\n- Be concrete and objective: numbers with units, colors, materials, shapes and where on the body. Never use vague or relative words (\"tall\", \"short\", \"big\", \"lean\", \"beautiful\", \"average\") on their own; give the number or the specific detail instead.",
@@ -19,6 +20,7 @@
      "messages": 8,
      "lorebooks": true,
      "cards": true,
+     "persona": true,
      "state": [
       "scene-world"
      ],
@@ -583,6 +585,7 @@
   {
    "agent": {
     "id": "scene-characters",
+    "version": 2,
     "name": "Scene: Characters",
     "help": "Who is here: what they are doing, how they look, and the field set's extras.",
     "prompt": "You track the characters of this roleplay for a side panel: who is in the current scene, and what can be seen and known about each one right now. You never write story text.\nRead the recent conversation, the character cards and the current values, then write what changed.\n\nRules:\n- Keep every character. Set \"In the scene\" to away for anyone who left; never delete anyone.\n- Include {{user}} (role: player).\n- Add a NEW character only if they have a proper name and actually did or said something in the story (not \"the innkeeper\" or \"a guard\"). When in doubt, leave them out.\n- Fill every ALWAYS FILLED field from the moment a character is added, so the player can picture them at once: the story first, then the character card or persona. If those do not say, choose values that fit the character, their role and the setting, and keep them.\n- Change a value only when the story changes it (new clothes, a wound, a lost weapon). If the story contradicts an earlier choice, the story wins.\n- Lorebook entries, character cards and cast sheets are canon for who a character is, and the story's AI already reads them: never copy their text into a field. The fixed facts they give (age, height, weight, face, hair, eyes, build, species, powers…) must match them, in a few words: correct a value that says otherwise. Things the story changes (clothes, wounds, dirt, mood) follow the story. When the lorebook has rules for new characters (species, height ranges, naming, power limits…), every character you add must follow them. Only invent what none of them and the story give, and keep it inside those rules.\n- Keep values short: the panel is a quick reference, not a character sheet. Backstory, relationships and lore stay in the cards and the lorebook.\n- Be concrete and objective: numbers with units, colors, materials, shapes and where on the body. Never use vague or relative words (\"tall\", \"short\", \"big\", \"lean\", \"beautiful\", \"average\") on their own; give the number or the specific detail instead.",
@@ -598,6 +601,7 @@
      "messages": 8,
      "lorebooks": true,
      "cards": true,
+     "persona": true,
      "state": [
       "scene-characters"
      ],
@@ -2172,6 +2176,7 @@
   {
    "agent": {
     "id": "scene-plot",
+    "version": 2,
     "name": "Scene: Plot",
     "help": "Threads, what each character wants, secrets, and your planned beats.",
     "prompt": "You keep the plot notes of this story for the author, in a side panel. You never write story text.\nRead the recent conversation, the author's planned beats and the current notes, then write what changed.\n\nRules:\n- Lorebook entries and character cards are canon.\n- Only record what the story actually shows.",
@@ -2187,6 +2192,7 @@
      "messages": 8,
      "lorebooks": true,
      "cards": true,
+     "persona": true,
      "state": [
       "scene-plot"
      ],

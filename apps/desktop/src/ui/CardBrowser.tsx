@@ -395,12 +395,8 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
 
   return (
     <div className="view-sheet cb-sheet" data-testid="cb-sheet">
-      <CardPicture name={item.name} avatar={pic} className="vs-pic" />
-      <div className="vs-head">
-        <div className="vs-title"><h2>{item.name}</h2><span className="hint">{[item.creator && `by ${item.creator}`, figs].filter(Boolean).join(" · ")}</span></div>
-      </div>
-      {badges.length > 0 && <div className="vs-tags cb-badges">{badges.map((b) => <span key={b} className="gallery-tag big">{b}</span>)}</div>}
-      <div className="vs-actions">
+      <div className="vs-actions cb-sticky-actions">
+        <strong className="cb-action-name" title={item.name}>{item.name}</strong>
         {mine
           ? <>{justAdded ? <Button variant="prominent" data-testid="cb-chat" onClick={() => onChat(mine)}>Chat Now</Button>
                         : <Button variant="prominent" data-testid="cb-open" onClick={() => onOpenCharacter(mine)}>Open in Characters</Button>}</>
@@ -412,6 +408,12 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
           {menu && <span className="cb-pop cb-pop-right" role="menu"><button type="button" role="menuitem" data-testid="cb-add-again" onClick={() => void add()}>Add Again</button></span>}
         </span>}
       </div>
+      <CardPicture name={item.name} avatar={pic} className="vs-pic" />
+      <div className="vs-head">
+        <div className="vs-title"><h2>{item.name}</h2><span className="hint">{[item.creator && `by ${item.creator}`, figs].filter(Boolean).join(" · ")}</span></div>
+      </div>
+      {badges.length > 0 && <div className="vs-tags cb-badges">{badges.map((b) => <span key={b} className="gallery-tag big">{b}</span>)}</div>}
+
       {justAdded && <p className="hint cb-in" data-testid="cb-in">In your Characters · <a href="#" onClick={(e) => { e.preventDefault(); onOpenCharacter(justAdded); }}>Open</a></p>}
       {!mine && (
         <div className="cb-add-options">

@@ -1,0 +1,26 @@
+{
+  "author": "CODEX",
+  "date": "2026-11-03",
+  "id": "998c1dae-7801-4cc9-bffd-c8a6d0a53416",
+  "calls": [
+    {
+      "path": "/api/liberator/identify",
+      "status": 200
+    },
+    {
+      "path": "/api/characters/998c1dae-7801-4cc9-bffd-c8a6d0a53416",
+      "status": 200
+    }
+  ],
+  "legacyPersonalityNull": true,
+  "canonicalDescriptionLength": 3705,
+  "previewDescriptionLength": 3705,
+  "importedDescriptionLength": 3705,
+  "pngDescriptionLength": 3705,
+  "previewMatches": true,
+  "importMatches": true,
+  "pngMatches": true,
+  "avatarTested": false,
+  "nativeTransportTested": false,
+  "contentPersisted": false
+}

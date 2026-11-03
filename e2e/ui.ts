@@ -56,7 +56,7 @@ export async function send(page: Page, text: string) {
   await page.getByPlaceholder(/Write your message/).fill(text);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });
-  await expect(page.getByRole("button", { name: "Send" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible({ timeout: 15_000 });
 }
 
 /** Switches a tracker on or off in the Scene panel (the list is in the panel until one is on, then under the ⚙ "Trackers" button). */

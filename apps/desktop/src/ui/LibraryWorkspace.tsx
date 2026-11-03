@@ -8,6 +8,7 @@ import type { LibraryCategory, NavigationProfile } from "../theme/navigation.ts"
 import { Icon } from "./kit.tsx";
 import { useSlidingPill } from "./motion.ts";
 import { Toolbar } from "./Toolbar.tsx";
+import { SortSelect } from "./CollectionOrder.tsx";
 
 export function LibraryWorkspace({ lead, category, navigation, counts, onOpen, children }: {
   lead: ReactNode; category: LibraryCategory; navigation: NavigationProfile;
@@ -27,7 +28,7 @@ export function LibraryWorkspace({ lead, category, navigation, counts, onOpen, c
   );
   return (
     <section className="library-workspace" data-region="library-workspace">
-      <Toolbar lead={lead} title="Library" subtitle="Reusable material for your characters and stories" />
+      <Toolbar lead={lead} title="Library" subtitle="Reusable material for your characters and stories" trailing={<SortSelect kind={category} />} />
       <nav ref={nav} className="library-tabs gliding" aria-label="Library categories" data-testid="library-list" data-region="library-navigation">
         <span className="slide-pill tab-line" ref={line} aria-hidden />
         {groups.map((group) => (

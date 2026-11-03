@@ -43,7 +43,7 @@ export function MessageLookRows() {
           <Segmented small label="Images from links" value={look.images} onChange={(images) => void setMessageLook({ images })}
             options={[{ value: "ask", label: "Click to Show" }, { value: "always", label: "Always" }, { value: "never", label: "Never" }]} />
         </Row>
-        <Row label="Colors and styles from the AI" help="Lets the AI color and style its own text (<font color>, <span style>, <b>…), as presets often ask. Only text styles: it can never run code, load anything or change the app. Regex scripts' formatting is always shown.">
+        <Row label="Colors and styles from the AI" help="Shows HTML/CSS layouts, text styles and animations in chat messages. Scripts stay off, and linked images follow the option above. Regex scripts' formatting is always shown.">
           <Switch label="Colors and styles from the AI" checked={look.html} onChange={(html) => void setMessageLook({ html })} />
         </Row>
     </div>

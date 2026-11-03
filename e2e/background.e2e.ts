@@ -71,7 +71,7 @@ test("Stop works after coming back, and keeps what arrived", async ({ page }) =>
   await expect(page.getByTestId("streaming")).toBeVisible();
   await page.waitForTimeout(700);
   await page.getByRole("button", { name: "Stop" }).click();
-  await expect(page.getByRole("button", { name: "Send" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("message")).toHaveCount(3);
   await expect(page.getByTestId("message").nth(2)).toContainText("She tilts her head"); // what arrived stays
   await expect(page.getByTestId("message").nth(2)).not.toContainText('You said: Long one."'); // the rest never came

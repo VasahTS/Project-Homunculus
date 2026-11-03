@@ -79,6 +79,16 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
         <h4 className="cust-sub">Model</h4>
         <ModelRow svc={svc} connection={connection} connectionId={a.connectionId} model={a.model}
           onChange={(connectionId, model) => set({ connectionId, model })} />
+        {/* Reuse the existing connection/model controls for the optional retrieval worker. CODEX. */}
+        <h4 className="cust-sub">Tool helper (optional)</h4>
+        <Switch label="Use a tool helper" checked={a.toolHelper?.enabled ?? false} onChange={enabled => set({ toolHelper: { connectionId: null, model: "", maxSteps: 8, ...a.toolHelper, enabled } })} />
+        <p className="hint">Uses a separate connection to search and read, then sends a short brief to the main model. The main model handles writing and approvals. Both models consume tokens.</p>
+        {a.toolHelper?.enabled && <div data-testid="assistant-helper-settings">
+          <ModelRow svc={svc} connection={connection} explicit labelPrefix="Helper " connectionId={a.toolHelper.connectionId} model={a.toolHelper.model}
+            onChange={(connectionId, model) => set({ toolHelper: { ...a.toolHelper!, connectionId, model } })} />
+          {!connection.configs[a.toolHelper.connectionId ?? ""] && <p className="hint">Select an available helper connection. Add connections in Settings → Connections.</p>}
+          <label className="cust-field"><span>Helper reading calls per consultation</span><input aria-label="Helper reading calls per consultation" type="number" min={1} max={20} value={a.toolHelper.maxSteps} onChange={e => set({ toolHelper: { ...a.toolHelper!, maxSteps: Math.max(1, Math.min(20, Math.round(Number(e.target.value) || 1))) } })} /><small className="hint">Up to two consultations per reply. Summaries are limited to 2,000 characters; exact source text remains available through Read.</small></label>
+        </div>}
         <div className="cust-grid">
           <label className="cust-field"><span>Thinking</span><select value={a.effort} onChange={(e) => set({ effort: e.target.value as AssistantPersona["effort"] })}><option value="">Model's default</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
           <label className="cust-field"><span>Temperature</span><input type="number" min={0} max={2} step={0.1} value={a.temperature} onChange={(e) => set({ temperature: Math.min(2, Math.max(0, Number(e.target.value) || 0)) })} /></label>
@@ -98,23 +108,24 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
 }
 
 /** Connection + model, with the service's model list (prices, context size). Shared with the composer's model menu. */
-export function ModelRow({ svc, connection, connectionId, model, onChange, onInfo }: {
+export function ModelRow({ svc, connection, connectionId, model, onChange, onInfo, explicit = false, labelPrefix = "" }: {
   svc: AppServices; connection: ConnectionState; connectionId: string | null; model: string;
   onChange: (connectionId: string | null, model: string) => void; onInfo?: (m: ModelInfo) => void;
+  explicit?: boolean; labelPrefix?: string;
 }) {
   const [picking, setPicking] = useState(false);
-  const profile = connectionId ? connection.byId.get(connectionId) : connection.byId.get(connection.defaultId ?? "");
+  const profile = connectionId ? connection.byId.get(connectionId) : explicit ? undefined : connection.byId.get(connection.defaultId ?? "");
   const cfg = profile ? connection.configs[profile.id] : undefined;
   return (
     <div className="cust-model">
       <div className="cust-grid">
         <label className="cust-field"><span>Connection</span>
-          <select value={connectionId ?? ""} onChange={(e) => onChange(e.target.value || null, "")} aria-label="Connection">
-            <option value="">The one your stories use{connection.defaultId ? ` (${connection.byId.get(connection.defaultId)?.name ?? ""})` : ""}</option>
+          <select value={connectionId ?? ""} onChange={(e) => onChange(e.target.value || null, "")} aria-label={`${labelPrefix}Connection`}>
+            <option value="">{explicit ? "Select a connection" : `The one your stories use${connection.defaultId ? ` (${connection.byId.get(connection.defaultId)?.name ?? ""})` : ""}`}</option>
             {connection.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select></label>
         <label className="cust-field"><span>Model</span>
-          <span className="cust-inline"><input value={model} placeholder={profile?.model || "The connection's model"} onChange={(e) => onChange(connectionId, e.target.value.trim())} aria-label="Model" />
+          <span className="cust-inline"><input value={model} placeholder={profile?.model || "The connection's model"} onChange={(e) => onChange(connectionId, e.target.value.trim())} aria-label={`${labelPrefix}Model`} />
             {cfg && <Button small onClick={() => setPicking(!picking)}>Browse…</Button>}</span></label>
       </div>
       {picking && cfg && (
@@ -252,7 +263,7 @@ function UsageTab({ svc }: { svc: AppServices }) {
         const c = await loadChat(svc.store, r.id);
         if (!c) continue;
         const replies = c.messages.filter((m) => m.role === "assistant");
-        out.push({ chat: c, replies: replies.length, tokens: replies.reduce((n, m) => n + (m.used?.tokensIn ?? 0) + (m.used?.tokensOut ?? 0), 0), cost: replies.reduce((n, m) => n + (m.used?.cost ?? 0), 0) });
+        out.push({ chat: c, replies: replies.length, tokens: replies.reduce((n, m) => n + (m.used?.tokensIn ?? 0) + (m.used?.tokensOut ?? 0) + (m.used?.helper?.tokensIn ?? 0) + (m.used?.helper?.tokensOut ?? 0), 0), cost: replies.reduce((n, m) => n + (m.used?.cost ?? 0) + (m.used?.helper?.cost ?? 0), 0) });
       }
       setRows(out);
     })();

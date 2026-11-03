@@ -7,6 +7,7 @@ import { AGENT_KINDS, PHASES, kindOf, onInText, whenOf, whenText } from "../agen
 import { Button, Icon, Segmented } from "./kit.tsx";
 import { EmptyDetail, MasterDetail, SearchBox } from "./LibraryPages.tsx";
 import { Toolbar } from "./Toolbar.tsx";
+import { useCollectionOrder } from "./CollectionOrder.tsx";
 
 type View = "table" | "list";
 type SortKey = "name" | "kind" | "when" | "on";
@@ -30,13 +31,14 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
   const [q, setQ] = useState("");
   const [kind, setKind] = useState<string>("all");
   const [sort, setSort] = useState<{ key: SortKey; up: boolean }>({ key: "name", up: true });
+  const ordered = useCollectionOrder("agents", agents);
   const needle = q.trim().toLowerCase();
-  const filtered = agents.filter((a) => (kind === "all" || a.output === kind) && (!needle || `${a.name} ${a.help}`.toLowerCase().includes(needle)));
+  const filtered = ordered.items.filter((a) => (kind === "all" || a.output === kind) && (!needle || `${a.name} ${a.help}`.toLowerCase().includes(needle)));
   const value = (a: AgentConfig, k: SortKey) => k === "name" ? a.name : k === "kind" ? kindOf(a)?.label ?? "" : k === "when" ? whenText(a) : onInText(a.id, stories, sessions);
-  const sorted = [...filtered].sort((a, b) => value(a, sort.key).localeCompare(value(b, sort.key)) * (sort.up ? 1 : -1) || a.name.localeCompare(b.name));
+  const sorted = ordered.mode !== "original" ? filtered : [...filtered].sort((a, b) => value(a, sort.key).localeCompare(value(b, sort.key)) * (sort.up ? 1 : -1) || a.name.localeCompare(b.name));
   const head = (k: SortKey, label: string) => (
-    <th aria-sort={sort.key === k ? (sort.up ? "ascending" : "descending") : "none"}>
-      <button type="button" onClick={() => setSort((s) => ({ key: k, up: s.key === k ? !s.up : true }))}>{label}{sort.key === k ? (sort.up ? " ↑" : " ↓") : ""}</button>
+    <th aria-sort={ordered.mode === "original" && sort.key === k ? (sort.up ? "ascending" : "descending") : "none"}>
+      <button type="button" onClick={() => { ordered.setMode("original"); setSort((s) => ({ key: k, up: s.key === k ? !s.up : true })); }}>{label}{ordered.mode === "original" && sort.key === k ? (sort.up ? " ↑" : " ↓") : ""}</button>
     </th>
   );
   const counts = new Map(AGENT_KINDS.map((k) => [k.output, agents.filter((a) => a.output === k.output).length]));
@@ -93,12 +95,12 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
             {filters}
             <div className="ag-groups" data-testid="agent-list">
               {/* grouped by phase (D-059: Pre-Generation / Parallel / Post-Processing; every-N and manual agents last) */}
-              {[...PHASES.map((p) => ({ id: p.id as string, label: p.label, items: filtered.filter((a) => whenOf(a).when === p.id) })),
-                { id: "other", label: "Every N messages or when I ask", items: filtered.filter((a) => whenOf(a).when === "everyN" || whenOf(a).when === "manual") }].map((g) => {
+              {(ordered.mode !== "original" ? [{ id: "sorted", label: "", items: filtered }] : [...PHASES.map((p) => ({ id: p.id as string, label: p.label, items: filtered.filter((a) => whenOf(a).when === p.id) })),
+                { id: "other", label: "Every N messages or when I ask", items: filtered.filter((a) => whenOf(a).when === "everyN" || whenOf(a).when === "manual") }]).map((g) => {
                 if (!g.items.length) return null;
                 return (
                   <div key={g.id} className="ag-group">
-                    <span className="ag-group-title">{g.label} <span className="hint">({g.items.length})</span></span>
+                    {g.label && <span className="ag-group-title">{g.label} <span className="hint">({g.items.length})</span></span>}
                     <ul className="master-list">
                       {g.items.map((a) => (
                         <li key={a.id}>

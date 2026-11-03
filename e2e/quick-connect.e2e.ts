@@ -22,7 +22,7 @@ async function makeOpenRouter(page: Page) {
   await expect(page.getByTestId("connection-list")).toContainText("Router");
 }
 
-test("Quick Connection: pick a connection for this chat, then one of its models (saved into the connection)", async ({ page }) => {
+test("Quick Connection: pick a connection for this chat, then one of its models (this chat only)", async ({ page }) => {
   await mockModels(page);
   await page.goto("/");
   await makeOpenRouter(page);
@@ -43,7 +43,7 @@ test("Quick Connection: pick a connection for this chat, then one of its models 
   await expect(menu.getByTestId("qc-models")).toContainText("Pinned");
   await expect(menu.getByTestId("qc-model").first()).toContainText("DeepSeek Chat");
 
-  // search and pick: the menu closes, the model is saved into the connection
+  // Search and pick: the menu closes and only this chat stores the model. CODEX.
   await menu.getByLabel("Search or type a model ID").fill("glm");
   await expect(menu.getByTestId("qc-model")).toHaveCount(1);
   await page.screenshot({ path: "e2e/.results/quick-connect.png" });

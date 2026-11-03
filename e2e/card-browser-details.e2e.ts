@@ -19,6 +19,14 @@ async function openLongCard(page: Page) {
   await expect(page.getByTestId("cb-sheet")).toContainText("Description END");
 }
 
+test("Card Browser keeps Add to Characters visible with large artwork and while reading", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 }); await openLongCard(page);
+  const add = page.getByTestId("cb-add"); await expect(add).toBeInViewport();
+  await page.locator(".card-browser .gallery-sheet").evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await expect(add).toBeInViewport();
+  expect((await page.getByTestId("cb-sheet").locator(".vs-pic").boundingBox())!.width).toBeGreaterThan(300);
+});
+
 for (const width of [1440, 390]) {
   test(`Card Browser: full fields scroll and collapse at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

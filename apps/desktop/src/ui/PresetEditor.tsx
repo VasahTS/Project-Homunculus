@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from "./ux.tsx";
 // Homunculus 2 — create / edit a preset: its blocks (order, on/off, text, place), samplers, formats, history.
 // Author: CLAUDE, 2026-10-28 (slice 2, D-021). Markers are filled by the app; text blocks take macros.
 import { regexScriptsOf as regexOf } from "@homunculus/core";
@@ -60,6 +61,7 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
   onAllowRegex?: (s: RegexScript[]) => void;
 }) {
   const [d, setD] = useState<Preset>(preset);
+  const [baseline, setBaseline] = useState(() => JSON.stringify(d));
   const [saved, setSaved] = useState(justSaved);
   const [error, setError] = useState("");
   /** Blocks shown open (several at once, 10/29: "make the preset expandable"). */
@@ -80,15 +82,18 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
   useEffect(() => { if (historyOpen) refreshHistory(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [historyOpen]);
 
   const save = async (p: Preset = d) => {
-    if (!p.name.trim()) { setError("The preset needs a name."); return; }
+    if (!p.name.trim()) { setError("The preset needs a name."); return false; }
     setError("");
     try {
       const clean = Preset.parse({ ...p, name: p.name.trim() });
-      await onSave(clean);
+      await onSave(clean); setBaseline(JSON.stringify(clean));
       setD(clean); setSaved(true);
       if (historyOpen) refreshHistory();
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
   };
+
+  useUnsavedChanges(JSON.stringify(d) !== baseline, () => save());
   const run = async (f: () => Promise<void>) => { try { setError(""); await f(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } };
 
   const addText = () => {

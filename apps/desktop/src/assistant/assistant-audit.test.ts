@@ -101,8 +101,8 @@ describe("Assistant audit: reliability regressions", () => {
     const { store, ctx } = await setup();
     await store.saveCharacter(Character.parse({ id: "long", name: "Long", description: "a".repeat(9000) }));
     const next = await runTool("read", JSON.stringify({ id: "character:long", fields: ["description"], offset: 2500 }), ctx);
-    expect(next.result).toContain("offset 5000");
-    expect(next.result).toContain("4,000 more characters");
+    // Absolute source offsets remain authoritative with 6k pages. CODEX, 2026-11-03.
+    expect(JSON.parse(next.result)._read[0]).toMatchObject({ offset: 2500, end: 8500, total: 9000, nextOffset: 8500 });
   });
 });
 
@@ -199,12 +199,11 @@ describe("Assistant audit: related boundary cases", () => {
     const text = "a".repeat(2500) + "b".repeat(2500) + "c".repeat(2500) + "d".repeat(1500);
     await store.saveCharacter(Character.parse({ id: "pages", name: "Pages", description: text }));
     let all = "";
-    for (const offset of [0, 2500, 5000, 7500]) {
+    for (const offset of [0, 6000]) {
       const out = await runTool("read", JSON.stringify({ id: "character:pages", fields: ["description"], offset }), ctx);
       const field = (JSON.parse(out.result) as { description: string }).description;
-      all += field.split(" …(")[0];
-      if (offset < 7500) expect(field).toContain(`offset ${offset + 2500}`);
-      else expect(field).not.toContain("more characters");
+      all += field;
+      expect(JSON.parse(out.result)._read[0]).toMatchObject({ offset, nextOffset: offset === 0 ? 6000 : null, done: offset !== 0 });
     }
     expect(all).toBe(text);
   });

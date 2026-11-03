@@ -3,6 +3,7 @@
 // 2026-10-28 (slice 1, D-019): versions of characters, personas, history, the Trash; (slice 1b, D-020): Settings.
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useGuardedNavigation } from "./ui/ux.tsx";
 import { pageIn, slideTab } from "./ui/motion.ts";
 import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript } from "@homunculus/schemas";
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
@@ -18,6 +19,7 @@ import { imageFileToPngAvatar, readFileBytes, saveExport } from "./files.ts";
 import { cardPngForSite, importCharacterFile, importFromSite, picturePng } from "./importCharacters.ts";
 import { CardBrowser } from "./ui/CardBrowser.tsx";
 import { desktopCardSites } from "./cardSites.ts";
+import { loadChat as loadAssistantChat } from "./assistant/engine.ts";
 import { ChatView } from "./ui/ChatView.tsx";
 import { turns, useTurns } from "./turns.ts";
 import { FolderSelect, FolderView, folderAndBelow, folderLabel, VirtualTile, type FolderItem } from "./ui/Folders.tsx";
@@ -44,6 +46,7 @@ import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
 import { Toolbar } from "./ui/Toolbar.tsx";
 import { LibraryWorkspace } from "./ui/LibraryWorkspace.tsx";
+import { CollectionOrderContext } from "./ui/CollectionOrder.tsx";
 import { CommandPalette, type PaletteItem } from "./ui/CommandPalette.tsx";
 import { AssistantSidebar, AssistantView, useAssistant, type AppMode, type LibraryEntry } from "./ui/Assistant.tsx";
 import { RegexPage } from "./ui/RegexScripts.tsx";
@@ -74,7 +77,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Small per-viewer layout memory (which panels are open). Never required: defaults apply without it. */
 /** The order of the groups in Ctrl+K (D-069). */
-const PALETTE_GROUPS = ["Recent chats", "Go to", "Actions", "Characters", "Stories", "Chats", "Kits", "Narrators", "NPCs", "Lorebooks", "Personas", "Presets", "Trackers", "Agents"];
+const PALETTE_GROUPS = ["Recent chats", "Messages", "Go to", "Actions", "Characters", "Stories", "Chats", "Kits", "Narrators", "NPCs", "Lorebooks", "Personas", "Presets", "Trackers", "Agents"];
 
 function usePanel(key: string, initial: boolean): [boolean, () => void] {
   const [open, setOpen] = useState(() => { try { const v = localStorage.getItem(key); return v === null ? initial : v === "1"; } catch { return initial; } });
@@ -92,6 +95,7 @@ async function renameOldStoryChats(s: AppServices) {
 }
 
 export function App() {
+  const navigate = useGuardedNavigation();
   const [svc, setSvc] = useState<AppServices | null>(null);
   const [bootError, setBootError] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -150,17 +154,17 @@ export function App() {
   useEffect(() => { setAgentPreview(null); }, [view]);
   const [loreBack, setLoreBack] = useState<string | null>(null);
   // the lorebook editor saves by itself (D-028), also when it closes; its last save must see the view as it is now
-  const setView = setViewNow;
+  const setView = (next: View | ((current: View) => View)) => typeof next === "function" ? setViewNow(next) : navigate(() => setViewNow(next));
   const viewRef = useRef(view);
   // the way back to the session lasts while you stay in Lorebooks
   useEffect(() => { if (view.kind !== "lorebooks") setLoreBack(null); }, [view.kind]);
   viewRef.current = view;
   const [sidebarOpen, toggleSidebar] = usePanel("homunculus.ui.sidebar", true);
-  const [inspectorOpen, toggleInspector] = usePanel("homunculus.ui.inspector", true);
+  const [inspectorOpen, toggleInspector] = usePanel("homunculus.ui.inspector", window.innerWidth > 1100);
   const connection = useConnections(svc?.store ?? null);
   // the Assistant mode (D-062): its own sidebar and chats; Play is everything else
   const [mode, setModeState] = useState<AppMode>(() => { try { return localStorage.getItem("homunculus.mode") === "assistant" ? "assistant" : "play"; } catch { return "play"; } });
-  const setMode = (m: AppMode) => { setModeState(m); try { localStorage.setItem("homunculus.mode", m); } catch { /* private window */ } };
+  const setMode = (m: AppMode) => navigate(() => { setModeState(m); try { localStorage.setItem("homunculus.mode", m); } catch { /* private window */ } });
   const asst = useAssistant(svc);
   // a newer version on GitHub (D-037): a quiet bar on top + Settings → About
   const updates = useUpdates();
@@ -323,6 +327,26 @@ export function App() {
   const trackersRef = useRef(new Set<string>());
   trackersRef.current = new Set(trackers.map((t) => t.agent.id));
   if (bootError) return <div className="boot error">Could not start: {bootError}</div>;
+  // Debounced by the palette; the store resolves every Play branch, not only its current end. CODEX.
+  const searchMessages = useCallback(async (q: string): Promise<PaletteItem[]> => {
+    if (!svc) return [];
+    const found = await svc.store.searchMessages(sessions.map(s => s.id), q);
+    const play = sessions.flatMap(session => (found[session.id]?.hits ?? []).map(m => {
+      const text = m.content.replace(/\s+/g, " "), i = text.toLowerCase().indexOf(q.toLowerCase()), start = Math.max(0, i - 40);
+      return { id: `message:${session.id}:${m.id}`, name: `${start ? "…" : ""}${text.slice(start, start + 150)}`, hint: session.title, keywords: text, group: "Messages", onOpen: () => {
+        setFocusMessage({ sessionId: session.id, messageId: m.id }); setActiveId(session.id); setMode("play"); setView({ kind: "session" });
+      } };
+    }));
+    const assistant = await Promise.all(asst.chats.map(async row => {
+      const c = await loadAssistantChat(svc.store, row.id); if (!c) return [];
+      return c.messages.filter(m => m.text.toLowerCase().includes(q.toLowerCase())).slice(0, 6).map(m => {
+        const text = m.text.replace(/\s+/g, " "), start = Math.max(0, text.toLowerCase().indexOf(q.toLowerCase()) - 40);
+        return { id: `assistant-message:${c.id}:${m.id}`, name: text.slice(start, start + 150), hint: `Assistant · ${c.title}`, keywords: text, group: "Messages", onOpen: () => { setFocusMessage({ sessionId: c.id, messageId: m.id }); asst.setActiveId(c.id); setMode("assistant"); } };
+      });
+    }));
+    return [...play, ...assistant.flat()];
+  }, [svc, sessions, asst.chats]);
+
   if (!svc) return <div className="boot">Waking the homunculus…</div>;
 
   const byId = Object.fromEntries(characters.map((c) => [c.id, c]));
@@ -409,7 +433,7 @@ export function App() {
     await approveEdited(presets.find((x) => x.id === p.id), p);
     await svc.store.savePreset(p);
     await refresh(svc);
-    if (view.kind === "presets" && view.draft) setView({ kind: "presets", id: p.id, justSaved: true });
+    if (view.kind === "presets" && view.draft) setViewNow({ kind: "presets", id: p.id, justSaved: true });
   };
 
   const trashPreset = async (id: string) => {
@@ -590,7 +614,7 @@ export function App() {
     await approveEdited(characters.find((x) => x.id === c.id), c);
     await svc.store.saveCharacter(c);
     await refresh(svc);
-    if (view.kind === "characters" && view.id === "new") setView({ kind: "characters", id: c.id, edit: true, justSaved: true });
+    if (view.kind === "characters" && view.id === "new") setViewNow({ kind: "characters", id: c.id, edit: true, justSaved: true });
   };
 
   const trashCharacter = async (id: string) => {
@@ -603,7 +627,7 @@ export function App() {
     // the first persona becomes the default, so it is used right away
     if (!defaultPersonaId && personas.length === 0) await setDefaultPersona(p.id);
     await refresh(svc);
-    if (view.kind === "personas" && view.id === "new") setView({ kind: "personas", id: p.id, justSaved: true });
+    if (view.kind === "personas" && view.id === "new") setViewNow({ kind: "personas", id: p.id, justSaved: true });
   };
 
   const setDefaultPersona = async (id: string | null) => {
@@ -1626,16 +1650,20 @@ export function App() {
       <div className="content" ref={contentRef}>
         <UpdateBar u={updates} />
         {noticeBar}
+        <CollectionOrderContext.Provider value={{ store: svc.store, prefs: collPrefs,
+          onSort: (key, sort, seed) => setPrefs(key)({ ...prefsOf(key), sort, sortSeed: seed }),
+          sources: { characters, stories, kits, narrators, npcs, personas, presets, lorebooks, trackers, agents, regex: globalRegex, trash }, sessions, lastTimes }}>
         {mode === "assistant" ? (
-          <AssistantView svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary}
+          <AssistantView focusMessageId={focusMessage?.sessionId === asst.activeId ? focusMessage.messageId : null} svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary}
             listModels={listModels} onManageConnections={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }}
             userName={personas.find((p) => p.id === defaultPersonaId)?.name ?? ""}
             onChanged={() => void refresh(svc)}
-            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
+            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "persona") setView({ kind: "personas", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
             onStartKit={(id) => { const k = kits.find((x) => x.id === id); if (k) { setMode("play"); void startFromKit(k); } }} />
         ) : libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
           counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, agents: agents.length, trash: trash.length }}
           onOpen={openLibrary}>{content}</LibraryWorkspace> : content}
+        </CollectionOrderContext.Provider>
       </div>
       {savingNpc && (() => {
         const chat = sessions.find((x) => x.id === savingNpc.sessionId);
@@ -1643,7 +1671,7 @@ export function App() {
         return <SaveNpcSheet draft={savingNpc.draft} fieldSets={fieldSets} story={st ? { id: st.id, name: st.name } : undefined} folders={folderRows("npc")}
           onSave={(c) => void saveNpcToVault(savingNpc.sessionId, c)} onClose={() => setSavingNpc(null)} />;
       })()}
-      {paletteOpen && <CommandPalette items={paletteItems()} groupOrder={PALETTE_GROUPS} onClose={() => setPaletteOpen(false)} />}
+      {paletteOpen && <CommandPalette searchMessages={searchMessages} items={paletteItems()} groupOrder={PALETTE_GROUPS} onClose={() => setPaletteOpen(false)} />}
       {picker && <Picker title={picker.title} kinds={picker.kinds} {...(picker.initial ? { initial: picker.initial } : {})} onClose={() => setPicker(null)} />}
       {newStoryOpen && <NewStorySheet characters={characters} avatars={avatars} lorebooks={lorebooks} setup={setupProps} initialCardId={newStoryOpen.cardId}
         onCreate={(c) => void createStory(c)} onClose={() => setNewStoryOpen(false)} />}

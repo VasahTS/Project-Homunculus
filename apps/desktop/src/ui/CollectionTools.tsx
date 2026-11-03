@@ -1,15 +1,18 @@
 // One collection vocabulary for Stories and Characters. CODEX, D-040.
 // D-068 (CLAUDE, 2026-11-01): Folders · Everything, the card size (S · M · L), and folders found by the search.
 import { Button, Icon, Segmented } from "./kit.tsx";
+import type { ReactNode } from "react";
+import type { SortMode } from "../collection-sort.ts";
 
 /** How a collection page shows its cards, remembered per place (Characters, Stories, Kits…). */
-export interface CollectionPrefs { view: "folders" | "everything"; size: "s" | "m" | "l" }
+export interface CollectionPrefs { view: "folders" | "everything"; size: "s" | "m" | "l"; sort?: SortMode; sortSeed?: number }
 export const DEFAULT_PREFS: CollectionPrefs = { view: "folders", size: "m" };
 
 /** A folder whose path matches the search. */
 export interface FolderHit { id: string; path: string; count: number }
 
-export function CollectionTools({ label, query, onQuery, recent, onRecent, prefs, onPrefs }: {
+export function CollectionTools({ label, query, onQuery, recent, onRecent, prefs, onPrefs, sort }: {
+  sort?: ReactNode;
   label: string; query: string; onQuery: (value: string) => void; recent: boolean; onRecent: (value: boolean) => void;
   prefs?: CollectionPrefs | undefined; onPrefs?: ((p: CollectionPrefs) => void) | undefined;
 }) {
@@ -21,6 +24,7 @@ export function CollectionTools({ label, query, onQuery, recent, onRecent, prefs
         {prefs && onPrefs && <ViewSwitch prefs={prefs} onPrefs={onPrefs} />}
       </div>
       <span className="collection-right">
+        {sort}
         {prefs && onPrefs && <SizeSwitch prefs={prefs} onPrefs={onPrefs} />}
         <label className="search-box collection-search"><Icon name="search" size={15} />
           <input aria-label={`Search ${label}`} placeholder={`Search ${label}`} value={query} onChange={(e) => onQuery(e.target.value)} />

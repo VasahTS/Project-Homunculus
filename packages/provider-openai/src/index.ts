@@ -90,7 +90,7 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
           tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> };
         finish_reason?: string | null;
       }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
+      usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number; completion_tokens_details?: { reasoning_tokens?: number } };
       error?: { message?: string };
     };
     try { json = JSON.parse(data); } catch { continue; }
@@ -109,7 +109,11 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
     }
     if (json.choices?.[0]?.finish_reason) yield* flushCalls();
     if (json.usage) {
-      yield { usage: { tokensIn: json.usage.prompt_tokens, tokensOut: json.usage.completion_tokens, cost: json.usage.cost } };
+      // CODEX: completion_tokens includes reasoning; retain its optional breakdown without changing billing totals.
+      const reasoning = json.usage.completion_tokens_details?.reasoning_tokens;
+      yield { usage: { tokensIn: json.usage.prompt_tokens, tokensOut: json.usage.completion_tokens, cost: json.usage.cost,
+        ...(typeof reasoning === "number" && Number.isSafeInteger(reasoning) && reasoning >= 0 ? { tokensReasoning: reasoning } : {}),
+      } };
     }
   }
   yield* flushCalls();

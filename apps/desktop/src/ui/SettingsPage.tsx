@@ -1,3 +1,4 @@
+import { useUnsavedChanges, useGuardedNavigation } from "./ux.tsx";
 // Homunculus 2 — Settings: saved connections and the Default layer of the setup. Author: CLAUDE, 2026-10-28
 // (slice 1b, D-020). Connections = master-detail like the Library; Defaults = Settings-style grouped rows.
 // The look comes only from the kit and the theme tokens (D-018).
@@ -99,6 +100,7 @@ type ListModels = (config: ConnectionConfig, signal: AbortSignal) => Promise<Mod
 function ConnectionsSection({ c, providers, test, listModels, notify }: {
   c: ConnectionState; providers: ProviderDefinition[]; test: SettingsPageTest; listModels: ListModels; notify: (title: string, lines?: string[]) => void;
 }) {
+  const navigate = useGuardedNavigation();
   const [selected, setSelected] = useState<string | null>(c.defaultId ?? c.profiles[0]?.id ?? null);
   const [draftNew, setDraftNew] = useState<ConnectionProfile | null>(null);
   const editing = draftNew ?? (selected ? c.byId.get(selected) : undefined);
@@ -110,7 +112,7 @@ function ConnectionsSection({ c, providers, test, listModels, notify }: {
         <ul className="master-list" data-testid="connection-list">
           {c.profiles.map((p) => (
             <li key={p.id}>
-              <button className={`master-item${p.id === editing?.id && !draftNew ? " on" : ""}`} onClick={() => { setDraftNew(null); setSelected(p.id); }} aria-label={p.name}>
+              <button className={`master-item${p.id === editing?.id && !draftNew ? " on" : ""}`} onClick={() => navigate(() => { setDraftNew(null); setSelected(p.id); })} aria-label={p.name}>
                 <span className="side-icon big"><Icon name="plug" /></span>
                 <span className="side-text">
                   <strong>{p.name}{p.id === c.defaultId && <span className="badge">default</span>}</strong>
@@ -121,7 +123,7 @@ function ConnectionsSection({ c, providers, test, listModels, notify }: {
           ))}
         </ul>
         <div className="master-foot">
-          <Button onClick={() => setDraftNew(newProfile())}><Icon name="plus" size={14} /> New Connection</Button>
+          <Button onClick={() => navigate(() => setDraftNew(newProfile()))}><Icon name="plus" size={14} /> New Connection</Button>
         </div>
       </div>
       <div className="detail" data-region="editor">
@@ -181,10 +183,11 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
     } catch (e) { setExtraError(`Not valid JSON: ${e instanceof Error ? e.message : String(e)}`); return null; }
   };
 
+  const navigate = useGuardedNavigation();
   const save = async () => {
-    if (!d.name.trim()) { setError("The connection needs a name."); return; }
+    if (!d.name.trim()) { setError("The connection needs a name."); return false; }
     const extraBody = parseExtra();
-    if (extraBody === null) return;
+    if (extraBody === null) return false;
     setError("");
     try {
       const p = ConnectionProfile.parse({ ...d, name: d.name.trim(), model: d.model.trim(), baseUrl: d.baseUrl.trim(), extraBody });
@@ -192,9 +195,11 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
       if (c.profiles.length === 0) await c.setDefault({ connectionId: p.id });
       setD(p); setDirty(false); setSaved(true);
       onSaved(p);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
   };
 
+  useUnsavedChanges(dirty, () => save());
   const runTest = async () => {
     const extraBody = parseExtra();
     if (extraBody === null) return;
@@ -218,7 +223,7 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
       <div className="session-bar">
         <h2 className="editor-title">{isNew ? "New Connection" : d.name || "Connection"}</h2>
         <span className="spacer" />
-        {isNew && <Button small onClick={onCancel}>Cancel</Button>}
+        {isNew && <Button small onClick={() => navigate(onCancel)}>Cancel</Button>}
       </div>
       <div className="editor-body settings-body">
         <Group title="Connection" help="Where the AI lives: the service, its address, your key and the model.">

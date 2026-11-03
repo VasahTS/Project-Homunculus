@@ -1,3 +1,4 @@
+import { useSendKey } from "./ux.tsx";
 // Homunculus 2 — Settings → Customize (D-075): the look, its tweaks, messages, motion, and advanced (colors, extra CSS).
 // Built from the approved draft `docs/drafts/neutral-look/` page 2 and the plan in docs/UI-PLAN.md ("Customize"). CLAUDE, 2026-11-01.
 import { useEffect, useRef, useState } from "react";
@@ -82,6 +83,7 @@ function TokenRow({ name, label, value, onChange }: { name: string; label: strin
 }
 
 export function CustomizeSection({ notify }: { notify: (title: string, lines?: string[]) => void }) {
+  const [sendKey, setSendKey] = useSendKey();
   const st = useAppearance();
   const safe = useSafeMode();
   const look = activeLook(st);
@@ -172,6 +174,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
       </Group>
 
       <Group title="Messages" help="How the text of messages is drawn (was Settings → Messages). Nothing here changes what is saved or what the AI is sent.">
+        <Row label="Send With"><select aria-label="Send Messages With" value={sendKey} onChange={e => setSendKey(e.target.value as "enter" | "ctrl-enter")}><option value="enter">Enter</option><option value="ctrl-enter">Ctrl+Enter</option></select></Row>
         <MessageLookRows />
       </Group>
 

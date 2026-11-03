@@ -4,8 +4,8 @@
 import { z } from "zod";
 import { Id } from "./common.ts";
 
-/** Kinds the Assistant can make and change. Others (NPCs, presets, personas, stories) it can only read. */
-export const AssistantKind = z.enum(["character", "lorebook", "tracker", "kit", "narrator"]);
+/** Kinds the Assistant can make and change. Others (NPCs, presets, stories) it can only read. */
+export const AssistantKind = z.enum(["character", "lorebook", "tracker", "kit", "narrator", "persona"]);
 export type AssistantKind = z.infer<typeof AssistantKind>;
 /** Kinds it can read (find / read / add as context). */
 export const AssistantReadKind = z.enum(["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story"]);
@@ -37,6 +37,11 @@ export const AssistantPersona = z.object({
   maxSteps: z.number().int().min(1).max(100).default(25),
   /** New items are saved right away (Undo on the card); false = they wait like changes. */
   saveNew: z.boolean().default(true),
+  /** Optional read-only retrieval model, explicitly configured on its own connection. CODEX. */
+  toolHelper: z.object({
+    enabled: z.boolean().default(false), connectionId: Id.nullable().default(null), model: z.string().default(""),
+    maxSteps: z.number().int().min(1).max(20).default(8),
+  }).optional(),
   /** Came with the app: can be edited and reset, not deleted. */
   builtin: z.boolean().default(false),
 });
@@ -118,7 +123,10 @@ export const AssistantAttachment = z.discriminatedUnion("type", [
 ]);
 export type AssistantAttachment = z.infer<typeof AssistantAttachment>;
 
-export const AssistantToolStep = z.object({ id: z.string(), name: z.string(), args: z.string().default(""), result: z.string().default(""), label: z.string().default(""), error: z.boolean().default(false),
+const ToolTraceStep = z.object({ id: z.string(), name: z.string(), args: z.string().default(""), result: z.string().default(""), label: z.string().default(""), error: z.boolean().default(false), ms: z.number().optional() });
+export const AssistantToolStep = ToolTraceStep.extend({
+  /** Helper trace stays inspectable locally, and is never replayed to the principal. CODEX. */
+  helperSteps: z.array(ToolTraceStep).optional(),
   /** How long the tool took. */
   ms: z.number().optional() });
 export type AssistantToolStep = z.infer<typeof AssistantToolStep>;
@@ -149,13 +157,21 @@ export const AssistantMessage = z.object({
     ms: z.number().optional(), thinkMs: z.number().optional(), writeMs: z.number().optional(),
     /** Calls to the model in this reply. */
     calls: z.number().optional(),
+    /** Separate provider-reported usage, so retrieval never appears free. CODEX. */
+    helper: z.object({ model: z.string(), calls: z.number(), tools: z.number(), tokensIn: z.number(), tokensOut: z.number(), cost: z.number(), ms: z.number() }).optional(),
   }).optional(),
   error: z.string().optional(),
   createdAt: z.number().int(),
 });
 export type AssistantMessage = z.infer<typeof AssistantMessage>;
 
+// Preserved conversation paths; old chats remain valid without these fields. CODEX.
+const AssistantBranch = z.object({ id: Id, name: z.string(), messages: z.array(AssistantMessage).default([]), messageIds: z.array(Id).optional(), guides: z.array(z.string()).default([]), compact: z.object({ uptoId: z.string(), summary: z.string(), at: z.number().int(), before: z.number().optional() }).optional() });
 export const AssistantChat = z.object({
+  activeBranchId: Id.optional(),
+  branches: z.array(AssistantBranch).optional(),
+  /** Inactive messages are stored once; branch paths refer to their ids. CODEX. */
+  historyMessages: z.array(AssistantMessage).optional(),
   id: Id,
   title: z.string().default("New chat"),
   /** One line of what was made (for the Recents list). */

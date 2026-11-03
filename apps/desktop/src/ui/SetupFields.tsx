@@ -93,7 +93,7 @@ export function SetupFields({ mode, layer, onChange, above, names, presets, prof
         </SetupRow>
         <SetupRow label="Connection" sub={from("connectionId") || (chat ? "" : "writes the story")} changed={changed("connectionId")}>
           <select className="pick-select" aria-label="Connection" value={connValue}
-            onChange={(e) => (e.target.value === INHERIT ? set({}, ["connectionId"]) : set({ connectionId: e.target.value }))}>
+            onChange={(e) => (e.target.value === INHERIT ? set({ modelOverride: "" }, ["connectionId"]) : set({ connectionId: e.target.value, modelOverride: "" }))}>
             <option value={INHERIT}>{inheritLabel(names.connection)}</option>
             {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>

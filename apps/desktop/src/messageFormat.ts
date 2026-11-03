@@ -6,7 +6,7 @@
 // properties, so a message can color and style its own text but can never run code, load anything from the
 // internet, or cover or restyle the app (no classes, ids, positions, <style>, images from links, forms).
 import DOMPurify from "dompurify";
-import { marked } from "marked";
+import { marked, Marked } from "marked";
 
 export interface MessageLook {
   /** *italics*, **bold**, lists… */
@@ -76,7 +76,7 @@ const QUOTES = /("[^"\n]+")|(“[^”\n]+”)|(«[^»\n]+»)|(「[^」\n]+」)|(
 
 /** Marks quoted speech, but never inside HTML tags (their attributes have quotes too) or code. */
 function markDialogue(text: string): string {
-  return text.split(/(```[\s\S]*?```|`[^`\n]*`|<[^>]*>)/g)
+  return text.split(/(<style\b[^>]*>[\s\S]*?(?:<\/style\s*>|$)|```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`|<[^>]*>)/gi)
     .map((part, i) => (i % 2 === 1 ? part : part.replace(QUOTES, (m) => `<q class="dlg">${m}</q>`)))
     .join("");
 }
@@ -130,7 +130,7 @@ function webParts(clean: string, look: MessageLook): string {
     a.setAttribute("target", "_blank");
     a.setAttribute("rel", "noopener noreferrer");
     a.setAttribute("title", href);
-    a.className = "msg-link";
+    a.setAttribute("class", "msg-link");
   }
   for (const img of [...t.content.querySelectorAll("img")]) {
     const src = img.getAttribute("src") ?? "";
@@ -151,3 +151,37 @@ function webParts(clean: string, look: MessageLook): string {
 
 /** Does the text have HTML tags at all? (then it is not plain text). */
 export const hasHtml = (text: string) => /<\/?[a-z][\w-]*(\s[^<>]*)?\/?>/i.test(text);
+
+// CODEX: HTML5/CSS3 and animation-agent output needs a separate document; code examples remain code.
+const RICH_TAG = /<(?:style\b|!doctype\b|html\b|head\b|body\b|header\b|footer\b|main\b|section\b|article\b|aside\b|nav\b|figure\b|svg\b|(?:div|span)\b[^>]*\b(?:class|id)\s*=)/i;
+export function needsMessageFrame(text: string): boolean {
+  if (!RICH_TAG.test(text)) return false;
+  let found = false;
+  marked.walkTokens(marked.lexer(text), (token) => {
+    if (token.type === "html" && RICH_TAG.test(token.raw)) found = true;
+    if (token.type === "code" && token.codeBlockStyle === "indented" && RICH_TAG.test(token.text)) found = true;
+  });
+  return found;
+}
+
+const richMarkdown = new Marked({ breaks: true, gfm: true, renderer: {
+  code(token) { return token.codeBlockStyle === "indented" && hasHtml(token.text) ? token.text : false; },
+} });
+let richPurifier: ReturnType<typeof DOMPurify> | undefined;
+
+/** A separate sanitizer preserves document CSS/classes without relaxing the ordinary message filter. */
+export function formatRichMessage(text: string, look: MessageLook): { head: string; body: string } {
+  if (!richPurifier) {
+    richPurifier = DOMPurify();
+    richPurifier.addHook("uponSanitizeAttribute", (_node, data) => {
+      if (data.attrName === "src") data.keepAttr = /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(data.attrValue) || /^https?:\/\/[^\s]+$/i.test(data.attrValue.trim());
+      if (data.attrName === "href" || data.attrName === "xlink:href") data.keepAttr = /^(https?:\/\/|mailto:|#)[^\s]+$/i.test(data.attrValue.trim());
+    });
+  }
+  const source = look.dialogue ? markDialogue(text) : text;
+  const html = look.markdown ? richMarkdown.parse(source, { async: false }) as string : source;
+  const clean = richPurifier.sanitize(html, { WHOLE_DOCUMENT: true, ADD_TAGS: ["style"],
+    FORBID_TAGS: ["script", "iframe", "object", "embed", "base", "meta", "link"], ALLOW_DATA_ATTR: false });
+  const doc = new DOMParser().parseFromString(clean, "text/html");
+  return { head: doc.head.innerHTML, body: codeCopy(webParts(doc.body.innerHTML, look)) };
+}

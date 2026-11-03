@@ -9,8 +9,11 @@
 import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
 import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES, GUIDES, WEB_RULES } from "./guides.ts";
+import { excerptRead, isRead, retainedReads } from "./reads.ts";
 import { libraryCounts, runTool, TOOL_SPECS, webSession, type ToolContext } from "./tools.ts";
 import type { WebSession } from "./web.ts";
+import { decodeHistory, encodeHistory } from "./history.ts";
+import { consultLibrary, excerptHelper, HELPER_RULES, HELPER_SPEC, type HelperUsage } from "./helper.ts";
 export { TOOL_SPECS };
 
 const SETTINGS_KEY = "assistant.settings";
@@ -80,7 +83,7 @@ export const SAVING_TOOLS = ["create", "import_file", "change", "set_picture", "
 export const WEB_TOOLS = ["web_search", "web_fetch"];
 /** Web search for a chat: its own choice, else the default (Details → Tools). */
 export const webOn = (chat: Pick<AssistantChat, "webSearch"> | null | undefined, s: AssistantSettings) => chat?.webSearch ?? !s.toolsOff.includes("web");
-export const toolsFor = (s: AssistantSettings, draftFirst = false, web = !s.toolsOff.includes("web")) => TOOL_SPECS.filter((t) =>
+export const toolsFor = (s: AssistantSettings, draftFirst = false, web = !s.toolsOff.includes("web"), helper = false) => [...TOOL_SPECS, ...(helper ? [HELPER_SPEC] : [])].filter((t) =>
   (WEB_TOOLS.includes(t.name) ? web : !TOOL_GROUPS.some((g) => g.id !== "read" && s.toolsOff.includes(g.id) && g.tools.includes(t.name))) && !(draftFirst && SAVING_TOOLS.includes(t.name)));
 
 export interface WebSource { url: string; title: string; read: boolean }
@@ -125,10 +128,10 @@ export async function listChats(store: SqlStore): Promise<ChatRow[]> {
 }
 export async function loadChat(store: SqlStore, id: string): Promise<AssistantChat | undefined> {
   const v = await store.getAppSetting(chatKey(id));
-  return v ? AssistantChat.parse(v) : undefined;
+  return v ? decodeHistory(AssistantChat.parse(v)) : undefined;
 }
 export async function saveChat(store: SqlStore, chat: AssistantChat): Promise<void> {
-  await store.setAppSetting(chatKey(chat.id), chat);
+  await store.setAppSetting(chatKey(chat.id), encodeHistory(chat));
   const rows = (await listChats(store)).filter((r) => r.id !== chat.id);
   await store.setAppSetting(INDEX_KEY, [{ id: chat.id, title: chat.title, summary: chat.summary, updatedAt: chat.updatedAt }, ...rows]);
 }
@@ -142,6 +145,7 @@ export async function deleteChat(store: SqlStore, id: string): Promise<void> {
 /** The system message, in parts (so the composer can show what takes room). */
 export function systemParts(assistant: AssistantPersona, preset: AssistantPreset | undefined, counts: string, draftFirst = false, web = false): Record<string, string> {
   const parts: Record<string, string> = { app: `${CORE_RULES}${web ? `\n${WEB_RULES}` : ""}${draftFirst ? `\n\n${DRAFT_RULES}` : ""}`, assistant: assistant.instructions.trim() ? `Your role — ${assistant.name}:\n${assistant.instructions.trim()}` : "", library: `The user's library: ${counts}.` };
+  if (assistant.toolHelper?.enabled) parts.app += `\n\n${HELPER_RULES}`;
   if (preset) {
     const p: string[] = [];
     if (preset.style.trim()) p.push(`How the user likes things written:\n${preset.style.trim()}`);
@@ -190,6 +194,9 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
   let afterLastUser = false;
   // compacted: the older messages go as their summary
   const cut = chat.compact ? chat.messages.findIndex((m) => m.id === chat.compact!.uptoId) : -1;
+  // Recent source pages survive a user's continuation, within a bounded share of the context. CODEX, 2026-11-03.
+  const lastUserIndex = chat.messages.map(m => m.role).lastIndexOf("user");
+  const keptReads = retainedReads(chat.messages.slice(cut + 1, lastUserIndex), chat.contextLength);
   if (cut >= 0) out.push({ role: "user", content: `[Summary of the earlier conversation — the messages themselves were compacted]\n${chat.compact!.summary}` }, { role: "assistant", content: "Understood." });
   const earlierResults = chat.messages.slice(0, cut + 1).flatMap(resultLines);
   if (earlierResults.length) out.push({ role: "user", content: earlierResults.join("\n") });
@@ -202,7 +209,9 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
       for (const c of round.calls) {
         const s = m.steps[step++];
         let res = s?.result ?? "";
-        if (!afterLastUser && res.length > OLD_RESULT) res = `${res.slice(0, OLD_RESULT)} …(trimmed; call the tool again if you need it)`;
+        if (!afterLastUser && res.length > OLD_RESULT) res = s?.name === "consult_library" ? excerptHelper(res) : s && isRead(s.name)
+          ? excerptRead(s, !keptReads.has(s))
+          : `${res.slice(0, OLD_RESULT)} …(trimmed; call the tool again if you need it)`;
         out.push({ role: "tool", toolCallId: c.id, content: res });
       }
     }
@@ -234,7 +243,12 @@ export async function runAssistant(o: {
   const est = (t: string) => Math.ceil(t.length / 3.6);
   const web = webOn(o.chat, settings);
   const sys = systemParts(assistant, preset, counts, o.chat.draftFirst, web);
-  const tools = toolsFor(settings, o.chat.draftFirst, web);
+  const tools = toolsFor(settings, o.chat.draftFirst, web, assistant.toolHelper?.enabled);
+  const helper = assistant.toolHelper;
+  const helperBase = helper?.connectionId ? o.connections[helper.connectionId] : undefined;
+  const helperConn = helperBase ? { ...helperBase, ...(helper?.model ? { model: helper.model } : {}) } : undefined;
+  const helperUsage: HelperUsage = { model: helperConn?.model ?? "", calls: 0, tools: 0, tokensIn: 0, tokensOut: 0, cost: 0, ms: 0 };
+  let consultations = 0;
   const parts: Record<string, number> = { app: est(sys.app ?? ""), assistant: est(sys.assistant ?? ""), preset: est(sys.preset ?? ""), tools: est(JSON.stringify(tools)) };
   const sent = [
     ...(preset ? [...preset.rules.filter((r) => r.on && r.text.trim()).map((r) => r.id), ...preset.notes.filter((n) => n.on && n.text.trim()).map((n) => n.id), ...(preset.memoryOn ? preset.memory.map((m) => m.id) : [])] : []),
@@ -264,8 +278,16 @@ export async function runAssistant(o: {
       await saveSettings(o.store, { ...s, presets: s.presets.map((p) => (p.id === target.id ? { ...p, memory: [...p.memory, { id: newId(), text, from: o.chat.title, at: now() }] } : p)) });
     },
   };
-  const push = () => o.onUpdate({ ...reply, steps: [...reply.steps], rounds: [...reply.rounds], results: [...reply.results] });
+  const push = () => { if (helperUsage.calls && reply.used) reply.used.helper = { ...helperUsage }; o.onUpdate({ ...reply, steps: [...reply.steps], rounds: [...reply.rounds], results: [...reply.results] }); };
   const usage = { tokensIn: 0, tokensOut: 0, cost: 0, last: 0 };
+  const delegate = async (args: string) => {
+    if (!helperConn || !helper?.enabled) return { result: "Select an available connection for the tool helper in Customize → Assistants. No fallback model was called.", label: "Helper connection unavailable", error: true };
+    if (++consultations > 2) return { result: "Two helper consultations already used in this reply; use existing evidence or direct reading tools.", label: "Helper consultation limit", error: true };
+    let task: unknown; try { task = JSON.parse(args).task; } catch { /* Return a normal tool error. */ }
+    if (typeof task !== "string") return { result: "consult_library requires a string task.", label: "Invalid helper task", error: true };
+    return consultLibrary({ core: o.core, connection: helperConn, task, ctx, tools: tools.map(t => t.name), maxSteps: helper.maxSteps, usage: helperUsage,
+      onStep: (steps) => { const parent = reply.steps.at(-1); if (parent) { parent.helperSteps = steps; parent.label = `Helper · ${steps.at(-1)?.label ?? "reading"}`; push(); } } });
+  };
 
   try {
     for (let step = 0; ; step++) {
@@ -301,9 +323,9 @@ export async function runAssistant(o: {
           ? { result: "You already made this exact call twice. Stop calling tools now and answer the user with what you have.", label: `Stopped a repeated ${c.name}`, error: true }
           : !tools.some((t) => t.name === c.name)
             ? { result: `The tool “${c.name}” is switched off by the user.`, label: `${c.name} is off`, error: true }
-            : await runTool(c.name, c.arguments, ctx);
+            : c.name === "consult_library" ? await delegate(c.arguments) : await runTool(c.name, c.arguments, ctx);
         if (seen >= 3) looping = true;
-        reply.steps[reply.steps.length - 1] = { id: c.id, name: c.name, args: c.arguments, result: out.result, label: out.label, error: out.error ?? false, ms: now() - s0 };
+        reply.steps[reply.steps.length - 1] = { ...reply.steps.at(-1)!, id: c.id, name: c.name, args: c.arguments, result: out.result, label: out.label, error: out.error ?? false, ms: now() - s0 };
         push();
       }
       if (looping && repeats.size && [...repeats.values()].some((n) => n >= 4)) { reply.text = "(Stopped: the same tool call kept repeating.)"; break; }
@@ -313,9 +335,9 @@ export async function runAssistant(o: {
     // Keep every requested tool paired, including calls that Stop prevented from starting.
     for (const round of reply.rounds) for (const c of round.calls) {
       const index = reply.steps.findIndex((step) => step.id === c.id);
-      if (index >= 0 && reply.steps[index]!.label !== "…") continue;
+      if (index >= 0 && reply.steps[index]!.ms !== undefined) continue;
       const stopped = { id: c.id, name: c.name, args: c.arguments, result: "Stopped before execution.", label: "Stopped", error: true };
-      if (index >= 0) reply.steps[index] = stopped; else reply.steps.push(stopped);
+      if (index >= 0) reply.steps[index] = { ...reply.steps[index]!, ...stopped }; else reply.steps.push(stopped);
     }
     reply.error = e instanceof Error ? e.message : String(e);
   }
@@ -386,7 +408,9 @@ export async function updateResult(store: SqlStore, chatId: string, messageId: s
   const chat = await loadChat(store, chatId);
   if (!chat) return undefined;
   const messages = chat.messages.map((m) => (m.id === messageId ? { ...m, results: m.results.map((r, i) => (i === index ? next : r)) } : m));
-  const out = { ...chat, messages, updatedAt: Date.now() };
+  // Shared messages keep one decision state across preserved paths. CODEX.
+  const branches = chat.branches?.map(branch => ({ ...branch, messages: branch.messages.map(m => m.id === messageId ? { ...m, results: m.results.map((r, i) => i === index ? next : r) } : m) }));
+  const out = { ...chat, messages, branches, updatedAt: Date.now() };
   await saveChat(store, out);
   return out;
 }

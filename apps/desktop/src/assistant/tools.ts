@@ -6,24 +6,24 @@
 //
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
-import { Character, CharacterVariant, LoreEntry, Lorebook, Narrator, Story, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
-import { pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec } from "@homunculus/core";
+import { CastMember, Character, CharacterVariant, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
+import { characterNoteOf, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
 import { readPart } from "./files.ts";
-import { GUIDES } from "./guides.ts";
+import { GUIDES, LORE_ENTRY_FIELDS } from "./guides.ts";
 import { WebLimitedError, WebSession } from "./web.ts";
+import { readScope, readText, withReadRanges, type ReadScope } from "./reads.ts";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
 const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 const one = (s: string, n = 90) => { const t = s.replace(/\s+/g, " ").trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
-const LONG = 2500;
 
 export const READ_KINDS: AssistantReadKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story"];
-const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator"];
+const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona"];
 /** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
 export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
 const inFolders = (k: string): k is FolderKind => (FOLDER_KINDS as string[]).includes(k);
@@ -144,8 +144,8 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: { kind: kindProp(READ_KINDS, "Only this kind (optional)."), query: { type: "string", description: "Words in the name or summary (optional)." }, folder: { type: "string", description: "Only items in this folder and its subfolders, e.g. \"RPG\" (optional)." }, page: { type: "number", description: "Page, from 1." } } } },
   { name: "folders", description: "The user's folders (each kind has its own tree), with how many items each holds.",
     parameters: { type: "object", properties: { kind: kindProp(FOLDER_KINDS, "Only this kind (optional).") } } },
-  { name: "read", description: "Read one item (\"kind:id\" from find). Without `fields`, returns the item with long texts cut; a lorebook returns its entry index. Ask for `fields` to read only those, `offset` to continue a long text. For a lorebook, fields [\"entries\"] pages through entries (10 a page, use `offset` = entry number) and [\"entry:<title or id>\"] reads one. For a character, [\"variant:<label or id>\"] reads one version.",
-    parameters: { type: "object", properties: { id: { type: "string" }, fields: { type: "array", items: { type: "string" } }, offset: { type: "number" } }, required: ["id"] } },
+  { name: "read", description: "Read one library item (kind:id). Without fields, long texts are paged and lorebooks return an entry index. Long text pages contain up to 6,000 source characters and a separate _read array: field, offset, end, total, nextOffset, done and next (exact arguments for the next read). Copy next exactly; done=true is the end. Never calculate offsets from JSON length or historical previews. Select fields like [\"description\"]. A version uses [\"variant:<label or id>\", \"description\"]; a lore entry uses [\"entry:<title or id>\", \"content\"] (omit the second selector to inspect all fields). Lorebook fields [\"entries\"] pages 10 entries; its offset is an entry index.",
+    parameters: { type: "object", properties: { id: { type: "string" }, fields: { type: "array", items: { type: "string" } }, offset: { type: "integer", minimum: 0, description: "Zero-based source UTF-16 offset for text; entry index for fields [entries]. Use the server's next arguments." } }, required: ["id"] } },
   { name: "guide", description: "How to write one kind of item well, and the exact fields `create`/`change` accept. Call once per kind per chat before writing it.",
     parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, "") }, required: ["kind"] } },
   { name: "create", description: "Create a new item. `data` uses the fields from `guide`. Saved right away (the user can undo) unless the user asked to approve new items.",
@@ -229,71 +229,85 @@ export async function getItem(store: SqlStore, kind: AssistantReadKind, id: stri
 }
 
 /** A tracker as the Assistant sees and writes it: the default field set's fields at the top. */
+// Expose the complete field schema, including nested columns, so read/edit does not erase unmentioned options. CODEX, 2026-11-03.
 function trackerView(d: TrackerDraft): Obj {
   const set = d.sets.find((s) => s.id === d.defaultSetId) ?? d.sets[0]!;
   return { id: d.id, name: d.name, help: d.help, prompt: d.prompt, messages: d.messages, characters: set.characters,
-    fields: set.fields.map((f) => ({ key: f.key, label: f.label, type: f.type, scope: f.scope, ...(f.options.length ? { options: f.options } : {}),
-      ...(f.min !== undefined ? { min: f.min } : {}), ...(f.max !== undefined ? { max: f.max } : {}), ...(f.note ? { note: f.note } : {}), ...(f.section ? { section: f.section } : {}), toPrompt: f.toPrompt, required: f.required })),
+    fields: structuredClone(set.fields), ...(set.presence ? { presence: { ...set.presence } } : {}),
     ...(d.sets.length > 1 ? { otherFieldSets: d.sets.filter((s) => s !== set).map((s) => s.name) } : {}) };
 }
 
 /** Never sent: the original imported file, ids of internal things, pictures. */
 const HIDDEN = new Set(["original", "source", "builtin", "lorePatches", "hasOwnAvatar", "createdAt", "setup", "regexScripts"]);
-function compact(v: unknown, path: string, offset = 0): unknown {
+function compact(v: unknown, path: string, offset = 0, scope = readScope("")): unknown {
   if (typeof v === "string") {
-    const start = Math.max(0, Math.floor(offset));
-    const end = start + LONG;
-    return v.length > end ? `${v.slice(start, end)} …(${(v.length - end).toLocaleString("en")} more characters: read with fields ["${path}"] and offset ${end})` : v.slice(start);
+    return readText(v, path, scope, offset);
   }
-  if (Array.isArray(v)) return v.map((x, i) => compact(x, `${path}.${i}`));
-  if (isObj(v)) return Object.fromEntries(Object.entries(v).filter(([k, x]) => !HIDDEN.has(k) && x !== "" && !(Array.isArray(x) && x.length === 0)).map(([k, x]) => [k, compact(x, path ? `${path}.${k}` : k)]));
+  if (Array.isArray(v)) return v.map((x, i) => compact(x, `${path}.${i}`, 0, scope));
+  if (isObj(v)) return Object.fromEntries(Object.entries(v).filter(([k, x]) => !HIDDEN.has(k) && x !== "" && !(Array.isArray(x) && x.length === 0)).map(([k, x]) => [k, compact(x, path ? `${path}.${k}` : k, 0, scope)]));
   return v;
 }
 
+// Text pages keep their content separate from continuation metadata, including nested/selected fields. CODEX.
+function selectedRead(item: Obj, fields: string[], offset: number, scope: ReadScope): Obj {
+  const out: Obj = {};
+  for (const f of fields) {
+    let v: unknown = item;
+    for (const k of f.split(".")) v = Array.isArray(v) ? v[Number(k)] : isObj(v) ? v[k] : undefined;
+    out[f] = v === undefined ? "(no such field)" : compact(v, f, typeof v === "string" ? offset : 0, scope);
+  }
+  return withReadRanges(out, scope);
+}
+
 const entryLine = (e: LoreEntry) => `${e.id} · ${e.title || "(untitled)"} — keys: ${e.keys.join(", ") || "none"}${e.constant ? " · always on" : ""}${e.enabled ? "" : " · off"} · ${e.content.length} chars`;
-const entryFull = (e: LoreEntry) => ({ id: e.id, title: e.title, keys: e.keys, ...(e.secondaryKeys.length ? { secondaryKeys: e.secondaryKeys } : {}), content: e.content, constant: e.constant, position: e.position, ...(e.position === "atDepth" ? { depth: e.depth } : {}), order: e.order, enabled: e.enabled });
+// Include every editable option in reads and stale checks, excluding the imported payload. CODEX, 2026-11-03.
+const entryFull = (e: LoreEntry) => Object.fromEntries(Object.entries(e).filter(([k]) => LORE_ENTRY_FIELDS.includes(k)));
 
 async function readItem(store: SqlStore, ref: string, fields: string[], offset: number): Promise<string> {
   const r = splitRef(ref);
   if (!r) return `Unknown item “${ref}”. Use the "kind:id" from find.`;
-  const item = await getItem(store, r.kind, r.id);
+  let item = await getItem(store, r.kind, r.id);
   if (!item) return `No ${r.kind} with id “${r.id}”.`;
+  // Write aliases belong in the read view; apply/stale checks keep using the raw stored item. CODEX.
+  if (r.kind === "kit") { const k = Story.parse(item); item = { ...item, ...(k.narrator.kind === "vault" ? { narratorId: k.narrator.id } : {}), lorebookIds: k.setup.lorebooks?.mode === "keep" ? [] : k.setup.lorebooks?.add ?? [], lorebookSelection: k.setup.lorebooks ?? { mode: "keep", add: [], remove: [] } }; }
+  if (r.kind === "narrator") item = { ...item, ...(isObj(item.style) ? item.style : {}) };
+  if (r.kind === "character" && item.characterNote === undefined) item = { ...item, characterNote: characterNoteOf(Character.parse(item)) };
   if (r.kind === "lorebook") {
     const book = Lorebook.parse(item);
     const one = fields.find((f) => f.startsWith("entry:"));
     if (one) {
       const key = one.slice(6).trim().toLowerCase();
       const e = book.entries.find((x) => x.id.toLowerCase() === key || x.title.toLowerCase() === key);
-      return e ? JSON.stringify(entryFull(e)) : `No entry “${one.slice(6)}”. Read the lorebook without fields for the index.`;
+      if (!e) return `No entry “${one.slice(6)}”. Read the lorebook without fields for the index.`;
+      const selected = fields.filter(f => f !== one), scope = readScope(ref, `entry:${e.id}`);
+      return JSON.stringify(selected.length ? selectedRead(entryFull(e), selected, offset, scope) : withReadRanges(compact(entryFull(e), "", 0, scope) as Obj, scope));
     }
     if (fields.includes("entries")) {
-      const page = book.entries.slice(offset, offset + 10).map(entryFull);
+      const page = book.entries.slice(offset, offset + 10).map(e => { const scope = readScope(ref, `entry:${e.id}`); return withReadRanges(compact(entryFull(e), "", 0, scope) as Obj, scope); });
       const rest = book.entries.length - offset - page.length;
       return JSON.stringify(page) + (rest > 0 ? `\n(${rest} more entries; read with fields ["entries"] and offset ${offset + page.length})` : "");
     }
     const idx = book.entries.slice(offset, offset + 80).map(entryLine);
     return `${book.name}${book.description ? ` — ${book.description}` : ""}\n${book.entries.length} entries:\n${idx.join("\n")}${book.entries.length > offset + 80 ? `\n(${book.entries.length - offset - 80} more; read with offset ${offset + 80})` : ""}`;
   }
-  if (r.kind === "character") {
+  if (r.kind === "character" || r.kind === "persona") {
     const v = fields.find((f) => f.startsWith("variant:"));
     if (v) {
-      const x = variantOf(Character.parse(item), v.slice(8));
-      return x ? JSON.stringify({ id: x.id, label: x.label, ...(compact(x.overrides, "") as Obj), ...(x.hasOwnAvatar ? { picture: "its own" } : {}) }) : `No version “${v.slice(8)}”. Read the character without fields for its versions.`;
+      const x = variantOf(r.kind === "character" ? Character.parse(item) : Persona.parse(item), v.slice(8));
+      if (!x) return `No version “${v.slice(8)}”. Read the character without fields for its versions.`;
+      const selected = fields.filter(f => f !== v), scope = readScope(ref, `variant:${x.id}`);
+      const data = selected.length ? selectedRead(x.overrides as Obj, selected, offset, scope) : withReadRanges(compact(x.overrides, "", 0, scope) as Obj, scope);
+      return JSON.stringify({ id: x.id, label: x.label, ...data, ...(x.hasOwnAvatar ? { picture: "its own" } : {}) });
     }
   }
   if (fields.length) {
-    const out: Obj = {};
-    for (const f of fields) {
-      let v: unknown = item;
-      for (const k of f.split(".")) v = Array.isArray(v) ? v[Number(k)] : isObj(v) ? v[k] : undefined;
-      out[f] = v === undefined ? "(no such field)" : compact(v, f, typeof v === "string" ? offset : 0);
-    }
-    return JSON.stringify(out);
+    return JSON.stringify(selectedRead(item, fields, offset, readScope(ref)));
   }
-  const view = compact(item, "") as Obj;
-  if (r.kind === "character" && Array.isArray((item as Obj).variants) && ((item as Obj).variants as Obj[]).length)
+  // Variant indexes do not claim that their unshown override pages were read. CODEX.
+  const scope = readScope(ref), view = compact(r.kind === "character" || r.kind === "persona" ? { ...item, variants: [] } : item, "", 0, scope) as Obj;
+  if ((r.kind === "character" || r.kind === "persona") && Array.isArray((item as Obj).variants) && ((item as Obj).variants as Obj[]).length)
     view.variants = ((item as Obj).variants as CharacterVariant[]).map((x) => `${x.id} · ${x.label} — changes: ${Object.keys(x.overrides).join(", ") || "nothing yet"} (read with fields ["variant:${x.label}"])`);
-  return JSON.stringify(view);
+  return JSON.stringify(withReadRanges(view, scope));
 }
 
 async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, query: string, page: number, folder = ""): Promise<string> {
@@ -325,14 +339,17 @@ async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, q
 
 const pick = (data: Obj, keys: string[]) => Object.fromEntries(Object.entries(data).filter(([k]) => keys.includes(k)));
 /** "folder" is accepted with every kind that can be in folders (where to put a new item). */
-const unknownKeys = (data: Obj, kind: string) => Object.keys(data).filter((k) => !GUIDES[kind]!.fields.includes(k) && !(k === "folder" && inFolders(kind)));
+// Guide metadata includes nested names: accepting them at the root acknowledged ignored writes. CODEX.
+const ROOT_FIELDS: Record<string, string[]> = { lorebook: ["name", "description", "entries"], tracker: ["name", "help", "prompt", "messages", "characters", "presence", "fields"] };
+const unknownKeys = (data: Obj, kind: string) => Object.keys(data).filter((k) => !(ROOT_FIELDS[kind] ?? GUIDES[kind]!.fields).includes(k) && !(k === "folder" && inFolders(kind)));
 
 // ------------------------------------------------------------------ character versions (variants), D-064
 /** The fields a version can change (everything a card has but its versions). */
 export const VARIANT_FIELDS = GUIDES.character!.fields.filter((f) => f !== "variants");
-const charFields = (data: Obj) => pick(data, VARIANT_FIELDS);
+// Partial note edits retain the effective placement, including imported and variant notes. CODEX, 2026-11-03.
+const charFields = (data: Obj, base?: Character) => ({ ...pick(data, VARIANT_FIELDS), ...(base && isObj(data.characterNote) ? { characterNote: { ...characterNoteOf(base), ...base.characterNote, ...data.characterNote } } : {}) });
 
-function variantOf(c: Character, key: string): CharacterVariant | undefined {
+function variantOf<V extends { id: string; label: string }>(c: { variants: V[] }, key: string): V | undefined {
   const k = key.trim().toLowerCase();
   return c.variants.find((v) => v.id.toLowerCase() === k || v.label.trim().toLowerCase() === k);
 }
@@ -346,7 +363,19 @@ function newVariant(main: Character, v: Obj, newId: () => string): CharacterVari
   checkVariant(v);
   const label = str(v.label).trim();
   if (!label) throw new Error("A character version needs a \"label\" (e.g. \"Modern AU\").");
-  return CharacterVariant.parse({ id: newId(), label, overrides: pruneOverrides(main, charFields(v) as Partial<Character>) });
+  return CharacterVariant.parse({ id: newId(), label, overrides: pruneOverrides(main, charFields(v, main) as Partial<Character>) });
+}
+
+// Shared constructor for immediate creation and approval validation. CODEX, 2026-11-03.
+function characterOf(data: Obj, newId: () => string): Character {
+  if (data.variants !== undefined && !Array.isArray(data.variants)) throw new Error("Character variants must be a list.");
+  const main = Character.parse({ ...charFields(data), id: newId() }), variants: CharacterVariant[] = [];
+  for (const v of (data.variants ?? []) as unknown[]) {
+    if (!isObj(v)) throw new Error("Each character version must be an object.");
+    if (variantOf({ ...main, variants }, str(v.label))) throw new Error(`Two versions are called “${str(v.label)}”.`);
+    variants.push(newVariant(main, v, newId));
+  }
+  return { ...main, variants };
 }
 
 /**
@@ -361,7 +390,7 @@ function variantsAfter(main: Character, before: CharacterVariant[], ops: unknown
     const old = key ? list.find((x) => x === variantOf({ ...main, variants: list }, key)) : undefined;
     if (!old) { list.push(newVariant(main, u, newId)); return; }
     const label = str(u.id) && str(u.label).trim() ? str(u.label).trim() : old.label;
-    list = list.map((x) => (x === old ? { ...x, label, overrides: pruneOverrides(main, { ...x.overrides, ...charFields(u) } as Partial<Character>) } : x));
+    list = list.map((x) => (x === old ? { ...x, label, overrides: pruneOverrides(main, { ...x.overrides, ...charFields(u, { ...main, ...x.overrides }) } as Partial<Character>) } : x));
   };
   if (Array.isArray(ops)) { for (const u of ops.filter(isObj)) update(u); return list; }
   if (!isObj(ops)) throw new Error("\"variants\" in a change is { \"add\": [...], \"update\": [...], \"remove\": [labels or ids] }.");
@@ -385,42 +414,168 @@ function touchedVariants(c: Character, ops: unknown): Obj[] {
   return c.variants.filter((v) => keys.some((k) => k && variantOf({ ...c, variants: [v] }, k))).map((v) => ({ id: v.id, label: v.label, ...v.overrides }));
 }
 
+// Persona writes use the same source schema and preserve shared placement, import data and version pictures. CODEX.
+function personaOf(data: Obj, newId: () => string, base?: Persona): Persona {
+  if (isObj(data.placement) && Object.keys(data.placement).some(k => !["position", "depth", "role"].includes(k))) throw new Error("Unknown persona placement field.");
+  const lorebookIds = data.lorebookIds;
+  if (lorebookIds !== undefined && (!Array.isArray(lorebookIds) || lorebookIds.some(x => typeof x !== "string" || (x.includes(":") && splitRef(x)?.kind !== "lorebook")))) throw new Error("lorebookIds must contain lorebook ids.");
+  const main = Persona.parse({ ...base, ...pick(data, ["name", "description", "placement"]), id: base?.id ?? newId(), variants: [],
+    ...(isObj(data.placement) ? { placement: { ...base?.placement, ...data.placement } } : {}),
+    ...(Array.isArray(lorebookIds) ? { lorebookIds: lorebookIds.map(x => splitRef(x)?.id ?? x) } : {}) });
+  let list = structuredClone(base?.variants ?? []);
+  const version = (u: Obj, old?: PersonaVariant): PersonaVariant => {
+    if (Object.keys(u).some(k => !["id", "label", "name", "description"].includes(k))) throw new Error("Persona versions accept only label, name and description (id for updates).");
+    const label = u.label === undefined ? old?.label : str(u.label).trim();
+    if (!label) throw new Error("A persona version needs a label.");
+    const overrides = { ...old?.overrides, ...pick(u, ["name", "description"]) };
+    return PersonaVariant.parse({ ...old, id: old?.id ?? newId(), label, overrides: Object.fromEntries(Object.entries(overrides).filter(([k,v]) => v !== main[k as "name" | "description"])) });
+  };
+  const apply = (value: unknown, mode: "add" | "update" | "upsert") => {
+    if (!Array.isArray(value)) throw new Error("Persona version operations must be lists.");
+    for (const u of value) {
+      if (!isObj(u)) throw new Error("Each persona version must be an object.");
+      const old = variantOf({ variants: list }, str(u.id) || str(u.label));
+      if (mode === "add" && old) throw new Error("This persona version already exists; use update.");
+      if (mode === "update" && !old) throw new Error("No such persona version to update.");
+      const next = version(u, old);
+      if (list.some(x => x !== old && x.label.trim().toLowerCase() === next.label.toLowerCase())) throw new Error("Persona version labels must be unique.");
+      list = old ? list.map(x => x === old ? next : x) : [...list, next];
+    }
+  };
+  if (data.variants !== undefined) {
+    const ops = data.variants;
+    if (!base || Array.isArray(ops)) apply(ops, base ? "upsert" : "add");
+    else {
+      if (!isObj(ops) || Object.keys(ops).some(k => !["add", "update", "remove"].includes(k))) throw new Error("Use persona variants add/update/remove.");
+      if (ops.update !== undefined) apply(ops.update, "update");
+      if (ops.remove !== undefined) {
+        if (!Array.isArray(ops.remove) || ops.remove.some(x => typeof x !== "string")) throw new Error("Remove versions by id or label.");
+        for (const key of ops.remove) { const old = variantOf({ variants: list }, key); if (!old) throw new Error("No such persona version to remove."); list = list.filter(x => x !== old); }
+      }
+      if (ops.add !== undefined) apply(ops.add, "add");
+    }
+  }
+  return { ...main, variants: list.map(v => ({ ...v, overrides: Object.fromEntries(Object.entries(v.overrides).filter(([k,value]) => value !== main[k as "name" | "description"])) })) };
+}
+
+// Creation, draft approval and proposed changes share the real field schema rather than a lossy subset. CODEX, 2026-11-03.
 function trackerFieldsOf(list: unknown): TrackerDraft["sets"][number]["fields"] {
-  return (Array.isArray(list) ? list.filter(isObj) : []).map((f, i) => ({
-    key: str(f.key) || `~${i}-${crypto.randomUUID().slice(0, 6)}`, label: str(f.label), help: "", note: str(f.note) || undefined,
-    type: (["text", "number", "meter", "status", "list"].includes(str(f.type)) ? str(f.type) : "text") as never,
-    options: strs(f.options), ...(typeof f.min === "number" ? { min: f.min } : {}), ...(typeof f.max === "number" ? { max: f.max } : {}),
-    scope: (["global", "perCharacter", "perPair"].includes(str(f.scope)) ? str(f.scope) : "global") as never,
-    lockedForAgents: false, toPrompt: f.toPrompt !== false, required: f.required === true, section: str(f.section), fields: [],
-  }));
+  if (!Array.isArray(list)) throw new Error('Tracker fields must be a list. Call guide("tracker").');
+  const taken = list.filter(isObj).map(f => str(f.key)).filter(k => k && !k.startsWith("~"));
+  if (new Set(taken).size !== taken.length) throw new Error("Each tracker field needs a unique key within its field set or list columns.");
+  return list.map((f) => {
+    if (!isObj(f)) throw new Error("Each tracker field must be an object.");
+    const supplied = str(f.key);
+    const key = supplied && !supplied.startsWith("~") ? supplied : fieldKeyFrom(str(f.label), taken);
+    if (key !== supplied) taken.push(key);
+    // Allocate new keys with the editor's naming rule before recursive schema validation, including list columns.
+    const field = TrackerField.parse({ ...f, key, type: f.type ?? "text", fields: f.fields === undefined ? [] : trackerFieldsOf(f.fields) });
+    const displays = field.scope === "global" ? ["auto", "header", "block"] : ["auto", "subtitle", "lead", "pill", "line", "tile", "block", "note"];
+    if (field.display && !displays.includes(field.display)) throw new Error(`Display "${field.display}" is not supported for ${field.scope} field "${field.label}". Call guide("tracker").`);
+    return { ...field, key };
+  });
+}
+
+// Presence belongs to the default field set, points to a per-character status, and can be cleared with null. CODEX, 2026-11-03.
+function trackerPresenceOf(raw: unknown, fields: TrackerDraft["sets"][number]["fields"]): TrackerDraft["sets"][number]["presence"] {
+  const presence = TrackerSchema.shape.presence.parse(raw ?? undefined);
+  if (presence) {
+    const field = fields.find(f => f.key === presence.field);
+    if (!field || field.type !== "status" || field.scope !== "perCharacter" || !field.options.includes(presence.value))
+      throw new Error("Presence must reference the key of a perCharacter status field and one of its options. Keep that key when editing, or clear presence with null.");
+  }
+  return presence;
+}
+
+// The same validation is used before proposal and before applying a tracker edit. CODEX.
+function trackerAfter(d: TrackerDraft, ch: Obj): TrackerDraft {
+  const set = d.sets.find(s => s.id === d.defaultSetId) ?? d.sets[0]!;
+  if (typeof ch.name === "string") d.name = ch.name;
+  if (typeof ch.help === "string") d.help = ch.help;
+  if (typeof ch.prompt === "string") d.prompt = ch.prompt;
+  if (typeof ch.messages === "number") d.messages = ch.messages;
+  if (ch.fields !== undefined) set.fields = trackerFieldsOf(ch.fields);
+  if (ch.characters !== undefined) set.characters = TrackerSchema.shape.characters.parse(ch.characters);
+  if (ch.presence !== undefined || ch.fields !== undefined) set.presence = trackerPresenceOf(ch.presence !== undefined ? ch.presence : set.presence, set.fields);
+  const problems = checkDraft(d); if (problems.length) throw new Error(problems.join(" "));
+  return d;
+}
+
+function trackerOf(data: Obj): TrackerDraft {
+  const d = blankTracker(); d.name = str(data.name); d.help = str(data.help);
+  if (str(data.prompt)) d.prompt = str(data.prompt);
+  if (typeof data.messages === "number") d.messages = data.messages;
+  d.sets[0]!.fields = trackerFieldsOf(data.fields);
+  d.sets[0]!.characters = TrackerSchema.shape.characters.parse(data.characters);
+  d.sets[0]!.presence = trackerPresenceOf(data.presence, d.sets[0]!.fields);
+  const problems = checkDraft(d); if (problems.length) throw new Error(problems.join(" "));
+  return d;
 }
 
 function loreEntryOf(e: Obj, newId: () => string): LoreEntry {
-  return LoreEntry.parse({ ...pick(e, GUIDES.lorebook!.fields), id: str(e.id) || newId() });
+  const bad = Object.keys(e).filter(k => !LORE_ENTRY_FIELDS.includes(k));
+  if (bad.length) throw new Error(`Unknown lore entry field(s): ${bad.join(", ")}. Call guide("lorebook").`);
+  return LoreEntry.parse({ ...e, id: str(e.id) || newId() });
 }
 
+// Validate operations before proposing and saving: never acknowledge an ignored or ambiguous edit. CODEX.
+function loreEntriesAfter(before: LoreEntry[], raw: unknown, newId: () => string): LoreEntry[] {
+  if (!isObj(raw) || Object.keys(raw).some(k => !["add", "update", "remove"].includes(k))) throw new Error('Use entries: { add: [...], update: [...], remove: [...] } for a lorebook change.');
+  for (const key of ["add", "update", "remove"]) if (raw[key] !== undefined && !Array.isArray(raw[key])) throw new Error(`entries.${key} must be a list.`);
+  let entries = [...before];
+  const target = (key: string) => { const ids = entries.filter(e => e.id === key); const matches = ids.length ? ids : entries.filter(e => e.title.toLowerCase() === key.toLowerCase()); if (!key || matches.length !== 1) throw new Error(`Lore entry “${key}” is missing or ambiguous. Read its id first.`); return matches[0]!; };
+  for (const u of (raw.update ?? []) as unknown[]) {
+    if (!isObj(u)) throw new Error("An entry update must be an object.");
+    const old = target(str(u.id) || str(u.title));
+    const updated = loreEntryOf({ ...entryFull(old), ...u, ...(isObj(u.scan) ? { scan: { ...old.scan, ...u.scan } } : {}), ...(isObj(u.characterFilter) ? { characterFilter: { ...old.characterFilter, ...u.characterFilter } } : {}), id: old.id }, newId);
+    entries = entries.map(e => e === old ? { ...updated, ...(old.original !== undefined ? { original: old.original } : {}) } : e);
+  }
+  for (const key of (raw.remove ?? []) as unknown[]) { if (typeof key !== "string") throw new Error("Entry removals must be ids."); const old = target(key); entries = entries.filter(e => e !== old); }
+  for (const a of (raw.add ?? []) as unknown[]) { if (!isObj(a)) throw new Error("An added entry must be an object."); entries.push(loreEntryOf(a, newId)); }
+  if (new Set(entries.map(e => e.id)).size !== entries.length) throw new Error("Lore entry ids must be unique.");
+  return entries;
+}
+
+const NARRATOR_STYLE_FIELDS = Object.keys(Narrator.shape.style.unwrap().shape);
 function narratorOf(data: Obj, id: string): Narrator {
-  const blocks = Array.isArray(data.blocks) ? data.blocks.filter(isObj).map((b, i) => ({ id: str(b.id) || `b${i + 1}`, name: str(b.name), on: b.on !== false, text: str(b.text) })) : undefined;
-  const instructions = blocks ? blocks.filter((b) => b.on && b.text.trim()).map((b) => b.text.trim()).join("\n\n") : str(data.instructions);
-  return Narrator.parse({ ...pick(data, ["name", "about", "modes", "style"]), id, instructions, ...(blocks ? { blocks } : {}) });
+  if (data.blocks !== undefined && !Array.isArray(data.blocks)) throw new Error("Narrator blocks must be a list.");
+  const blocks = data.blocks === undefined ? undefined : Narrator.shape.blocks.parse((data.blocks as unknown[]).map((b, i) => { if (!isObj(b)) throw new Error("Each narrator block must be an object."); return { ...b, id: str(b.id) || `b${i + 1}` }; }));
+  if (blocks && new Set(blocks.map(b => b.id)).size !== blocks.length) throw new Error("Narrator block ids must be unique.");
+  const instructions = blocks?.length ? blocks.filter(b => b.on && b.text.trim()).map(b => b.text.trim()).join("\n\n") : str(data.instructions);
+  if (blocks?.length && data.instructions !== undefined && str(data.instructions).trim() !== instructions.trim()) throw new Error("Narrator instructions conflict with blocks. Edit blocks, or explicitly use blocks: [] with plain instructions.");
+  if (data.style !== undefined && !isObj(data.style)) throw new Error("Narrator style must be an object.");
+  const style = Narrator.shape.style.unwrap().strict().parse({ ...(isObj(data.style) ? data.style : {}), ...pick(data, NARRATOR_STYLE_FIELDS) });
+  return Narrator.parse({ ...pick(data, ["name", "about", "modes", "mayAddNpcs", "turnInstruction"]), style, id, instructions, ...(blocks ? { blocks } : {}) });
+}
+
+// Blocks are authoritative: a plain edit must explicitly opt out of them. CODEX, 2026-11-03.
+function narratorAfter(n: Narrator, changes: Obj): Narrator {
+  if (changes.instructions !== undefined && changes.blocks === undefined && n.blocks.length) throw new Error("This narrator uses blocks. Edit blocks, or send blocks: [] together with the replacement instructions.");
+  const data: Obj = { ...n, ...changes, style: { ...n.style, ...(isObj(changes.style) ? changes.style : {}) } };
+  if (changes.style !== undefined && !isObj(changes.style)) throw new Error("Narrator style must be an object.");
+  if (changes.instructions === undefined && Array.isArray(data.blocks) && data.blocks.length) delete data.instructions;
+  return narratorOf(data, n.id);
 }
 
 /** Cast as the Assistant writes it — "character:id", or { "id", "version" } for one of its versions — as cast members. */
-async function castOf(store: SqlStore, list: unknown): Promise<Array<{ characterId: string; variantId: string | null }>> {
-  const out: Array<{ characterId: string; variantId: string | null }> = [];
-  for (const x of Array.isArray(list) ? list : []) {
+async function castOf(store: SqlStore, list: unknown): Promise<Story["cast"]> {
+  if (!Array.isArray(list)) throw new Error("Kit cast must be a list.");
+  const out: Story["cast"] = [];
+  for (const x of list) {
+    if (isObj(x) && x.characterId === null && x.role === "narrator") { out.push(CastMember.parse(x)); continue; }
     const ref = typeof x === "string" ? x : isObj(x) ? str(x.id) || str(x.characterId) : "";
     const version = isObj(x) ? str(x.version) || str(x.variant) : "";
     const id = splitRef(ref)?.id ?? ref;
-    if (!id) continue;
-    let variantId: string | null = null;
-    if (version && !/^main$/i.test(version.trim())) {
+    if (!id) throw new Error("A cast member needs a character id.");
+    if (splitRef(ref) && splitRef(ref)!.kind !== "character") throw new Error("Kit cast takes character ids.");
+    let variantId: string | null = isObj(x) && typeof x.variantId === "string" ? x.variantId : null;
+    if (version || variantId) {
       const c = await store.getCharacter(id);
-      const v = c ? variantOf(c, version) : undefined;
-      if (!v) throw new Error(`${c ? c.name : `character:${id}`} has no version “${version}”.${c ? ` Its versions: Main${c.variants.map((y) => `, ${y.label}`).join("")}.` : ""}`);
-      variantId = v.id;
+      const v = c ? version ? variantOf(c, version) : c.variants.find(v => v.id === variantId) : undefined;
+      if (version && /^main$/i.test(version.trim())) variantId = null;
+      else { if (!v) throw new Error(`${c ? c.name : `character:${id}`} has no version “${version || variantId}”.`); variantId = v.id; }
     }
-    out.push({ characterId: id, variantId });
+    out.push(CastMember.parse({ ...(isObj(x) ? x : {}), characterId: id, variantId }));
   }
   return out;
 }
@@ -429,13 +584,18 @@ function kitOf(data: Obj, id: string, base?: Obj): Story {
   const prev = (base ?? {}) as Obj;
   const lore = strs(data.lorebookIds).map((x) => splitRef(x)?.id ?? x);
   const narratorId = str(data.narratorId);
+  const oldSetup = isObj(prev.setup) ? prev.setup : {};
+  const oldLore = isObj(oldSetup.lorebooks) ? oldSetup.lorebooks : {};
+  if (data.lorebookIds !== undefined && (!Array.isArray(data.lorebookIds) || data.lorebookIds.some(x => typeof x !== "string"))) throw new Error("lorebookIds must be a list of ids.");
+  if (data.npcIds !== undefined && (!Array.isArray(data.npcIds) || data.npcIds.some(x => typeof x !== "string"))) throw new Error("npcIds must be a list of ids.");
+  if (data.narratorId !== undefined && typeof data.narratorId !== "string") throw new Error("narratorId must be an id or an empty string for Simple Narrator.");
   return Story.parse({
     ...prev, id, createdAt: typeof prev.createdAt === "number" ? prev.createdAt : Date.now(),
     ...pick(data, ["name", "description", "scenario", "openings", "userRole"]),
     ...(data.cast !== undefined ? { cast: data.cast } : {}),
     ...(data.npcIds !== undefined ? { npcIds: strs(data.npcIds).map((x) => splitRef(x)?.id ?? x) } : {}),
-    ...(narratorId ? { narrator: { kind: "vault", id: splitRef(narratorId)?.id ?? narratorId } } : {}),
-    ...(data.lorebookIds !== undefined ? { setup: { ...(isObj(prev.setup) ? prev.setup : {}), lorebooks: { mode: "add", add: lore, remove: [] } } } : {}),
+    ...(data.narratorId !== undefined ? { narrator: { kind: "vault", id: narratorId ? splitRef(narratorId)?.id ?? narratorId : SIMPLE_NARRATOR_ID } } : {}),
+    ...(data.lorebookIds !== undefined ? { setup: { ...oldSetup, lorebooks: { ...oldLore, mode: oldLore.mode === "only" ? "only" : "add", add: lore, remove: oldLore.remove ?? [] } } } : {}),
   });
 }
 
@@ -457,28 +617,24 @@ export async function createItem(store: SqlStore, kind: AssistantKind, data: Obj
 
 async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name: string, newId: () => string, w: Writes): Promise<{ id: string; name: string; detail: string }> {
   switch (kind) {
+    case "persona": {
+      const p = personaOf(data, newId);
+      await write(w, `persona:${p.id}`, () => store.savePersona(p));
+      return { id: p.id, name: p.name, detail: `${p.variants.length + 1} version(s)` };
+    }
     case "character": {
-      const main = Character.parse({ ...charFields(data), id: newId() });
-      const list = Array.isArray(data.variants) ? data.variants.filter(isObj) : [];
-      const variants: CharacterVariant[] = [];
-      for (const v of list) { if (variantOf({ ...main, variants }, str(v.label))) throw new Error(`Two versions are called “${str(v.label)}”.`); variants.push(newVariant(main, v, newId)); }
-      const c = await write(w, `character:${main.id}`, () => store.saveCharacter({ ...main, variants }));
-      return { id: c.id, name: c.name, detail: `${c.firstMessages.length} first message(s)${variants.length ? ` · ${variants.length + 1} versions` : ""}` };
+      const main = characterOf(data, newId);
+      const c = await write(w, `character:${main.id}`, () => store.saveCharacter(main));
+      return { id: c.id, name: c.name, detail: `${c.firstMessages.length} first message(s)${c.variants.length ? ` · ${c.variants.length + 1} versions` : ""}` };
     }
     case "lorebook": {
-      const entries = (Array.isArray(data.entries) ? data.entries.filter(isObj) : []).map((e) => loreEntryOf(e, newId));
+      const entries = loreEntriesAfter([], { add: data.entries ?? [] }, newId);
       const book = Lorebook.parse({ id: newId(), name, description: str(data.description), entries });
       const b = await write(w, `lorebook:${book.id}`, () => store.saveLorebook(book));
       return { id: b.id, name: b.name, detail: `${b.entries.length} entries` };
     }
     case "tracker": {
-      const d = blankTracker();
-      d.name = name; d.help = str(data.help); if (str(data.prompt)) d.prompt = str(data.prompt);
-      if (typeof data.messages === "number") d.messages = data.messages;
-      d.sets[0]!.fields = trackerFieldsOf(data.fields);
-      if (["cast", "castAndUser", "anyone"].includes(str(data.characters))) d.sets[0]!.characters = str(data.characters) as never;
-      const problems = checkDraft(d);
-      if (problems.length) throw new Error(problems.join(" "));
+      const d = trackerOf(data);
       const guarded = new Proxy(store, { get(target, key) {
         if (key === "saveTrackerSchema") return (value: Parameters<SqlStore["saveTrackerSchema"]>[0]) => write(w, `trackerSchema:${value.id}`, () => target.saveTrackerSchema(value));
         if (key === "saveAgentConfig") return (value: Parameters<SqlStore["saveAgentConfig"]>[0]) => write(w, `tracker:${value.id}`, () => target.saveAgentConfig(value));
@@ -501,6 +657,20 @@ async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name:
   }
 }
 
+// Preparing an approval card never writes, but must use the same parsers as immediate creation. CODEX.
+async function validateNew(store: SqlStore, kind: AssistantKind, data: Obj): Promise<void> {
+  const name = str(data.name).trim(); if (!name) throw new Error(`A ${kind} needs a name.`);
+  const newId = () => crypto.randomUUID();
+  switch (kind) {
+    case "character": characterOf(data, newId); break;
+    case "persona": personaOf(data, newId); break;
+    case "tracker": trackerOf(data); break;
+    case "narrator": narratorOf(data, newId()); break;
+    case "lorebook": Lorebook.parse({ id: newId(), name, description: str(data.description), entries: loreEntriesAfter([], { add: data.entries ?? [] }, newId) }); break;
+    case "kit": kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, newId()); break;
+  }
+}
+
 /** The fields a change touches, as they are now (for the card and to notice later edits). */
 export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
   const out: Obj = {};
@@ -510,12 +680,49 @@ export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
       const entries = (Array.isArray(item.entries) ? item.entries : []) as LoreEntry[];
       const touched = [...(Array.isArray(ops.update) ? ops.update.filter(isObj) : []).map((u) => str(u.id) || str(u.title)), ...strs(ops.remove)];
       out.entries = entries.filter((e) => touched.some((t) => t === e.id || t.toLowerCase() === e.title.toLowerCase())).map(entryFull);
-    } else if (kind === "character" && k === "variants") out.variants = touchedVariants(Character.parse(item), changes.variants);
+    } else if (kind === "persona" && k === "variants") out.variants = Persona.parse(item).variants.map(v => ({ id: v.id, label: v.label, ...v.overrides }));
+    else if (kind === "character" && k === "variants") out.variants = touchedVariants(Character.parse(item), changes.variants);
+    else if (kind === "character" && k === "characterNote") out[k] = characterNoteOf(Character.parse(item)) ?? item[k] ?? "";
+    else if (kind === "narrator" && NARRATOR_STYLE_FIELDS.includes(k)) out[k] = isObj(item.style) ? item.style[k] ?? "" : "";
     else if (kind === "kit" && k === "narratorId") out[k] = item.narrator ?? "";
     else if (kind === "kit" && k === "lorebookIds") out[k] = isObj(item.setup) ? item.setup.lorebooks ?? "" : "";
     else out[k] = item[k] ?? "";
   }
   return out;
+}
+
+// One proposal contract for tool calls and draft saves. Invalid edits return to the model before user approval. CODEX.
+export async function prepareChange(store: SqlStore, kind: AssistantKind, itemId: string, changes: Obj, newId: () => string, summary = ""): Promise<Extract<AssistantResult, { type: "change" }>> {
+  if (!WRITE_KINDS.includes(kind)) throw new Error(`Can't change a “${kind}”.`);
+  if ("folder" in changes) throw new Error("Use `move` to put an item in a folder.");
+  const bad = unknownKeys(changes, kind).filter(k => !(kind === "character" && k === "picture"));
+  if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
+  if (!Object.keys(changes).length) throw new Error("No changes given.");
+  const item = await getItem(store, kind, itemId); if (!item) throw new Error(`No ${kind} with id “${itemId}”.`);
+  const dryId = () => crypto.randomUUID();
+  switch (kind) {
+    case "character": { const c = Character.parse(item); const main = Character.parse({ ...c, ...charFields(changes, c) }); if (changes.variants !== undefined) variantsAfter(main, c.variants, changes.variants, dryId); break; }
+    case "lorebook": { const b = Lorebook.parse(item); Lorebook.parse({ ...b, ...pick(changes, ["name", "description"]), entries: changes.entries === undefined ? b.entries : loreEntriesAfter(b.entries, changes.entries, dryId) }); break; }
+    case "narrator": narratorAfter(Narrator.parse(item), changes); break;
+    case "persona": personaOf(changes, dryId, Persona.parse(item)); break;
+    case "kit": kitOf({ ...changes, ...(changes.cast !== undefined ? { cast: await castOf(store, changes.cast) } : {}) }, itemId, item); break;
+    case "tracker": { const t = (await listTrackers(store)).find(t => t.agent.id === itemId)!; trackerAfter(draftOf(t), changes); break; }
+  }
+  return { type: "change", id: newId(), kind, itemId, name: str(item.name), summary, before: currentOf(item, kind, changes), after: changes, status: "waiting" };
+}
+
+// A fence kind cannot redirect an id to another collection, even when two collections share an id. CODEX.
+export async function saveDraftItem(store: SqlStore, kind: AssistantKind, data: Obj, newId: () => string): Promise<AssistantResult> {
+  if (data.id !== undefined) {
+    const ref = splitRef(str(data.id));
+    if (!ref || ref.kind !== kind) throw new Error(`Draft type “${kind}” does not match target “${str(data.id)}”.`);
+    const { id: _id, ...changes } = data;
+    const change = await prepareChange(store, kind, ref.id, changes, newId, "Saved from a draft");
+    const status = await applyChange(store, change, newId);
+    return { ...change, status: status === "applied" ? "applied" : "stale" };
+  }
+  const made = await createItem(store, kind, data, newId);
+  return { type: "created", kind, itemId: made.id, name: made.name, detail: `${made.detail} · from a draft`, undone: false };
 }
 
 /** Applies an approved change. Returns false when the item changed since (the card turns "stale"). */
@@ -525,6 +732,7 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
   if (JSON.stringify(currentOf(item, r.kind, r.after)) !== JSON.stringify(r.before)) return "stale";
   const ch = r.after;
   switch (r.kind) {
+    case "persona": await store.savePersona(personaOf(ch, newId, Persona.parse(item))); break;
     case "character": {
       const c = Character.parse(item);
       let variants = c.variants;
@@ -537,7 +745,7 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
         } else await store.setAvatar(r.itemId, { mime, base64 });
       }
       const { picture: _p, variants: ops, ...rest } = ch;
-      const main = Character.parse({ ...c, ...charFields(rest) });
+      const main = Character.parse({ ...c, ...charFields(rest, c) });
       if (ops !== undefined) variants = variantsAfter(main, variants, ops, newId);
       // versions keep only what still differs from the (maybe changed) main version
       variants = variants.map((v) => ({ ...v, overrides: pruneOverrides(main, v.overrides) }));
@@ -546,41 +754,20 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
     }
     case "lorebook": {
       const book = Lorebook.parse(item);
-      let entries = book.entries;
-      if (isObj(ch.entries)) {
-        const ops = ch.entries;
-        const match = (e: LoreEntry, t: string) => t === e.id || t.toLowerCase() === e.title.toLowerCase();
-        for (const u of Array.isArray(ops.update) ? ops.update.filter(isObj) : []) {
-          const t = str(u.id) || str(u.title);
-          entries = entries.map((e) => (match(e, t) ? LoreEntry.parse({ ...e, ...pick(u, GUIDES.lorebook!.fields), id: e.id }) : e));
-        }
-        const rm = strs(ops.remove);
-        entries = entries.filter((e) => !rm.some((t) => match(e, t)));
-        for (const a of Array.isArray(ops.add) ? ops.add.filter(isObj) : []) entries = [...entries, loreEntryOf(a, newId)];
-      }
+      const entries = ch.entries === undefined ? book.entries : loreEntriesAfter(book.entries, ch.entries, newId);
       await store.saveLorebook(Lorebook.parse({ ...book, ...pick(ch, ["name", "description"]), entries }));
       break;
     }
     case "tracker": {
       const t = (await listTrackers(store)).find((x) => x.agent.id === r.itemId);
       if (!t) return "missing";
-      const d = draftOf(t);
-      const set = d.sets.find((s) => s.id === d.defaultSetId) ?? d.sets[0]!;
-      if (typeof ch.name === "string") d.name = ch.name;
-      if (typeof ch.help === "string") d.help = ch.help;
-      if (typeof ch.prompt === "string") d.prompt = ch.prompt;
-      if (typeof ch.messages === "number") d.messages = ch.messages;
-      if (ch.fields !== undefined) set.fields = trackerFieldsOf(ch.fields);
-      if (typeof ch.characters === "string") set.characters = ch.characters as never;
-      const problems = checkDraft(d);
-      if (problems.length) throw new Error(problems.join(" "));
-      await saveTracker(store, d);
+      await saveTracker(store, trackerAfter(draftOf(t), ch));
       break;
     }
     case "kit": await store.kits.save(kitOf({ ...ch, ...(ch.cast !== undefined ? { cast: await castOf(store, ch.cast) } : {}) }, r.itemId, item)); break;
     case "narrator": {
       const n = Narrator.parse(item);
-      const merged = narratorOf({ ...n, ...ch, style: { ...n.style, ...(isObj(ch.style) ? ch.style : {}) } } as Obj, n.id);
+      const merged = narratorAfter(n, ch);
       await store.saveNarrator({ ...merged, builtin: n.builtin });
       break;
     }
@@ -588,7 +775,7 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
   return "applied";
 }
 
-const TRASH_KIND: Partial<Record<AssistantKind, "character" | "lorebook" | "kit" | "narrator">> = { character: "character", lorebook: "lorebook", kit: "kit", narrator: "narrator" };
+const TRASH_KIND: Partial<Record<AssistantKind, "character" | "lorebook" | "kit" | "narrator" | "persona">> = { character: "character", lorebook: "lorebook", kit: "kit", narrator: "narrator", persona: "persona" };
 
 export async function applyTrash(store: SqlStore, kind: AssistantKind, id: string): Promise<void> {
   const t = TRASH_KIND[kind];
@@ -723,7 +910,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       }
       case "read": {
         const ref = str(a.id);
-        const res = await readItem(ctx.store, ref, strs(a.fields), typeof a.offset === "number" ? a.offset : 0);
+        const res = await readItem(ctx.store, ref, strs(a.fields), typeof a.offset === "number" && Number.isFinite(a.offset) ? Math.max(0, Math.floor(a.offset)) : 0);
         const r = splitRef(ref);
         const nm = r ? (await rows(ctx.store, r.kind)).find((x) => x.id === r.id)?.name : undefined;
         return { result: res, label: `Read ${nm ?? ref}${strs(a.fields).length ? ` (${strs(a.fields).join(", ")})` : ""}` };
@@ -743,6 +930,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         if (!ctx.saveNew) {
           const bad = unknownKeys(data, kind);
           if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
+          await validateNew(ctx.store, kind, data);
           ctx.results.push({ type: "new", id: ctx.newId(), kind, name: str(data.name) || kind, data, status: "waiting" });
           return { result: "Prepared; the user will approve it before it is saved.", label: `Prepared a new ${kind}: ${str(data.name)}` };
         }
@@ -755,18 +943,9 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         if (!r || !WRITE_KINDS.includes(r.kind as AssistantKind)) return { result: `Can't change “${str(a.id)}”.`, label: "change", error: true };
         const kind = r.kind as AssistantKind;
         const changes = isObj(a.changes) ? a.changes : {};
-        if ("folder" in changes) throw new Error("Use `move` to put an item in a folder.");
-        const bad = unknownKeys(changes, kind).filter((k) => !(kind === "character" && k === "picture"));
-        if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
-        if (!Object.keys(changes).length) throw new Error("No changes given.");
-        const item = await getItem(ctx.store, kind, r.id);
-        if (!item) throw new Error(`No ${kind} with id “${r.id}”.`);
-        const nm = str(item.name);
-        // check versions and cast now, so a mistake comes back to the model instead of failing when the user applies it
-        if (kind === "character" && changes.variants !== undefined) { const c = Character.parse(item); variantsAfter(Character.parse({ ...c, ...charFields(changes) }), c.variants, changes.variants, ctx.newId); }
-        if (kind === "kit" && changes.cast !== undefined) await castOf(ctx.store, changes.cast);
-        ctx.results.push({ type: "change", id: ctx.newId(), kind, itemId: r.id, name: nm, summary: str(a.summary), before: currentOf(item, kind, changes), after: changes, status: "waiting" });
-        return { result: "Proposed. It waits for the user's OK — don't assume it was applied.", label: `Proposed changes to “${nm}”` };
+        const proposal = await prepareChange(ctx.store, kind, r.id, changes, ctx.newId, str(a.summary));
+        ctx.results.push(proposal);
+        return { result: "Proposed. It waits for the user's OK — don't assume it was applied.", label: `Proposed changes to “${proposal.name}”` };
       }
       case "propose_trash": {
         const r = splitRef(str(a.id));

@@ -381,7 +381,7 @@ export class SqlStore implements StateRepository, MessageTree {
     const strip = <T extends SetupLayer>(layer: T): T | null => {
       let changed = false;
       const next: SetupLayer = { ...layer };
-      if (next.connectionId === id) { delete next.connectionId; changed = true; }
+      if (next.connectionId === id) { delete next.connectionId; delete next.modelOverride; changed = true; } // CODEX: a model cannot outlive its removed connection.
       if (next.agentConnectionId === id) { delete next.agentConnectionId; changed = true; }
       if (next.agentOverrides) {
         next.agentOverrides = Object.fromEntries(Object.entries(next.agentOverrides).map(([k, o]) => {
@@ -738,6 +738,16 @@ export class SqlStore implements StateRepository, MessageTree {
   async getGenerationRecord(messageId: string): Promise<GenerationRecord | undefined> {
     const [row] = await this.db.select<{ data: string }>("SELECT data FROM generation_records WHERE message_id = ?", [messageId]);
     return row ? GenerationRecord.parse(JSON.parse(row.data)) : undefined;
+  }
+
+  /** CODEX: sorting metadata only; table names come from a fixed allow-list, never the caller. */
+  async collectionSortMetadata(kind: string): Promise<Record<string, { added: number; created: number }>> {
+    const tables: Record<string, [string, string]> = { characters: ["characters", "character"], personas: ["personas", "persona"], presets: ["presets", "preset"], lorebooks: ["lorebooks", "lorebook"], stories: ["stories", "story"], kits: ["kits", "kit"], narrators: ["narrators", "narrator"], npcs: ["npcs", "npc"], agents: ["agents", "agent"], trackers: ["agents", "agent"] };
+    if (!Object.hasOwn(tables, kind)) return {};
+    const [table, history] = tables[kind]!;
+    const rows = await this.db.select<{ id: string; added: number; created: number }>(
+      `SELECT d.id, d.rowid AS added, COALESCE((SELECT MIN(h.created_at) FROM item_history h WHERE h.kind = ? AND h.item_id = d.id), d.updated_at) AS created FROM ${table} d`, [history]);
+    return Object.fromEntries(rows.map((r) => [r.id, { added: Number(r.added), created: Number(r.created) }]));
   }
 
   // ------------------------------------------------------------ history of library items (BLUEPRINT §2.6)

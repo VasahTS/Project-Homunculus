@@ -143,3 +143,19 @@ describe("tool calling and images (D-062)", () => {
     expect(out).toEqual([{ toolCalls: [{ id: "c1", name: "find", arguments: "{\"query\":\"Lyra\"}" }, { id: "c2", name: "guide", arguments: "{}" }] }]);
   });
 });
+
+// CODEX: preserve optional provider reasoning counts, including zero, without changing total output usage.
+describe("reasoning usage breakdown", () => {
+  for (const count of [170, 0]) it(`reports ${count} reasoning tokens separately`, async () => {
+    const chunks: StreamChunk[] = [];
+    const response = sseResponse([`data: ${JSON.stringify({ choices: [], usage: { completion_tokens: 745, completion_tokens_details: { reasoning_tokens: count } } })}`, "data: [DONE]"]);
+    for await (const chunk of streamChat(req, async () => response)) chunks.push(chunk);
+    expect(chunks).toContainEqual({ usage: { tokensIn: undefined, tokensOut: 745, cost: undefined, tokensReasoning: count } });
+  });
+  for (const value of [-1, 1.5, "170", null]) it(`ignores invalid reasoning usage ${JSON.stringify(value)}`, async () => {
+    const chunks: StreamChunk[] = [];
+    const response = sseResponse([`data: ${JSON.stringify({ usage: { completion_tokens: 10, completion_tokens_details: { reasoning_tokens: value } } })}`]);
+    for await (const chunk of streamChat(req, async () => response)) chunks.push(chunk);
+    expect(chunks[0]).toEqual({ usage: { tokensIn: undefined, tokensOut: 10, cost: undefined } });
+  });
+});

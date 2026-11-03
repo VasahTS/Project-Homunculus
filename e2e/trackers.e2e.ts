@@ -71,7 +71,7 @@ test("a tracker made in the UI fills the Scene panel, follows swipes, and can be
 
   // a swipe gets its own values; flipping back shows the first ones again
   await page.getByRole("button", { name: "New Version" }).click();
-  await expect(page.getByRole("button", { name: "Send" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("swipe-counter")).toHaveText("2/2");
   await expect(runs.getByTestId("run-status")).toHaveText("✓ updated");
   const secondPlace = await fv(nowBox, "place").innerText();

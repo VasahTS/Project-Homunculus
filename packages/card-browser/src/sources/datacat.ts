@@ -3,7 +3,7 @@
 // checked live on 2026-11-02. Daniel chose to include it knowing its cards are extracted from JanitorAI (D-081); a card whose
 // creator turned downloads off on DataCat is not added. CLAUDE (T-011b).
 import type { CardItem, CardSource, SiteTransport } from "../types.ts";
-import { askImage, askJson, buildCard, list, num, plain, text, withoutExcluded } from "../build.ts";
+import { askImage, askJson, buildCard, detailsFromCard, list, num, plain, text, withoutExcluded } from "../build.ts";
 import { SiteError } from "../pauses.ts";
 
 const API = "https://datacat.run";
@@ -50,6 +50,30 @@ type Row = { characterId?: string; character_id?: string; id?: string; name?: st
   avatar?: string; avatarDisplayUrl?: string; avatarVariantUrls?: { thumb?: string }; totalTokens?: number; total_tokens?: number; stats?: { chat?: number }; tags?: unknown; custom_tags?: unknown };
 const rowId = (r: Row) => r.characterId || r.character_id || r.id || "";
 
+// Some DataCat records have personality:null but a complete embedded V2 definition. Use one mapping for preview and import.
+// Only card fields are copied: request payloads, captured chats and account configuration are not card data. CODEX, 2026-11-03.
+const record = (v: unknown): Record<string, unknown> | undefined => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : undefined;
+function definition(c: Record<string, unknown>, item: CardItem): Record<string, unknown> {
+  let embedded = c.chara_card_v2_json;
+  if (typeof embedded === "string") { try { embedded = JSON.parse(embedded); } catch { embedded = undefined; } }
+  const d = record(record(embedded)?.data) ?? {};
+  // Empty canonical text is intentional; a missing or invalid field can still use the legacy representation.
+  const value = (key: string, fallback?: unknown) => typeof d[key] === "string" ? d[key] : typeof fallback === "string" ? fallback : "";
+  const first = value("first_mes", c.first_message ?? c.firstMessage);
+  const tags = list(d.tags).length ? list(d.tags).map(tagName) : [...list(c.tags).map(tagName), ...list(c.custom_tags)];
+  return buildCard({
+    name: text(d.name) || text(c.name) || text(c.chat_name) || item.name,
+    description: text(d.description) ? d.description : c.personality,
+    personality: value("personality"), scenario: value("scenario", c.scenario), first_mes: first,
+    mes_example: value("mes_example", c.mes_example ?? c.example_dialogs), creator_notes: value("creator_notes", plain(c.description)),
+    system_prompt: value("system_prompt", c.system_prompt), post_history_instructions: value("post_history_instructions", c.post_history_instructions),
+    alternate_greetings: list(Array.isArray(d.alternate_greetings) ? d.alternate_greetings : c.alternate_greetings ?? c.alternateGreetings).filter((g) => g !== text(first)),
+    tags: tags.filter(Boolean), creator: text(d.creator) || text(c.creator_name) || item.creator,
+    character_version: value("character_version"), character_book: d.character_book,
+    extensions: { ...record(d.extensions), datacat: { ...record(record(d.extensions)?.datacat), id: item.id } },
+  });
+}
+
 export const datacat: CardSource = {
   id: "datacat", name: "DataCat", site: API,
   sorts: [{ id: "relevance", label: "Relevance" }, { id: "fresh", label: "Fresh (Last 24h)" }], defaultSort: "relevance",
@@ -90,32 +114,15 @@ export const datacat: CardSource = {
     return { items: withoutExcluded(shown, q.exclude), total, hasMore };
   },
   async details(item, t) {
-    const c = await character(item, t);
-    const greetings = list(c.alternate_greetings ?? c.alternateGreetings).filter((g) => g !== text(c.first_message));
-    return {
-      description: text(c.personality), personality: "", scenario: text(c.scenario), firstMessage: text(c.first_message ?? c.firstMessage),
-      alternateGreetings: greetings, exampleDialogue: text(c.mes_example ?? c.example_dialogs), creatorNotes: plain(c.description),
-      systemPrompt: "", postHistory: "", hasLorebook: false,
-      tags: [...list(c.tags).map(tagName), ...list(c.custom_tags)].filter(Boolean),
-    };
+    return detailsFromCard(definition(await character(item, t), item));
   },
   async download(item, t) {
     const c = await character(item, t);
     if (c.downloadsDisabled || c.downloads_disabled || c.deletedByCreatorPolicy || c.deleted_by_creator_policy) {
       throw new SiteError("The creator turned off downloads of this card on DataCat.", "datacat", "data");
     }
-    const first = text(c.first_message ?? c.firstMessage);
     const avatar = await askImage(t, "datacat:avatar", datacatAvatarUrl(c.avatarDisplayUrl ?? c.avatar) || item.thumb, HEADERS);
-    return {
-      kind: "json", avatar,
-      card: buildCard({
-        name: text(c.name) || text(c.chat_name) || item.name, description: c.personality, scenario: c.scenario, first_mes: first,
-        mes_example: c.mes_example ?? c.example_dialogs, creator_notes: plain(c.description),
-        alternate_greetings: list(c.alternate_greetings ?? c.alternateGreetings).filter((g) => g !== first),
-        tags: [...list(c.tags).map(tagName), ...list(c.custom_tags)].filter(Boolean), creator: text(c.creator_name) || item.creator,
-        extensions: { datacat: { id: item.id } },
-      }),
-    };
+    return { kind: "json", avatar, card: definition(c, item) };
   },
 };
 async function character(item: CardItem, t: SiteTransport): Promise<Record<string, unknown>> {

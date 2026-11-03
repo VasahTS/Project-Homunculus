@@ -78,6 +78,7 @@ test("a rewrite leaves a quiet mark beside the name, with Undo", async ({ page }
   await expect(mark).toBeVisible({ timeout: 15_000 });
   await expect(reply.locator(".text")).toContainText("Offline test AI");
   await mark.click();
+  await page.getByRole("button", { name: "See changes", exact: true }).click();
   await page.getByTestId("diff-sheet").getByRole("button", { name: "Undo All" }).click();
   await expect(reply.locator(".text")).toContainText("You said: Hello again.");
   await expect(reply.getByTestId("mark-rewrite")).toHaveCount(0);
@@ -140,6 +141,7 @@ test("a rewrite opens a word-by-word comparison; putting one change back saves t
   await send(page, "Hello again.");
   const reply = page.getByTestId("message").last();
   await reply.getByTestId("mark-rewrite").click();
+  await page.getByRole("button", { name: "See changes", exact: true }).click();
   const sheet = page.getByTestId("diff-sheet");
   await expect(sheet.locator(".df-del").first()).toBeVisible();
   await expect(sheet.locator(".df-ins").first()).toContainText("Offline test AI");

@@ -2,13 +2,14 @@
 // Scene = trackers at the message on screen · Prompt = connection, preset and sampling · Reply = the receipt of one reply.
 // New tabs (Agents, Notes…) plug in here. 2026-10-28 (D-023): the tab body slides in from the side of the tab you came from.
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { Segmented } from "./kit.tsx";
+import { Icon, IconButton, Segmented } from "./kit.tsx";
 import { CASCADE, EASE_OUT, enter, reducedMotion } from "./motion.ts";
 
 export type InspectorTab = "scene" | "prompt" | "reply";
 const ORDER: InspectorTab[] = ["scene", "prompt", "reply"];
 
-export function Inspector({ tab, onTab, scene, prompt, reply }: {
+export function Inspector({ tab, onTab, scene, prompt, reply, onClose }: {
+  onClose?: () => void;
   tab: InspectorTab; onTab: (t: InspectorTab) => void; scene: ReactNode; prompt: ReactNode; reply: ReactNode;
 }) {
   const body = useRef<HTMLDivElement>(null);
@@ -25,7 +26,7 @@ export function Inspector({ tab, onTab, scene, prompt, reply }: {
   }, [tab]);
   return (
     <aside className="inspector glass" aria-label="Inspector" data-region="inspector">
-      <div className="inspector-tabs">
+      <div className="inspector-tabs">{onClose && <IconButton className="inspector-overlay-close" label="Close Inspector" onClick={onClose}><Icon name="close" size={14} /></IconButton>}
         <Segmented tabs label="Inspector" value={tab} onChange={onTab} options={[
           { value: "scene", label: "Scene", testId: "tab-scene" },
           { value: "prompt", label: "Prompt", testId: "tab-prompt" },

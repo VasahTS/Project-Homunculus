@@ -20,6 +20,7 @@ export interface ResolvedSetup {
   personaId: string | null;
   personaVariantId: string | null;
   connectionId: string | null;
+  modelOverride: string;
   /** Connection for agents without their own (null = the main one). */
   agentConnectionId: string | null;
   lorebooks: string[];
@@ -68,12 +69,12 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
     ["builtin", builtin], ["default", layers.default], ["story", layers.story], ["session", layers.session],
   ];
   const out: ResolvedSetup = {
-    presetId: null, personaId: null, personaVariantId: null, connectionId: null, agentConnectionId: null,
+    presetId: null, personaId: null, personaVariantId: null, connectionId: null, modelOverride: "", agentConnectionId: null,
     presetOverrides: Object.create(null), narratorPrompt: { ...NARRATOR_PROMPT_DEFAULTS },
     lorebooks: [], agents: [], regexOff: [], agentOverrides: {}, storyStyle: {}, turnOrder: "natural",
     trackersOnSwipe: true, limits: {}, extra: {}, authorsNote: { ...AUTHORS_NOTE_DEFAULTS }, memory: { ...MEMORY_DEFAULTS }, sources: {},
   };
-  const scalars = ["presetId", "personaId", "personaVariantId", "connectionId", "agentConnectionId", "turnOrder", "trackersOnSwipe"] as const;
+  const scalars = ["presetId", "personaId", "personaVariantId", "connectionId", "modelOverride", "agentConnectionId", "turnOrder", "trackersOnSwipe"] as const;
 
   for (const [level, layer] of ordered) {
     if (!layer) continue;

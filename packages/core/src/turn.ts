@@ -21,6 +21,9 @@ import { applyPresetOverride } from "./prompt-control.ts";
 import { buildPrompt, DEFAULT_PRESET, presetParams, squashSystem, toTurns, type BuiltPrompt, type PromptInjection } from "./presets.ts";
 import { applyRegexScripts, orderRegexScripts, regexKey, regexScriptsOf, type RegexRunContext } from "./regex.ts";
 
+// A chat-specific model never mutates the shared profile. CODEX.
+const chatModel = (connection: ConnectionConfig, setup: { modelOverride: string }): ConnectionConfig => setup.modelOverride ? { ...connection, model: setup.modelOverride } : connection;
+
 type RegexOwner = { regexScripts?: RegexScript[] | undefined; original?: unknown };
 
 /** Connection choices for one read-only editor test. CODEX, D-053. */
@@ -112,6 +115,7 @@ export class TurnPipeline {
         const p = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
         if (!p) return "";
         const e = effectivePersona(p, setup.personaVariantId);
+        if (e.placement.position === "none") return ""; // Not sent also excludes separate agent calls. CODEX.
         return e.description.trim() ? `${e.name}: ${applyBasicMacros(e.description, { char: e.name, user: e.name })}` : e.name;
       },
     });
@@ -128,7 +132,7 @@ export class TurnPipeline {
     if (!session) throw new Error(`Session "${req.sessionId}" not found`);
     const setup = await this.setupFor(session);
     const preset = await this.presetFor(setup.presetId, setup);
-    const main = withPresetParams((setup.connectionId ? req.connections?.[setup.connectionId] : undefined) ?? req.connection, preset);
+    const main = withPresetParams(chatModel((setup.connectionId ? req.connections?.[setup.connectionId] : undefined) ?? req.connection, setup), preset);
     if (!this.core.providers.get(main.providerId)) throw new Error(`No AI provider "${main.providerId}" is installed`);
 
     // 2. agents, names
@@ -203,7 +207,7 @@ export class TurnPipeline {
       : Promise.resolve([] as AgentOutcome[]);
     let text = "";
     let reasoning = "";
-    const usage: { tokensIn?: number; tokensOut?: number; cost?: number } = {};
+    const usage: { tokensIn?: number; tokensOut?: number; tokensReasoning?: number; cost?: number } = {};
     try {
       for await (const chunk of this.core.connections.stream(main, toTurns(preset.squashSystem ? squashSystem(prompt) : prompt), req.signal)) {
         if (typeof chunk === "string") { text += chunk; req.onToken?.(chunk, text); }
@@ -391,7 +395,7 @@ export class TurnPipeline {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
-    const main = (setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection;
+    const main = chatModel((setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection, setup);
     return this.summarize(session, setup, messageId, main, connections, { min: 2, signal });
   }
 
@@ -455,7 +459,7 @@ export class TurnPipeline {
     const names = { char: character?.name ?? "Narrator", user, bySpeaker: (m: Message) =>
       m.speaker.kind === "user" ? user : m.speaker.kind === "character" ? namesById.get(m.speaker.characterId) ?? "Character"
         : m.speaker.kind === "narrator" ? narrator : "System" };
-    const main = (setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection;
+    const main = chatModel((setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection, setup);
     const trigger = config.output === "inject" || config.output === "intercept"
       || config.triggers.some((t) => t.on === "turn" && t.phase === "before") ? "turn.before" : "turn.after";
     const runs = (await this.store.listAgentRuns(messageId)).filter((run) => run.status === "ok").sort((a, b) => a.startedAt - b.startedAt);
@@ -481,7 +485,7 @@ export class TurnPipeline {
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const user = (persona ? effectivePersona(persona, setup.personaVariantId).name : undefined) ?? DEFAULT_USER_NAME;
     const names = { char: speaking.character?.name ?? "Narrator", user, bySpeaker: (x: Message) => this.nameOf(x, user) };
-    const main = (setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection;
+    const main = chatModel((setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection, setup);
     return this.runner.runOne(entry, {
       session, setup, trigger: "manual", generationType: "normal", messageId, text: m.content, mainConnection: main, connections,
       names, seed: m.parentId ?? sessionId, results: new Map(), signal, ...(options.direction?.trim() ? { direction: options.direction } : {}),
@@ -498,7 +502,7 @@ export class TurnPipeline {
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
     const preset = await this.presetFor(setup.presetId, setup);
-    const main = withPresetParams((setup.connectionId ? options.connections?.[setup.connectionId] : undefined) ?? connection, preset);
+    const main = withPresetParams(chatModel((setup.connectionId ? options.connections?.[setup.connectionId] : undefined) ?? connection, setup), preset);
     const entries = await this.runner.enabledAgents(setup);
     const speaking = await this.pickSpeaker(session);
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;

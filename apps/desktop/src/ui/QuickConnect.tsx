@@ -1,7 +1,7 @@
 // Homunculus 2 — Quick Connection (from Homunculus v1 `classic-quick-connect.js`; canvas "Homunculus 2 — Quick Connection
 // & Quick Replies"). Author: CLAUDE, 2026-10-29.
 // A link button in the message box opens a menu over it: saved connections on the left (a click uses one in this chat),
-// the models of that connection on the right (a click uses one and saves it into the connection). Models can be pinned
+// the models of that connection on the right (a click uses one in this chat only (CODEX, 2026-11-03)). Models can be pinned
 // with a star; a typed ID that is not listed can be used too; Manage opens Settings → Connections.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -14,8 +14,8 @@ import { Button, Icon, IconButton } from "./kit.tsx";
 import { cachedModels, rememberModels } from "./ModelPicker.tsx";
 
 const HELP = "Switch the AI without leaving the chat. Left: your saved connections; a click uses one in this chat "
-  + "(the Prompt tab shows the same choice). Right: the models of that connection; a click uses one and saves it into the "
-  + "connection, so every chat that uses it gets it. Star a model to keep it on top. Type an ID that is not listed and press "
+  + "(the Prompt tab shows the same choice). Right: the models of that connection; a click uses one in this "
+  + "chat only. Shared connections stay unchanged. Star a model to keep it on top. Type an ID that is not listed and press "
   + "Enter to use it. Manage opens Settings → Connections.";
 
 const PINS = "quickConnectPins";
@@ -35,7 +35,7 @@ export interface QuickConnectTarget {
   footnote: string;
 }
 
-/** The Quick Connection button of a Play chat: a connection is used in this chat; a model is saved into its connection. */
+/** The Quick Connection button of a Play chat: a connection is used in this chat; a model is used in this chat only (CODEX, 2026-11-03). */
 export function QuickConnect({ svc, c, session, storySetup, listModels, onChangeSession, onManage }: {
   svc: AppServices;
   c: ConnectionState;
@@ -47,20 +47,21 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
   onManage: () => void;
 }) {
   const current = c.storyProfileFor(session, storySetup);
+  const currentModel = (session.setup.modelOverride ?? storySetup?.modelOverride) || current?.model;
   const target: QuickConnectTarget = {
+    currentModel,
     current,
-    footnote: "A connection you pick is used in this chat. A model you pick is saved into its connection.",
+    footnote: "Used in this chat only. Edit shared connections in Settings.",
     useProfile: (p) => {
       const inherited = storySetup?.connectionId ?? c.defaultId;
       if (session.setup.connectionId !== (p.id === inherited ? undefined : p.id)) {
-        const setup = { ...session.setup };
+        const setup = { ...session.setup, modelOverride: "" };
         if (p.id === inherited) delete setup.connectionId; else setup.connectionId = p.id;
         onChangeSession({ ...session, setup });
       }
     },
     useModel: async (p, model) => {
-      if (p.id !== current?.id) target.useProfile(p);
-      if (p.model !== model) await c.save({ ...p, model });
+      await onChangeSession({ ...session, setup: { ...session.setup, connectionId: p.id, modelOverride: model } });
     },
   };
   return (
@@ -69,7 +70,7 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
         <button type="button" className={`asst-model-btn qc-under${open ? " on" : ""}`} aria-expanded={open} data-testid="quick-connect"
           aria-label={current ? `Quick Connection: ${current.name}${current.model ? ` (${current.model})` : ""}` : "Quick Connection: switch connection and model"}
           title="Switch the connection or the model" onClick={toggle}>
-          {current ? (current.providerId === "offline-test" ? current.name : (current.model || current.name).split("/").pop()) : "No connection"}
+          {current ? (current.providerId === "offline-test" ? current.name : (currentModel || current.name).split("/").pop()) : "No connection"}
         </button>
       )} />
   );

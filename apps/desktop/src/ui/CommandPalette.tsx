@@ -4,17 +4,28 @@
 // the places and the Library sections. Keys: type to search, ↑/↓ to move, Enter to open, Esc to close.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { useModalFocus } from "./ux.tsx";
 import { Icon } from "./kit.tsx";
 import { paletteResults, type PaletteItem } from "../palette.ts";
 
 export type { PaletteItem };
 
-export function CommandPalette({ items, groupOrder, onClose }: { items: PaletteItem[]; groupOrder: string[]; onClose: () => void }) {
+export function CommandPalette({ items, groupOrder, onClose, searchMessages }: { items: PaletteItem[]; groupOrder: string[]; onClose: () => void; searchMessages?: (q: string) => Promise<PaletteItem[]> }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  useModalFocus(dialog, onClose);
   const [q, setQ] = useState("");
   const [cursor, setCursor] = useState(0);
   const box = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const shown = useMemo(() => paletteResults(items, groupOrder, q), [items, groupOrder, q]);
+  const [found, setFound] = useState<{ q: string; items: PaletteItem[] }>({ q: "", items: [] });
+  const [searchError, setSearchError] = useState("");
+  useEffect(() => {
+    let current = true; const term = q.trim(); setSearchError("");
+    if (!term || !searchMessages) return;
+    const timer = setTimeout(() => { void searchMessages(term).then(items => { if (current) setFound({ q: term, items }); }, () => { if (current) setSearchError("Could not search messages. Try again."); }); }, 180);
+    return () => { current = false; clearTimeout(timer); };
+  }, [q, searchMessages]);
+  const shown = useMemo(() => paletteResults([...items, ...(found.q === q.trim() ? found.items : [])], groupOrder, q), [items, groupOrder, q, found]);
 
   useEffect(() => { box.current?.focus(); }, []);
   useEffect(() => { setCursor(0); }, [q]);
@@ -40,7 +51,7 @@ export function CommandPalette({ items, groupOrder, onClose }: { items: PaletteI
   return createPortal(
     <div className="sheet-layer palette-layer" data-region="palette">
       <div className="sheet-scrim" onClick={onClose} />
-      <div className="palette glass" role="dialog" aria-modal="true" aria-label="Open anything" data-testid="palette">
+      <div ref={dialog} tabIndex={-1} className="palette glass" role="dialog" aria-modal="true" aria-label="Open anything" data-testid="palette">
         <label className="palette-search">
           <Icon name="search" size={16} />
           <input ref={box} role="combobox" aria-label="Open anything" aria-expanded="true" aria-controls="palette-results"
@@ -62,6 +73,7 @@ export function CommandPalette({ items, groupOrder, onClose }: { items: PaletteI
               ))}
             </div>
           ))}
+          {searchError && <p role="alert">{searchError}</p>}
           {shown.length === 0 && <p className="palette-empty">Nothing matches “{q.trim()}”.</p>}
         </div>
         <footer className="palette-foot" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></footer>

@@ -10,6 +10,7 @@ import type { AgentConfig, AgentNote, AgentRun, MessageRevision } from "@homuncu
 import type { AppServices } from "../core-instance.ts";
 import { extractJson } from "@homunculus/core";
 import { diffWords, mergeParts } from "../diff.ts";
+import { rewriteGroups } from "../rewrite-history.ts";
 import { useFloatingMenu } from "./FloatingMenu.ts";
 import { Segmented } from "./kit.tsx";
 import { Modal } from "./Vault.tsx";
@@ -52,11 +53,6 @@ const warn = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke=
 // ---------------------------------------------------------------- marks beside the speaker's name
 
 const displayOf = (agents: AgentConfig[], id: string) => agents.find((a) => a.id === id)?.display;
-/** The newest agent rewrite still on the message (an Undo or an edit adds a user revision after it). */
-export function lastRewrite(results: MessageAgentResults | undefined): MessageRevision | undefined {
-  const last = [...(results?.revisions ?? [])].sort((a, b) => a.createdAt - b.createdAt).at(-1);
-  return last?.author.kind === "agent" ? last : undefined;
-}
 const failedChecks = (results: MessageAgentResults | undefined, agents: AgentConfig[]) => (results?.runs ?? []).filter((r) => r.status === "ok"
   && agents.find((a) => a.id === r.agentId)?.output === "check" && (r.output as { pass?: boolean } | undefined)?.pass === false);
 
@@ -69,21 +65,32 @@ export function AgentMarks({ results, agents, current, canWriteAgain, onSaveText
   onSaveText: (text: string) => void; onWriteAgain: () => void;
 }) {
   const name = (id: string) => agents.find((a) => a.id === id)?.name ?? id;
-  const rewrite = lastRewrite(results);
-  const rewriter = rewrite ? (rewrite.author as { agentId: string }).agentId : "";
-  const showRewrite = rewrite && (displayOf(agents, rewriter)?.rewrite ?? "mark") === "mark";
+  // CODEX: every agent keeps its own saved before/after; only the current final step can edit the message.
+  const history = useMemo(() => rewriteGroups(results?.revisions ?? [], current), [results?.revisions, current]);
+  const rewrites = history.filter((g) => (displayOf(agents, g.agentId)?.rewrite ?? "mark") === "mark");
   const failed = failedChecks(results, agents).filter((r) => (displayOf(agents, r.agentId)?.check ?? "mark") === "mark");
   const [ignored, setIgnored] = useState(false);
-  const [comparing, setComparing] = useState(false);
-  if (!showRewrite && (!failed.length || ignored)) return null;
+  const [comparing, setComparing] = useState<string | null>(null);
+  const group = rewrites.find((g) => g.revisions.some((r) => r.id === comparing));
+  const selected = group?.revisions.find((r) => r.id === comparing);
+  const editable = !!selected && !!group?.current && selected === group.revisions.at(-1) && selected.after === current;
+  if (!rewrites.length && (!failed.length || ignored)) return null;
   return (
     <span className="ag-marks">
-      {showRewrite && <>
-        <button type="button" className="mk" aria-label={`Rewritten by ${name(rewriter)}: see the changes`} title={`Rewritten by ${name(rewriter)} · see the changes`}
-          data-testid="mark-rewrite" onClick={() => setComparing(true)}>{pen}polished</button>
-        {comparing && <DiffSheet who={name(rewriter)} before={rewrite!.before} after={current}
-          onSave={(t) => { setComparing(false); onSaveText(t); }} onClose={() => setComparing(false)} />}
-      </>}
+      {rewrites.map((g) => <MarkPop key={g.agentId} label={`Rewrites by ${name(g.agentId)}`} className="mk rewrite-mark" icon={pen}
+        text={<><span className="rewrite-name">{name(g.agentId)}</span>{g.revisions.length > 1 && <span className="rewrite-count">{g.revisions.length}</span>}</>}
+        testId="mark-rewrite" popClassName="rewrite-pop" height={Math.min(360, 92 + g.revisions.length * 32)}>
+        {(close) => <>
+          <b>{name(g.agentId)}</b>
+          <span className="rewrite-steps">{g.revisions.map((revision, i) => <button key={revision.id} type="button" className="link"
+            onClick={() => { close(); setComparing(revision.id); }}>{g.revisions.length === 1 ? "See changes" : `See rewrite ${i + 1}`}</button>)}</span>
+          {g.current ? <span className="mk-acts"><button type="button" className="link"
+            onClick={() => { close(); onSaveText(g.revisions.at(-1)!.before); }}>Undo rewrite</button></span>
+            : <span className="hint">Later rewrites are kept in the chat.</span>}
+        </>}
+      </MarkPop>)}
+      {selected && group && <DiffSheet key={selected.id} who={name(group.agentId)} before={selected.before} after={selected.after}
+        onSave={editable ? (t) => { setComparing(null); onSaveText(t); } : undefined} onClose={() => setComparing(null)} />}
       {failed.length > 0 && !ignored && (
         <MarkPop label={`${failed.length} check${failed.length === 1 ? "" : "s"} failed`} className="mk warn" icon={warn} text={String(failed.length)} testId="mark-check">
           {(close) => <>
@@ -121,7 +128,7 @@ type DiffView = "changes" | "side" | "before" | "after";
 
 /** Word-by-word comparison of a rewrite (Daniel, 10/30: "see clearly what changed and compare the two texts"). */
 export function DiffSheet({ who, before, after, onSave, onClose }: {
-  who: string; before: string; after: string; onSave: (text: string) => void; onClose: () => void;
+  who: string; before: string; after: string; onSave?: (text: string) => void; onClose: () => void;
 }) {
   const parts = useMemo(() => diffWords(before, after), [before, after]);
   const changes = parts.filter((p) => p.kind === "change").length;
@@ -137,12 +144,12 @@ export function DiffSheet({ who, before, after, onSave, onClose }: {
       head={<span className="hint">{changes === 1 ? "1 change" : `${changes} changes`}{kept.size ? ` · ${kept.size} put back` : ""}</span>}>
       <Segmented small tabs label="Compare" value={view} onChange={setView} options={[
         { value: "changes", label: "Changes" }, { value: "side", label: "Side by Side" }, { value: "before", label: "Original" }, { value: "after", label: "Rewritten" }]} />
-      <div className="df-body">
+      <div className="df-body" data-editable={!!onSave}>
         {view === "changes" && <div className="df-text">{parts.map((p, i) => p.kind === "same" ? <span key={i}>{p.text}</span> : (
-          <span key={i} className={`df-chg${kept.has(p.id) ? " kept" : ""}`} role="button" tabIndex={0}
-            aria-label={kept.has(p.id) ? "Use the rewritten words" : "Put the original words back"}
-            title={kept.has(p.id) ? "Click to use the rewritten words" : "Click to put the original words back"}
-            onClick={() => toggle(p.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(p.id); } }}>
+          <span key={i} className={`df-chg${kept.has(p.id) ? " kept" : ""}`} role={onSave ? "button" : undefined} tabIndex={onSave ? 0 : undefined}
+            aria-label={onSave ? (kept.has(p.id) ? "Use the rewritten words" : "Put the original words back") : undefined}
+            title={onSave ? (kept.has(p.id) ? "Click to use the rewritten words" : "Click to put the original words back") : undefined}
+            onClick={onSave ? () => toggle(p.id) : undefined} onKeyDown={(e) => { if (onSave && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggle(p.id); } }}>
             {kept.has(p.id) ? <span className="df-back">{p.before}</span> : <>{p.before && <del className="df-del">{p.before}</del>}{p.after && <ins className="df-ins">{p.after}</ins>}</>}
           </span>))}</div>}
         {view === "side" && <div className="df-side"><div><h5>Original</h5><div className="df-text">{side("before")}</div></div><div><h5>Rewritten</h5><div className="df-text">{side("after")}</div></div></div>}
@@ -150,9 +157,10 @@ export function DiffSheet({ who, before, after, onSave, onClose }: {
         {view === "after" && <div className="df-text">{after}</div>}
       </div>
       <div className="modal-foot">
-        <span className="hint grow">{view === "changes" ? "Click a change to put the original words back just there (click again to undo)." : "The rewritten text is the one in the chat; the original is kept."}</span>
-        <button type="button" className="btn btn-bordered btn-small" onClick={() => onSave(before)}>Undo All</button>
-        {kept.size > 0
+        <span className="hint grow">{!onSave ? "This is this agent's saved rewrite. Later changes remain in the chat."
+          : view === "changes" ? "Click a change to put the original words back just there (click again to undo)." : "The rewritten text is the one in the chat; the original is kept."}</span>
+        {onSave && <button type="button" className="btn btn-bordered btn-small" onClick={() => onSave(before)}>Undo All</button>}
+        {onSave && kept.size > 0
           ? <button type="button" className="btn btn-prominent btn-small" onClick={() => onSave(result)}>Save {kept.size} put back</button>
           : <button type="button" className="btn btn-prominent btn-small" onClick={onClose}>Done</button>}
       </div>
@@ -160,16 +168,30 @@ export function DiffSheet({ who, before, after, onSave, onClose }: {
   );
 }
 
-function MarkPop({ label, className, icon, text, testId, children }: {
-  label: string; className: string; icon: ReactNode; text: string; testId: string; children: (close: () => void) => ReactNode;
+function MarkPop({ label, className, icon, text, testId, children, popClassName = "", height = 180 }: {
+  label: string; className: string; icon: ReactNode; text: ReactNode; testId: string; children: (close: () => void) => ReactNode;
+  popClassName?: string; height?: number;
 }) {
-  const m = useFloatingMenu(180, 320, "button, summary");
+  const m = useFloatingMenu(height, 320, ".mk-pop button, .mk-pop summary");
+  // CODEX: the story's mask/scrollport clips fixed descendants, so viewport bounds alone are insufficient.
+  const placement = (() => {
+    const story = m.box.current?.closest<HTMLElement>(".story");
+    if (!m.pos || !popClassName || !story) return m.pos ?? undefined;
+    const bounds = story.getBoundingClientRect();
+    const right = Math.min(innerWidth, bounds.left + story.clientWidth);
+    const bottom = Math.min(innerHeight, bounds.top + story.clientHeight);
+    const width = Math.max(24, Math.min(320, right - bounds.left - 16));
+    const minTop = bounds.top + 24;
+    const top = Math.max(minTop, Math.min(m.pos.top, bottom - Math.min(height, bottom - minTop - 8) - 8));
+    return { top, left: Math.max(bounds.left + 8, Math.min(m.pos.left, right - width - 8)), width,
+      maxHeight: Math.max(24, Math.min(360, bottom - top - 8)) };
+  })();
   return (
     <span className="ag-mark" ref={m.box} onKeyDown={m.onKeyDown} onBlur={m.onBlur}>
       <button type="button" className={className} aria-haspopup="dialog" aria-expanded={m.open} aria-label={label} title={label} data-testid={testId}
         onClick={() => m.setOpen((v) => !v)}>{icon}{text}</button>
       {m.open && m.pos && (
-        <span className="mk-pop" role="dialog" aria-label={label} style={{ top: m.pos.top, left: m.pos.left }}>{children(() => m.setOpen(false))}</span>
+        <span className={`mk-pop ${popClassName}`.trim()} role="dialog" aria-label={label} style={placement}>{children(() => m.setOpen(false))}</span>
       )}
     </span>
   );

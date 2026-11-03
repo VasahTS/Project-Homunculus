@@ -148,7 +148,7 @@ export async function saveTracker(store: SqlStore, d: TrackerDraft): Promise<Tra
     triggers: previous?.triggers ?? [{ on: "turn", phase: "after" }],
     output: "state",
     runMode: previous?.runMode ?? "separate",
-    input: { ...(previous?.input ?? { lorebooks: false, cards: true, state: [d.id], readsAgents: [] }), messages: Math.max(0, Math.round(d.messages)) },
+    input: { ...(previous?.input ?? { lorebooks: false, cards: true, persona: true, state: [d.id], readsAgents: [] }), messages: Math.max(0, Math.round(d.messages)) },
     state: { namespace: d.id, schemaId: d.sets.some((s) => s.id === d.defaultSetId) ? d.defaultSetId : d.sets[0]!.id },
     source: previous?.source ?? { kind: "user" },
   });
@@ -263,6 +263,7 @@ export async function installStarterTrackers(store: SqlStore): Promise<void> {
   await addStarterOrder(store);
   await addStarterNotes(store);
   await addStarterBrevity(store);
+  await addStarterPersona(store);
 }
 
 const LOOK_KEY = "starterTrackersLook";
@@ -421,4 +422,14 @@ async function addStarterBrevity(store: SqlStore): Promise<void> {
     }
   }
   await store.setAppSetting(BREVITY_KEY, BREVITY_VERSION);
+}
+
+/** Repair the bundled trackers' missing persona source once, using their existing version. CODEX. */
+async function addStarterPersona(store: SqlStore): Promise<void> {
+  for (const t of starter.trackers) {
+    if (!t.agent.input.persona) continue;
+    const saved = await store.agentConfigs.get(t.agent.id);
+    if (!saved || saved.source.kind !== "builtin" || saved.source.from !== t.agent.source.from || saved.version >= t.agent.version) continue;
+    await store.saveAgentConfig({ ...saved, version: t.agent.version, input: { ...saved.input, persona: true } });
+  }
 }

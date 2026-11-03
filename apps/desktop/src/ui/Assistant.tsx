@@ -1,6 +1,9 @@
 // Homunculus 2 — the Assistant mode: its sidebar, the conversation, Add context and Customize (D-062).
 // Author: CLAUDE, 2026-11-01. Draft: docs/drafts/library-assistant/index.html (round 3); plan: docs/UI-PLAN.md.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useDraft, useSendKey } from "./ux.tsx";
+import { createAssistantRuntime } from "../assistant/runtime.ts";
+import { deleteMessage, forkAt, pathsOf, selectPath, versionsOf } from "../assistant/history.ts";
 import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
@@ -10,7 +13,7 @@ import { AssistantDetails } from "./AssistantDetails.tsx";
 import { AssistantMark } from "./AssistantMark.tsx";
 import { saveExport } from "../files.ts";
 import type { RichTurn } from "@homunculus/core";
-import { applyChange, applyTrash, approveNew, createItem, currentOf, getItem, redoMove, splitRef, undoCreate, undoMove } from "../assistant/tools.ts";
+import { applyChange, applyTrash, approveNew, redoMove, saveDraftItem, undoCreate, undoMove } from "../assistant/tools.ts";
 import { DRAFT_BLOCK, GUIDES } from "../assistant/guides.ts";
 import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
@@ -41,15 +44,16 @@ const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "narrator", "np
 // ------------------------------------------------------------------ state shared by the sidebar and the view
 
 export function useAssistant(svc: AppServices | null) {
+  const [runtime] = useState(createAssistantRuntime);
   const [chats, setChats] = useState<ChatRow[]>([]);
   const [activeId, setActiveIdRaw] = useState<string | null>(null);
   const [page, setPageRaw] = useState<"chat" | "customize">("chat");
   const [custTab, setCustTab] = useState<"assistants" | "presets" | "limits" | "usage">("assistants");
   const setPage = useCallback((p: "chat" | "customize", tab?: "assistants" | "presets" | "limits" | "usage") => { if (tab) setCustTab(tab); setPageRaw(p); }, []);
-  const setActiveId = useCallback((id: string | null) => { setActiveIdRaw(id); setPageRaw("chat"); }, []);
+  const setActiveId = useCallback((id: string | null) => { if (runtime.selectedId.current !== id) runtime.setError(""); runtime.selectedId.current = id; setActiveIdRaw(id); setPageRaw("chat"); }, [runtime]);
   const reload = useCallback(async () => { if (svc) setChats(await listChats(svc.store)); }, [svc]);
   useEffect(() => { void reload(); }, [reload]);
-  return { chats, activeId, setActiveId, reload, page, setPage, custTab, svc };
+  return { chats, activeId, setActiveId, reload, page, setPage, custTab, svc, runtime };
 }
 export type AssistantState = ReturnType<typeof useAssistant>;
 
@@ -131,45 +135,60 @@ const QUICK: Array<{ title: string; text: string; prompt: string }> = [
   { title: "Make a narrator", text: "How your stories are told: voice, rules, pacing.", prompt: "Make a narrator that " },
 ];
 
-export function AssistantView({ svc, st, connection, library, userName, lead, onOpenItem, onStartKit, onChanged, listModels, onManageConnections }: {
+export function AssistantView({ svc, st, connection, library, userName, lead, onOpenItem, onStartKit, onChanged, listModels, onManageConnections, focusMessageId = null }: {
   svc: AppServices; st: AssistantState; connection: ConnectionState; library: LibraryEntry[]; userName: string; lead: ReactNode;
   /** For the model switch under the message box (Quick Connection, D-077). */
   listModels: (config: ConnectionConfig, signal: AbortSignal) => Promise<ModelInfo[]>; onManageConnections: () => void;
   onOpenItem: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void;
   /** Library items were made or changed (App reloads its lists). */
+  focusMessageId?: string | null;
   onChanged: () => void;
 }) {
-  const [chat, setChat] = useState<AssistantChat | null>(null);
-  const [live, setLive] = useState<AssistantMessage | null>(null);
-  const [text, setText] = useState("");
-  const [atts, setAtts] = useState<AssistantAttachment[]>([]);
+  const { chat, live, error, compacting } = useSyncExternalStore(st.runtime.subscribe, st.runtime.getSnapshot);
+  const { setChat, setLive, setError, setCompacting, abort, runningId, runningChat, selectedId } = st.runtime;
+  const [compose, setCompose] = useDraft<{ text: string; atts: AssistantAttachment[] }>(`assistant:${st.activeId ?? "new"}`, { text: "", atts: [] });
+  const { text, atts } = compose;
+  const setText = (text: string) => setCompose(d => ({ ...d, text }));
+  const setAtts = (next: AssistantAttachment[] | ((items: AssistantAttachment[]) => AssistantAttachment[])) => setCompose(d => ({ ...d, atts: typeof next === "function" ? next(d.atts) : next }));
+  const [savingHistory, setSavingHistory] = useState(false);
+  const [undoMessage, setUndoMessage] = useState<{ chatId: string; branch: string; message: AssistantMessage; index: number } | null>(null);
   const [picking, setPicking] = useState(false);
-  const [error, setError] = useState("");
   const [settings, setSettings] = useState<AssistantSettings | null>(null);
-  const [compacting, setCompacting] = useState(false);
   const [details, setDetailsRaw] = useState<boolean>(() => { try { return localStorage.getItem("homunculus.assistant.details") !== "off"; } catch { return true; } });
   const setDetails = (on: boolean) => { setDetailsRaw(on); try { localStorage.setItem("homunculus.assistant.details", on ? "on" : "off"); } catch { /* private window */ } };
   const [viewing, setViewing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
-  const abort = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const runningId = useRef<string | null>(null);
-  const selectedId = useRef(st.activeId);
-  selectedId.current = st.activeId;
-  const busy = live !== null;
+  const busy = live !== null || savingHistory;
+  const follow = useRef(true);
+  const lastTop = useRef(0);
+  const [away, setAway] = useState(false);
 
   useEffect(() => { void loadSettings(svc.store).then(setSettings); }, [svc]);
   useEffect(() => {
-    setError("");
-    if (st.activeId === runningId.current && runningId.current) return;
+    if (st.activeId === runningId.current && runningId.current) { setChat(runningChat.current); return; }
     let current = true;
     // keep the chat on screen while it reloads (no empty flash after a reply); another chat clears it first
     setChat((c) => (c && c.id === st.activeId ? c : null));
-    if (st.activeId) void loadChat(svc.store, st.activeId).then((c) => { if (current) setChat(c ?? null); });
+    if (st.activeId) void loadChat(svc.store, st.activeId).then((c) => { if (current) setChat(c ?? null); }).catch(e => { if (current) setError(e instanceof Error ? e.message : String(e)); });
     return () => { current = false; };
   }, [svc, st.activeId, busy]);
-  useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [chat, live]);
+  useLayoutEffect(() => { follow.current = true; lastTop.current = 0; setAway(false); }, [st.activeId]);
+  useLayoutEffect(() => { const el = scroller.current; if (el && follow.current) { el.scrollTop = el.scrollHeight; lastTop.current = el.scrollTop; } }, [chat, live]);
+  const onScroll = () => {
+    const el = scroller.current; if (!el) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 28) follow.current = true;
+    else if (el.scrollTop < lastTop.current - 1) follow.current = false;
+    lastTop.current = el.scrollTop; setAway(!follow.current);
+  };
+  const toEnd = () => { follow.current = true; setAway(false); const el = scroller.current; if (el) { el.scrollTop = el.scrollHeight; lastTop.current = el.scrollTop; } };
+
+  useLayoutEffect(() => {
+    if (!focusMessageId || !chat) return;
+    const target = scroller.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(focusMessageId)}"]`);
+    if (target) { follow.current = false; setAway(true); target.scrollIntoView({ block: "center" }); if (scroller.current) lastTop.current = scroller.current.scrollTop; }
+  }, [chat?.id, focusMessageId, chat?.activeBranchId]);
 
   // who answers, what it knows, which model: the chat's own picks (before the first message, kept here)
   const [draft, setDraft] = useState<Picks>({ assistantId: "", presetId: "" });
@@ -227,11 +246,14 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   };
 
   /** Runs a reply for a chat whose last message is the user's (send, edit and resend, regenerate). */
-  const runFrom = async (withUser: AssistantChat) => {
+  const runFrom = async (withUser: AssistantChat, accepted?: () => void) => {
+    if (runningId.current) return;
+    const before = chat;
     const r = connection.forRequest();
     if (!r.connection) { setError("Set up a connection first (Settings → Connections)."); return; }
+    setUndoMessage(null); follow.current = true; setAway(false);
     setChat(withUser); setError("");
-    runningId.current = withUser.id;
+    runningId.current = withUser.id; runningChat.current = withUser;
     selectedId.current = withUser.id;
     st.setActiveId(withUser.id);
     const ctrl = new AbortController();
@@ -239,6 +261,8 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     setLive({ id: "live", role: "assistant", text: "", reasoning: "", attachments: [], steps: [], rounds: [], results: [], createdAt: Date.now() });
     try {
       await saveChat(svc.store, withUser);
+      accepted?.();
+      void st.reload();
       let ready = withUser;
       // the context is getting full: sum up the older messages first (Details → Context)
       if (needsCompaction(ready)) {
@@ -249,8 +273,10 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       const done = await runAssistant({ core: svc.core, store: svc.store, chat: ready, main: r.connection, connections: r.connections, signal: ctrl.signal, onUpdate: setLive });
       if (selectedId.current === done.id) setChat(done);
       if (done.messages.at(-1)?.results.some((x) => x.type === "created")) onChanged();
+    } catch (e) {
+      if (selectedId.current === withUser.id) { setChat(before); st.setActiveId(before?.id ?? null); setError(e instanceof Error ? e.message : String(e)); }
     } finally {
-      setLive(null); abort.current = null; runningId.current = null; setCompacting(false);
+      setLive(null); abort.current = null; runningId.current = null; runningChat.current = null; setCompacting(false);
       void st.reload();
       void loadSettings(svc.store).then(setSettings);
     }
@@ -263,21 +289,45 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     const now = Date.now();
     const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: body, reasoning: "", attachments: atts, steps: [], rounds: [], results: [], createdAt: now };
     const base = chat ?? AssistantChat.parse({ id: crypto.randomUUID(), createdAt: now, updatedAt: now, ...draft });
-    setText(""); setAtts([]);
-    await runFrom({ ...base, messages: [...base.messages, user], updatedAt: now });
+    const captured = compose;
+    await runFrom({ ...base, messages: [...base.messages, user], updatedAt: now }, () => setCompose(current => current === captured ? { text: "", atts: [] } : { ...current, atts: current.atts.filter(a => !captured.atts.includes(a)) }));
   };
   /** Writes the last reply again (results it made stay; undo them on their cards if needed). */
+  const changeHistory = async (next: AssistantChat): Promise<boolean> => {
+    if (busy) return false;
+    setSavingHistory(true); setError("");
+    try { await saveChat(svc.store, next); if (selectedId.current === next.id) setChat(next); void st.reload(); return true; }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
+    finally { setSavingHistory(false); }
+  };
+  const branchFrom = (m: AssistantMessage) => { if (chat && !busy) { setUndoMessage(null); void changeHistory(forkAt(chat, m.id)); } };
+  const removeMessage = async (m: AssistantMessage) => {
+    if (!chat || busy) return;
+    const entry = { chatId: chat.id, branch: chat.activeBranchId ?? "main", message: m, index: chat.messages.findIndex(x => x.id === m.id) };
+    if (await changeHistory(deleteMessage(chat, m.id))) setUndoMessage(entry);
+  };
+  const undoDelete = async () => {
+    if (!chat || !undoMessage || busy || undoMessage.chatId !== chat.id || undoMessage.branch !== (chat.activeBranchId ?? "main")) return;
+    const messages = [...chat.messages]; if (!messages.some(m => m.id === undoMessage.message.id)) messages.splice(undoMessage.index, 0, undoMessage.message);
+    if (await changeHistory({ ...chat, messages, compact: undefined, guides: [], updatedAt: Date.now() })) setUndoMessage(null);
+  };
+  const answerVersions = (m: AssistantMessage) => {
+    if (!chat || busy) return undefined;
+    const all = versionsOf(chat, m.id), index = all.findIndex(v => v.message.id === m.id);
+    if (all.length < 2) return undefined;
+    return { index, total: all.length, pick: (i: number) => { const v = all[i]; if (v) { setUndoMessage(null); void changeHistory(selectPath(chat, v.pathId)); } } };
+  };
   const regenerate = () => {
     if (!chat || busy) return;
     const i = chat.messages.map((m) => m.role).lastIndexOf("user");
-    if (i >= 0) void runFrom({ ...chat, messages: chat.messages.slice(0, i + 1), updatedAt: Date.now() });
+    if (i >= 0) void runFrom(forkAt(chat, chat.messages[i]!.id));
   };
   /** Changes one of the user's messages and answers again from there (later messages go). */
   const editAndResend = (m: AssistantMessage, newText: string) => {
     if (!chat || busy) return;
     const i = chat.messages.findIndex((x) => x.id === m.id);
     if (i < 0) return;
-    void runFrom({ ...chat, messages: [...chat.messages.slice(0, i), { ...m, text: newText.trim() }], ...(chat.compact && chat.messages.findIndex((x) => x.id === chat.compact!.uptoId) >= i ? { compact: undefined } : {}), updatedAt: Date.now() });
+    void runFrom(forkAt(chat, m.id, newText.trim()));
   };
   const compactNow = async () => {
     const r = connection.forRequest();
@@ -291,19 +341,8 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const saveDraft = async (m: AssistantMessage, kind: AssistantKind, data: Record<string, unknown>) => {
     if (!chat) return;
     const newId = () => crypto.randomUUID();
-    let result: AssistantResult;
-    const ref = typeof data.id === "string" ? splitRef(data.id) : null;
-    if (ref) {
-      const { id: _id, ...changes } = data;
-      const item = await getItem(svc.store, ref.kind, ref.id);
-      if (!item) throw new Error(`“${data.id}” is not in your library any more.`);
-      const change = { type: "change" as const, id: newId(), kind, itemId: ref.id, name: String(item.name ?? kind), summary: "Saved from a draft", before: currentOf(item, kind, changes), after: changes, status: "waiting" as const };
-      const res = await applyChange(svc.store, change, newId);
-      result = { ...change, status: res === "applied" ? "applied" : "stale" };
-    } else {
-      const made = await createItem(svc.store, kind, data, newId);
-      result = { type: "created", kind, itemId: made.id, name: made.name, detail: `${made.detail} · from a draft`, undone: false };
-    }
+    // Drafts share the tool contract and validate their target collection before any write. CODEX, 2026-11-03.
+    const result = await saveDraftItem(svc.store, kind, data, newId);
     const fresh = (await loadChat(svc.store, chat.id)) ?? chat;
     const next = { ...fresh, messages: fresh.messages.map((x) => (x.id === m.id ? { ...x, results: [...x.results, result] } : x)), updatedAt: Date.now() };
     setChat(next); await saveChat(svc.store, next); onChanged();
@@ -369,9 +408,12 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
             <button type="button" className="asst-pop-item danger" onClick={() => { close(); void deleteChat(svc.store, chat.id).then(() => { st.setActiveId(null); void st.reload(); }); }}><span className="asst-pop-emoji"><Icon name="trash" size={14} /></span><span><b>Delete Chat</b></span></button>
           </>}
         </Pop>}
+        {chat && pathsOf(chat).length > 1 && <select aria-label="Conversation Branch" data-testid="assistant-branches" disabled={busy} value={chat.activeBranchId ?? "main"} onChange={e => { setUndoMessage(null); void changeHistory(selectPath(chat, e.target.value)); }}>
+          {pathsOf(chat).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>}
         <button type="button" className={`asst-details-btn${details ? " on" : ""}`} onClick={() => setDetails(!details)} aria-pressed={details} data-testid="assistant-details-toggle"><Icon name="inspector" size={14} /> Details</button>
       </header>
-      <div className="asst-scroll" ref={scroller}>
+      <div className="asst-scroll" ref={scroller} onScroll={onScroll}>
         {empty ? (
           <div className="asst-col asst-hello">
             {/* D-077, like Flint: the start screen is a title and suggestions; the message box sits at the bottom, where it stays in a chat */}
@@ -388,16 +430,18 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
         ) : (
           <div className="asst-col asst-msgs" data-testid="assistant-messages">
             {chat?.compact && <div className="asst-compacted">Older messages are sent as a summary · <button className="link" onClick={() => setDetails(true)}>Details</button></div>}
-            {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} /> : (
+            {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} onBranch={() => branchFrom(m)} onDelete={() => void removeMessage(m)} /> : (
               <Reply key={m.id} m={m} onSaveDraft={(kind, data) => saveDraft(m, kind, data)} onAct={(ri, w) => void act(m, ri, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit}
                 emoji={settings?.assistants.find((a) => a.name === m.used?.assistant)?.emoji}
-                onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} />
+                onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} onBranch={!busy ? () => branchFrom(m) : undefined} onDelete={!busy ? () => void removeMessage(m) : undefined} versions={answerVersions(m)} />
             )))}
             {live && runningId.current === st.activeId && <Reply m={live} live onAct={() => {}} onApplyAll={() => {}} onOpen={onOpenItem} onStartKit={onStartKit} emoji={resolved?.assistant.emoji} liveName={resolved?.assistant.name} compacting={compacting} />}
           </div>
         )}
       </div>
+      {away && <div className="asst-latest"><button className="btn" data-testid="assistant-latest" onClick={toEnd}>{live ? "Writing… ↓" : "Latest ↓"}</button></div>}
       <div className="asst-bottom"><div className="asst-col">
+        {undoMessage && chat?.id === undoMessage.chatId && (chat.activeBranchId ?? "main") === undoMessage.branch && <div className="asst-deleted" role="status">Message deleted from this branch. <button className="link" disabled={busy} onClick={() => void undoDelete()}>Undo</button></div>}
         {error && <p className="asst-error" role="alert">{error}</p>}
         <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty }} />
         {summary}
@@ -420,6 +464,7 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
   text: string; setText: (t: string) => void; atts: AssistantAttachment[]; setAtts: (f: (a: AssistantAttachment[]) => AssistantAttachment[]) => void;
   busy: boolean; onSend: () => void; onStop: () => void; onPick: () => void; onFiles: () => void; onDropFiles: (f: File[]) => void; picksBar: ReactNode; autoFocus?: boolean;
 }) {
+  const [sendKey] = useSendKey();
   return (
     <div className="asst-comp" data-testid="assistant-composer"
       onDragOver={(e) => e.preventDefault()}
@@ -437,7 +482,7 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
       )}
       <textarea rows={2} value={text} autoFocus={autoFocus} placeholder="What shall we make? A character, a Kit, a lorebook…" aria-label="Message to the Assistant"
         onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); } if (e.key === "@" && !text.trim()) { e.preventDefault(); onPick(); } }}
+        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (sendKey === "enter" || e.ctrlKey || e.metaKey)) { e.preventDefault(); onSend(); } if (e.key === "@" && !text.trim()) { e.preventDefault(); onPick(); } }}
         onPaste={(e) => { const fs = [...e.clipboardData.files]; if (fs.length) { e.preventDefault(); onDropFiles(fs); } }} />
       <div className="asst-crow">
         <Pop title="Add" testId="assistant-plus" className="up-left" icon label={<Icon name="plus" size={16} />}>
@@ -458,11 +503,11 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
   );
 }
 
-function UserBubble({ m, busy, onEdit, onView }: { m: AssistantMessage; busy: boolean; onEdit: (t: string) => void; onView: () => void }) {
+function UserBubble({ m, busy, onEdit, onView, onBranch, onDelete }: { m: AssistantMessage; busy: boolean; onEdit: (t: string) => void; onView: () => void; onBranch: () => void; onDelete: () => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.text);
   return (
-    <div className="asst-me">
+    <div className="asst-me" data-message-id={m.id}>
       {m.attachments.length > 0 && <div className="asst-ctx end">{m.attachments.map((a) => (
         a.type === "image" ? <img key={a.id} className="asst-thumb" src={`data:${a.mime};base64,${a.base64}`} alt={a.name} />
           : <span key={a.id} className="asst-chip"><span className="asst-k" aria-hidden>{a.type === "item" ? <KindMark kind={a.kind} /> : <Icon name="file" size={14} />}</span><span className="asst-chip-name">{a.name}</span></span>
@@ -471,7 +516,7 @@ function UserBubble({ m, busy, onEdit, onView }: { m: AssistantMessage; busy: bo
         <div className="asst-edit">
           <textarea value={draft} rows={3} autoFocus aria-label="Edit message" onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); setEditing(false); onEdit(draft); } if (e.key === "Escape") setEditing(false); }} />
-          <div className="asst-edit-row"><span className="hint">Later messages are replaced by a new answer.</span><span className="grow" />
+          <div className="asst-edit-row"><span className="hint">A new branch keeps your previous conversation.</span><span className="grow" />
             <Button small variant="plain" onClick={() => setEditing(false)}>Cancel</Button><Button small variant="prominent" disabled={!draft.trim()} onClick={() => { setEditing(false); onEdit(draft); }}>Send</Button></div>
         </div>
       ) : m.text && <div className="asst-b">{m.text}</div>}
@@ -479,13 +524,15 @@ function UserBubble({ m, busy, onEdit, onView }: { m: AssistantMessage; busy: bo
         <button type="button" title="Copy" aria-label="Copy" onClick={() => void navigator.clipboard?.writeText(m.text)}><Icon name="link" size={12} /> Copy</button>
         {!busy && <button type="button" onClick={() => { setDraft(m.text); setEditing(true); }} data-testid="assistant-edit"><Icon name="pencil" size={12} /> Edit</button>}
         <button type="button" onClick={onView} title="What the model received for this message"><Icon name="eye" size={12} /> Request</button>
+        {!busy && <><button type="button" onClick={onBranch}>Branch From Here</button><button type="button" onClick={onDelete}>Delete Message</button></>}
         <span className="asst-time">{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
       </div>}
     </div>
   );
 }
 
-function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false, onSaveDraft }: {
+function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false, onSaveDraft, onBranch, onDelete, versions }: {
+  onBranch?: () => void; onDelete?: () => void; versions?: { index: number; total: number; pick: (i: number) => void };
   onSaveDraft?: ((kind: AssistantKind, data: Record<string, unknown>) => Promise<void>) | undefined;
   m: AssistantMessage; live?: boolean; onAct: (i: number, what: "apply" | "discard" | "undo" | "restore") => void; onApplyAll: () => void;
   onOpen: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void; onRegenerate?: (() => void) | undefined;
@@ -497,23 +544,26 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
   const last = m.steps.at(-1);
   const stepLine = live && last ? `${last.label}${last.label === "…" ? "" : "…"}` : m.steps.length === 1 ? m.steps[0]!.label : `${m.steps.length} steps`;
   return (
-    <div className="asst-ai" data-testid="assistant-reply">
+    <div className="asst-ai" data-testid="assistant-reply" data-message-id={m.id}>
       <span className={`asst-orb${live ? " live" : ""}`} aria-hidden><AssistantMark emoji={emoji || "✦"} size={14} /></span>
       <div className="asst-body">
         <div className="asst-meta"><b>{m.used?.assistant ?? liveName ?? "Assistant"}</b>{m.used?.model && <span>{m.used.model}</span>}<span>{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{compacting && <span className="asst-busy">compacting older messages…</span>}</div>
         {m.reasoning && <button type="button" className="asst-quiet" onClick={() => setThinkOpen(!thinkOpen)} aria-expanded={thinkOpen}>{live && !m.text && !m.steps.length ? "Thinking…" : m.used?.thinkMs ? `Thought for ${Math.max(1, Math.round(m.used.thinkMs / 1000))} s` : "Thought"} ›</button>}
         {thinkOpen && <div className="asst-qlist">{m.reasoning}</div>}
         {m.steps.length > 0 && <button type="button" className="asst-quiet" onClick={() => setStepsOpen(!stepsOpen)} aria-expanded={stepsOpen} data-testid="assistant-steps">{stepLine} ›</button>}
-        {stepsOpen && <div className="asst-qlist">{m.steps.map((s, i) => <div key={i} className={s.error ? "bad" : ""}>{s.label}</div>)}</div>}
+        {stepsOpen && <div className="asst-qlist">{m.steps.map((s, i) => <div key={i} className={s.error ? "bad" : ""}>{s.label}{s.helperSteps?.length ? <details><summary>Helper reading steps ({s.helperSteps.length})</summary>{s.helperSteps.map((h, j) => <details key={j}><summary>{h.label}</summary><pre className="asst-pre">{h.args}{"\n\n"}{h.result}</pre></details>)}</details> : null}</div>)}</div>}
         {m.text ? <ReplyText text={m.text} live={live} results={m.results} onSaveDraft={onSaveDraft} /> : live && !m.steps.length && !m.reasoning ? <div className="asst-typing" aria-label="Thinking"><i /><i /><i /></div> : null}
         {!live && <WebSourcesRow steps={m.steps} />}
         {m.results.map((r, i) => <ResultCard key={i} r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} />)}
         {waiting > 1 && !live && <div className="asst-decide"><Button small variant="prominent" onClick={onApplyAll} data-testid="assistant-apply-all">Apply all {waiting}</Button></div>}
         {m.error && <p className="asst-error" role="alert">{m.error === "Stopped" || /abort/i.test(m.error) ? "Stopped." : m.error}</p>}
         {!live && <div className="asst-acts left">
+          {onRegenerate && <button type="button" onClick={onRegenerate} data-testid="assistant-regenerate"><Icon name="refresh" size={12} /> Again</button>}
           {m.used && <span className="asst-usage" data-testid="assistant-usage">{usageLine(m)}</span>}
           {m.text && <button type="button" onClick={() => void navigator.clipboard?.writeText(m.text)}><Icon name="link" size={12} /> Copy</button>}
-          {onRegenerate && <button type="button" onClick={onRegenerate} data-testid="assistant-regenerate"><Icon name="refresh" size={12} /> Again</button>}
+          {versions && <span className="asst-versions" aria-label="Answer Versions"><button type="button" aria-label="Previous Answer" disabled={versions.index === 0} onClick={() => versions.pick(versions.index - 1)}>‹</button><span data-testid="assistant-version">{versions.index + 1}/{versions.total}</span><button type="button" aria-label="Next Answer" disabled={versions.index === versions.total - 1} onClick={() => versions.pick(versions.index + 1)}>›</button></span>}
+          {onBranch && <button type="button" onClick={onBranch}>Branch From Here</button>}
+          {onDelete && <button type="button" onClick={onDelete}>Delete Message</button>}
         </div>}
       </div>
     </div>
@@ -711,7 +761,7 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
 }) {
   const { assistant, preset } = resolveFor(picks, settings);
   const replies = chat?.messages.filter((m) => m.role === "assistant") ?? [];
-  const spent = replies.reduce((a, m) => ({ tokens: a.tokens + (m.used?.tokensIn ?? 0) + (m.used?.tokensOut ?? 0), cost: a.cost + (m.used?.cost ?? 0) }), { tokens: 0, cost: 0 });
+  const spent = replies.reduce((a, m) => ({ tokens: a.tokens + (m.used?.tokensIn ?? 0) + (m.used?.tokensOut ?? 0) + (m.used?.helper?.tokensIn ?? 0) + (m.used?.helper?.tokensOut ?? 0), cost: a.cost + (m.used?.cost ?? 0) + (m.used?.helper?.cost ?? 0) }), { tokens: 0, cost: 0 });
   const estimated = !used?.lastPrompt && !!used?.parts;
   const full = used?.lastPrompt ?? (used?.parts ? Object.values(used.parts).reduce((a, b) => a + b, 0) : 0);
   const ctx = picks.contextLength;
@@ -830,6 +880,7 @@ function usageLine(m: AssistantMessage): string {
   parts.push(u.tokensIn || u.tokensOut ? `${fmtK(u.tokensIn ?? 0)} in · ${fmtK(u.tokensOut ?? 0)} out` : "tokens not reported");
   if (u.cost) parts.push(`$${u.cost.toFixed(4)}`);
   if (u.calls && u.calls > 1) parts.push(`${u.calls} calls`);
+  if (u.helper) parts.push(`Helper ${u.helper.model}: ${u.helper.calls} calls · ${fmtK(u.helper.tokensIn)} in · ${fmtK(u.helper.tokensOut)} out${u.helper.cost ? ` · $${u.helper.cost.toFixed(4)}` : " · cost not reported"}`);
   return parts.join(" · ");
 }
 
@@ -859,7 +910,7 @@ function RequestView({ chat, messageId, settings, svc, onClose }: { chat: Assist
   useEffect(() => { void libraryCounts(svc.store).then(setCounts); }, [svc]);
   const i = chat.messages.findIndex((m) => m.id === messageId);
   const turns = toTurns({ ...chat, messages: chat.messages.slice(0, i + 1) }, settings, counts);
-  const tools = toolsFor(settings, chat.draftFirst, webOn(chat, settings));
+  const tools = toolsFor(settings, chat.draftFirst, webOn(chat, settings), resolveFor(chat, settings).assistant.toolHelper?.enabled);
   const show = (c: RichTurn["content"]) => (typeof c === "string" ? c : c.map((p) => (p.type === "text" ? p.text : `[image ${p.mime}, ${Math.round(p.base64.length * 0.75 / 1024)} KB]`)).join("\n"));
   return (
     <Modal title="What the model received" onClose={onClose} className="modal-wide asst-request" testId="assistant-request">
@@ -877,7 +928,7 @@ function RequestView({ chat, messageId, settings, svc, onClose }: { chat: Assist
 
 // ------------------------------------------------------------------ drafts in replies ("Draft first")
 
-const KIND_NAME: Record<AssistantKind, string> = { character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator" };
+const KIND_NAME: Record<AssistantKind, string> = { persona: "Persona", character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator" };
 
 /** A reply's text with its draft blocks drawn as draft cards (Save to library, Copy, Show JSON). */
 /** Flint's sources row (D-067): site letters + "N read · M found"; open = the list of pages. */
@@ -917,7 +968,7 @@ function ReplyText({ text, live, results, onSaveDraft }: { text: string; live: b
   }
   const rest = text.slice(at);
   // a draft block still being written: show it as a draft that is not ready yet
-  const open = /```homunculus-(character|lorebook|tracker|kit|narrator)[^\n]*\n([\s\S]*)$/.exec(rest);
+  const open = /```homunculus-(character|lorebook|tracker|kit|narrator|persona)[^\n]*\n([\s\S]*)$/.exec(rest);
   if (open) { if (open.index) parts.push({ md: rest.slice(0, open.index) }); parts.push({ kind: open[1] as AssistantKind, json: open[2]!, closed: false }); }
   else if (rest) parts.push({ md: rest });
   return <div className="asst-text">{parts.map((p, i) => ("md" in p ? (p.md.trim() ? <MessageText key={i} text={p.md} /> : null)

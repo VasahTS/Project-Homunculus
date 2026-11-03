@@ -85,6 +85,8 @@ export const SetupLayer = z.object({
   personaVariantId: Id.nullable().optional(),
   /** Main connection (where the story is written): a connection profile id. */
   connectionId: Id.nullable().optional(),
+  /** Per-chat model selection; an empty value uses the connection model. CODEX. */
+  modelOverride: z.string().optional(),
   /** Connection for agents and trackers that don't pick their own (null = same as the story). */
   agentConnectionId: Id.nullable().optional(),
   lorebooks: ListOverride.optional(),

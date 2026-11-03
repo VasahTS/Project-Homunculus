@@ -2371,7 +2371,7 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-send.stop { background: var(--fill-hover); color: var(--label); }
 .asst-bottom { padding: 6px 0 16px; }
 .asst-error { color: var(--danger); font-size: var(--size-small); margin: 4px 0; }
-.asst-msgs { display: grid; gap: 22px; padding: 6px 0 24px; }
+.asst-msgs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; padding: 6px 0 24px; }
 .asst-me { justify-self: end; max-width: 82%; display: grid; gap: 6px; justify-items: end; }
 .asst-b { background: var(--fill); border-radius: calc(18px * var(--round)) calc(18px * var(--round)) calc(6px * var(--round)) calc(18px * var(--round)); padding: 10px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .asst-thumb { width: 72px; height: 90px; object-fit: cover; border-radius: calc(10px * var(--round)); }
@@ -2379,11 +2379,15 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-orb { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--accent-ink); font-size: 13px; background: var(--orb); box-shadow: var(--orb-ring); }
 .asst-orb.live { animation: asst-pulse 1.4s ease-in-out infinite; }
 @keyframes asst-pulse { 50% { box-shadow: 0 0 0 7px var(--accent-soft); } }
-.asst-body { display: grid; gap: 10px; padding-top: 4px; min-width: 0; }
-.asst-text { line-height: 1.6; }
+.asst-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding-top: 4px; min-width: 0; }
+/* Wrap Assistant code visually while preserving whitespace and the original text for Copy. CODEX, 2026-11-03. */
+.asst-text { line-height: 1.6; min-width: 0; }
+.asst-text .msg-format, .asst-text .code-wrap, .asst-text pre { min-width: 0; max-width: 100%; }
+.asst-text .msg-format { overflow-wrap: anywhere; }
+.asst-text pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .asst-quiet { border: 0; background: none; padding: 0; font-size: 12px; color: var(--label-3); cursor: pointer; width: fit-content; text-align: left; }
 .asst-quiet:hover { color: var(--label-2); }
-.asst-qlist { font-size: 12px; color: var(--label-3); padding-left: 12px; border-left: 2px solid var(--separator); white-space: pre-wrap; }
+.asst-qlist { min-width: 0; overflow-wrap: anywhere; font-size: 12px; color: var(--label-3); padding-left: 12px; border-left: 2px solid var(--separator); white-space: pre-wrap; }
 .asst-qlist .bad { color: var(--danger); }
 .asst-typing { display: flex; gap: 4px; padding: 6px 0; }
 .asst-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--label-3); animation: asst-dot 1s infinite; }
@@ -3159,3 +3163,50 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
   .card-browser .gallery-sheet.has-card { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 92vw); z-index: 40; overflow-y: auto; background: var(--pop, var(--surface)); box-shadow: var(--shadow-pop); border-radius: 0; }
   .card-browser .cb-sheet-close { display: inline-flex; }
 }
+
+/* Continuity and supported-width UX improvements. CODEX, 2026-11-03. */
+.unsaved-dialog { position: relative; z-index: 1; width: min(440px, calc(100vw - 32px)); padding: 24px; background: var(--surface); border: 1px solid var(--separator); border-radius: var(--radius-panel); box-shadow: var(--shadow-pop); }
+.unsaved-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+.composer-hint { color: var(--label-3); font-size: 11px; }
+.inspector-overlay-close { display: none; }
+.asst-scroll { overflow-anchor: none; }
+.asst { position: relative; }
+.asst-latest { position: absolute; bottom: 170px; left: 50%; transform: translateX(-50%); z-index: 2; }
+.asst-versions { display: inline-flex; align-items: center; gap: 6px; }
+.asst-deleted { padding: 6px 0; font-size: var(--size-small); }
+.asst-top select { max-width: 160px; }
+.cb-sticky-actions { position: sticky; top: -1px; z-index: 3; background: var(--surface); padding: 10px 0; margin-top: -10px; border-bottom: 1px solid var(--separator); }
+.cb-action-name { flex-basis: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-sticky-actions .cb-menu { margin-left: auto; }
+.card-browser .gallery-sheet { scroll-padding-top: 120px; }
+@media (max-width: 1100px) {
+  .session-view { position: relative; }
+  .session-view > .inspector { position: absolute; right: 0; top: 0; bottom: 0; z-index: 25; width: min(380px, calc(100% - 24px)); background: var(--surface); border-left: 1px solid var(--separator); box-shadow: var(--shadow-pop); }
+  .inspector-overlay-close { display: inline-flex; float: right; }
+  .story { padding-left: 18px; padding-right: 18px; }
+  .composer { padding-left: 18px; padding-right: 18px; }
+  .composer-hint { display: none; }
+}
+
+/* CODEX: compact message metadata follows the v1 reference; individual values stay whole on narrow screens. */
+.msg .who .message-time { display: inline; margin-inline-start: 8px; color: var(--label-2); font: 400 var(--size-small) var(--font-figures); vertical-align: baseline; }
+.message-time > span { white-space: nowrap; }
+.message-metadata { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; color: var(--label-2); font: 400 var(--size-small) var(--font-figures); font-variant-numeric: tabular-nums; }
+.message-metadata > span { white-space: nowrap; }
+.message-reasoning-count { padding: 1px 6px; border-radius: var(--radius-pill); background: var(--fill); }
+
+/* CODEX: each rewrite agent has its own named menu; long names stay operable on narrow chat columns. */
+.ag-marks { flex-wrap: wrap; max-inline-size: calc(100% - 8px); row-gap: 4px; }
+.ag-marks .ag-mark, .rewrite-mark { min-inline-size: 0; max-inline-size: 100%; }
+.rewrite-mark > svg { flex-shrink: 0; }
+.rewrite-name { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rewrite-count { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.rewrite-pop { max-inline-size: calc(100vw - 16px); max-block-size: min(360px, calc(100dvh - 16px)); overflow-y: auto; }
+.rewrite-pop > b { overflow-wrap: anywhere; }
+.rewrite-steps { display: grid; gap: 6px; justify-items: start; }
+.df-body[data-editable="false"] .df-chg { cursor: text; }
+
+/* CODEX: one native sorting control across collections, with wrapping alongside search/view controls. */
+.collection-order { display: inline-flex; align-items: center; gap: 6px; min-inline-size: 0; font-size: var(--size-small); color: var(--label-2); }
+.collection-order select { max-inline-size: 170px; min-inline-size: 0; }
+.collection-tools, .collection-right { flex-wrap: wrap; }

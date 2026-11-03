@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from "./ux.tsx";
 // Homunculus 2 — create / edit a tracker: name, instructions for the AI, and its field sets.
 // Author: CLAUDE, 2026-10-27; field sets, sections, columns, characters (D-017) same day.
 // Nothing here is about a specific subject: the user decides what is tracked (BLUEPRINT §4.5).
@@ -118,6 +119,7 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
   });
   const setSetId = (id: string) => { setSetIdRaw(id); rememberSet(draft.id, id); };
   const [problems, setProblems] = useState<string[]>([]);
+  const [baseline, setBaseline] = useState(() => JSON.stringify(draft));
   const [saved, setSaved] = useState(false);
   const [exists, setExists] = useState(!isNew);
   const [settingsOpen, setSettingsOpen] = useState(isNew);
@@ -220,19 +222,21 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
   const save = async () => {
     const p = checkDraft(draft);
     setProblems(p);
-    if (p.length) return;
+    if (p.length) return false;
     try {
       const before = ordered.map((f) => f.key);
       const next = await onSave(draft);
       // the field that was open stays open (new fields got their real key on save)
       const nextSet = next.sets.find((s) => s.id === current.id);
       if (nextSet) setOpenKeys((keys) => keys.map((k) => nextSet.fields[before.indexOf(k)]?.key).filter((k): k is string => !!k));
-      setDraft(next);
+      setDraft(next); setBaseline(JSON.stringify(next));
       setSaved(true);
       setExists(true);
-    } catch (e) { setProblems([e instanceof Error ? e.message : String(e)]); }
+      return true;
+    } catch (e) { setProblems([e instanceof Error ? e.message : String(e)]); return false; }
   };
 
+  useUnsavedChanges(JSON.stringify(draft) !== baseline, () => save());
   const statusFields = current.fields.filter((f) => f.scope === "perCharacter" && f.type === "status" && !isTempKey(f.key));
   const presenceField = current.presence ? statusFields.find((f) => f.key === current.presence!.field) : undefined;
   const previewSchema = { id: current.id, name: current.name, help: current.help, trackerId: draft.id, characters: current.characters,

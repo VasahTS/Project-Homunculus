@@ -1,5 +1,112 @@
 # CODEX tasks
 
+### Consolidated gpt publication · Status: Done (publication authorized) — CODEX
+
+Direct request from Daniel: review all local updates and push them to GitHub on gpt.
+Complete inventory: docs/GPT-PUBLICATION-2026-11-03.md. Earlier feature reports retain their historical local-only checkpoints.
+Validation: typecheck/build, 665 unit passes (3 skips), 261 complete-suite browser passes. Signed: **CODEX**.
+
+### ST-style Library/Characters/Stories sorting · Status: Done (publication authorized) — CODEX
+
+Direct request with the ST selector screenshot. Shared native sort control, persistent per-collection mode/seed, applicable data metrics and stable random filtering.
+Includes all Library categories; agent execution order stays intact and regex display edits preserve original positions.
+665 unit passes (3 skips), typecheck/build; 42 browser cases pass across final runs, including five new cases and narrow layout/editor checks.
+Report: docs/COLLECTION-SORTING-2026-11-03.md. No SQL migration, entity-schema/dependency change, native/live-provider/private-data use, commit or push. Signed: **CODEX**.
+
+### Named per-agent rewrite menus · Status: Done (publication authorized) — CODEX
+
+Direct request: each rewriting agent gets its own menu, using its name instead of polished.
+Saved snapshots remain attributed to their own step; repeated runs are grouped. Earlier comparisons are read-only, final-step undo preserves earlier menus.
+645 unit passes (3 skips), typecheck/build; 35 related browser cases pass across final runs, including tied timestamps, repeated runs and narrow/keyboard layout checks.
+Report: docs/REWRITE-MENUS-2026-11-03.md. No schema/dependency/prompt-core/private-data changes, native/live-provider check, commit or push. Signed: **CODEX**.
+
+### HTML5/CSS3 and Animation Agent output · Status: Done (publication authorized) — CODEX
+
+Direct request with both prompts: render raw HTML/CSS and animated Markdown narration correctly in the local gpt chat.
+Separate document/sanitizer preserves classes, layout and keyframes while respecting HTML, motion and image preferences.
+Includes stored agent rewrites, live replies, complete/indented HTML, CSS isolation, resize and existing code blocks.
+639 unit passes (3 skips), typecheck/build; 37 browser passes, including six new cases with no page errors.
+Report: docs/MESSAGE-HTML-CSS-2026-11-03.md. No native/live-provider/private-data use, schema/dependency change, commit or push. Signed: **CODEX**.
+
+### Message metadata · Status: Done (publication authorized) — CODEX
+
+Direct request with v1 screenshots: local date/time, per-path message number, separate text/reasoning tokens.
+Optional reasoning usage survives the provider/turn/JSON-record pipeline; unknown breakdowns and edited text show ~ estimates.
+629 unit passes (3 skips), typecheck/build; 13 related browser cases pass across final runs. Includes versions, branches, hidden reasoning, timezone, edits, narrow/large text.
+Report: docs/MESSAGE-METADATA-2026-11-03.md. Local only; prior source/lockfile work preserved; no native/live-provider/private-data check, commit or push. Signed: **CODEX**.
+
+### Assistant generation across navigation · Status: Done (publication authorized) — CODEX
+
+Daniel reported that leaving the Assistant tab stops its reply. Reproduced loss of live UI/Stop across Play and Settings remounts, although the provider continued.
+Moved transient runtime ownership to the existing app-level hook with view-only subscriptions; pending selection, save errors/drafts and Stop survive navigation.
+Five new browser regressions; 19 related browser passes across final runs; 615 unit passes (3 skips), typecheck/build.
+Report: docs/ASSISTANT-BACKGROUND-2026-11-03.md. Local only; no schema/dependency/native/real-provider/private-data change or commit/push. Signed: **CODEX**.
+
+### Assistant code word wrap · Status: Done (publication authorized) — CODEX
+
+Daniel explicitly requested wrapping codeblocks in Assistant responses. Added scoped CSS soft wrapping and updated the two existing overflow regressions.
+Both failed before the fix; streaming/completed/resize/long-token checks and exact clipboard-text preservation pass. Browser 2/2 plus message-format 1/1; 615 unit passes (3 skips), typecheck/build.
+Report: docs/ASSISTANT-CODE-WRAP-2026-11-03.md. Local only; no native/provider/private-data use, schema/dependency change or commit/push. Signed: **CODEX**.
+
+### Tracker persona context · Status: Done (publication authorized) — CODEX
+
+Daniel reported conflicting player facts in Scene: Characters with the persona near the chat's end.
+Reproduced and fixed missing persona selection in bundled/new trackers; existing built-ins upgrade without replacing fields/instructions.
+Not sent is respected by the separate agent source. 10 new unit cases; 615 full unit passes (3 skips), typecheck/build; 14 related browser passes across final runs.
+Report: docs/TRACKER-PERSONA-CONTEXT-2026-11-03.md. No real provider/native/personal-data check, commit/push, schema or dependency change. Signed: **CODEX**.
+
+### Assistant optional retrieval helper · Status: Done (publication authorized) — CODEX
+
+Daniel explicitly selected an optional auxiliary model with its own connection. Implemented per-Assistant opt-in controls, read-only task delegation, budgets/cancellation, evidence/cursor replay, local trace and separate/combined usage.
+Default flow stays off; unavailable/failed helper does not silently spend on another model. Main Assistant retains writes/approvals and exact source reads.
+Validation: 14 new helper unit cases, 605 full unit passes (3 skips), typecheck/build; 38 affected browser passes and final helper/persona refinement passes.
+Report: docs/ASSISTANT-TOOL-HELPER-2026-11-03.md. No live quality/cost/native test, commit/push, new SQL table, dependency or private-data use. Signed: **CODEX**.
+
+### Assistant personas and long-code overflow · Status: Done (publication authorized) — CODEX
+
+Daniel's screenshots reproduced horizontal code overflow and unsupported persona writes. Added persona create/edit/approve/draft/Open/Trash support, truthful guide, preservation/stale checks, and contained streaming code/expanded traces.
+Validation: seven persona unit failures plus an approval-preview regression and desktop/narrow overflow fixed; eight persona unit cases, two persona browser cases and two code-overflow cases pass. Full checks: 605 unit passes (3 skips), typecheck/build; 38 browser passes and 3 final helper/persona passes.
+Report: docs/ASSISTANT-PERSONAS-OVERFLOW-2026-11-03.md. Existing personas are not rewritten or selected automatically; no commit/push or personal-data use. Signed: **CODEX**.
+
+### Assistant large-card reading · Status: Done (publication authorized) — CODEX
+
+Daniel supplied a screenshot of repeated cursor arithmetic/overlap on a large card. Fixed corrupt history excerpts, explicit text pagination and version/entry continuation.
+13 new unit cases; full suite 583 passes (3 skips), typecheck/build, 13 affected browser passes. A 13k synthetic card completes in three reads across step-limit continuations.
+Report: docs/ASSISTANT-LONG-READS-2026-11-03.md. Real-provider/native checks not run; no commit/push, schema/dependency changes or personal-data use. Signed: **CODEX**.
+
+
+### Assistant field-contract audit · Status: Done (publication authorized) — CODEX
+
+Direct request: find more bugs like missing tracker options. Fixed and tested the five writable kinds, shared proposal/draft validation and approval validation.
+25 new unit cases; 570 full unit passes (3 skips), typecheck/build; 6 affected browser cases pass across final runs.
+Report: docs/ASSISTANT-FIELD-CONTRACT-AUDIT-2026-11-03.md. Long-card reading is a subsequent follow-up; no commit/push or personal-data use. Signed: **CODEX**.
+
+
+### Assistant tracker context/options audit · Status: Done (publication authorized) — CODEX
+
+Daniel requested clear context for the two tracker text areas, correct presentation choices and a check of other tracker functions.
+Guide covers every field property/type/display; tool mapping retains metadata/columns and validates default-set presence.
+Validation: 16 new unit cases; full suite 545 passes (3 skips); typecheck/build; 4 related browser passes.
+Report: docs/ASSISTANT-TRACKER-FIELDS-2026-11-03.md. Existing trackers remain unchanged; other field sets are preserved and their editing boundary is explicit.
+No commit/push, schema/dependency/native/UI-layout change or real-provider request. Signed: **CODEX**.
+
+
+### DataCat missing Description · Status: Done (publication authorized) — CODEX
+
+Daniel reported that DataCat's Description was absent from both preview and imported characters; his example reproduced it.
+Shared V2 definition mapping for details/download; object/JSON-string input, legacy fallback, canonical companion fields and creator controls tested.
+Validation: typecheck/build; 529 unit passes (3 skips); 11 related browser cases pass across final runs; real public response preserved 3,705 characters through preview/import/PNG.
+No native Tauri validation or existing-character repair; earlier incomplete imports need Add Again.
+Report: docs/DATACAT-DESCRIPTION-FIX-2026-11-03.md. No commit/push; prior local work preserved. Signed: **CODEX**.
+
+
+### Twelve UX review findings · Status: Done (publication authorized) — CODEX
+
+Direct request from Daniel on 2026-11-03: implement the entire R1–R12 report on gpt, including his Assistant history/branch/delete/scroll findings.
+All twelve delivered; source/data scope and behavior are mapped in docs/UX-IMPLEMENTATION-2026-11-03.md.
+Validation: typecheck/build; 516 unit passes (3 skips); 227 full browser passes plus 21 final affected passes.
+No commit/push/merge into another branch; original lockfiles preserved. Seven generated screenshots await cleanup approval after automatic review rejected restoration. Signed: **CODEX**.
+
 ### BotBooru source and account · Status: Done (publication authorized) — CODEX
 
 Direct request from Daniel on 2026-11-02, after the source investigation: implement BotBooru first, with NSFW/NSFL through the site's account.

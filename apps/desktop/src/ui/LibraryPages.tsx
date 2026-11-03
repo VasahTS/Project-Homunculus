@@ -12,6 +12,7 @@ import { AvatarDot } from "./Sidebar.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { CASCADE, useEnter } from "./motion.ts";
 import type { Tracker } from "../trackers.ts";
+import { useCollectionOrder } from "./CollectionOrder.tsx";
 
 export function MasterDetail({ list, detail, collapsed = false, onExpand }: {
   list: ReactNode; detail: ReactNode;
@@ -123,7 +124,8 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
 }) {
   useAutoOpen("trackers", trackers.map((t) => t.agent.id), selectedId, onSelect, !!detail);
   const [q, setQ] = useState("");
-  const shown = trackers.filter((t) => t.agent.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const ordered = useCollectionOrder("trackers", trackers);
+  const shown = ordered.items.filter((t) => t.agent.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="page">
       <Toolbar lead={lead} title="Trackers" center={tabs} subtitle="Values the AI keeps up to date after each reply"
@@ -166,7 +168,8 @@ export function PersonasPage({ lead, tabs, personas, avatars, defaultId, selecte
   useAutoOpen("personas", personas.map((x) => x.id), selectedId, onSelect, !!detail);
   const [q, setQ] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
-  const shown = personas.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const ordered = useCollectionOrder("personas", personas);
+  const shown = ordered.items.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="page">
       <Toolbar lead={lead} title="Personas" center={tabs} subtitle="Who you are in the story"
@@ -217,7 +220,8 @@ export function PresetsPage({ lead, tabs, presets, defaultId, selectedId, import
   useAutoOpen("presets", presets.map((x) => x.id), selectedId, onSelect, !!detail);
   const [q, setQ] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
-  const shown = presets.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const ordered = useCollectionOrder("presets", presets);
+  const shown = ordered.items.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="page">
       <Toolbar lead={lead} title="Presets" center={tabs} subtitle="The recipe of the prompt"
@@ -276,7 +280,8 @@ export function LorebooksPage({ lead, tabs, books, usedBy, selectedId, importHel
   const [q, setQ] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const searching = q.trim() !== "";
-  const shown = books.filter((b) => (searching ? b.name.toLowerCase().includes(q.trim().toLowerCase()) : !inFolder || inFolder(b.id)));
+  const ordered = useCollectionOrder("lorebooks", books);
+  const shown = ordered.items.filter((b) => (searching ? b.name.toLowerCase().includes(q.trim().toLowerCase()) : !inFolder || inFolder(b.id)));
   const from = (b: Lorebook) => (b.source.kind === "card" ? "from a card" : b.source.kind === "stFile" ? "from SillyTavern" : "");
   return (
     <div className={`page lore-page${detail ? " has-detail" : ""}`}>
@@ -332,6 +337,7 @@ export function TrashPage({ lead, tabs, items, onRestore, onDeleteForever, onEmp
   onDeleteForever: (item: TrashItem) => void;
   onEmpty: () => void;
 }) {
+  const ordered = useCollectionOrder("trash", items);
   return (
     <div className="page">
       <Toolbar lead={lead} title="Trash" center={tabs} subtitle={items.length ? `${items.length} item(s)` : "Empty"}
@@ -341,7 +347,7 @@ export function TrashPage({ lead, tabs, items, onRestore, onDeleteForever, onEmp
         </>} />
       <div className="trash-page">
         <ul className="trash-list" data-testid="trash-list">
-          {items.map((it) => (
+          {ordered.items.map((it) => (
             <li key={`${it.kind}:${it.id}`} className="trash-item">
               <span className="trash-kind">{KIND_LABEL[it.kind]}</span>
               <span className="side-text"><strong>{it.name}</strong><span>moved to the Trash {new Date(it.trashedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span></span>

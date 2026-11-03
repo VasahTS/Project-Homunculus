@@ -14,6 +14,7 @@ import { Toolbar } from "./Toolbar.tsx";
 import { CASCADE, useEnter } from "./motion.ts";
 import { CollectionTools, FolderHits, type CollectionPrefs, type FolderHit } from "./CollectionTools.tsx";
 import type { LibraryArea } from "./Sidebar.tsx";
+import { SortSelect, useCollectionOrder } from "./CollectionOrder.tsx";
 
 const LIBRARY_TABS: Array<{ area: LibraryArea; label: string }> = [
   { area: "personas", label: "Personas" }, { area: "lorebooks", label: "Lorebooks" },
@@ -123,6 +124,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   onBrowse?: () => void;
 }) {
   const [q, setQ] = useState("");
+  const ordered = useCollectionOrder("characters", characters);
   const everything = prefs?.view === "everything";
   const fileInput = useRef<HTMLInputElement>(null);
   const [recent, setRecent] = useState(false);
@@ -133,11 +135,11 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   // a search looks in every folder (Daniel: "you can search in All and it will show everything")
   // D-068: the folder path counts too, and Everything ignores folders
   const filtered = searching
-    ? characters.filter((c) => [c.name, c.creator, ...c.tags, folderOf?.(c) ?? ""].some((x) => x.toLowerCase().includes(q.trim().toLowerCase())))
-    : inFolder && !everything ? characters.filter(inFolder) : characters;
+    ? ordered.items.filter((c) => [c.name, c.creator, ...c.tags, folderOf?.(c) ?? ""].some((x) => x.toLowerCase().includes(q.trim().toLowerCase())))
+    : inFolder && !everything ? ordered.items.filter(inFolder) : ordered.items;
   const hits = searching && folderHits ? folderHits(q) : [];
   const where = (c: Character) => { const f = folderOf?.(c); return f ? `in ${f}` : everything ? "not in a folder" : undefined; };
-  const shown = filtered.filter((c) => !recent || (activity[c.id] ?? 0) > 0).sort((a, b) => (activity[b.id] ?? 0) - (activity[a.id] ?? 0));
+  const shown = filtered.filter((c) => !recent || (activity[c.id] ?? 0) > 0);
   return (
     <div className="page collection-page" data-region="collection">
       <Toolbar lead={lead} title={title} subtitle="The people you write with. Their cards and conversations." center={tabs}
@@ -148,7 +150,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
           <input ref={fileInput} type="file" accept=".png,.json" multiple hidden data-testid="import-input"
             onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) onImport(files); }} />
         </>} />
-      <CollectionTools label="characters" query={q} onQuery={setQ} recent={recent} onRecent={setRecent} prefs={prefs} onPrefs={onPrefs} />
+      <CollectionTools sort={<SortSelect kind="characters" />} label="characters" query={q} onQuery={setQ} recent={recent} onRecent={setRecent} prefs={prefs} onPrefs={onPrefs} />
       <div className="gallery-layout">
         <div className={`gallery-grid${prefs ? ` portrait size-${prefs.size}` : ""}`}>
           {!searching && !everything && folders}

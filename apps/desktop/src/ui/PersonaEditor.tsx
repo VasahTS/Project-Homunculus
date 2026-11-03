@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from "./ux.tsx";
 // Homunculus 2 — create / edit a persona (who YOU are in the story), its versions and history.
 // Author: CLAUDE, 2026-10-28 (slice 1, BLUEPRINT §2.1 and §2.5).
 import { LorebookChips } from "./LorePanels.tsx";
@@ -37,6 +38,7 @@ export function PersonaEditor({ persona, avatars, isDefault, justSaved = false, 
   const [draft, setDraftState] = useState<Persona>(() => persona ?? blankPersona());
   const [variantId, setVariantId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [baseline, setBaseline] = useState(() => JSON.stringify(draft));
   const [saved, setSaved] = useState(justSaved);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -49,16 +51,19 @@ export function PersonaEditor({ persona, avatars, isDefault, justSaved = false, 
   useEffect(() => { if (historyOpen) refreshHistory(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [historyOpen]);
 
   const save = async (d: Persona = draft) => {
-    if (!d.name.trim()) { setError("The persona needs a name."); return; }
+    if (!d.name.trim()) { setError("The persona needs a name."); return false; }
     setError("");
     try {
       const clean = pruneVariants<Fields, Persona>({ ...d, name: d.name.trim() });
-      await onSave(clean);
+      await onSave(clean); setBaseline(JSON.stringify(clean));
       setDraftState(clean);
       setSaved(true);
       if (historyOpen) refreshHistory();
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
   };
+
+  useUnsavedChanges(JSON.stringify(draft) !== baseline, () => save());
   const run = async (f: () => Promise<void>) => { try { setError(""); await f(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } };
 
   const restore = async (data: unknown) => {
