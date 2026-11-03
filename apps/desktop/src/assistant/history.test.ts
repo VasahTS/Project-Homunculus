@@ -1,7 +1,7 @@
 // Assistant path preservation and context isolation regressions. CODEX, 2026-11-03.
 import { describe, expect, it } from "vitest";
 import { AssistantChat, AssistantMessage } from "@homunculus/schemas";
-import { forkAt, pathsOf, selectPath, deleteMessage, versionsOf } from "./history.ts";
+import { decodeHistory, encodeHistory, forkAt, pathsOf, selectPath, deleteMessage, versionsOf } from "./history.ts";
 import initSqlJs from "sql.js";
 import { SqlJsDriver, SqlStore, migrate, coreMigrations } from "@homunculus/core";
 import { loadChat, saveChat, updateResult } from "./engine.ts";
@@ -50,5 +50,14 @@ describe("Assistant conversation paths", () => {
     expect(JSON.stringify(raw).match(/UNIQUE_ATTACHMENT_PAYLOAD/g)).toHaveLength(1);
     const loaded = (await loadChat(store, c.id))!;
     expect(pathsOf(loaded)).toHaveLength(3); expect(selectPath(loaded, "main").messages[0]!.attachments[0]).toMatchObject({ text: "UNIQUE_ATTACHMENT_PAYLOAD" });
+  });
+  // CLAUDE, 2026-11-03: one damaged branch must not make the whole chat impossible to open.
+  it("opens a chat whose saved branch refers to a missing message, keeping what is there", () => {
+    const c = forkAt(original(), "u"); c.messages.push(message("a2", "assistant"));
+    const saved = encodeHistory(c);
+    const damaged = { ...saved, historyMessages: (saved.historyMessages ?? []).filter(m => m.id !== "a") };
+    const opened = decodeHistory(damaged);
+    expect(opened.messages.map(m => m.id)).toEqual(["u", "a2"]);
+    expect(pathsOf(opened).find(p => p.id === "main")!.messages.map(m => m.id)).toEqual(["u"]);
   });
 });

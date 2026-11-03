@@ -7,6 +7,8 @@ const CAP: usize = 8 * 1024 * 1024;
 #[derive(Default)]
 pub(crate) struct BotbooruBridge {
     serial: tauri::async_runtime::Mutex<()>,
+    /// Get-or-create of the account window only, so "Open Account" never waits behind a pending request. CLAUDE.
+    opening: Mutex<()>,
     ready: Arc<AtomicBool>,
     pending: Mutex<Option<(String, std::sync::mpsc::Sender<serde_json::Value>)>>,
 }
@@ -29,6 +31,7 @@ fn deliver(state: &BotbooruBridge, request_id: &str, payload: serde_json::Value)
     let (_, sender) = pending.take().unwrap(); sender.send(payload).map_err(|_| "Expired BotBooru response.".into())
 }
 fn window(app: &tauri::AppHandle, state: &BotbooruBridge) -> Result<tauri::WebviewWindow, String> {
+    let _opening = state.opening.lock().map_err(|_| "BotBooru session is unavailable.")?;
     if let Some(w) = app.get_webview_window(LABEL) { return Ok(w); }
     state.ready.store(false, Ordering::SeqCst);
     let ready = state.ready.clone();
@@ -46,7 +49,7 @@ fn window(app: &tauri::AppHandle, state: &BotbooruBridge) -> Result<tauri::Webvi
 #[tauri::command]
 pub(crate) async fn botbooru_window(app: tauri::AppHandle, webview: tauri::Webview, state: tauri::State<'_, BotbooruBridge>) -> Result<(), String> {
     if webview.label() != "main" { return Err("Only the app can open the account window.".into()); }
-    let _serial = state.serial.lock().await;
+    // No request lock: a request may be waiting for this very window to pass the site's browser check. CLAUDE, 2026-11-03.
     let w = window(&app, &state)?; w.show().map_err(|e| e.to_string())?; w.set_focus().map_err(|e| e.to_string())
 }
 #[tauri::command]

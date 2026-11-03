@@ -190,3 +190,35 @@ test("complete HTML documents keep head styles and SVG isolated from other messa
   await expect(first.locator(".shared")).toHaveCSS("color", "rgb(210, 90, 100)");
   expect(await page.locator("[data-region=sidebar] .shared").count()).toBe(0);
 });
+
+// CLAUDE, 2026-11-03: streamed tokens patch the loaded frame instead of reloading it for every token.
+test("streaming text keeps the same frame document until a new style arrives", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("message")).toHaveCount(1);
+  await page.evaluate(async () => {
+    const svc = await (await import("/src/core-instance.ts" as string)).servicesReady;
+    const w = window as unknown as { nextChunk: () => void };
+    const gate = () => new Promise<void>((resolve) => { w.nextChunk = resolve; });
+    svc.core.connections.stream = async function* () {
+      yield '<section class="live-fragment">The gate</section>';
+      await gate();
+      yield '<section class="live-fragment">is open.</section>';
+      await gate();
+      yield '<style>.live-fragment { color: rgb(90, 190, 160) }</style>';
+    };
+  });
+  await page.getByPlaceholder(/Write your message/).fill("Look.");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const iframe = page.getByTestId("streaming").locator('iframe[data-testid="message-html"]');
+  const frame = page.getByTestId("streaming").frameLocator('iframe[data-testid="message-html"]');
+  await expect(frame.locator(".live-fragment")).toHaveCount(1);
+  await iframe.evaluate((f: HTMLIFrameElement) => { f.contentDocument!.documentElement.dataset.mark = "first"; });
+  await page.evaluate(() => (window as unknown as { nextChunk: () => void }).nextChunk());
+  await expect(frame.locator(".live-fragment")).toHaveCount(2);
+  expect(await iframe.evaluate((f: HTMLIFrameElement) => f.contentDocument!.documentElement.dataset.mark)).toBe("first");
+  await page.evaluate(() => (window as unknown as { nextChunk: () => void }).nextChunk());
+  await expect(page.getByTestId("streaming")).toHaveCount(0);
+  const done = page.getByTestId("message").last().frameLocator('iframe[data-testid="message-html"]');
+  await expect(done.locator(".live-fragment").last()).toHaveCSS("color", "rgb(90, 190, 160)");
+  await expect(done.locator(".live-fragment")).toHaveCount(2);
+});

@@ -753,6 +753,7 @@ mod card_site_tests {
                 socket.write_all(b"0\r\n\r\n").unwrap();
             }
         });
+        web_crypto(); // this test's own client needs the TLS provider too, whatever order the tests run in (CLAUDE)
         let response = reqwest::Client::builder().no_proxy().timeout(std::time::Duration::from_secs(5)).build().unwrap()
             .get(format!("http://{address}/synthetic")).send().await.unwrap();
         server.join().unwrap(); response

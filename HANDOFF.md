@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Review of CODEX's gpt work, with fixes (2026-11-03) — CLAUDE
+
+Daniel asked for a review of CODEX's gpt changes and improvements where possible. Report: docs/GPT-REVIEW-2026-11-03.md.
+Fixed, each with a test seen failing first: boot error crashed React (hook after early return, App.tsx); styled messages reloaded their frame on every streamed token (MessageHtml.tsx); a chat model leaked to another layer's connection (resolveSetup); one damaged Assistant branch made the chat unopenable (history.ts); Open Account waited behind a pending BotBooru request (botbooru.rs).
+Also: main-window permission moved from permissions/janny.toml to permissions/app.toml, guarded by native-permissions.test.ts; an order-dependent Rust test fixed.
+Checks: typecheck; 671 unit passes (3 skips); 261/263 click tests (the other two: no internet here, and a flaky one that passes 9/9); 27 Rust tests on Linux. Windows app and live sites not checked.
+Written to Daniel's Homunculus-gpt folder (gpt branch) as uncommitted changes: commit them there, then ask Claude to merge gpt into dev.
+
 ## Consolidated gpt publication (2026-11-03) — CODEX
 
 Daniel explicitly authorized reviewing and pushing all local gpt updates; the earlier local-only restriction is superseded.

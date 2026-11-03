@@ -14,9 +14,8 @@ export function encodeHistory(chat: AssistantChat): AssistantChat {
 export function decodeHistory(chat: AssistantChat): AssistantChat {
   if (!chat.branches?.some(p => p.messageIds)) return chat;
   const messages = new Map([...(chat.historyMessages ?? []), ...chat.messages].map(m => [m.id, m]));
-  return { ...chat, branches: chat.branches.map(p => !p.messageIds ? p : { ...p, messages: p.messageIds.map(id => {
-    const m = messages.get(id); if (!m) throw new Error("A saved conversation branch has a missing message."); return m;
-  }) }) };
+  // A missing message (damaged save) is skipped: the rest of that branch and the whole chat still open. CLAUDE.
+  return { ...chat, branches: chat.branches.map(p => !p.messageIds ? p : { ...p, messages: p.messageIds.flatMap(id => messages.get(id) ?? []) }) };
 }
 export function pathsOf(chat: AssistantChat) {
   const id = chat.activeBranchId ?? "main";

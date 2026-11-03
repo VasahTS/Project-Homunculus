@@ -30,3 +30,18 @@ describe("chat model selection", () => {
     expect((await store.getSession(session.id))?.setup).not.toHaveProperty("modelOverride");
   });
 });
+
+// CLAUDE, 2026-11-03: a model belongs to the connection it was picked for.
+describe("chat model follows its connection", () => {
+  it("a later layer that picks another connection does not inherit an earlier layer's model", () => {
+    const r = resolveSetup({ story: { connectionId: "openrouter", modelOverride: "vendor/model-a" }, session: { connectionId: "local" } });
+    expect(r.connectionId).toBe("local");
+    expect(r.modelOverride).toBe("");
+  });
+  it("a layer can still pick only a model for the connection it inherits", () => {
+    const r = resolveSetup({ story: { connectionId: "openrouter" }, session: { modelOverride: "vendor/model-b" } });
+    expect(r.connectionId).toBe("openrouter");
+    expect(r.modelOverride).toBe("vendor/model-b");
+    expect(resolveSetup({ story: { connectionId: "openrouter", modelOverride: "vendor/model-a" } }).modelOverride).toBe("vendor/model-a");
+  });
+});

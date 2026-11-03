@@ -84,6 +84,12 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
         out.sources[key] = level;
       }
     }
+    // A model belongs to the connection it was picked for: a layer that picks another connection without its own
+    // model goes back to that connection's model, instead of sending it an earlier layer's model. CLAUDE, 2026-11-03.
+    if (layer.connectionId !== undefined && layer.modelOverride === undefined && out.modelOverride) {
+      out.modelOverride = "";
+      out.sources.modelOverride = level;
+    }
     for (const key of ["lorebooks", "agents"] as const) {
       const o = layer[key];
       if (o && o.mode !== "keep") {

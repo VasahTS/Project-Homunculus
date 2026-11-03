@@ -326,8 +326,8 @@ export function App() {
   const openTrackerRef = useRef<((id: string, fromSession: boolean) => void) | null>(null);
   const trackersRef = useRef(new Set<string>());
   trackersRef.current = new Set(trackers.map((t) => t.agent.id));
-  if (bootError) return <div className="boot error">Could not start: {bootError}</div>;
   // Debounced by the palette; the store resolves every Play branch, not only its current end. CODEX.
+  // A hook, so it must run before the early returns below (Rules of Hooks): a boot error would otherwise crash. CLAUDE.
   const searchMessages = useCallback(async (q: string): Promise<PaletteItem[]> => {
     if (!svc) return [];
     const found = await svc.store.searchMessages(sessions.map(s => s.id), q);
@@ -346,6 +346,7 @@ export function App() {
     }));
     return [...play, ...assistant.flat()];
   }, [svc, sessions, asst.chats]);
+  if (bootError) return <div className="boot error">Could not start: {bootError}</div>;
 
   if (!svc) return <div className="boot">Waking the homunculus…</div>;
 

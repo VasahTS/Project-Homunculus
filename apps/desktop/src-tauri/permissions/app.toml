@@ -1,0 +1,6 @@
+# Commands of the local main window. Every command in generate_handler! must be allowed here or in a
+# remote window's own permission (desktop/src/native-permissions.test.ts checks it). Moved from janny.toml, CLAUDE 2026-11-03.
+[[permission]]
+identifier = "allow-main-commands"
+description = "Application commands stay available only to the local main window."
+commands.allow = ["database_url", "data_location", "backup_database", "secret_get", "secret_set", "secret_delete", "save_download", "update_channel", "web_search_page", "web_get", "card_site_request", "janny_card_url", "botbooru_request", "botbooru_window"]
