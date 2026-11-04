@@ -12,7 +12,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, Fragment } f
 import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
 import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
-import { MemoryGroup } from "./MemoryGroup.tsx";
+import { MemoryPane } from "./MemoryPane.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
 import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, isTracked } from "@homunculus/core";
@@ -27,7 +27,7 @@ import { layerWithStyle, type Tracker } from "../trackers.ts";
 import { Inspector, type InspectorTab } from "./Inspector.tsx";
 import { PromptPane } from "./ConnectionPanel.tsx";
 import { approxTokens, fmtTokens, ReplyPane } from "./ReplyPane.tsx";
-import { Button, Icon, IconButton } from "./kit.tsx";
+import { Button, Group, Icon, IconButton, Row } from "./kit.tsx";
 import { RegexReview, SessionRegex } from "./RegexScripts.tsx";
 import { MessageText } from "./MessageText.tsx";
 import { MessageMetadata, MessageTime } from "./MessageMetadata.tsx";
@@ -874,17 +874,29 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               <SessionRegex rows={regexRows} regexOff={session.setup.regexOff ?? []} onOpenLibrary={() => onOpenRegex?.()}
                 onChange={(regexOff) => { void onChangeSession({ ...session, setup: { ...session.setup, regexOff } }); setRegexTick((t) => t + 1); }} />
             </>}
-            memory={<MemoryGroup svc={svc} session={session} headId={headId ?? null} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession} refreshKey={sceneKey} />}
+            memory={<MemoryLink session={session} storySetup={storySetup} onOpen={() => setTab("memory")} />}
             character={onSaveCharacter && onOpenCharacter ? (
               <PromptCharacter cards={session.cast.filter((m) => m.characterId && characters[m.characterId]).map((m) => ({ character: characters[m.characterId!]!, variantId: m.variantId, tracked: isTracked(m, characters[m.characterId!]!) }))}
                 avatars={avatars} onSave={onSaveCharacter} onOpenEditor={onOpenCharacter} />
             ) : undefined}
             preview={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, userText: input }); }} />}
+          memory={<MemoryPane svc={svc} session={session} headId={headId ?? null} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession}
+            refreshKey={sceneKey} lastReplyId={lastAi?.id ?? null} draft={input} />}
           reply={<ReplyPane providers={providers} svc={svc} session={session} storySetup={storySetup} messageId={replyFor ?? lastAi?.id ?? null} trackers={trackers} connection={connection}
             refreshKey={sceneKey} busy={busy} running={manual && manual.messageId === (replyFor ?? lastAi?.id) ? manual.agentId : null} onRun={runAgentsOn} />}
         />
       )}
     </div>
+  );
+}
+
+/** The Prompt tab's pointer to the Memory tab (D-084): memory has its own tab now. */
+function MemoryLink({ session, storySetup, onOpen }: { session: Session; storySetup?: SetupLayer | undefined; onOpen: () => void }) {
+  const on = session.setup.memory?.on ?? storySetup?.memory?.on ?? false;
+  return (
+    <Group title="Memory" testId="memory-link" help="Chapter summaries of older messages. Everything about memory is in its own tab.">
+      <Row label={on ? "On" : "Off"}><button type="button" className="link" onClick={onOpen} data-testid="open-memory-tab">Open the Memory Tab ›</button></Row>
+    </Group>
   );
 }
 

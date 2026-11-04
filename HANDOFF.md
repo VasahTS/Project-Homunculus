@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Memory has its own tab, explained (2026-11-04) — CLAUDE — D-084
+
+Daniel: memory in the Prompt tab was hard to understand; make a separate tab like v1, with everything separated, how to use it and examples.
+- Inspector → **Memory** tab (`ui/MemoryPane.tsx`): header with on/off, chapters / tokens sent / waiting and See What the AI Gets; tabs **Chapters** (next chapter: Write Chapter Now, Write It Myself, Catch Up; the list with message numbers; folds Automatic chapters, Merging old chapters, Who writes the chapters, each with a live example), **Recall** (Simple / Smart as two choices with their cost, the decision model, Try It, the last reply's receipt), **Guide** (steps, example, words, good-to-knows). Off = an introduction with Turn On Memory.
+- Core: `memory.auto`, `memoryPreview`, `addOwnChapter`, `testRecall`, message numbers in `memoryAt`.
+- **To try on Windows:** open a chat → inspector **Memory** → Turn On Memory → Chapters / Recall / Guide.
+- Checks: typecheck; 692 unit; memory click tests moved to the new tab (`e2e/ui.ts` → `memoryOn`).
+
 ## Memory v2: layers, Catch Up, smart recall with Jev; "Messages to show" (2026-11-04) — CLAUDE — D-083
 
 Daniel asked for the memory system combining Summaryception, his friend's Chapter Memory and Marinara's memory, plus SillyTavern's "# Msg. to Load".

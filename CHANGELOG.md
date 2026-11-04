@@ -7,6 +7,7 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ### Memory
 
+- Memory has its **own tab** beside Scene, Prompt and Reply: what it is doing right now, the chapters with their message numbers, **Write It Myself**, settings with live examples, **Try it** for Smart recall, and a Guide.
 - Chapters can close **by size in tokens** (always ending at an AI reply), not only every N messages.
 - **Merge old chapters:** when summaries pile up, the oldest merge into one shorter summary, so very long stories keep a small memory.
 - **Catch Up** writes every chapter an old or imported chat is missing, with progress and Stop.

@@ -103,6 +103,8 @@ export const SetupLayer = z.object({
   /** Simple memory (D-054): chapter summaries replace old messages. Each value inherits on its own. */
   memory: z.object({
     on: z.boolean().optional(),
+    /** D-084: write chapters by themselves after replies. */
+    auto: z.boolean().optional(),
     /** Messages per chapter. */
     every: z.number().int().min(4).max(500).optional(),
     /** The newest messages that always go word for word. */

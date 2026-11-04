@@ -18,7 +18,7 @@ import type { ConnectionConfig } from "./extensions.ts";
 import { scanLorebooks, type LoreScope } from "./lorebook.ts";
 import { applyBasicMacros, DEFAULT_USER_NAME, expandMacros, type MacroContext } from "./macros.ts";
 import { applyPresetOverride } from "./prompt-control.ts";
-import { buildPrompt, DEFAULT_PRESET, presetParams, squashSystem, toTurns, type BuiltPrompt, type PromptInjection } from "./presets.ts";
+import { buildPrompt, DEFAULT_PRESET, estimateTokens, presetParams, squashSystem, toTurns, type BuiltPrompt, type PromptInjection } from "./presets.ts";
 import { applyRegexScripts, orderRegexScripts, regexKey, regexScriptsOf, type RegexRunContext } from "./regex.ts";
 
 // A chat-specific model never mutates the shared profile. CODEX.
@@ -305,7 +305,7 @@ export class TurnPipeline {
     // 8. other triggers
     if (!req.signal?.aborted) outcomes.push(...(await this.otherTriggers(entries, owners, { ...base, trigger: "", messageId: reply.id, text: reply.content }, parentId)));
     // 9. memory (D-054): close a chapter when enough old messages piled up. A failure never fails the turn.
-    if (setup.memory.on && !req.signal?.aborted) {
+    if (setup.memory.on && setup.memory.auto && !req.signal?.aborted) {
       await this.summarize(session, setup, reply.id, main, req.connections, { manual: false, signal: req.signal }).catch((e) =>
         void this.core.events.emit("core.error", { source: "memory", message: e instanceof Error ? e.message : String(e) }))
         .finally(() => void this.core.events.emit("memory.status", { sessionId: session.id, text: null }));
@@ -358,8 +358,13 @@ export class TurnPipeline {
 
   /** What memory looks like at a message: the summaries on its path (story order) and what waits for the next chapter. */
   async memoryAt(sessionId: string, messageId: string | null): Promise<MemorySettings & {
-    chapters: Array<Chapter & { label: string; mergedInto?: string; sent: boolean }>;
+    /** `from`/`to` = message numbers on this branch (#1 = the first message), as the chat shows them. */
+    chapters: Array<Chapter & { label: string; mergedInto?: string; sent: boolean; from: number; to: number }>;
     waiting: number; waitingTokens: number; dueChapters: number;
+    /** Message numbers the next chapter would start and end at (0 when nothing waits). */
+    waitingFrom: number; waitingTo: number;
+    /** What memory puts in the prompt now (simple: every summary), its size, and how many messages it stands in for. */
+    promptTokens: number; covered: number;
   }> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
@@ -371,17 +376,77 @@ export class TurnPipeline {
     const level0 = placed.filter((x) => levelOf(x.chapter) === 0);
     const top = new Set(topCover(path, all).map((x) => x.chapter.id));
     const on = placed.filter((x) => !x.chapter.off);
+    const num = new Map(path.map((m, i) => [m.id, i + 1]));
     const chapters = placed.map((x) => {
       const parent = on.filter((y) => levelOf(y.chapter) > levelOf(x.chapter) && y.from <= x.from && y.to >= x.to)
         .sort((a, b) => levelOf(b.chapter) - levelOf(a.chapter))[0];
-      return { ...x.chapter, label: chapterLabel(x, level0), sent: top.has(x.chapter.id), ...(parent ? { mergedInto: parent.chapter.id } : {}) };
+      return { ...x.chapter, label: chapterLabel(x, level0), sent: top.has(x.chapter.id), from: num.get(x.chapter.fromId) ?? 0, to: num.get(x.chapter.toId) ?? 0,
+        ...(parent ? { mergedInto: parent.chapter.id } : {}) };
     });
-    const waiting = waitingSpan(path, all, setup.memory).length;
+    const span = waitingSpan(path, all, setup.memory);
+    const waiting = span.length;
+    const simple = applyChapters(path, all);
     const tokens = waitingTokens(path, all, setup.memory);
     const dueChapters = setup.memory.closeBy === "tokens"
       ? Math.floor(tokens / Math.max(1, setup.memory.everyTokens))
       : Math.floor(waiting / Math.max(1, setup.memory.every));
-    return { ...setup.memory, chapters, waiting, waitingTokens: tokens, dueChapters };
+    return {
+      ...setup.memory, chapters, waiting, waitingTokens: tokens, dueChapters,
+      waitingFrom: span.length ? num.get(span[0]!.id) ?? 0 : 0, waitingTo: span.length ? num.get(span.at(-1)!.id) ?? 0 : 0,
+      promptTokens: simple.text ? estimateTokens(simple.text) : 0, covered: simple.covered,
+    };
+  }
+
+  /** "See what the AI gets": the memory text at a message (every summary; smart recall picks per reply). */
+  async memoryPreview(sessionId: string, messageId: string | null): Promise<{ text: string; tokens: number; covered: number }> {
+    const path = messageId ? await this.store.pathTo(messageId) : [];
+    if (path.some(m => m.sessionId !== sessionId)) throw new Error("Memory message belongs to another session");
+    const r = applyChapters(path, await this.chapters(sessionId));
+    return { text: r.text, tokens: r.text ? estimateTokens(r.text) : 0, covered: r.covered };
+  }
+
+  /**
+   * Write It Myself (D-084): a chapter the user wrote, covering every message that waits on this branch (outside the
+   * newest `keep`). Marked edited, so the app never rewrites it. Undefined when nothing waits.
+   */
+  async addOwnChapter(sessionId: string, messageId: string, title: string, summary: string): Promise<Chapter | undefined> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    if (!summary.trim()) throw new Error("Write the summary first.");
+    const setup = await this.setupFor(session);
+    return this.serializeMemory(this.chapterWrites, sessionId, async () => {
+      const path = await this.store.pathTo(messageId);
+      if (path.some(m => m.sessionId !== sessionId)) throw new Error("Memory message belongs to another session");
+      const latest = await this.chapters(sessionId);
+      const span = waitingSpan(path, latest, setup.memory);
+      if (!span.length) return undefined;
+      const chapter: Chapter = { id: this.newId(), fromId: span[0]!.id, toId: span.at(-1)!.id, title: title.trim(), summary: summary.trim(),
+        messageCount: span.length, createdAt: this.now(), edited: true };
+      await this.store.setAppSetting(`memory.chapters:${sessionId}`, [...latest, chapter]);
+      return chapter;
+    });
+  }
+
+  /**
+   * Test Recall (D-084): what smart recall would choose if the user said `userText` now, without writing a reply.
+   * Uses (and fills) the same answer cache, so sending the same text right after asks nothing again.
+   */
+  async testRecall(sessionId: string, messageId: string, userText: string, connection: ConnectionConfig,
+    connections?: Record<string, ConnectionConfig>, signal?: AbortSignal): Promise<RecallResult | undefined> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    const setup = await this.setupFor(session);
+    const main = chatModel((setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection, setup);
+    await this.loadCharNames(session);
+    const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
+    const user = persona ? effectivePersona(persona, setup.personaVariantId).name : DEFAULT_USER_NAME;
+    const path = await this.store.pathTo(messageId);
+    const fake: Message = { id: "test-recall", sessionId, parentId: messageId, speaker: { kind: "user" }, kind: "user",
+      visibility: { ai: "full", user: true }, content: userText, createdAt: this.now(), meta: {} };
+    const history = userText.trim() ? [...path, fake] : path;
+    const char = session.cast[0]?.characterId ? this.charNames.get(session.cast[0].characterId) ?? "Character" : "Narrator";
+    const names = { char, user, bySpeaker: (m: Message) => this.nameOf(m, user) } as RunRequest["names"];
+    return this.recallFor(session, setup, history, names, main, connections, signal);
   }
 
   /** Simple memory, or smart recall's choice, for one prompt (+ the receipt and the note the Reply tab shows). */

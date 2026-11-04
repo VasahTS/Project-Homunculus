@@ -47,7 +47,7 @@ export async function openSession(page: Page, index = 0) {
 }
 
 /** Opens a tab of the inspector beside the story. */
-export async function openTab(page: Page, tab: "scene" | "prompt" | "reply") {
+export async function openTab(page: Page, tab: "scene" | "prompt" | "memory" | "reply") {
   await page.getByTestId(`tab-${tab}`).click();
 }
 
@@ -78,4 +78,21 @@ export async function setTracker(page: Page, name: string, on = true) {
   if (await scene.getByRole("dialog").isVisible()) await page.keyboard.press("Escape");
   // the tracker's tab appears (or goes away)
   if (on) await expect(scene.locator(`[data-testid="tracker-card"][aria-label="${name}"]`)).toHaveCount(1);
+}
+
+/** Opens the Memory tab (D-084), turns memory on and (optionally) sets the Automatic chapters numbers. */
+export async function memoryOn(page: Page, set: { keep?: number; every?: number } = {}) {
+  await openTab(page, "memory");
+  const pane = page.getByTestId("memory-pane");
+  await pane.getByTestId("memory-turn-on").click();
+  await expect(pane.getByTestId("memory-stats")).toBeVisible();
+  if (set.keep !== undefined || set.every !== undefined) {
+    await pane.getByTestId("memory-fold-auto").getByRole("button", { name: /Automatic chapters/ }).click();
+    for (const [label, v] of [["Messages per chapter", set.every], ["Newest messages kept word for word", set.keep]] as const) {
+      if (v === undefined) continue;
+      await pane.getByLabel(label).fill(String(v));
+      await pane.getByLabel(label).press("Enter");
+    }
+  }
+  return pane;
 }

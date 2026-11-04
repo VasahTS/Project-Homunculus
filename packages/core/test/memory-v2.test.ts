@@ -176,4 +176,27 @@ describe("memory v2 in a chat", () => {
     expect((await w.chat.turns.memoryAt(session.id, at)).dueChapters).toBe(0);
     expect(progress.at(-1)).toBe(4);
   });
+
+  it("Memory tab helpers: automatic off, Write It Myself, message numbers, the preview and Try It (D-084)", async () => {
+    const w = await world(summarizer);
+    const provider = w.core.providers.get("fake")!;
+    provider.decide = async (req) => ({ answers: Object.fromEntries(req.questions.map((q) => [q.id, 0.8])) });
+    await w.store.setDefaultSetup({ memory: { on: true, auto: false, every: 4, keep: 2, mode: "smart" } });
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    let at = firstMessage!.id;
+    for (let i = 1; i <= 4; i++) at = (await w.chat.send(session.id, at, `Turn ${i}.`, connection)).reply.id;
+    expect(await w.chat.turns.chapters(session.id)).toHaveLength(0); // automatic off
+    const before = await w.chat.turns.memoryAt(session.id, at);
+    expect(before).toMatchObject({ waiting: 7, waitingFrom: 1, waitingTo: 7, promptTokens: 0 });
+    const own = await w.chat.turns.addOwnChapter(session.id, at, " The mill ", "Dan and Lyra met at the mill.");
+    expect(own).toMatchObject({ title: "The mill", edited: true, messageCount: 7 });
+    const after = await w.chat.turns.memoryAt(session.id, at);
+    expect(after.chapters[0]).toMatchObject({ from: 1, to: 7, label: "Chapter 1", sent: true });
+    expect(after.waiting).toBe(0);
+    expect(after.promptTokens).toBeGreaterThan(0);
+    expect((await w.chat.turns.memoryPreview(session.id, at)).text).toContain("Chapter 1: The mill");
+    const tried = await w.chat.turns.testRecall(session.id, at, "Remember the mill?", connection);
+    expect(tried?.receipt.picked.map((p) => p.title)).toEqual(["The mill"]);
+    expect(await w.chat.turns.addOwnChapter(session.id, at, "", "Nothing waits now.")).toBeUndefined();
+  });
 });

@@ -5,12 +5,12 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Icon, IconButton, Segmented } from "./kit.tsx";
 import { CASCADE, EASE_OUT, enter, reducedMotion } from "./motion.ts";
 
-export type InspectorTab = "scene" | "prompt" | "reply";
-const ORDER: InspectorTab[] = ["scene", "prompt", "reply"];
+export type InspectorTab = "scene" | "prompt" | "memory" | "reply";
+const ORDER: InspectorTab[] = ["scene", "prompt", "memory", "reply"];
 
-export function Inspector({ tab, onTab, scene, prompt, reply, onClose }: {
+export function Inspector({ tab, onTab, scene, prompt, memory, reply, onClose }: {
   onClose?: () => void;
-  tab: InspectorTab; onTab: (t: InspectorTab) => void; scene: ReactNode; prompt: ReactNode; reply: ReactNode;
+  tab: InspectorTab; onTab: (t: InspectorTab) => void; scene: ReactNode; prompt: ReactNode; memory: ReactNode; reply: ReactNode;
 }) {
   const body = useRef<HTMLDivElement>(null);
   const prev = useRef(tab);
@@ -30,11 +30,12 @@ export function Inspector({ tab, onTab, scene, prompt, reply, onClose }: {
         <Segmented tabs label="Inspector" value={tab} onChange={onTab} options={[
           { value: "scene", label: "Scene", testId: "tab-scene" },
           { value: "prompt", label: "Prompt", testId: "tab-prompt" },
+          { value: "memory", label: "Memory", testId: "tab-memory" },
           { value: "reply", label: "Reply", testId: "tab-reply" },
         ]} />
       </div>
       <div className="inspector-body" role="tabpanel" ref={body}>
-        {tab === "scene" ? scene : tab === "prompt" ? prompt : reply}
+        {tab === "scene" ? scene : tab === "prompt" ? prompt : tab === "memory" ? memory : reply}
       </div>
     </aside>
   );

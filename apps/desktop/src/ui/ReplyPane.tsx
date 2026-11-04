@@ -253,7 +253,7 @@ function diffState(before: ResolvedState, after: ResolvedState, trackers: Tracke
 }
 
 /** What memory sent with this reply (D-083): simple summaries, or what smart recall chose and why. CLAUDE, 2026-11-04. */
-function MemoryReceipt({ m }: { m: NonNullable<GenerationRecord["memory"]> }) {
+export function MemoryReceipt({ m }: { m: NonNullable<GenerationRecord["memory"]> }) {
   const smart = m.mode === "smart";
   const aside = smart && !m.fallback
     ? `${m.picked?.length ?? 0} of ${m.chapters} chapters${m.quotes ? ` · ${m.quotes} quote${m.quotes === 1 ? "" : "s"}` : ""}`

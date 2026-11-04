@@ -38,6 +38,8 @@ export type MemoryMode = "simple" | "smart";
 
 export interface MemorySettings {
   on: boolean;
+  /** Write chapters by themselves after replies (off = only when asked: Write Chapter Now, Write It Myself, Catch Up). */
+  auto: boolean;
   /** Messages per chapter (when closing by messages). */
   every: number;
   /** The newest messages that always go word for word. */
@@ -65,7 +67,7 @@ export interface MemorySettings {
 }
 
 export const MEMORY_DEFAULTS: MemorySettings = {
-  on: false, every: 20, keep: 10, closeBy: "messages", everyTokens: 8000,
+  on: false, auto: true, every: 20, keep: 10, closeBy: "messages", everyTokens: 8000,
   layers: true, layerSize: 10, layerMerge: 3,
   mode: "simple", decider: "jev", deciderConnectionId: "", deciderModel: "typesafe/jev-latest", recallChapters: 4, recallQuotes: 3,
 };
