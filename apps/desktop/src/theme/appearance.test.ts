@@ -24,9 +24,10 @@ describe("tweaks", () => {
     expect(inkOn("#1a2b6d")).toBe("#ffffff");
     expect(inkOn("not a color")).toBe("#0d0d0d");
   });
-  it("the default look is Mono with square corners", () => {
+  it("the app starts in Observatory (draft H3, D-087): square corners and the Alchemical icons", () => {
     const l = resolvedLook();
-    expect(l.id).toBe("mono");
+    expect(l.id).toBe("observatory");
     expect(l.tokens.round).toBe("0");
+    expect(l.icons).toBe("alchemical");
   });
 });

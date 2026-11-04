@@ -914,3 +914,13 @@ Daniel (translated), after the drafts on the canvas "Homunculus 2 — Home" (cla
 - **Dialogue color fix:** messages drawn in the isolated frame (styled HTML, e.g. the render agents) had `[class] q.dlg { color: inherit }`, so any AI element with a class made dialogue ignore the look's color, in every look and after every switch. Now the look's (or Messages') dialogue color applies there too; only a color the AI put on the quote's container (`style="color…"`, `<font color>`) is kept. The look switch and "Theme's" already worked (checked in the browser); test `e2e/dialogue-color.e2e.ts`.
 
 Signed: **CLAUDE**.
+
+## D-087 — The app starts in Observatory, opens maximized; the Home title fits its plate (2026-11-04)
+
+Daniel, after pulling D-086 on Windows (screenshot: Home in Mono — Archivo, line icons, white): "mine has neither the theme nor the icons, the font is different, the color is still white" · "make the app always open maximized (not full screen, just maximized)".
+- Cause: D-086 added Observatory to the looks but left Mono as the active one, so nothing changed until it was picked in Appearance. Now **Observatory is the starting look**; a saved Appearance setting from before (no `observatoryOffered`) that was on Mono switches to Observatory once (any other look picked stays; Appearance can go back to Mono). Browser click tests (`navigator.webdriver`) still start in Mono.
+- **Window:** `"maximized": true` on the main window in `tauri.conf.json` (the window is built from that config in `lib.rs`).
+- **Home title:** sized to its plate (`container-type: inline-size`, `10cqw`, at most 150 px) so a wide face such as Mono's Archivo never runs under "Pl. I".
+
+Signed: **CLAUDE**.
+

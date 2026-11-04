@@ -3479,3 +3479,6 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .side-places kbd.side-count { font-size: 10.5px; color: var(--label-3); }
 .plate-hero .plate-no, .plate-art-plate .plate-no { opacity: 1; color: var(--label); background: var(--window); padding: 3px 7px; }
 .home-assistant-line { align-self: flex-start; padding: 4px 8px 4px 0; background: color-mix(in srgb, var(--window) 72%, transparent); }
+/* D-087: the wordmark sizes to its plate, so a wide face (Mono's Archivo) never runs under the plate number */
+.plate-hero { container-type: inline-size; }
+.plate-hero .home-wordmark { font-size: clamp(48px, 10cqw, 150px); max-width: calc(100% - 96px); }

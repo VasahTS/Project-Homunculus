@@ -17,11 +17,16 @@ export interface AppearanceState {
   tweaks: Record<string, LookTweaks>;
   custom: AppearanceProfile[];
   motion: MotionPrefs;
+  /** Observatory was switched on once for a setting saved before it existed (D-087). */
+  observatoryOffered?: boolean;
 }
 
 const KEY = "appearance";
 export const LOOK_FORMAT = "homunculus-look@1";
-const DEFAULT_STATE: AppearanceState = { activeId: DEFAULT_PROFILE_ID, tweaks: {}, custom: [], motion: { on: true, speed: "normal", followSystem: true } };
+/** Browser click tests are written against Mono; the app itself starts in Observatory (Daniel picked H3, D-086/D-087). */
+const automated = typeof navigator !== "undefined" && navigator.webdriver === true;
+const STARTING_LOOK = automated ? DEFAULT_PROFILE_ID : "observatory";
+const DEFAULT_STATE: AppearanceState = { activeId: STARTING_LOOK, tweaks: {}, custom: [], motion: { on: true, speed: "normal", followSystem: true }, observatoryOffered: true };
 export const MOTION_FACTOR: Record<MotionSpeed, number> = { calm: 1.35, normal: 1, quick: 0.65 };
 /** Accent choices offered for every look (its own accent comes first). */
 export const ACCENTS = ["#f2f2f2", "#e8e1d4", "#bdbdbd", "#8bc4b0", "#86b4e6", "#e2474c", "#e6bf7e"];
@@ -93,6 +98,13 @@ export async function loadAppearance(s: Store): Promise<void> {
   const saved = await s.getAppSetting<Partial<AppearanceState>>(KEY).catch(() => undefined);
   state = { ...DEFAULT_STATE, ...(saved ?? {}), motion: { ...DEFAULT_STATE.motion, ...(saved?.motion ?? {}) } };
   state.custom = (state.custom ?? []).flatMap((p) => { try { return [cleanLook(p)]; } catch { return []; } });
+  // D-087: a setting saved before Observatory existed was still on the old default (Mono): show Observatory once;
+  // Appearance can switch back, and any other look picked before stays
+  if (saved && !saved.observatoryOffered && !automated) {
+    if (!saved.activeId || saved.activeId === DEFAULT_PROFILE_ID) state.activeId = STARTING_LOOK;
+    state.observatoryOffered = true;
+    await s.setAppSetting(KEY, state).catch(() => {});
+  }
   apply();
   emit();
 }
