@@ -89,6 +89,39 @@ describe("T-001 memory boundaries and late answers", () => {
 });
 
 describe("T-001 tree paths, settings and turn isolation", () => {
+  // CODEX: Named branches can have the same head while holding independent memory.
+  it("copies existing memory at a fork and keeps later chapter writes and edits on their branch", async () => {
+    const w = await fixture();
+    const sessionId = w.session.id;
+    await w.store.setDefaultSetup({ memory: { on: true, auto: false, every: 4, keep: 2 } });
+    for (const id of ["main", "fork", "other"]) {
+      await w.store.saveBranch({ id, sessionId, name: id, headMessageId: null, endMessageId: w.head });
+    }
+    const first = await w.chat.turns.addOwnChapter(sessionId, w.head, "Original", "Original summary.", "main");
+    expect((await w.chat.turns.memoryAt(sessionId, w.head, "other")).chapters).toEqual([]);
+    await w.chat.turns.forkMemory(sessionId, w.head, "main", "fork");
+    await w.chat.turns.saveChapters(sessionId, chapters => chapters.map(c => ({ ...c, summary: "Fork-only edit." })), "fork");
+    const main = await w.chat.send(sessionId, w.head, "Main continuation.", connection, { branchId: "main" });
+    const fork = await w.chat.send(sessionId, w.head, "Fork continuation.", connection, { branchId: "fork" });
+    expect(first?.summary).toBe("Original summary.");
+    const originalPrompt = (await w.store.getGenerationRecord(main.reply.id))!.prompt;
+    const forkPrompt = (await w.store.getGenerationRecord(fork.reply.id))!.prompt;
+    expect(originalPrompt.find(p => p.source === "agent:memory")?.content).toContain("Original summary.");
+    expect(forkPrompt.find(p => p.source === "agent:memory")?.content).toContain("Fork-only edit.");
+    expect(forkPrompt.some(p => p.source === "history" && p.content.includes("Unique source 1."))).toBe(false);
+    expect(forkPrompt.some(p => p.source === "history" && p.content.includes("Unique source 11."))).toBe(true);
+    await w.chat.turns.saveChapters(sessionId, () => [], "fork");
+    expect((await w.chat.turns.memoryAt(sessionId, w.head, "main")).chapters).toHaveLength(1);
+    expect((await w.chat.turns.memoryAt(sessionId, w.head, "fork")).chapters).toEqual([]);
+    await w.chat.turns.forkMemory(sessionId, w.head, "main", "fork");
+    await w.chat.setMessageAiVisibility(w.path[1]!.id, "none");
+    for (const branchId of ["main", "fork"]) {
+      const prompt = await w.chat.turns.previewPrompt(sessionId, w.head, connection, { branchId });
+      expect(prompt.parts.some(p => p.source === "agent:memory" || p.content.includes("Unique source 1."))).toBe(false);
+      expect(prompt.parts.some(p => p.source === "history" && p.content.includes("Unique source 2."))).toBe(true);
+    }
+  });
+
   it("a branch inside a chapter and its regenerated reply recover raw text, the original branch keeps its summary", async () => {
     const w = await fixture();
     const hand = chapter(w);

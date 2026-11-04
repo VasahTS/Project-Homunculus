@@ -9,6 +9,25 @@ async function install(store: Awaited<ReturnType<typeof world>>["store"], agents
 }
 
 describe("agent options from v1 and Marinara (D-059)", () => {
+  // CODEX: Agents that explicitly read memory get the selected branch's summaries instead of duplicate history.
+  it("uses the branch's chapter in an agent call and keeps the uncovered history", async () => {
+    const w = await world(() => "ok");
+    await install(w.store, [{ id: "reader", name: "Reader", triggers: [{ on: "manual" }], output: "note",
+      input: { messages: 20, chapters: true } }]);
+    await w.store.setDefaultSetup({ ...await w.store.getDefaultSetup(), memory: { on: true, auto: false, keep: 0 } });
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    const covered = await w.chat.send(session.id, firstMessage!.id, "Covered original.", connection);
+    await w.chat.turns.addOwnChapter(session.id, covered.reply.id, "Main", "Main summary.", "main");
+    await w.chat.turns.addOwnChapter(session.id, covered.reply.id, "Fork", "Fork summary.", "fork");
+    const current = await w.chat.send(session.id, covered.reply.id, "Uncovered original.", connection);
+    await w.chat.turns.runManual(session.id, "reader", current.reply.id, connection, undefined, undefined, { branchId: "fork" });
+    const prompt = w.ai.prompts.at(-1)!.map(p => p.content).join("\n");
+    expect(prompt).toContain("Fork summary.");
+    expect(prompt).not.toContain("Main summary.");
+    expect(prompt).not.toContain("Covered original.");
+    expect(prompt).toContain("Uncovered original.");
+  });
+
   it("variables fill the instructions; a chat's value wins and is not sent again as a setting", async () => {
     let notes = 0;
     const w = await world((m) => isAgentCall(m) ? `note ${++notes}` : "ok");

@@ -10,6 +10,7 @@ import {
   type SessionInput, type TrackerSchemaInput, type NarratorInput, type NpcInput, type StoryInput,
 } from "@homunculus/schemas";
 import type { z } from "zod";
+import { chapterKey, type Chapter } from "../memory.ts";
 import type { MessageTree, ResolvedState, StateRepository } from "../state.ts";
 import type { SqlDriver } from "./sql.ts";
 
@@ -541,6 +542,8 @@ export class SqlStore implements StateRepository, MessageTree {
     await this.db.execute("DELETE FROM generation_records WHERE session_id = ?", [id]);
     await this.db.execute("DELETE FROM state_pins WHERE session_id = ?", [id]);
     await this.db.execute("DELETE FROM branches WHERE session_id = ?", [id]);
+    const memory = chapterKey(id);
+    await this.db.execute("DELETE FROM app_settings WHERE key = ? OR substr(key, 1, ?) = ?", [memory, memory.length + 1, memory + ":"]);
     await this.db.execute("DELETE FROM messages WHERE session_id = ?", [id]);
     await this.db.execute("DELETE FROM sessions WHERE id = ?", [id]);
   }
@@ -637,7 +640,14 @@ export class SqlStore implements StateRepository, MessageTree {
 
   /** Removes a branch's saved name (the branch itself is its messages). */
   async deleteBranch(id: string): Promise<void> {
+    await this.db.execute("DELETE FROM app_settings WHERE key = (SELECT 'memory.chapters:' || session_id || ':' || id FROM branches WHERE id = ?)", [id]);
     await this.db.execute("DELETE FROM branches WHERE id = ?", [id]);
+  }
+
+  /** CODEX: A branch-local copy takes precedence even after its last chapter is removed. */
+  async memoryChapters(sessionId: string, branchId?: string | null): Promise<Chapter[]> {
+    const local = branchId ? await this.getAppSetting<Chapter[]>(chapterKey(sessionId, branchId)) : undefined;
+    return local ?? await this.getAppSetting<Chapter[]>(chapterKey(sessionId)) ?? [];
   }
 
   /** Every message of a session, oldest first (the tree view, D-032). */
@@ -661,6 +671,8 @@ export class SqlStore implements StateRepository, MessageTree {
       for (const table of ["state_deltas", "state_user_deltas", "message_revisions", "state_snapshots", "agent_runs", "agent_notes", "generation_records"]) {
         await this.db.execute(`DELETE FROM ${table} WHERE message_id IN (${marks})`, chunk);
       }
+      await this.db.execute(`DELETE FROM app_settings WHERE key IN (SELECT 'memory.chapters:' || session_id || ':' || id FROM branches
+        WHERE session_id = ? AND (head_message_id IN (${marks}) OR end_message_id IN (${marks})))`, [sessionId, ...chunk, ...chunk]);
       await this.db.execute(`DELETE FROM branches WHERE session_id = ? AND (head_message_id IN (${marks}) OR end_message_id IN (${marks}))`, [sessionId, ...chunk, ...chunk]);
       await this.db.execute(`DELETE FROM messages WHERE session_id = ? AND id IN (${marks})`, [sessionId, ...chunk]);
     }

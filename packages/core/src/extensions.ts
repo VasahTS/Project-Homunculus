@@ -147,6 +147,7 @@ export interface Completion {
   text: string;
   reasoning: string;
   model: string;
+  finish?: string;
   tokensIn?: number;
   tokensOut?: number;
   tokensReasoning?: number;

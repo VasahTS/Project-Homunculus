@@ -15,15 +15,18 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { GenerationRecord, Session, SetupLayer } from "@homunculus/schemas";
 import type { Chapter, MemorySettings, RecallResult } from "@homunculus/core";
+import { DEFAULT_SUMMARY_PROMPT, isDecisionModel } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
 import { Button, Collapse, Icon, Segmented, Switch } from "./kit.tsx";
+import { ModelPicker } from "./ModelPicker.tsx";
 import { MemoryReceipt } from "./ReplyPane.tsx";
 
 type Listed = Chapter & { label: string; mergedInto?: string; sent: boolean; from: number; to: number };
 type MemoryView = MemorySettings & {
+  agentConnectionId: string | null; chatConnectionId: string | null; chatModelOverride: string;
   chapters: Listed[]; waiting: number; waitingTokens: number; dueChapters: number;
-  waitingFrom: number; waitingTo: number; promptTokens: number; covered: number;
+  waitingFrom: number; waitingTo: number; writeNowTo: number; promptText: string; promptTokens: number; covered: number;
 };
 type Layer = NonNullable<SetupLayer["memory"]>;
 type View = "chapters" | "recall" | "guide";
@@ -31,8 +34,8 @@ type View = "chapters" | "recall" | "guide";
 const fmt = (n: number) => (n >= 10_000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-export function MemoryPane({ svc, session, headId, connection, storySetup, onChangeSession, refreshKey = 0, lastReplyId, draft = "" }: {
-  svc: AppServices; session: Session; headId: string | null; connection: ConnectionState; storySetup?: SetupLayer | undefined;
+export function MemoryPane({ svc, session, headId, branchId, connection, storySetup, onChangeSession, refreshKey = 0, lastReplyId, draft = "" }: {
+  svc: AppServices; session: Session; headId: string | null; branchId: string | null; connection: ConnectionState; storySetup?: SetupLayer | undefined;
   onChangeSession: (s: Session) => void | Promise<void>;
   /** Changes when a reply finished (a chapter may have closed). */
   refreshKey?: number;
@@ -45,35 +48,41 @@ export function MemoryPane({ svc, session, headId, connection, storySetup, onCha
   const [view, setView] = useState<View>("chapters");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [peek, setPeek] = useState<{ text: string; tokens: number } | null>(null);
-  const load = useCallback(() => svc.chat.turns.memoryAt(session.id, headId).then((s) => { setState(s); setError(""); })
-    .catch((e) => setError(String(e instanceof Error ? e.message : e))), [svc, session.id, headId]);
+  const [peekOpen, setPeekOpen] = useState(false);
+  const load = useCallback(() => svc.chat.turns.memoryAt(session.id, headId, branchId).then((s) => { setState(s); setError(""); })
+    .catch((e) => setError(String(e instanceof Error ? e.message : e))), [svc, session.id, headId, branchId]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void load(); }, [load, refreshKey, session.setup.memory, storySetup?.memory]);
   useEffect(() => svc.core.events.on("memory.status", (e) => {
-    if (e.sessionId !== session.id) return;
+    if (e.sessionId !== session.id || (e.branchId ?? null) !== branchId) return;
     setStatus(e.text);
     if (e.text === null) void load();
-  }, "memory-pane"), [svc, session.id, load]);
-  useEffect(() => { setPeek(null); }, [session.id, headId, refreshKey]);
+  }, "memory-pane"), [svc, session.id, branchId, load]);
+  useEffect(() => { setPeekOpen(false); }, [headId, refreshKey]);
 
   const own: Layer = session.setup.memory ?? {};
-  const setMemory = (patch: Partial<Layer>) => {
-    const next: Record<string, unknown> = { ...own, ...patch };
-    for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
-    const { memory: _drop, ...rest } = session.setup;
-    void onChangeSession({ ...session, setup: Object.keys(next).length ? { ...rest, memory: next as Layer } : rest });
+  const memorySave = useRef(Promise.resolve());
+  const saveMemory = (patch: Partial<Layer>) => {
+    // CODEX: Read each patch against the last saved setup, including a pending edit to another memory setting.
+    const saved = memorySave.current.then(async () => {
+      const latest = await svc.store.getSession(session.id);
+      if (!latest) throw new Error("This chat is no longer available.");
+      const next: Layer = { ...latest.setup.memory, ...patch };
+      for (const k of Object.keys(next) as Array<keyof Layer>) if (next[k] === undefined) delete next[k];
+      const { memory: _drop, ...rest } = latest.setup;
+      await onChangeSession({ ...latest, setup: Object.keys(next).length ? { ...rest, memory: next } : rest });
+      await load();
+    });
+    memorySave.current = saved.catch(() => {});
+    return saved;
   };
+  const setMemory = (patch: Partial<Layer>) => { void saveMemory(patch).catch((e) => setError(String(e instanceof Error ? e.message : e))); };
   const fromStory = (k: keyof Layer) => own[k] === undefined && storySetup?.memory?.[k] !== undefined;
-  const togglePeek = async () => {
-    if (peek) { setPeek(null); return; }
-    try { const p = await svc.chat.turns.memoryPreview(session.id, headId); setPeek(p); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-  };
-
   if (!state) return <div className="mem-pane" data-testid="memory-pane">{error && <p className="error-text" role="alert">{error}</p>}</div>;
   const level0 = state.chapters.filter((c) => !c.level);
   const merged = state.chapters.filter((c) => c.level);
   const sentChapters = state.chapters.filter((c) => c.sent).length;
+  const showPeek = peekOpen && state.on && sentChapters > 0;
 
   return (
     <div className="mem-pane" data-testid="memory-pane">
@@ -89,22 +98,22 @@ export function MemoryPane({ svc, session, headId, connection, storySetup, onCha
         {state.on && (
           <div className="mem-stats" data-testid="memory-stats">
             <Stat n={level0.length} label={level0.length === 1 ? "chapter" : "chapters"} sub={merged.length ? `${merged.length} merged` : undefined} />
-            <Stat n={state.promptTokens} fmtN label="tokens sent" sub={state.covered ? `for ${plural(state.covered, "message")}` : undefined} />
+            <Stat n={state.promptTokens} fmtN label="memory tokens" sub={state.covered ? `${state.covered} originals replaced` : undefined} />
             <Stat n={state.waiting} label="waiting" sub={state.waiting ? `#${state.waitingFrom}–#${state.waitingTo}` : "none"} />
           </div>
         )}
         {state.on && (
           <div className="mem-head-foot">
             <span className="hint" data-testid="memory-status">{status ?? (state.auto ? nextChapterHint(state) : "Automatic chapters are off: write them from Chapters.")}</span>
-            <button type="button" className="link" onClick={() => void togglePeek()} disabled={!sentChapters} data-testid="memory-peek">
-              <Icon name={peek ? "eyeOff" : "eye"} size={13} /> {peek ? "Hide" : "See What the AI Gets"}
+            <button type="button" className="link" onClick={() => setPeekOpen(!showPeek)} disabled={!sentChapters} data-testid="memory-peek">
+              <Icon name={showPeek ? "eyeOff" : "eye"} size={13} /> {showPeek ? "Hide" : "See What the AI Gets"}
             </button>
           </div>
         )}
-        <Collapse open={!!peek}>
-          {peek && <div className="mem-peek" data-testid="memory-peek-text">
-            <span className="hint">Sent right before the chat history, ~{fmt(peek.tokens)} tokens.{state.mode === "smart" ? " With Smart recall each reply sends only the chapters it picks (Recall → Try It)." : ""}</span>
-            <pre>{peek.text}</pre>
+        <Collapse open={showPeek}>
+          {showPeek && <div className="mem-peek" data-testid="memory-peek-text">
+            <span className="hint">System text at the start of the preset’s Chat History block, ~{fmt(state.promptTokens)} tokens.{state.mode === "smart" ? " This preview shows all available summaries. Recall → Try It shows what Smart recall would pick." : ""}</span>
+            <pre>{state.promptText}</pre>
           </div>}
         </Collapse>
       </header>
@@ -121,9 +130,9 @@ export function MemoryPane({ svc, session, headId, connection, storySetup, onCha
         </div>
       )}
 
-      {state.on && view === "chapters" && <ChaptersView svc={svc} session={session} headId={headId} connection={connection} storySetup={storySetup}
-        state={state} setMemory={setMemory} fromStory={fromStory} reload={load} />}
-      {state.on && view === "recall" && <RecallView svc={svc} session={session} headId={headId} connection={connection} state={state}
+      {state.on && view === "chapters" && <ChaptersView svc={svc} session={session} headId={headId} branchId={branchId} connection={connection}
+        state={state} setMemory={setMemory} saveMemory={saveMemory} fromStory={fromStory} reload={load} />}
+      {state.on && view === "recall" && <RecallView svc={svc} session={session} headId={headId} branchId={branchId} connection={connection} state={state}
         setMemory={setMemory} lastReplyId={lastReplyId} draft={draft} refreshKey={refreshKey} />}
       {view === "guide" && <GuideView state={state} />}
       {error && <p className="error-text mem-error" role="alert">{error}</p>}
@@ -154,7 +163,7 @@ function OffIntro({ chapters, onOn, onGuide, guide }: { chapters: number; onOn: 
       <p>The AI can only read so much at once. Memory turns older messages into short <b>chapters</b>, and the AI reads the chapters instead. Old events, promises and names stay known, and each reply sends fewer tokens.</p>
       <ol className="mem-steps">
         <li><b>You chat as usual.</b> The newest messages always go word for word.</li>
-        <li><b>Older messages become a chapter</b>, a summary of a few paragraphs, written by the agents' connection.</li>
+        <li><b>Older messages become a chapter</b>, a summary of a few paragraphs, written by the model you choose under Chapters.</li>
         <li><b>The AI reads the chapters</b> in place of those messages. You can read, edit or switch off every chapter.</li>
       </ol>
       {chapters > 0 && <p className="hint">This chat already has {plural(chapters, "summary", "summaries")}, kept while memory is off.</p>}
@@ -168,9 +177,10 @@ function OffIntro({ chapters, onOn, onGuide, guide }: { chapters: number; onOn: 
 
 // ---------------------------------------------------------------- chapters
 
-function ChaptersView({ svc, session, headId, connection, storySetup, state, setMemory, fromStory, reload }: {
-  svc: AppServices; session: Session; headId: string | null; connection: ConnectionState; storySetup?: SetupLayer | undefined;
-  state: MemoryView; setMemory: (p: Partial<Layer>) => void; fromStory: (k: keyof Layer) => boolean; reload: () => Promise<void>;
+function ChaptersView({ svc, session, headId, branchId, connection, state, setMemory, saveMemory, fromStory, reload }: {
+  svc: AppServices; session: Session; headId: string | null; branchId: string | null; connection: ConnectionState;
+  state: MemoryView; setMemory: (p: Partial<Layer>) => void; saveMemory: (p: Partial<Layer>) => Promise<void>;
+  fromStory: (k: keyof Layer) => boolean; reload: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState<"" | "now" | "catch-up">("");
   const [progress, setProgress] = useState("");
@@ -181,7 +191,7 @@ function ChaptersView({ svc, session, headId, connection, storySetup, state, set
   useEffect(() => () => stop.current?.abort(), []);
 
   const change = async (update: (latest: Chapter[]) => Chapter[]) => {
-    try { await svc.chat.turns.saveChapters(session.id, update); setError(""); await reload(); }
+    try { await svc.chat.turns.saveChapters(session.id, update, branchId); setError(""); await reload(); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   const now = async () => {
@@ -189,7 +199,7 @@ function ChaptersView({ svc, session, headId, connection, storySetup, state, set
     setBusy("now"); setError(""); setProgress("");
     try {
       const r = connection.forRequest();
-      const c = await svc.chat.turns.summarizeNow(session.id, headId, r.connection, r.connections);
+      const c = await svc.chat.turns.summarizeNow(session.id, headId, r.connection, r.connections, undefined, branchId);
       if (!c) setError("Not enough older messages yet: the newest ones always go word for word.");
       else setProgress(`Chapter written: ${c.title || "untitled"}.`);
       await reload();
@@ -203,7 +213,7 @@ function ChaptersView({ svc, session, headId, connection, storySetup, state, set
     try {
       const r = connection.forRequest();
       const made = await svc.chat.turns.catchUpMemory(session.id, headId, r.connection, r.connections,
-        (done, left) => setProgress(left ? `Writing… ${done} done, ${left} to go` : `${done} done`), ctl.signal);
+        (done, left) => setProgress(left ? `Writing… ${done} done, ${left} to go` : `${done} done`), ctl.signal, branchId);
       setProgress(made ? `Done: ${plural(made, "chapter")} written.` : "Nothing to catch up.");
     } catch (e) {
       setProgress(ctl.signal.aborted ? "Stopped. What was written is kept." : "");
@@ -213,18 +223,12 @@ function ChaptersView({ svc, session, headId, connection, storySetup, state, set
   const saveOwn = async () => {
     if (!headId) return;
     try {
-      const c = await svc.chat.turns.addOwnChapter(session.id, headId, own.title, own.summary);
+      const c = await svc.chat.turns.addOwnChapter(session.id, headId, own.title, own.summary, branchId);
       if (!c) { setError("Nothing waits for a chapter on this branch."); return; }
       setOwn({ title: "", summary: "" }); setWriting(false); setProgress(`Your chapter was saved${c.title ? `: ${c.title}` : ""}.`);
       await reload();
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
-  const agentsName = (() => {
-    const id = session.setup.agentConnectionId ?? storySetup?.agentConnectionId ?? connection.defaultAgentId;
-    const p = id ? connection.byId.get(id) : undefined;
-    return p?.name;
-  })();
-
   return (
     <div className="mem-view" data-testid="memory-chapters">
       <section className="mem-card" data-testid="memory-next">
@@ -235,9 +239,12 @@ function ChaptersView({ svc, session, headId, connection, storySetup, state, set
             : "Every older message is already in a chapter."}
           {" "}The newest {plural(state.keep, "message")} always {state.keep === 1 ? "stays" : "stay"} word for word.
         </p>
+        {state.writeNowTo > 0 && state.writeNowTo < state.waitingTo && <p className="hint">
+          Write Chapter Now covers <b>#{state.waitingFrom}–#{state.writeNowTo}</b>. The rest of the queue stays in Chat History until summarized.
+        </p>}
         <div className="mem-actions">
           <Button small variant="prominent" onClick={() => void now()} disabled={!!busy || state.waiting < 2 || !headId} data-testid="memory-write-now"
-            title="The AI summarizes what waits into one chapter.">
+            title="The AI writes one chapter using the configured chapter size.">
             <Icon name="sparkle" size={13} />{busy === "now" ? "Writing…" : "Write Chapter Now"}
           </Button>
           <Button small onClick={() => setWriting((v) => !v)} disabled={!!busy || !state.waiting} aria-expanded={writing} data-testid="memory-write-own">
@@ -312,10 +319,11 @@ function ChaptersView({ svc, session, headId, connection, storySetup, state, set
         </Example>
       </Fold>
 
-      <Fold title="Who writes the chapters" testId="memory-fold-writer" value={agentsName ?? "Story's connection"}>
-        <p className="mem-text">The <b>agents' connection</b>{agentsName ? <> — now <b>{agentsName}</b></> : null}, one short call per chapter (merges too). A cheaper model works well here. Change it in this chat's <b>Prompt</b> tab (Connections) or in <b>Settings → Defaults</b>.</p>
-        <p className="mem-text">It is told to keep what later scenes need: who did what, promises with their exact terms, what people learned, injuries, items, where everyone ended up, open threads, and how relationships changed. It never invents anything.</p>
+      <Fold title="Where chapters go in the prompt" testId="memory-fold-placement" value="Start of Chat History">
+        <p className="mem-text">The reply model receives the selected chapters as a <b>system message</b> at the start of the preset’s <b>Chat History</b> block. Covered originals leave that history and stay visible in the chat. Smart recall can include selected quotes inside the memory block.</p>
+        <p className="mem-text hint">The preset must have Chat History enabled for that reply. Open <b>Prompt → Preview Prompt</b> for the next reply or <b>Reply → Open the Full Prompt</b> for a sent reply. Look for <b>Memory: the story so far</b>.</p>
       </Fold>
+      <WriterSettings key={session.id} svc={svc} connection={connection} state={state} onSave={saveMemory} />
     </div>
   );
 }
@@ -349,10 +357,91 @@ function ChapterCard({ c, into, onSave, onRemove }: { c: Listed; into: string | 
   );
 }
 
+type WriterDraft = Pick<Layer, "summaryConnectionId" | "summaryModel" | "summaryPrompt" | "summaryMaxTokens">;
+
+/** CODEX: Save the writer settings together so the model always belongs to the chosen connection. */
+function WriterSettings({ svc, connection, state, onSave }: {
+  svc: AppServices; connection: ConnectionState; state: MemoryView; onSave: (patch: WriterDraft) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<WriterDraft>({});
+  const [picking, setPicking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const writer = { ...state, ...draft };
+  const id = writer.summaryConnectionId;
+  const choice = id === null ? "chat" : id ? `profile:${id}` : "agents";
+  const chat = (state.chatConnectionId ? connection.configs[state.chatConnectionId] : undefined) ?? connection.forRequest().connection;
+  const agents = state.agentConnectionId ? connection.configs[state.agentConnectionId] : undefined;
+  const cfg = id ? connection.configs[id] : id === "" && agents ? agents : chat;
+  const baseModel = cfg === chat ? state.chatModelOverride || chat.model : cfg?.model;
+  const model = writer.summaryModel.trim() || baseModel;
+  const listModels = cfg && svc.core.providers.get(cfg.providerId)?.listModels;
+  const dirty = Object.keys(draft).some((k) => draft[k as keyof WriterDraft] !== state[k as keyof WriterDraft]);
+  const save = async () => {
+    setSaving(true); setError("");
+    try { await onSave(draft); setDraft({}); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Fold title="How the AI writes chapters" testId="memory-fold-writer" value={state.summaryModel || (state.summaryConnectionId === id ? baseModel : undefined) || "Summary writer"}>
+      <form className="mem-writer" onSubmit={(e) => { e.preventDefault(); if (dirty && !saving && writer.summaryPrompt.trim()) void save(); }}>
+        <p className="mem-text">These settings apply to this chat. The writer uses its own request with the messages being summarized.</p>
+        <label className="mem-writer-field">
+          <b>Summary connection</b>
+          <select value={choice} disabled={saving} onChange={(e) => {
+            const next = e.target.value;
+            setPicking(false);
+            setDraft({ ...draft, summaryConnectionId: next === "agents" ? "" : next === "chat" ? null : next.slice("profile:".length), summaryModel: "" });
+          }}>
+            <option value="agents">Agents’ connection (falls back to chat)</option>
+            <option value="chat">Chat connection</option>
+            {connection.profiles.map((p) => <option key={p.id} value={`profile:${p.id}`}>{p.name}</option>)}
+            {id && !cfg && <option value={choice}>Missing connection</option>}
+          </select>
+        </label>
+        <div className="mem-writer-field">
+          <label htmlFor="memory-summary-model"><b>Summary model</b></label>
+          <div className="mem-writer-model">
+            <input id="memory-summary-model" value={writer.summaryModel} placeholder={baseModel ?? "Connection’s model"} disabled={saving}
+              onChange={(e) => setDraft({ ...draft, summaryModel: e.target.value })} />
+            {listModels && <Button small disabled={saving} onClick={() => setPicking((v) => !v)}>Browse…</Button>}
+          </div>
+          <span className="hint">Leave blank to use the connection’s model. The same model writes chapters and merges older summaries.</span>
+        </div>
+        {picking && cfg && listModels && (
+          <ModelPicker cacheKey={`${cfg.providerId}|${cfg.baseUrl ?? ""}`} current={model ?? ""}
+            load={(signal) => listModels(cfg, signal)}
+            onPick={(m) => { setDraft({ ...draft, summaryModel: m.id }); setPicking(false); }} onClose={() => setPicking(false)} />
+        )}
+        {model && isDecisionModel(model) && <p className="warn-text">This model answers recall decisions. Choose a chat model to write summaries.</p>}
+        <label className="mem-writer-field">
+          <b>Max output tokens</b>
+          <input type="number" min={1} max={32768} required disabled={saving} value={Number.isNaN(writer.summaryMaxTokens) ? "" : writer.summaryMaxTokens}
+            onChange={(e) => setDraft({ ...draft, summaryMaxTokens: e.target.valueAsNumber })} />
+          <span className="hint">On some models, reasoning uses part of this budget.</span>
+        </label>
+        <label className="mem-writer-field">
+          <b>Summary prompt</b>
+          <textarea rows={8} required disabled={saving} value={writer.summaryPrompt} onChange={(e) => setDraft({ ...draft, summaryPrompt: e.target.value })} />
+          <span className="hint">Instructions for writing a new chapter. Use a first line of <code>Title: …</code> for an optional title. Merges have their own built-in instructions.</span>
+        </label>
+        <div className="mem-actions">
+          <Button small variant="prominent" type="submit" disabled={!dirty || saving || !writer.summaryPrompt.trim()}>{saving ? "Saving…" : "Save Writer Settings"}</Button>
+          <Button small variant="plain" disabled={saving || writer.summaryPrompt === DEFAULT_SUMMARY_PROMPT}
+            onClick={() => setDraft({ ...draft, summaryPrompt: DEFAULT_SUMMARY_PROMPT })}>Reset Prompt</Button>
+        </div>
+        {error && <p className="error-text" role="alert">{error}</p>}
+      </form>
+    </Fold>
+  );
+}
+
 // ---------------------------------------------------------------- recall
 
-function RecallView({ svc, session, headId, connection, state, setMemory, lastReplyId, draft, refreshKey }: {
-  svc: AppServices; session: Session; headId: string | null; connection: ConnectionState; state: MemoryView;
+function RecallView({ svc, session, headId, branchId, connection, state, setMemory, lastReplyId, draft, refreshKey }: {
+  svc: AppServices; session: Session; headId: string | null; branchId: string | null; connection: ConnectionState; state: MemoryView;
   setMemory: (p: Partial<Layer>) => void; lastReplyId?: string | null | undefined; draft: string; refreshKey: number;
 }) {
   const [rec, setRec] = useState<GenerationRecord["memory"] | null>(null);
@@ -371,7 +460,7 @@ function RecallView({ svc, session, headId, connection, state, setMemory, lastRe
     setTesting(true); setError(""); setResult(null);
     try {
       const r = connection.forRequest();
-      setResult((await svc.chat.turns.testRecall(session.id, headId, ask, r.connection, r.connections)) ?? "none");
+      setResult((await svc.chat.turns.testRecall(session.id, headId, ask, r.connection, r.connections, undefined, branchId)) ?? "none");
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setTesting(false); }
   };
   const smart = state.mode === "smart";
@@ -477,8 +566,8 @@ function GuideView({ state }: { state: MemoryView }) {
         <h3>How memory works</h3>
         <ol className="mem-steps">
           <li><b>You chat.</b> Every message is kept; nothing is ever deleted or changed.</li>
-          <li><b>Older messages become a chapter.</b> Every {state.every} messages (or by size), the agents' connection writes a summary: a title and a few paragraphs.</li>
-          <li><b>The AI reads chapters instead of those messages</b>, right before the chat history. The newest {plural(state.keep, "message")} always {state.keep === 1 ? "stays" : "stay"} word for word.</li>
+          <li><b>Older messages become a chapter.</b> The model selected under Chapters writes a summary when you ask or when an automatic chapter is due.</li>
+          <li><b>The AI reads chapters instead of those messages</b>, at the start of the preset’s Chat History block. The newest {plural(state.keep, "message")} always {state.keep === 1 ? "stays" : "stay"} word for word.</li>
           <li><b>Very old chapters merge</b> into shorter summaries, so a story of thousands of messages still fits.</li>
           <li><b>Smart recall</b> (optional) picks, for each reply, only the chapters that matter, and quotes exact lines when the summary is not enough.</li>
         </ol>
@@ -507,7 +596,7 @@ function GuideView({ state }: { state: MemoryView }) {
         <h3>Good to know</h3>
         <ul className="mem-tips">
           <li><b>Edit any chapter</b> to fix it; the app never rewrites one you edited. Switch one off to send its messages again.</li>
-          <li><b>Branches keep their own chapters.</b> A branch that starts in the middle of a chapter gets those messages back word for word.</li>
+          <li><b>Branches keep their own chapters.</b> A new branch gets a copy of the chapters that end at or before its fork point. A chapter that crosses the fork leaves the original messages available on the new branch.</li>
           <li><b>Editing an old message</b> switches off the chapters that read it, so the AI sees the corrected text.</li>
           <li><b>Old or imported chats:</b> use Catch Up in Chapters to write all the chapters at once (you can stop and resume).</li>
           <li><b>Cost:</b> one short call per chapter; Smart adds one cheap call per reply, and a swipe reuses it.</li>

@@ -19,7 +19,7 @@ import { applyLorePatch, patchWithEntry } from "../lore-versions.ts";
 import { normalizeTrackerAnswer, trackerPeople, type TrackerCastMember } from "../trackers.ts";
 import { applyBasicMacros, expandMacros } from "../macros.ts";
 import { prepared } from "./styles.ts";
-import { applyChapters, type Chapter } from "../memory.ts";
+import { applyChapters, readable } from "../memory.ts";
 import { effectiveCharacter } from "../variants.ts";
 
 /** An agent ready to run: its config, and its code if it is built in. */
@@ -51,6 +51,7 @@ export interface DryRun { output?: unknown; error?: string; raw?: string; reason
 
 export interface RunRequest {
   session: Session;
+  branchId?: string | null | undefined;
   setup: ResolvedSetup;
   /** e.g. "turn.before", "turn.after", "everyN", "manual". */
   trigger: string;
@@ -261,9 +262,11 @@ export class AgentRunner {
     const a = entry.config;
     const { core, store } = this.deps;
     const path = await store.pathTo(req.messageId).catch(() => [] as Message[]);
-    const visible = path.filter((m) => m.visibility.ai === "full" && m.kind !== "event");
+    const memory = a.input.chapters && req.setup.memory.on
+      ? applyChapters(path, await store.memoryChapters(req.session.id, req.branchId)) : undefined;
+    const visible = readable(memory?.history ?? path);
     // "before" agents read up to the user's message; "after" agents get the reply as `text`, not in the transcript
-    const transcriptPath = req.trigger === "turn.after" ? visible.slice(0, -1) : visible;
+    const transcriptPath = req.trigger === "turn.after" ? visible.filter(m => m.id !== req.messageId) : visible;
     const state = await core.state.resolve(req.session.id, req.messageId);
     const override = req.setup.agentOverrides[a.id];
     // this story's/chat's pick for the agent, else the agent's own (D-057), else the setup's connection for agents, else the story's
@@ -278,7 +281,7 @@ export class AgentRunner {
     const lore = a.input.lorebooks ? await this.loreText(path) : "";
     const loreBook = a.output === "proposal" && a.proposal?.target === "lorebook" ? await this.storyLorebook(req.session, false) : undefined;
     const authorsNote = a.input.authorsNote ? (req.setup.authorsNote.text ?? "").trim() : "";
-    const chapters = a.input.chapters ? applyChapters(path, (await store.getAppSetting<Chapter[]>(`memory.chapters:${req.session.id}`)) ?? []).text.trim() : "";
+    const chapters = memory?.text.trim();
     const previousNotes = a.input.previousNotes > 0 ? await this.previousNotes(a, path) : [];
     const variableKeys = new Set((a.variables ?? []).map((v) => v.key));
     const loreIndex = loreBook ? loreBook.book.entries.map((e) => `- ${e.title || e.keys[0] || e.id}${e.keys.length ? ` (${e.keys.join(", ")})` : ""}`).join("\n") : undefined;

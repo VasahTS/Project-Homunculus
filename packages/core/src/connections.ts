@@ -129,6 +129,7 @@ export class ConnectionService {
       if (typeof chunk === "string") out.text += chunk;
       else if ("reasoning" in chunk) out.reasoning += chunk.reasoning;
       else if ("usage" in chunk) Object.assign(out, chunk.usage);
+      else if ("finish" in chunk) out.finish = chunk.finish;
     }
     return out;
   }

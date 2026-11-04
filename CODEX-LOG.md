@@ -1,5 +1,27 @@
 # Work log — CODEX
 
+## gpt publication batch (2026-11-04) — CODEX
+
+Daniel authorized publishing the recent local Card Browser and Memory changes on `gpt`. Typecheck, Vite build, 699 unit tests (3 skipped), and 42 Card Browser, branch, and Memory Chromium cases passed with synthetic data. The earlier local lockfile metadata changes were kept outside the batch. Signed **CODEX**.
+
+## Card Browser All Sites (2026-11-04) — CODEX
+
+Added a combined source picker option with interleaved results, per-site paging and retries, and a separate NSFW preference that defaults on. Three new Chromium cases cover all six catalogs, source-specific import, overlapping IDs, account permissions, failed pages, and late responses. Typecheck, Vite build, 699 unit tests (3 skipped), and 19 Card Browser Chromium cases passed with synthetic data. Local and unpublished. Signed **CODEX**.
+
+## Chapter visibility on chat messages (2026-11-04) — CODEX
+
+Added an eye-off marker and chapter number to summarized originals. Chromium verifies coverage, branch switching, and re-enabling memory. Typecheck, Vite build, and 699 unit tests passed (3 skipped). Local and unpublished. Signed **CODEX**.
+
+## Branch memory and prompt coverage audit (2026-11-04) — CODEX
+
+Reproduced chapter sharing between named branches with the same head and a merge covering a switched-off chapter. Fixed branch-local snapshots, invalidated stale merges, honored message visibility in recall, and verified that prompts omit covered originals.
+Local and unpublished. Typecheck, Vite build, 699 unit tests (3 skipped), and 23 Chromium scenarios passed with synthetic data. Signed: **CODEX**.
+
+## Memory writer settings and prompt visibility (2026-11-04) — CODEX
+
+Reproduced a reasoning-only response cut off at 1,200 tokens and a blank title swallowing the summary. Added per-chat writer settings, clear errors, and prompt placement details. Inactive Chat History no longer produces a memory receipt.
+Local and unpublished. Typecheck, Vite build, 695 unit tests (3 skipped), and 11 memory Chromium scenarios passed with synthetic data. Signed: **CODEX**.
+
 ## Chat fixes promotion (2026-11-04) — CODEX
 
 Prepared the Markdown export and agent navigation fix for `gpt`, `dev`, and `ui` at Daniel's request.

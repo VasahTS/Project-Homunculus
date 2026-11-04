@@ -41,6 +41,7 @@ export interface NewSessionInput {
 }
 
 export interface GenerateOptions {
+  branchId?: string | null | undefined;
   onToken?: (piece: string, soFar: string) => void;
   onReasoning?: (soFar: string) => void;
   /** The reply is saved; trackers and other "after" agents still run. */
@@ -132,6 +133,14 @@ export class ChatService {
    */
   async generate(sessionId: string, parentId: string | null, connection: ConnectionConfig, options: GenerateOptions = {}): Promise<Message> {
     return (await this.turns.run({ sessionId, parentId, connection, ...options })).reply;
+  }
+
+  /** CODEX: Changing the source visibility also retires summaries that can contain it. */
+  async setMessageAiVisibility(messageId: string, ai: Message["visibility"]["ai"]): Promise<void> {
+    const message = await this.store.getMessage(messageId);
+    if (!message || message.visibility.ai === ai) return;
+    await this.store.updateMessage(messageId, { visibility: { ...message.visibility, ai } });
+    await this.turns.invalidateMemoryAfter(message);
   }
 
   /**

@@ -1406,6 +1406,8 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .msg-delete small { color: var(--label-2); font-size: inherit; }
 .msg.hidden-ai > .text { opacity: 0.55; }
 .hidden-tag { color: var(--label-2); font-weight: 400; }
+/* CODEX: Keep the memory visibility icon aligned with the speaker metadata. */
+.memory-covered-tag svg { vertical-align: -2px; margin-inline-end: 3px; }
 
 /* the sidebar's "⑂ 3" */
 .side-fork { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; color: var(--label-2); font-weight: 400; font-size: 11px; vertical-align: 1px; }
@@ -3355,6 +3357,16 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .mem-fold-chev { display: inline-flex; transition: transform 200ms var(--ease-out, ease-out); }
 .mem-fold.open .mem-fold-chev { transform: rotate(90deg); }
 .mem-fold-body { display: grid; gap: 10px; padding: 0 12px 12px; }
+/* CODEX: Keep writer fields readable inside a narrow inspector. */
+.mem-fold-value { min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.mem-writer, .mem-writer-field { display: grid; gap: 6px; min-width: 0; }
+.mem-writer { gap: 12px; }
+.mem-writer-field b { font-size: 13px; font-weight: 550; }
+.mem-writer-field select, .mem-writer-field textarea, .mem-writer-field input { min-width: 0; }
+.mem-writer-field textarea { resize: vertical; line-height: 1.5; }
+.mem-writer-field input[type="number"] { width: 110px; }
+.mem-writer-model { display: flex; gap: 6px; }
+.mem-writer-model input { flex: 1; }
 .mem-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .mem-setting-label { display: grid; gap: 2px; min-width: 0; }
 .mem-setting-label b { font-size: 13px; font-weight: 550; }

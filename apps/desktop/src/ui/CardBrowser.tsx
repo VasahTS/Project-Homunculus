@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import type { Avatar, Character, Folder } from "@homunculus/schemas";
 import { bytesToBase64 } from "@homunculus/st-cards";
 import { CARD_SOURCES, cardSource, isSourceId, NO_FILTERS, pauses, SiteError } from "@homunculus/card-browser";
-import type { BotbooruAccountState, CardDetails, CardFile, CardFilters, CardItem, CardSource, MustHave, SiteTransport, SourceId } from "@homunculus/card-browser";
+import type { BotbooruAccountState, CardDetails, CardFile, CardFilters, CardItem, CardQuery, CardSource, MustHave, SiteTransport, SourceId } from "@homunculus/card-browser";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
 import { BotbooruAccount } from "./BotbooruAccount.tsx";
 import { Toolbar } from "./Toolbar.tsx";
@@ -20,19 +20,22 @@ import { getPrefs } from "../prefs.ts";
 
 // ------------------------------------------------------------------ remembered state
 /** Between runs (a per-viewer convenience, D-068 style): never required, defaults apply without it. */
-interface Prefs { source: SourceId; sorts: Partial<Record<SourceId, string>>; nsfw: Partial<Record<SourceId, boolean>>; size: CollectionPrefs["size"]; folder: string; importTags: boolean; datacatOk?: boolean }
+type BrowseSourceId = SourceId | "all";
+const ALL_SITES = { id: "all", name: "All Sites" } as const;
+const SOURCE_OPTIONS = [ALL_SITES, ...CARD_SOURCES];
+interface Prefs { source: BrowseSourceId; sorts: Partial<Record<SourceId, string>>; nsfw: Partial<Record<BrowseSourceId, boolean>>; size: CollectionPrefs["size"]; folder: string; importTags: boolean; datacatOk?: boolean }
 const PREFS_KEY = "h2.cardBrowser";
 const DEFAULT_PREFS: Prefs = { source: "chub", sorts: {}, nsfw: {}, size: "m", folder: "web", importTags: true };
 function loadPrefs(): Prefs {
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Partial<Prefs>;
-    return { ...DEFAULT_PREFS, ...raw, source: isSourceId(raw.source) ? raw.source : "chub", size: raw.size === "s" || raw.size === "m" || raw.size === "l" ? raw.size : getPrefs().cardSize };
+    return { ...DEFAULT_PREFS, ...raw, source: raw.source === "all" || isSourceId(raw.source) ? raw.source : "chub", size: raw.size === "s" || raw.size === "m" || raw.size === "l" ? raw.size : getPrefs().cardSize };
   } catch { return { ...DEFAULT_PREFS, size: getPrefs().cardSize }; }
 }
 const savePrefs = (p: Prefs) => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* storage unavailable */ } };
 
 /** While the app is open: leaving the page and coming back shows the same place. */
-interface Memory { source: SourceId; text: string; sort: string; include: string[]; exclude: string[]; filters: CardFilters; items: CardItem[]; total: number | null; hasMore: boolean; page: number; selected: string | null; scroll: number; key: string; seenTags: string[] }
+interface Memory { source: BrowseSourceId; text: string; sort: string; include: string[]; exclude: string[]; filters: CardFilters; items: CardItem[]; total: number | null; hasMore: boolean; page: number; selected: string | null; scroll: number; key: string; seenTags: string[] }
 let memory: Memory | null = null;
 const details = new Map<string, CardDetails | "failed">();
 
@@ -110,7 +113,7 @@ function useOnScreen<T extends Element>(): [RefObject<T | null>, boolean] {
 }
 
 // ------------------------------------------------------------------ helpers
-const NSFW_NOTE: Record<SourceId, string> = { chub: "Adult cards with NSFW on", janny: "Adult cards with NSFW on", wyvern: "Adult cards with NSFW on", pygmalion: "Safe cards only", datacat: "Adult cards only", botbooru: "NSFW and NSFL with your account" };
+const NSFW_NOTE: Record<BrowseSourceId, string> = { all: "Search across card sites", chub: "Adult cards with NSFW on", janny: "Adult cards with NSFW on", wyvern: "Adult cards with NSFW on", pygmalion: "Safe cards only", datacat: "Adult cards only", botbooru: "NSFW and NSFL with your account" };
 const MUST_LABEL: Record<MustHave, string> = { lorebook: "Has Lorebook", greetings: "Has Alternate Greetings", gallery: "Has Gallery", expressions: "Has Expressions" };
 const MUST_SHORT: Record<MustHave, string> = { lorebook: "Lorebook", greetings: "Alternate Greetings", gallery: "Gallery", expressions: "Expressions" };
 const fmt = (n: number | undefined) => (n === undefined ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n));
@@ -120,6 +123,29 @@ function figures(i: CardItem): string {
     s.tokens !== undefined && `${fmt(s.tokens)} tokens`].filter(Boolean).join(" · ");
 }
 const desktopOnly = (e: unknown) => e instanceof Error && /works in the desktop app/.test(e.message);
+const cardKey = (item: CardItem) => `${item.source}:${item.id}`;
+
+// Each batch keeps the earlier pages in place and interleaves the new pages in picker order. CODEX, 2026-11-04.
+type SearchMode = "search" | "more" | "retry";
+type SiteProgress = { nextPage: number | null; failure?: { message: string; desktop: boolean } };
+type AllResults = { items: CardItem[]; progress: Map<SourceId, SiteProgress> };
+const EMPTY_ALL_RESULTS: AllResults = { items: [], progress: new Map() };
+const GUEST_ACCOUNT: BotbooruAccountState = { username: null, showNsfw: false, showNsfl: false };
+function mergeSitePages(previous: CardItem[], pages: Map<SourceId, CardItem[]>): CardItem[] {
+  const items = [...previous];
+  const seen = new Set(previous.map(cardKey));
+  const ordered = CARD_SOURCES.map((site) => pages.get(site.id) ?? []);
+  const rows = Math.max(...ordered.map((page) => page.length));
+  for (let row = 0; row < rows; row++) {
+    for (const page of ordered) {
+      const item = page[row];
+      if (!item || seen.has(cardKey(item))) continue;
+      seen.add(cardKey(item));
+      items.push(item);
+    }
+  }
+  return items;
+}
 /** Plain text with web addresses that open in the system browser. */
 function Linked({ text }: { text: string }) {
   const parts = text.split(/(https?:\/\/[^\s<>"')\]]+)/g);
@@ -148,32 +174,46 @@ export function CardBrowser(p: CardBrowserProps) {
   const [prefs, setPrefsState] = useState(loadPrefs);
   const setPrefs = (f: (x: Prefs) => Prefs) => setPrefsState((x) => { const n = f(x); savePrefs(n); return n; });
   const m = memory;
-  const [sourceId, setSourceId] = useState<SourceId>(m?.source ?? prefs.source);
-  const source = cardSource(sourceId);
+  const [sourceId, setSourceId] = useState<BrowseSourceId>(m?.source ?? prefs.source);
+  const source = sourceId === "all" ? null : cardSource(sourceId);
+  const sourceName = source?.name ?? ALL_SITES.name;
+  const restore = m?.source === "all" || m?.source === "botbooru" ? null : m;
   const [text, setText] = useState(m?.text ?? "");
-  const [sort, setSort] = useState(m?.sort ?? prefs.sorts[sourceId] ?? source.defaultSort);
+  const [sort, setSort] = useState(m?.sort ?? (source ? prefs.sorts[source.id] ?? source.defaultSort : ""));
   const [include, setInclude] = useState<string[]>(m?.include ?? []);
   const [exclude, setExclude] = useState<string[]>(m?.exclude ?? []);
   const [filters, setFilters] = useState<CardFilters>(m?.filters ?? NO_FILTERS);
-  const [items, setItems] = useState<CardItem[]>(m?.source === "botbooru" ? [] : m?.items ?? []);
-  const [total, setTotal] = useState<number | null>(m?.total ?? null);
-  const [hasMore, setHasMore] = useState(m?.hasMore ?? false);
-  const [page, setPage] = useState(m?.page ?? 1);
-  const [selected, setSelected] = useState<string | null>(m?.selected ?? null);
-  const [seenTags, setSeenTags] = useState<string[]>(m?.seenTags ?? []);
+  const [singleItems, setItems] = useState<CardItem[]>(restore?.items ?? []);
+  const [total, setTotal] = useState<number | null>(restore?.total ?? null);
+  const [hasMore, setHasMore] = useState(restore?.hasMore ?? false);
+  const [page, setPage] = useState(restore?.page ?? 1);
+  const [allResults, setAllResults] = useState(EMPTY_ALL_RESULTS);
+  const [selected, setSelected] = useState<string | null>(restore?.selected ?? null);
+  const [seenTags, setSeenTags] = useState<string[]>(restore?.seenTags ?? []);
   const [busy, setBusy] = useState<"search" | "more" | null>(null);
   const [error, setError] = useState<{ message: string; paused: boolean; desktop: boolean } | null>(null);
   const [open, setOpen] = useState<"source" | "tags" | "filters" | null>(null);
-  const [account, setAccount] = useState<BotbooruAccountState | null>(null);
+  const [account, setAccount] = useState(GUEST_ACCOUNT);
+  const lastAccount = useRef(GUEST_ACCOUNT);
   const [accountEpoch, setAccountEpoch] = useState(0);
-  const accountReady = sourceId !== "botbooru" || !!(account?.username && account.showNsfw);
-  const nsfw = !accountReady ? false : source.nsfw === "never" ? false : source.nsfw === "always" ? true : prefs.nsfw[sourceId] ?? false;
+  const botbooruNsfw = !!(account.username && account.showNsfw);
+  const accountReady = sourceId !== "botbooru" || botbooruNsfw;
+  const nsfw = source
+    ? accountReady && (source.nsfw === "always" || (source.nsfw === "toggle" && prefs.nsfw[source.id] === true))
+    : prefs.nsfw.all ?? true;
+  const dataCatAllowed = !source && nsfw && prefs.datacatOk === true;
+  const items = useMemo(() => source ? singleItems : nsfw ? allResults.items : allResults.items.filter((item) => !item.nsfw && !item.nsfl), [source, singleItems, nsfw, allResults.items]);
+  const allFailures = CARD_SOURCES.flatMap((site) => {
+    const failure = allResults.progress.get(site.id)?.failure;
+    return failure ? [{ name: site.name, ...failure }] : [];
+  });
+  const allHasMore = [...allResults.progress.values()].some((site) => site.nextPage !== null && !site.failure);
   const [askAdult, setAskAdult] = useState(false);
   // tags the site lists itself (DataCat), loaded once per source
   const [siteTags, setSiteTags] = useState<string[]>([]);
   useEffect(() => {
     setSiteTags([]);
-    if (!source.loadTags) return;
+    if (!source?.loadTags) return;
     let live = true;
     source.loadTags(p.transport).then((xs) => { if (live) setSiteTags(xs); }, () => {});
     return () => { live = false; };
@@ -184,59 +224,105 @@ export function CardBrowser(p: CardBrowserProps) {
   const seq = useRef(0);
   const added = useMemo(() => siteIndex(p.characters), [p.characters]);
   const accountChanged = useCallback((a: BotbooruAccountState) => {
+    const initialGuest = lastAccount.current === GUEST_ACCOUNT && !a.username && !a.showNsfw && !a.showNsfl;
+    lastAccount.current = a;
+    if (initialGuest) return;
     ++seq.current; setBusy(null); setItems([]); setSelected(null); setSeenTags([]); setSiteTags([]);
+    setAllResults((old) => ({ ...old, items: old.items.filter((item) => item.source !== "botbooru") }));
     for (const k of details.keys()) if (k.startsWith("botbooru:")) details.delete(k);
     for (const k of pictures.keys()) if (k.startsWith("https://botbooru.com/")) pictures.delete(k);
     pauses.verified("botbooru"); setAccount(a); setAccountEpoch((x) => x + 1);
   }, []);
-  const key = JSON.stringify([sourceId, text.trim(), sort, include, exclude, filters, nsfw, accountEpoch]);
+  const key = JSON.stringify([sourceId, text.trim(), sort, include, exclude, filters, nsfw, dataCatAllowed, sourceId === "botbooru" || !source ? accountEpoch : 0]);
+  const lastKey = useRef(restore?.key ?? "");
 
-  const run = useCallback(async (more: boolean) => {
+  const run = async (mode: SearchMode) => {
+    if (mode !== "search" && key !== lastKey.current) return;
     const id = ++seq.current;
+    const more = mode === "more";
     const nextPage = more ? page + 1 : 1;
-    setBusy(more ? "more" : "search"); setError(null);
+    const query: CardQuery = { text: text.trim(), sort, page: nextPage, nsfw, include, exclude, filters };
+    const rememberTags = (cards: CardItem[]) => setSeenTags((old) => [...new Set([...old, ...cards.flatMap((item) => item.tags)])].slice(0, 400));
+    setBusy(mode === "search" ? "search" : "more"); setError(null);
     try {
-      const r = await source.search({ text: text.trim(), sort, page: nextPage, nsfw, include, exclude, filters }, p.transport);
+      if (!source) {
+        const base = mode === "search" ? EMPTY_ALL_RESULTS : allResults;
+        const progress = new Map(base.progress);
+        const pages = new Map<SourceId, CardItem[]>();
+        if (mode === "search") {
+          setAllResults(base); setSelected(null); setSeenTags([]);
+          gridRef.current?.scrollTo?.({ top: 0 });
+        }
+        await Promise.all(CARD_SOURCES.map(async (site) => {
+          if (site.nsfw === "always" && !dataCatAllowed) return;
+          const state = progress.get(site.id);
+          const sitePage = mode === "search" ? 1 : state?.nextPage;
+          if (!sitePage || (mode === "retry" && !state?.failure) || (more && state?.failure)) return;
+          const siteNsfw = nsfw && site.nsfw !== "never" && (site.id !== "botbooru" || botbooruNsfw);
+          const siteNsfl = site.id !== "botbooru" || account.showNsfl;
+          try {
+            const result = await site.search({ ...query, page: sitePage, sort: site.defaultSort, nsfw: siteNsfw }, p.transport);
+            if (id !== seq.current) return;
+            const cards = result.items.filter((item) => {
+              const adult = item.nsfw || item.nsfl;
+              return (!adult || siteNsfw) && (!item.nsfl || siteNsfl);
+            });
+            progress.set(site.id, { nextPage: result.hasMore ? sitePage + 1 : null });
+            pages.set(site.id, cards);
+            rememberTags(cards);
+          } catch (e) {
+            if (id !== seq.current) return;
+            progress.set(site.id, { nextPage: sitePage, failure: { message: e instanceof Error ? e.message : String(e), desktop: desktopOnly(e) } });
+          }
+          setAllResults({ items: mergeSitePages(base.items, pages), progress: new Map(progress) });
+        }));
+        return;
+      }
+      const r = await source.search(query, p.transport);
       if (id !== seq.current) return;
-      setItems((old) => { if (!more) return r.items; const have = new Set(old.map((x) => x.id)); return [...old, ...r.items.filter((x) => !have.has(x.id))]; });
+      setItems((old) => { if (!more) return r.items; const have = new Set(old.map(cardKey)); return [...old, ...r.items.filter((x) => !have.has(cardKey(x)))]; });
       setTotal(r.total); setHasMore(r.hasMore); setPage(nextPage);
-      setSeenTags((old) => [...new Set([...old, ...r.items.flatMap((x) => x.tags)])].slice(0, 400));
-      if (!more) { setSelected((s) => (s && r.items.some((x) => x.id === s) ? s : null)); gridRef.current?.scrollTo?.({ top: 0 }); }
+      rememberTags(r.items);
+      if (!more) { setSelected((s) => (s && r.items.some((x) => cardKey(x) === s) ? s : null)); gridRef.current?.scrollTo?.({ top: 0 }); }
     } catch (e) {
       if (id !== seq.current) return;
       setError({ message: e instanceof Error ? e.message : String(e), paused: e instanceof SiteError && e.paused, desktop: desktopOnly(e) });
       if (!more) setItems([]);
     } finally { if (id === seq.current) setBusy(null); }
-  }, [source, text, sort, nsfw, include, exclude, filters, page, p.transport]);
+  };
 
   // search by itself ½ s after typing stops (and at once when anything else changes); not again when coming back
-  const lastKey = useRef(m?.key ?? "");
   useEffect(() => {
-    if (key === lastKey.current) return;
+    if (key === lastKey.current && !busy) return () => { ++seq.current; };
     const typing = lastKey.current !== "" && JSON.parse(lastKey.current)[1] !== text.trim();
     // marked as asked only when it runs, so a cancelled timer (typing on, or React's double effect) asks again
-    const timer = setTimeout(() => { lastKey.current = key; void run(false); }, typing ? 500 : 0);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { lastKey.current = key; void run("search"); }, typing ? 500 : 0);
+    return () => { clearTimeout(timer); ++seq.current; };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // keep the place while the app is open
   useEffect(() => {
-    memory = { source: sourceId, text, sort, include, exclude, filters, items, total, hasMore, page, selected, scroll: gridRef.current?.scrollTop ?? memory?.scroll ?? 0, key: lastKey.current, seenTags };
+    memory = { source: sourceId, text, sort, include, exclude, filters, items: source && sourceId !== "botbooru" ? singleItems : [], total, hasMore, page, selected, scroll: gridRef.current?.scrollTop ?? memory?.scroll ?? 0, key: busy ? "" : lastKey.current, seenTags };
   });
   useEffect(() => { if (m?.scroll && gridRef.current) gridRef.current.scrollTop = m.scroll; }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const switchSource = (id: SourceId, confirmed = false) => {
+  const switchSource = (id: BrowseSourceId, confirmed = false) => {
     setOpen(null);
     if (id === sourceId) return;
     // DataCat lists adult cards only: asked once (remembered)
-    if (cardSource(id).nsfw === "always" && !prefs.datacatOk && !confirmed) { setAskAdult(true); return; }
+    if (id === "datacat" && !prefs.datacatOk && !confirmed) { setAskAdult(true); return; }
     setAskAdult(false);
     setSourceId(id); setPrefs((x) => ({ ...x, source: id }));
+    if (id !== "all" && id !== "botbooru") {
+      lastAccount.current = GUEST_ACCOUNT;
+      setAccount(GUEST_ACCOUNT);
+    }
     // the search text stays; tags and filters differ by site
     setInclude([]); setExclude([]); setFilters(NO_FILTERS); setSeenTags([]); setSelected(null); setItems([]);
-    setSort(prefs.sorts[id] ?? cardSource(id).defaultSort);
+    setAllResults(EMPTY_ALL_RESULTS);
+    setSort(id === "all" ? "" : prefs.sorts[id] ?? cardSource(id).defaultSort);
   };
-  const pickSort = (s: string) => { setSort(s); setPrefs((x) => ({ ...x, sorts: { ...x.sorts, [sourceId]: s } })); };
+  const pickSort = (s: string) => { if (source) { setSort(s); setPrefs((x) => ({ ...x, sorts: { ...x.sorts, [source.id]: s } })); } };
   const setTag = (t: string, mode: "include" | "exclude" | null) => {
     const name = t.trim(); if (!name) return;
     const low = name.toLowerCase(); const drop = (xs: string[]) => xs.filter((x) => x.toLowerCase() !== low);
@@ -245,13 +331,19 @@ export function CardBrowser(p: CardBrowserProps) {
   };
   const clearAll = () => { setInclude([]); setExclude([]); setFilters(NO_FILTERS); };
   const activeFilters = filters.must.length + (filters.ascending ? 1 : 0) + (filters.minTokens ? 1 : 0) + (filters.maxTokens ? 1 : 0) + (filters.lowQuality ? 1 : 0);
-  const hasFilters = source.mustHave.length > 0 || source.ascending || source.tokens || source.lowQuality;
-  const chosen = items.find((x) => x.id === selected) ?? null;
+  const hasFilters = source && (source.mustHave.length > 0 || source.ascending || source.tokens || source.lowQuality);
+  const allDesktopOnly = !source && !busy && allFailures.length > 0 && allFailures.length === allResults.progress.size && allFailures.every((site) => site.desktop);
+  const searchPending = busy !== null || key !== lastKey.current;
+  const searchSucceeded = source ? !error : allResults.progress.size > allFailures.length;
+  const emptyMessage = text.trim()
+    ? `${source ? `Nothing on ${sourceName} matches` : "No cards match"} “${text.trim()}”.`
+    : source ? `Nothing on ${sourceName} with these choices.` : "No cards match these choices.";
+  const chosen = items.find((x) => cardKey(x) === selected) ?? null;
   // the card reading view (D-082) stays open while ← → move to other cards
   const [reading, setReading] = useState(false);
   useEffect(() => { if (!chosen) setReading(false); }, [chosen]);
   const at = chosen ? items.indexOf(chosen) : -1;
-  const stepCard = (d: 1 | -1) => { const next = items[at + d]; if (next) setSelected(next.id); };
+  const stepCard = (d: 1 | -1) => { const next = items[at + d]; if (next) setSelected(cardKey(next)); };
 
   const onKey = (e: ReactKeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
@@ -262,47 +354,47 @@ export function CardBrowser(p: CardBrowserProps) {
     e.preventDefault();
     const cards = gridRef.current?.querySelectorAll<HTMLElement>("[data-testid=cb-card]");
     const perRow = cards && cards.length > 1 ? Math.max(1, [...cards].filter((c) => c.offsetTop === cards[0]!.offsetTop).length) : 1;
-    const at = Math.max(0, items.findIndex((x) => x.id === selected));
+    const at = Math.max(0, items.findIndex((x) => cardKey(x) === selected));
     const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -perRow, ArrowDown: perRow }[e.key] ?? 0;
     const next = items[Math.min(items.length - 1, Math.max(0, selected ? at + step : 0))];
-    if (next) { setSelected(next.id); cards?.[items.indexOf(next)]?.focus(); }
+    if (next) { setSelected(cardKey(next)); cards?.[items.indexOf(next)]?.focus(); }
   };
 
   return (
     <div className="page collection-page card-browser" data-testid="card-browser" data-region="collection" onKeyDown={onKey}>
       <Toolbar lead={p.lead} title="Card Browser" subtitle="Find characters on public sites and add them to Characters."
         trailing={<>
-          <Help text="Searches go straight from this app to each site; the site sees what you search, as in a browser. Card text is shown as plain text and nothing from the sites runs in the app." />
-          <SourcePicker source={source} open={open === "source"} onToggle={() => setOpen(open === "source" ? null : "source")} onPick={switchSource} onClose={() => setOpen(null)} />
+          <Help text="Searches go straight from this app to the selected site. All Sites sends the same search to each enabled site. Card text is shown as plain text and nothing from the sites runs in the app." />
+          <SourcePicker sourceId={sourceId} name={sourceName} open={open === "source"} onToggle={() => setOpen(open === "source" ? null : "source")} onPick={switchSource} onClose={() => setOpen(null)} />
         </>} />
       <div className="collection-tools cb-tools" data-region="collection-tools">
         <div className="cb-tools-left">
           <label className="search-box collection-search cb-search"><Icon name="search" size={15} />
-            <input ref={search} data-testid="cb-search" aria-label={`Search ${source.name}`} placeholder={`Search ${source.name}…`} value={text} onChange={(e) => setText(e.target.value)} />
+            <input ref={search} data-testid="cb-search" aria-label={`Search ${sourceName}`} placeholder={`Search ${sourceName}…`} value={text} onChange={(e) => setText(e.target.value)} />
           </label>
-          <label className="cb-sort"><span className="sr-only">Sort</span>
+          {source && <label className="cb-sort"><span className="sr-only">Sort</span>
             <select data-testid="cb-sort" aria-label="Sort" value={sort} onChange={(e) => pickSort(e.target.value)}>
               {source.sorts.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
-          </label>
+          </label>}
           <Pop open={open === "tags"} onClose={() => setOpen(null)} button={
             <Button variant="plain" data-testid="cb-tags" aria-expanded={open === "tags"} onClick={() => setOpen(open === "tags" ? null : "tags")}>
               Tags{include.length + exclude.length > 0 && <span className="cb-count">{include.length + exclude.length}</span>}</Button>}>
-            <TagPanel tags={[...new Set([...source.suggestedTags, ...siteTags, ...seenTags])]} include={include} exclude={exclude} onSet={setTag} />
+            <TagPanel tags={[...new Set([...(source?.suggestedTags ?? []), ...siteTags, ...seenTags])]} include={include} exclude={exclude} onSet={setTag} />
           </Pop>
-          {hasFilters && <Pop open={open === "filters"} onClose={() => setOpen(null)} button={
+          {source && hasFilters && <Pop open={open === "filters"} onClose={() => setOpen(null)} button={
             <Button variant="plain" data-testid="cb-filters" aria-expanded={open === "filters"} onClick={() => setOpen(open === "filters" ? null : "filters")}>
               Filters{activeFilters > 0 && <span className="cb-count">{activeFilters}</span>}</Button>}>
             <FilterPanel source={source} filters={filters} onChange={setFilters} />
           </Pop>}
-          <span className="cb-nsfw" data-testid="cb-nsfw" title={!accountReady ? "Sign in and enable NSFW in your BotBooru account." : source.nsfw !== "toggle" ? source.nsfwNote : undefined}>
-            <Switch label="NSFW" checked={nsfw} disabled={source.nsfw !== "toggle" || !accountReady} onChange={(v) => setPrefs((x) => ({ ...x, nsfw: { ...x.nsfw, [sourceId]: v } }))} />
+          <span className="cb-nsfw" data-testid="cb-nsfw" title={!accountReady ? "Sign in and enable NSFW in your BotBooru account." : source?.nsfwNote}>
+            <Switch label="NSFW" checked={nsfw} disabled={!accountReady || (source !== null && source.nsfw !== "toggle")} onChange={(v) => setPrefs((x) => ({ ...x, nsfw: { ...x.nsfw, [sourceId]: v } }))} />
             <span>NSFW</span>
           </span>
         </div>
         <span className="collection-right"><SizeSwitch prefs={{ view: "everything", size: prefs.size }} onPrefs={(x) => setPrefs((y) => ({ ...y, size: x.size }))} /></span>
       </div>
-      {sourceId === "botbooru" && <BotbooruAccount transport={p.transport} onChange={accountChanged} />}
+      {(!source || sourceId === "botbooru") && <BotbooruAccount transport={p.transport} onChange={accountChanged} />}
       {(include.length > 0 || exclude.length > 0 || activeFilters > 0) && (
         <div className="cb-chips" data-testid="cb-chips">
           {include.map((t) => <button key={`+${t}`} type="button" className="cb-chip" onClick={() => setTag(t, null)}>{t} <Icon name="close" size={11} /></button>)}
@@ -320,14 +412,27 @@ export function CardBrowser(p: CardBrowserProps) {
           {askAdult && (
             <div className="cb-notice gallery-empty" data-testid="cb-adult" role="alertdialog" aria-label="DataCat is adult only">
               <p><strong>DataCat lists adult cards only.</strong></p>
-              <p className="hint">Its cards come from JanitorAI. Continue to browse it, or go back to {source.name}.</p>
+              <p className="hint">Its cards come from JanitorAI. Continue to browse it, or go back to {sourceName}.</p>
               <div className="cb-notice-actions">
                 <Button variant="prominent" onClick={() => { setPrefs((x) => ({ ...x, datacatOk: true })); switchSource("datacat", true); }}>Continue</Button>
                 <Button onClick={() => setAskAdult(false)}>Back</Button>
               </div>
             </div>
           )}
-          {error && (error.desktop
+          {!source && nsfw && !dataCatAllowed && !allDesktopOnly && (
+            <div className="cb-account" data-testid="cb-datacat-opt-in">
+              <span className="hint">DataCat lists adult cards only. Its cards come from JanitorAI.</span>
+              <Button small onClick={() => setPrefs((x) => ({ ...x, datacatOk: true }))}>Include DataCat</Button>
+            </div>
+          )}
+          {allDesktopOnly && <div className="cb-notice gallery-empty" data-testid="cb-notice"><p>The Card Browser works in the desktop app.</p></div>}
+          {!source && !allDesktopOnly && allFailures.length > 0 && (
+            <div className="cb-account" data-testid="cb-site-errors">
+              <div className="hint" role="status">{allFailures.map((site) => <div key={site.name}>{site.name} · {site.message}</div>)}</div>
+              <Button small disabled={searchPending} onClick={() => void run("retry")}>Retry Failed Sites</Button>
+            </div>
+          )}
+          {source && error && (error.desktop
             ? <div className="cb-notice gallery-empty" data-testid="cb-notice"><p>The Card Browser works in the desktop app.</p></div>
             : <div className="cb-notice gallery-empty" data-testid="cb-notice">
                 <p>{error.paused ? error.message : /answered|did not answer|failed|time/.test(error.message) ? `${source.name} did not answer. ${error.message}` : error.message}</p>
@@ -335,32 +440,32 @@ export function CardBrowser(p: CardBrowserProps) {
                   {error.paused
                     ? <><Button onClick={() => void openLink(source.site)}>Open {source.name}</Button>
                         <Button onClick={() => fileInput.current?.click()}>Import a Downloaded File…</Button></>
-                    : <Button onClick={() => void run(false)}>Try Again</Button>}
+                    : <Button onClick={() => void run("search")}>Try Again</Button>}
                 </div>
               </div>)}
           {!error && (items.length > 0 || busy === "search") && (
-            <div className="collection-heading"><h2>{busy === "search" ? "Searching…" : total !== null ? `${total.toLocaleString("en-US")} cards` : `Page ${page}`}</h2><span>{source.name}</span></div>
+            <div className="collection-heading"><h2>{busy === "search" && (source || !items.length) ? "Searching…" : !source ? `${items.length.toLocaleString("en-US")} loaded` : total !== null ? `${total.toLocaleString("en-US")} cards` : `Page ${page}`}</h2><span>{sourceName}</span></div>
           )}
           <div className="gallery-cards" data-testid="cb-grid" aria-busy={busy === "search"}>
             {busy === "search" && items.length === 0
               ? Array.from({ length: 12 }, (_, i) => <div key={i} className="gallery-card cb-ghost" aria-hidden />)
-              : items.map((it) => <ResultCard key={it.id} item={it} t={p.transport} selected={it.id === selected} added={added.has(`${it.source}:${it.id}`)} onClick={() => setSelected(it.id)} />)}
+              : items.map((it) => <ResultCard key={cardKey(it)} item={it} sourceLabel={!source ? cardSource(it.source).name : undefined} t={p.transport} selected={cardKey(it) === selected} added={added.has(cardKey(it))} onClick={() => setSelected(cardKey(it))} />)}
           </div>
-          {!error && !busy && items.length === 0 && lastKey.current && (
+          {searchSucceeded && !searchPending && items.length === 0 && lastKey.current && (
             <div className="gallery-empty hint" data-testid="cb-empty">
-              <p>{text.trim() ? `Nothing on ${source.name} matches “${text.trim()}”.` : `Nothing on ${source.name} with these choices.`}</p>
+              <p>{emptyMessage}</p>
               {(include.length + exclude.length + activeFilters > 0) && <Button onClick={clearAll}>Clear Tags and Filters</Button>}
             </div>
           )}
-          {hasMore && items.length > 0 && !error && (
-            <div className="cb-more"><Button data-testid="cb-load-more" disabled={busy !== null} onClick={() => void run(true)}>{busy === "more" ? "Loading…" : "Load More"}</Button></div>
+          {(source ? hasMore && items.length > 0 && !error : allHasMore) && (
+            <div className="cb-more"><Button data-testid="cb-load-more" disabled={searchPending} onClick={() => void run("more")}>{busy === "more" ? "Loading…" : "Load More"}</Button></div>
           )}
           <input ref={fileInput} type="file" accept=".png,.json" multiple hidden onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) p.onImportFiles(files); }} />
         </div>
         <aside className={`gallery-sheet${chosen ? " has-card" : ""}`} data-region="sheet">
           <div className="collection-detail-label cb-sheet-label">Card details{chosen && <IconButton className="cb-sheet-close" label="Close" onClick={() => setSelected(null)}><Icon name="close" size={13} /></IconButton>}</div>
           {chosen
-            ? <CardSheet key={`${chosen.source}:${chosen.id}`} item={chosen} source={source} {...p} onImportDownloaded={() => fileInput.current?.click()} prefs={prefs} setPrefs={setPrefs} addedId={added.get(`${chosen.source}:${chosen.id}`) ?? null}
+            ? <CardSheet key={cardKey(chosen)} item={chosen} source={cardSource(chosen.source)} {...p} onImportDownloaded={() => fileInput.current?.click()} prefs={prefs} setPrefs={setPrefs} addedId={added.get(cardKey(chosen)) ?? null}
                 reading={reading} setReading={setReading} onCloseSheet={() => setSelected(null)}
                 onPrev={at > 0 ? () => stepCard(-1) : undefined} onNext={at >= 0 && at < items.length - 1 ? () => stepCard(1) : undefined} />
             : <div className="empty-detail"><p>Pick a card to read it here.</p><p className="hint">Add to Characters saves it in your library, with its lorebook.</p></div>}
@@ -370,12 +475,13 @@ export function CardBrowser(p: CardBrowserProps) {
   );
 }
 
-function ResultCard({ item, t, selected, added, onClick }: { item: CardItem; t: SiteTransport; selected: boolean; added: boolean; onClick: () => void }) {
+function ResultCard({ item, sourceLabel, t, selected, added, onClick }: { item: CardItem; sourceLabel?: string | undefined; t: SiteTransport; selected: boolean; added: boolean; onClick: () => void }) {
   const [ref, on] = useOnScreen<HTMLSpanElement>();
   const pic = usePicture(t, item, on);
+  const byline = [sourceLabel, item.creator ? `by ${item.creator}` : undefined].filter(Boolean).join(" · ");
   return (
     <span ref={ref} className="cb-card-wrap">
-      <GalleryCard testId="cb-card" name={item.name} selected={selected} onClick={onClick} by={item.creator ? `by ${item.creator}` : undefined}
+      <GalleryCard testId="cb-card" name={item.name} selected={selected} onClick={onClick} by={byline || undefined}
         summary={item.tagline || undefined} tags={item.tags} size={item.stats.tokens !== undefined ? `${fmt(item.stats.tokens)} tok` : item.stats.downloads !== undefined ? `${fmt(item.stats.downloads)} dl` : undefined}
         picture={<>
           <CardPicture name={item.name} avatar={pic} />
@@ -543,14 +649,14 @@ function Pop({ open, onClose, button, children }: { open: boolean; onClose: () =
   return <span className="cb-pop-wrap" ref={ref}>{button}{open && <div className="cb-pop" role="dialog">{children}</div>}</span>;
 }
 
-function SourcePicker({ source, open, onToggle, onPick, onClose }: { source: CardSource; open: boolean; onToggle: () => void; onPick: (id: SourceId) => void; onClose: () => void }) {
+function SourcePicker({ sourceId, name, open, onToggle, onPick, onClose }: { sourceId: BrowseSourceId; name: string; open: boolean; onToggle: () => void; onPick: (id: BrowseSourceId) => void; onClose: () => void }) {
   return (
     <Pop open={open} onClose={onClose} button={
-      <Button data-testid="cb-source" aria-haspopup="menu" aria-expanded={open} onClick={onToggle}><Icon name="globe" size={14} /> {source.name} <span className="cb-caret"><Icon name="chevron" size={11} /></span></Button>}>
+      <Button data-testid="cb-source" aria-haspopup="menu" aria-expanded={open} onClick={onToggle}><Icon name="globe" size={14} /> {name} <span className="cb-caret"><Icon name="chevron" size={11} /></span></Button>}>
       <div role="menu" className="cb-sources">
-        {CARD_SOURCES.map((s) => (
-          <button key={s.id} type="button" role="menuitemradio" aria-checked={s.id === source.id} className={`cb-source${s.id === source.id ? " on" : ""}`} onClick={() => onPick(s.id)}>
-            <span className="cb-source-check">{s.id === source.id && <Icon name="check" size={13} />}</span>
+        {SOURCE_OPTIONS.map((s) => (
+          <button key={s.id} type="button" role="menuitemradio" aria-checked={s.id === sourceId} className={`cb-source${s.id === sourceId ? " on" : ""}`} onClick={() => onPick(s.id)}>
+            <span className="cb-source-check">{s.id === sourceId && <Icon name="check" size={13} />}</span>
             <span><strong>{s.name}</strong><span className="hint">{NSFW_NOTE[s.id]}</span></span>
           </button>
         ))}

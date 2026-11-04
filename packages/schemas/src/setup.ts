@@ -116,6 +116,11 @@ export const SetupLayer = z.object({
     layers: z.boolean().optional(),
     layerSize: z.number().int().min(3).max(100).optional(),
     layerMerge: z.number().int().min(2).max(10).optional(),
+    /** CODEX: Chapter writer overrides, inherited independently like other memory settings. */
+    summaryConnectionId: z.string().nullable().optional(),
+    summaryModel: z.string().trim().optional(),
+    summaryPrompt: z.string().trim().min(1).optional(),
+    summaryMaxTokens: z.number().int().min(1).max(32768).optional(),
     /** simple = every summary goes; smart = a decision model picks chapters and quotes per reply. */
     mode: z.enum(["simple", "smart"]).optional(),
     decider: z.enum(["jev", "agents"]).optional(),

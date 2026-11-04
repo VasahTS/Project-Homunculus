@@ -1,5 +1,33 @@
 # HANDOFF — Homunculus 2
 
+## gpt publication batch (2026-11-04) — CODEX
+
+- This batch includes Card Browser All Sites, per-chat chapter writer settings, branch-local memory and prompt coverage fixes, and chapter markers in chat.
+- Typecheck, Vite build, 699 unit tests (3 skipped), and 42 Chromium tests passed with synthetic data. Signed **CODEX**.
+
+## Card Browser All Sites (2026-11-04) — CODEX
+
+- Open **Card Browser → All Sites** to search the six catalogs together. Results arrive as each site answers, show their source, and use that source for details and import. Load More and retries track each site's page separately.
+- All Sites defaults to NSFW on and remembers its own setting. DataCat requires its existing one-time consent, and BotBooru follows account permissions.
+- Local on `gpt`. Typecheck, Vite build, 699 unit tests (3 skipped), and 19 Chromium tests passed with synthetic catalog responses. Signed **CODEX**.
+
+## Chapter visibility on chat messages (2026-11-04) — CODEX
+
+- The speaker row now shows the eye-off icon and the source chapter beside originals that Memory omits from Chat History. Chapter and branch changes refresh the marker.
+- Local on `gpt`. Typecheck, Vite build, 699 unit tests (3 skipped), and 12 Chromium memory scenarios passed with synthetic data. Signed **CODEX**.
+
+## Branch memory and prompt coverage audit (2026-11-04) — CODEX
+
+- Branches copy eligible chapters at the fork and save subsequent writes, edits, and removals independently. Legacy shared chapters keep their path-based visibility until a local copy is saved.
+- The panel shows the exact range the next AI-written chapter covers. Merges no longer cover gaps, hiding a source retires dependent summaries, and Smart recall skips manually hidden text. Agents with chapter context replace covered originals in their transcripts.
+- Local on `gpt`. Typecheck, Vite build, 699 unit tests (3 skipped), and 23 memory and branch Chromium scenarios passed with synthetic data. Signed: **CODEX**.
+
+## Memory writer settings and prompt visibility (2026-11-04) — CODEX
+
+- **Memory → Chapters → How the AI writes chapters** saves the writer connection, model, output budget, and chapter instructions per chat. The default budget is 4,096. Merges share the writer and budget and use their own instructions.
+- **Where chapters go in the prompt** explains the system block at the start of Chat History and how to find it in the full prompt. Empty or truncated summaries leave the original messages available.
+- Local and unpublished on `gpt`. Typecheck, Vite build, 695 unit tests (3 skipped), and 11 memory Chromium scenarios passed with synthetic data. No live GLM or native Tauri test. Signed: **CODEX**.
+
 ## Jev never streamed (2026-11-04) — CLAUDE — D-085
 
 Daniel hit nano-gpt's "Decision models do not support streaming". Decision models are now recognized by name and always asked through /decisions; using one to write chapters or replies explains what to do instead. 694 unit tests.

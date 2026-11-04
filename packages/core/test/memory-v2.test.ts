@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { Message } from "@homunculus/schemas";
 import {
-  chapterLabel, chaptersOnPath, DecisionCache, dueSpan, MEMORY_DEFAULTS, nextMerge, parseDecisions, rankByWords, shortlist,
+  chapterLabel, chaptersOnPath, coveredChapterLabels, DecisionCache, dueSpan, MEMORY_DEFAULTS, nextMerge, parseDecisions, rankByWords, shortlist,
   smartRecall, topCover, type Chapter, type ChatTurn, type DecisionQuestion,
 } from "../src/index.ts";
 import { connection, world } from "./helpers.ts";
@@ -17,11 +17,23 @@ const path = Array.from({ length: 12 }, (_, i) => msg(i + 1));
 const four = [ch(1, "m1", "m2"), ch(2, "m3", "m4"), ch(3, "m5", "m6"), ch(4, "m7", "m8")];
 
 describe("layers (Summaryception)", () => {
+  // CODEX: A merge cannot stand in for a gap its input skipped.
+  it("keeps originals from switched-off or missing chapters in history", () => {
+    const gap = [four[0]!, { ...four[1]!, off: true }, ...four.slice(2), ch(5, "m9", "m10")];
+    const next = nextMerge(path, gap, { layerSize: 3, layerMerge: 2 });
+    expect(next?.group.map(x => x.chapter.id)).toEqual(["c3", "c4"]);
+    const oldMerge = ch(9, "m1", "m6", { level: 1, parts: ["c1", "c3"] });
+    expect(topCover(path, [...gap, oldMerge]).map(x => x.chapter.id)).toEqual(["c1", "c3", "c4", "c5"]);
+    expect(coveredChapterLabels(path, [...gap, oldMerge]).has("m3")).toBe(false);
+  });
+
   it("a merged summary stands in for its chapters; switched off, the chapters come back", () => {
     const arc = ch(9, "m1", "m6", { level: 1, parts: ["c1", "c2", "c3"], title: "Arc" });
     expect(topCover(path, [...four, arc]).map((x) => x.chapter.id)).toEqual(["c9", "c4"]);
     const level0 = chaptersOnPath(path, four);
     expect(chapterLabel(chaptersOnPath(path, [...four, arc]).find((x) => x.chapter.id === "c9")!, level0)).toBe("Chapters 1–3");
+    // CODEX: Each message keeps its own chapter number even when the prompt sends a merged recap.
+    expect(coveredChapterLabels(path, [...four, arc]).get("m3")).toBe("Chapter 2");
     expect(topCover(path, [...four, { ...arc, off: true }]).map((x) => x.chapter.id)).toEqual(["c1", "c2", "c3", "c4"]);
   });
 
@@ -114,6 +126,23 @@ describe("memory v2 in a chat", () => {
   const summarizer = (m: ChatTurn[]) => /summarize part of an ongoing roleplay/.test(m[0]?.content ?? "")
     ? `Title: Part\n\nSummary of: ${(m[1]?.content ?? "").match(/Messages to summarize:\n\n([\s\S]*)/)?.[1]?.slice(0, 60)}`
     : /Merge consecutive chapter summaries/.test(m[0]?.content ?? "") ? "Title: Merged\n\nThe merged stretch." : "ok";
+
+  // CODEX: The decision model is a separate provider call and must respect the message's visibility.
+  it("omits manually hidden messages from the decision model's latest exchange", async () => {
+    const w = await world(() => "ok");
+    await w.store.setDefaultSetup({ memory: { on: true, auto: false, mode: "smart", keep: 0 } });
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    await w.chat.turns.addOwnChapter(session.id, firstMessage!.id, "Opening", "They met.");
+    const shown = await w.chat.send(session.id, firstMessage!.id, "Visible scene.", connection);
+    const hidden = await w.store.addMessage({ id: "hidden", sessionId: session.id, parentId: shown.reply.id, speaker: { kind: "user" },
+      content: "Hidden sentinel.", visibility: { ai: "none", user: true }, createdAt: 100 });
+    const calls: string[] = [];
+    w.core.providers.get("fake")!.decide = async (req) => { calls.push(req.state); return { answers: {} }; };
+    await w.chat.generate(session.id, hidden.id, connection);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.join("\n")).not.toContain("Hidden sentinel.");
+    expect(calls.join("\n")).toContain("Visible scene.");
+  });
 
   it("layers merge old chapters as the story grows, and the prompt sends the merged summary", async () => {
     const w = await world(summarizer);

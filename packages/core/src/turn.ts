@@ -14,7 +14,7 @@ import { prepared } from "./agents/styles.ts";
 import { noteInjections } from "./agents/feedback.ts";
 import { isAbort } from "./connections.ts";
 import type { HomunculusCore } from "./core.ts";
-import type { ConnectionConfig } from "./extensions.ts";
+import type { ChatTurn, ConnectionConfig } from "./extensions.ts";
 import { scanLorebooks, type LoreScope } from "./lorebook.ts";
 import { applyBasicMacros, DEFAULT_USER_NAME, expandMacros, type MacroContext } from "./macros.ts";
 import { applyPresetOverride } from "./prompt-control.ts";
@@ -56,7 +56,7 @@ import type { SqlStore } from "./storage/store.ts";
 import { characterNoteOf, effectiveCharacter, effectivePersona } from "./variants.ts";
 import { castPart, narratorAsCharacter, SIMPLE_NARRATOR } from "./stories.ts";
 import { applyLorePatch } from "./lore-versions.ts";
-import { applyChapters, chapterLabel, chapterRequest, chaptersOnPath, dueSpan, levelOf, mergeRequest, nextMerge, parseChapter, topCover, waitingSpan, waitingTokens, type Chapter, type MemorySettings } from "./memory.ts";
+import { applyChapters, chapterKey, chapterLabel, chapterRequest, chaptersOnPath, dueSpan, levelOf, mergeRequest, nextMerge, parseChapter, readable, topCover, waitingSpan, waitingTokens, type Chapter, type MemorySettings } from "./memory.ts";
 import { chatDecide, DecisionCache, isDecisionModel, smartRecall, type Decide, type RecallResult } from "./recall.ts";
 
 export interface TurnOptions {
@@ -69,6 +69,7 @@ export interface TurnOptions {
 
 export interface TurnRequest {
   sessionId: string;
+  branchId?: string | null | undefined;
   /** The message the new one answers (null = first message of the session). */
   parentId: string | null;
   /** When the user writes something. Without it, the AI writes a reply to `parentId`. */
@@ -162,7 +163,7 @@ export class TurnPipeline {
     // 1. the user's message; catch up trackers skipped on swipes
     let parentId = req.parentId;
     let userMessage: Message | undefined;
-    if (parentId && !setup.trackersOnSwipe) await this.catchUpTrackers(session, setup, entries, owners, parentId, main, names, req.signal);
+    if (parentId && !setup.trackersOnSwipe) await this.catchUpTrackers(session, setup, entries, owners, parentId, main, names, req.signal, req.branchId);
     if (req.userText !== undefined) {
       const role = (session.storyId ? (await this.store.getStory(session.storyId))?.userRole : undefined) ?? session.userRole;
       const kind = req.userKind ?? (role === "player" ? "user" : "direction");
@@ -174,7 +175,7 @@ export class TurnPipeline {
     const siblings = parentId ? await this.store.childrenOf(session.id, parentId) : await this.store.childrenOf(session.id, null);
     const type: GenerationType = req.type ?? (siblings.some((m) => m.speaker.kind !== "user") ? "swipe" : "normal");
     const seed = parentId ?? session.id;
-    const base = { session, setup, generationType: type, mainConnection: main, connections: req.connections, names, seed, results, signal: req.signal };
+    const base = { session, branchId: req.branchId, setup, generationType: type, mainConnection: main, connections: req.connections, names, seed, results, signal: req.signal };
 
     // 3. before
     const injections: PromptInjection[] = [];
@@ -201,14 +202,14 @@ export class TurnPipeline {
       (a) => isTurn(a, "after") && a.runMode === "inline")).filter((e) => !(type === "swipe" && !setup.trackersOnSwipe && e.config.output === "state"));
     // 4a. smart memory recall (D-083): the decider picks chapters and quotes for this exchange; never fails the turn
     const recall = setup.memory.on && setup.memory.mode === "smart" && parentId
-      ? await this.recallFor(session, setup, history, names, main, req.connections, req.signal).catch((e) => {
+      ? await this.recallFor(session, setup, history, names, main, req.connections, req.signal, req.branchId).catch((e) => {
         if (isAbort(e, req.signal)) throw e;
         void this.core.events.emit("core.error", { source: "memory", message: e instanceof Error ? e.message : String(e) });
         return undefined;
       })
       : undefined;
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: chosen.character, persona: effPersona,
-      names, injections, inlineAgents, type, main, seed, recall });
+      names, injections, inlineAgents, type, main, seed, recall, branchId: req.branchId });
     const prompt = built.parts;
 
     // 5. main reply, with "parallel" agents alongside
@@ -306,9 +307,9 @@ export class TurnPipeline {
     if (!req.signal?.aborted) outcomes.push(...(await this.otherTriggers(entries, owners, { ...base, trigger: "", messageId: reply.id, text: reply.content }, parentId)));
     // 9. memory (D-054): close a chapter when enough old messages piled up. A failure never fails the turn.
     if (setup.memory.on && setup.memory.auto && !req.signal?.aborted) {
-      await this.summarize(session, setup, reply.id, main, req.connections, { manual: false, signal: req.signal }).catch((e) =>
+      await this.summarize(session, setup, reply.id, main, req.connections, { manual: false, signal: req.signal, branchId: req.branchId }).catch((e) =>
         void this.core.events.emit("core.error", { source: "memory", message: e instanceof Error ? e.message : String(e) }))
-        .finally(() => void this.core.events.emit("memory.status", { sessionId: session.id, text: null }));
+        .finally(() => void this.core.events.emit("memory.status", { sessionId: session.id, branchId: req.branchId, text: null }));
     }
     await this.core.events.emit("turn.finished", { sessionId: session.id, messageId: reply.id });
     reply = (await this.store.getMessage(reply.id)) ?? reply;
@@ -317,33 +318,67 @@ export class TurnPipeline {
 
   // ---------------------------------------------------------------- memory (D-054)
 
-  /** A session's chapters (all branches). */
-  async chapters(sessionId: string): Promise<Chapter[]> {
-    return (await this.store.getAppSetting<Chapter[]>(`memory.chapters:${sessionId}`)) ?? [];
+  /** Read legacy chapters until this branch saves its own copy. An empty copy stays empty. */
+  async chapters(sessionId: string, branchId?: string | null): Promise<Chapter[]> {
+    return this.store.memoryChapters(sessionId, branchId);
   }
 
-  async saveChapters(sessionId: string, chapters: Chapter[] | ((latest: Chapter[]) => Chapter[])): Promise<void> {
+  private async persistChapters(sessionId: string, branchId: string | null | undefined, chapters: Chapter[]): Promise<void> {
+    await this.store.setAppSetting(chapterKey(sessionId, branchId), chapters);
+    void this.core.events.emit("memory.chaptersChanged", { sessionId, branchId: branchId ?? null });
+  }
+
+  async saveChapters(sessionId: string, chapters: Chapter[] | ((latest: Chapter[]) => Chapter[]), branchId?: string | null): Promise<void> {
     // Read-modify-write edits share the summary commit queue, so they cannot overwrite another edit or new chapter.
     await this.serializeMemory(this.chapterWrites, sessionId, async () => {
-      const next = typeof chapters === "function" ? chapters(await this.chapters(sessionId)) : chapters;
-      await this.store.setAppSetting(`memory.chapters:${sessionId}`, next);
+      const previous = await this.chapters(sessionId, branchId);
+      const next = typeof chapters === "function" ? chapters(previous) : chapters;
+      const byId = new Map(next.map(chapter => [chapter.id, chapter]));
+      const changed = new Set(previous.filter(chapter => {
+        const replacement = byId.get(chapter.id);
+        return !replacement || replacement.title !== chapter.title || replacement.summary !== chapter.summary || replacement.off !== chapter.off;
+      }).map(chapter => chapter.id));
+      // CODEX: An edited or disabled source must not survive inside a stale merge.
+      for (const chapter of [...next].sort((a, b) => levelOf(a) - levelOf(b))) {
+        if (chapter.parts?.some(id => changed.has(id))) {
+          changed.add(chapter.id);
+          byId.set(chapter.id, { ...chapter, off: true });
+        }
+      }
+      await this.persistChapters(sessionId, branchId, [...byId.values()]);
+    });
+  }
+
+  /** A new branch gets a copy of the chapters that fit its fork point. */
+  async forkMemory(sessionId: string, messageId: string, sourceId: string | null, newBranchId: string): Promise<void> {
+    const path = await this.store.pathTo(messageId);
+    if (path.at(-1)?.sessionId !== sessionId) throw new Error("Memory message belongs to another session");
+    await this.serializeMemory(this.chapterWrites, sessionId, async () => {
+      const source = await this.chapters(sessionId, sourceId);
+      await this.persistChapters(sessionId, newBranchId, chaptersOnPath(path, source).map(({ chapter }) => chapter));
     });
   }
 
   /** Retain affected summaries, including hand edits, but send the corrected raw messages instead. CODEX. */
   async invalidateMemoryAfter(message: Message): Promise<void> {
     await this.serializeMemory(this.chapterWrites, message.sessionId, async () => {
-      const chapters = await this.chapters(message.sessionId);
-      let changed = false;
-      const next: Chapter[] = [];
-      for (const c of chapters) {
-        // Later chapters may have read an earlier chapter for continuity. Other branches remain independent.
-        const end = !c.off ? await this.store.getMessage(c.toId) : undefined;
-        const affected = end && (await this.store.pathTo(end.id)).some(m => m.id === message.id);
-        if (affected) changed = true;
-        next.push(affected ? { ...c, off: true } : c);
+      const sessionId = message.sessionId;
+      const branches = await this.store.listBranches(sessionId);
+      const affected = new Map<string, boolean>();
+      for (const branchId of [null, ...branches.map(b => b.id)]) {
+        const key = chapterKey(sessionId, branchId);
+        const chapters = await this.store.getAppSetting<Chapter[]>(key);
+        if (!chapters?.length) continue;
+        const next: Chapter[] = [];
+        for (const c of chapters) {
+          if (!c.off && !affected.has(c.toId)) {
+            const end = await this.store.getMessage(c.toId);
+            affected.set(c.toId, !!end && (await this.store.pathTo(end.id)).some(m => m.id === message.id));
+          }
+          next.push(!c.off && affected.get(c.toId) ? { ...c, off: true } : c);
+        }
+        if (next.some((c, i) => c !== chapters[i])) await this.persistChapters(sessionId, branchId, next);
       }
-      if (changed) await this.store.setAppSetting(`memory.chapters:${message.sessionId}`, next);
     });
   }
 
@@ -357,21 +392,25 @@ export class TurnPipeline {
   }
 
   /** What memory looks like at a message: the summaries on its path (story order) and what waits for the next chapter. */
-  async memoryAt(sessionId: string, messageId: string | null): Promise<MemorySettings & {
+  async memoryAt(sessionId: string, messageId: string | null, branchId?: string | null): Promise<MemorySettings & {
+    agentConnectionId: string | null;
+    chatConnectionId: string | null;
+    chatModelOverride: string;
     /** `from`/`to` = message numbers on this branch (#1 = the first message), as the chat shows them. */
     chapters: Array<Chapter & { label: string; mergedInto?: string; sent: boolean; from: number; to: number }>;
     waiting: number; waitingTokens: number; dueChapters: number;
     /** Message numbers the next chapter would start and end at (0 when nothing waits). */
     waitingFrom: number; waitingTo: number;
+    writeNowTo: number;
     /** What memory puts in the prompt now (simple: every summary), its size, and how many messages it stands in for. */
-    promptTokens: number; covered: number;
+    promptText: string; promptTokens: number; covered: number;
   }> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
     const path = messageId ? await this.store.pathTo(messageId) : [];
     if (path.some(m => m.sessionId !== sessionId)) throw new Error("Memory message belongs to another session");
-    const all = await this.chapters(sessionId);
+    const all = await this.chapters(sessionId, branchId);
     const placed = chaptersOnPath(path, all);
     const level0 = placed.filter((x) => levelOf(x.chapter) === 0);
     const top = new Set(topCover(path, all).map((x) => x.chapter.id));
@@ -384,6 +423,7 @@ export class TurnPipeline {
         ...(parent ? { mergedInto: parent.chapter.id } : {}) };
     });
     const span = waitingSpan(path, all, setup.memory);
+    const writeNow = dueSpan(path, all, setup.memory, true).at(-1);
     const waiting = span.length;
     const simple = applyChapters(path, all);
     const tokens = waitingTokens(path, all, setup.memory);
@@ -391,17 +431,19 @@ export class TurnPipeline {
       ? Math.floor(tokens / Math.max(1, setup.memory.everyTokens))
       : Math.floor(waiting / Math.max(1, setup.memory.every));
     return {
-      ...setup.memory, chapters, waiting, waitingTokens: tokens, dueChapters,
+      ...setup.memory, agentConnectionId: setup.agentConnectionId, chatConnectionId: setup.connectionId, chatModelOverride: setup.modelOverride,
+      chapters, waiting, waitingTokens: tokens, dueChapters,
       waitingFrom: span.length ? num.get(span[0]!.id) ?? 0 : 0, waitingTo: span.length ? num.get(span.at(-1)!.id) ?? 0 : 0,
-      promptTokens: simple.text ? estimateTokens(simple.text) : 0, covered: simple.covered,
+      writeNowTo: writeNow ? num.get(writeNow.id) ?? 0 : 0,
+      promptText: simple.text, promptTokens: simple.text ? estimateTokens(simple.text) : 0, covered: simple.covered,
     };
   }
 
   /** "See what the AI gets": the memory text at a message (every summary; smart recall picks per reply). */
-  async memoryPreview(sessionId: string, messageId: string | null): Promise<{ text: string; tokens: number; covered: number }> {
+  async memoryPreview(sessionId: string, messageId: string | null, branchId?: string | null): Promise<{ text: string; tokens: number; covered: number }> {
     const path = messageId ? await this.store.pathTo(messageId) : [];
     if (path.some(m => m.sessionId !== sessionId)) throw new Error("Memory message belongs to another session");
-    const r = applyChapters(path, await this.chapters(sessionId));
+    const r = applyChapters(path, await this.chapters(sessionId, branchId));
     return { text: r.text, tokens: r.text ? estimateTokens(r.text) : 0, covered: r.covered };
   }
 
@@ -409,7 +451,7 @@ export class TurnPipeline {
    * Write It Myself (D-084): a chapter the user wrote, covering every message that waits on this branch (outside the
    * newest `keep`). Marked edited, so the app never rewrites it. Undefined when nothing waits.
    */
-  async addOwnChapter(sessionId: string, messageId: string, title: string, summary: string): Promise<Chapter | undefined> {
+  async addOwnChapter(sessionId: string, messageId: string, title: string, summary: string, branchId?: string | null): Promise<Chapter | undefined> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     if (!summary.trim()) throw new Error("Write the summary first.");
@@ -417,12 +459,12 @@ export class TurnPipeline {
     return this.serializeMemory(this.chapterWrites, sessionId, async () => {
       const path = await this.store.pathTo(messageId);
       if (path.some(m => m.sessionId !== sessionId)) throw new Error("Memory message belongs to another session");
-      const latest = await this.chapters(sessionId);
+      const latest = await this.chapters(sessionId, branchId);
       const span = waitingSpan(path, latest, setup.memory);
       if (!span.length) return undefined;
       const chapter: Chapter = { id: this.newId(), fromId: span[0]!.id, toId: span.at(-1)!.id, title: title.trim(), summary: summary.trim(),
         messageCount: span.length, createdAt: this.now(), edited: true };
-      await this.store.setAppSetting(`memory.chapters:${sessionId}`, [...latest, chapter]);
+      await this.persistChapters(sessionId, branchId, [...latest, chapter]);
       return chapter;
     });
   }
@@ -432,7 +474,7 @@ export class TurnPipeline {
    * Uses (and fills) the same answer cache, so sending the same text right after asks nothing again.
    */
   async testRecall(sessionId: string, messageId: string, userText: string, connection: ConnectionConfig,
-    connections?: Record<string, ConnectionConfig>, signal?: AbortSignal): Promise<RecallResult | undefined> {
+    connections?: Record<string, ConnectionConfig>, signal?: AbortSignal, branchId?: string | null): Promise<RecallResult | undefined> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
@@ -441,16 +483,17 @@ export class TurnPipeline {
     const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
     const user = persona ? effectivePersona(persona, setup.personaVariantId).name : DEFAULT_USER_NAME;
     const path = await this.store.pathTo(messageId);
+    if (path.at(-1)?.sessionId !== sessionId) throw new Error("Memory message belongs to another session");
     const fake: Message = { id: "test-recall", sessionId, parentId: messageId, speaker: { kind: "user" }, kind: "user",
       visibility: { ai: "full", user: true }, content: userText, createdAt: this.now(), meta: {} };
     const history = userText.trim() ? [...path, fake] : path;
     const char = session.cast[0]?.characterId ? this.charNames.get(session.cast[0].characterId) ?? "Character" : "Narrator";
     const names = { char, user, bySpeaker: (m: Message) => this.nameOf(m, user) } as RunRequest["names"];
-    return this.recallFor(session, setup, history, names, main, connections, signal);
+    return this.recallFor(session, setup, history, names, main, connections, signal, branchId);
   }
 
   /** Simple memory, or smart recall's choice, for one prompt (+ the receipt and the note the Reply tab shows). */
-  private async memoryFor(sessionId: string, s: MemorySettings, history: Message[], recall: RecallResult | undefined) {
+  private async memoryFor(sessionId: string, s: MemorySettings, history: Message[], recall: RecallResult | undefined, branchId?: string | null) {
     const none = { memory: { history, text: "", covered: 0 }, receipt: undefined, note: "" };
     if (!s.on) return none;
     if (recall) {
@@ -462,11 +505,11 @@ export class TurnPipeline {
           + `${r.quotes} quote(s), decided by ${r.decider} in ${(r.ms / 1000).toFixed(1)} s.`;
       return {
         memory: { history: kept, text: recall.text, covered: recall.hidden.size }, note,
-        receipt: { sent: r.fallback ? topCover(history, await this.chapters(sessionId)).length : r.picked.length + r.layers,
+        receipt: { sent: r.fallback ? topCover(history, await this.chapters(sessionId, branchId)).length : r.picked.length + r.layers,
           covered: recall.hidden.size, ...r, ms: Math.round(r.ms) },
       };
     }
-    const all = await this.chapters(sessionId);
+    const all = await this.chapters(sessionId, branchId);
     const simple = applyChapters(history, all);
     if (!simple.sent) return { ...none, memory: simple };
     const chapters = chaptersOnPath(history, all).filter((x) => levelOf(x.chapter) === 0).length;
@@ -502,11 +545,13 @@ export class TurnPipeline {
 
   /** Step 4a: smart recall for the prompt about to be sent (history = the path up to the user's message). */
   private async recallFor(session: Session, setup: ResolvedSetup, history: Message[], names: RunRequest["names"], main: ConnectionConfig,
-    connections: Record<string, ConnectionConfig> | undefined, signal: AbortSignal | undefined): Promise<RecallResult | undefined> {
-    const chapters = await this.chapters(session.id);
+    connections: Record<string, ConnectionConfig> | undefined, signal: AbortSignal | undefined, branchId?: string | null): Promise<RecallResult | undefined> {
+    const chapters = await this.chapters(session.id, branchId);
     if (!chaptersOnPath(history, chapters).some((x) => !x.chapter.off)) return undefined;
-    const lastUser = [...history].reverse().find((m) => m.speaker.kind === "user");
-    const lastAi = lastUser ? [...history.slice(0, history.indexOf(lastUser))].reverse().find((m) => m.speaker.kind !== "user") : history.at(-1);
+    // CODEX: The recall model must respect manually hidden messages too.
+    const visible = readable(history);
+    const lastUser = [...visible].reverse().find((m) => m.speaker.kind === "user");
+    const lastAi = lastUser ? [...visible.slice(0, visible.indexOf(lastUser))].reverse().find((m) => m.speaker.kind !== "user") : visible.at(-1);
     const exchange = [lastAi, lastUser].filter((m): m is Message => !!m).map((m) => `[${names.bySpeaker(m)}]: ${m.content}`).join("\n\n");
     let decider: { decide: Decide; name: string };
     try { decider = this.deciderFor(setup, main, connections); }
@@ -515,46 +560,70 @@ export class TurnPipeline {
       decider = { name: setup.memory.deciderModel, decide: () => Promise.reject(e) };
     }
     const count = chaptersOnPath(history, chapters).filter((x) => levelOf(x.chapter) === 0 && !x.chapter.off).length;
-    await this.core.events.emit("memory.status", { sessionId: session.id, text: `Recalling: weighing ${count} chapter${count === 1 ? "" : "s"}…` });
+    await this.core.events.emit("memory.status", { sessionId: session.id, branchId, text: `Recalling: weighing ${count} chapter${count === 1 ? "" : "s"}…` });
     try {
       return await smartRecall({
         history, chapters, settings: setup.memory, exchange, nameOf: names.bySpeaker, ignoreNames: [names.char, names.user],
         decide: decider.decide, deciderName: decider.name, cache: this.decisions, signal, now: this.now,
       });
     } finally {
-      await this.core.events.emit("memory.status", { sessionId: session.id, text: null });
+      await this.core.events.emit("memory.status", { sessionId: session.id, branchId, text: null });
     }
   }
 
   /**
    * Writes the next chapter at this message's path when enough old messages wait (manual = Summarize now: from 2
-   * messages), then merges old summaries when layers are on. Uses the agents' connection. Returns the new chapter,
+   * messages), then merges old summaries when layers are on. Returns the new chapter,
    * or undefined when there was not enough to summarize.
    */
   async summarize(session: Session, setup: ResolvedSetup, messageId: string, main: ConnectionConfig,
-    connections: Record<string, ConnectionConfig> | undefined, opts: { manual: boolean; signal?: AbortSignal | undefined }): Promise<Chapter | undefined> {
+    connections: Record<string, ConnectionConfig> | undefined, opts: { manual: boolean; signal?: AbortSignal | undefined; branchId?: string | null | undefined }): Promise<Chapter | undefined> {
     return this.serializeMemory(this.summaryRuns, session.id, async () => {
       const made = await this.summarizeChapter(session, setup, messageId, main, connections, opts);
-      if (made && setup.memory.layers) await this.mergeLayers(session, setup, messageId, main, connections, opts.signal);
+      if (made && setup.memory.layers) {
+        try { await this.mergeLayers(session, setup, messageId, main, connections, opts.signal, opts.branchId); }
+        catch (e) {
+          if (opts.signal?.aborted) throw e;
+          throw new Error(`The chapter was saved, but merging older summaries failed. ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+        }
+      }
       return made;
     });
   }
 
-  private agentsConnection(setup: ResolvedSetup, main: ConnectionConfig, connections: Record<string, ConnectionConfig> | undefined): ConnectionConfig {
-    const id = setup.agentConnectionId;
-    const conn = (id ? connections?.[id] ?? this.options.connectionById?.(id) : undefined) ?? main;
+  private summaryConnection(setup: ResolvedSetup, main: ConnectionConfig, connections: Record<string, ConnectionConfig> | undefined): ConnectionConfig {
+    const { summaryConnectionId, summaryModel } = setup.memory;
+    const id = summaryConnectionId === "" ? setup.agentConnectionId : summaryConnectionId;
+    const profile = id ? connections?.[id] ?? this.options.connectionById?.(id) : undefined;
+    if (summaryConnectionId && !profile) throw new Error("The summary connection is missing. Choose an available connection in Memory → How the AI writes chapters.");
+    const base = profile ?? main;
+    const conn = summaryModel ? { ...base, model: summaryModel } : base;
     if (isDecisionModel(conn.model)) {
-      throw new Error(`"${conn.model}" is a decision model: it can pick chapters but cannot write them. Choose a chat model for the agents' connection, and put Jev in Memory → Recall → Decide with Jev.`);
+      throw new Error(`"${conn.model}" is a decision model. Choose a chat model in Memory → How the AI writes chapters. Jev can pick chapters in Memory → Recall.`);
     }
     return conn;
   }
 
+  /** CODEX: A truncated summary must never replace the source messages. */
+  private async writeSummary(conn: ConnectionConfig, request: ChatTurn[], maxTokens: number, signal?: AbortSignal) {
+    const answer = await this.core.connections.complete(conn, request, { signal, maxTokens });
+    if (answer.finish === "length") {
+      throw new Error(`The writer reached its ${maxTokens.toLocaleString("en-US")}-token limit. Increase Max output tokens in Memory → How the AI writes chapters.`);
+    }
+    const parsed = parseChapter(answer.text);
+    if (!parsed.summary) {
+      const detail = answer.reasoning.trim() ? "returned reasoning without a summary" : "returned no summary text";
+      throw new Error(`The writer ${detail}. Check the summary prompt or choose another model in Memory → How the AI writes chapters.`);
+    }
+    return parsed;
+  }
+
   private async summarizeChapter(session: Session, setup: ResolvedSetup, messageId: string, main: ConnectionConfig,
-    connections: Record<string, ConnectionConfig> | undefined, opts: { manual: boolean; signal?: AbortSignal | undefined }): Promise<Chapter | undefined> {
+    connections: Record<string, ConnectionConfig> | undefined, opts: { manual: boolean; signal?: AbortSignal | undefined; branchId?: string | null | undefined }): Promise<Chapter | undefined> {
     opts.signal?.throwIfAborted();
     const path = await this.store.pathTo(messageId);
     if (path.some(m => m.sessionId !== session.id)) throw new Error("Memory message belongs to another session");
-    const all = await this.chapters(session.id);
+    const all = await this.chapters(session.id, opts.branchId);
     const span = dueSpan(path, all, setup.memory, opts.manual);
     if (!span.length) return undefined;
     await this.loadCharNames(session);
@@ -562,11 +631,10 @@ export class TurnPipeline {
     const user = persona ? effectivePersona(persona, setup.personaVariantId).name : DEFAULT_USER_NAME;
     const on = chaptersOnPath(path, all).filter(x => !x.chapter.off && levelOf(x.chapter) === 0);
     const previous = on[on.length - 1]?.chapter;
-    const conn = this.agentsConnection(setup, main, connections);
-    await this.core.events.emit("memory.status", { sessionId: session.id, text: `Writing chapter ${on.length + 1}…` });
-    const answer = await this.core.connections.complete(conn, chapterRequest(span, previous, (m) => this.nameOf(m, user)), { signal: opts.signal, maxTokens: 1200 });
-    const parsed = parseChapter(answer.text);
-    if (!parsed.summary.trim()) throw new Error("The summary came back empty");
+    const conn = this.summaryConnection(setup, main, connections);
+    await this.core.events.emit("memory.status", { sessionId: session.id, branchId: opts.branchId, text: `Writing chapter ${on.length + 1}…` });
+    const parsed = await this.writeSummary(conn, chapterRequest(span, previous, (m) => this.nameOf(m, user), setup.memory.summaryPrompt),
+      setup.memory.summaryMaxTokens, opts.signal);
     const chapter: Chapter = {
       id: this.newId(), fromId: span[0]!.id, toId: span[span.length - 1]!.id, title: parsed.title, summary: parsed.summary,
       messageCount: span.length, createdAt: this.now(),
@@ -575,8 +643,9 @@ export class TurnPipeline {
       opts.signal?.throwIfAborted();
       // A deleted branch endpoint has no remaining destination for this answer. CODEX, T-001.
       if (!await this.store.getMessage(messageId)) return undefined;
+      if (opts.branchId && !(await this.store.listBranches(session.id)).some(b => b.id === opts.branchId)) return undefined;
       const freshPath = await this.store.pathTo(messageId);
-      const latest = await this.chapters(session.id);
+      const latest = await this.chapters(session.id, opts.branchId);
       const freshSpan = dueSpan(freshPath, latest, setup.memory, opts.manual);
       // Revalidate the exact readable range and continuity input after edits, deletes and other chapter writes.
       if (freshSpan.length !== span.length || span.some((m, i) => {
@@ -585,7 +654,7 @@ export class TurnPipeline {
       })) return undefined;
       const freshPrevious = chaptersOnPath(freshPath, latest).filter(x => !x.chapter.off && levelOf(x.chapter) === 0).at(-1)?.chapter;
       if (freshPrevious?.id !== previous?.id || freshPrevious?.title !== previous?.title || freshPrevious?.summary !== previous?.summary) return undefined;
-      await this.store.setAppSetting(`memory.chapters:${session.id}`, [...latest, chapter]);
+      await this.persistChapters(session.id, opts.branchId, [...latest, chapter]);
       return chapter;
     });
   }
@@ -596,30 +665,34 @@ export class TurnPipeline {
    * rewritten). At most 8 merges per call; the rest wait for the next chapter.
    */
   private async mergeLayers(session: Session, setup: ResolvedSetup, messageId: string, main: ConnectionConfig,
-    connections: Record<string, ConnectionConfig> | undefined, signal: AbortSignal | undefined): Promise<number> {
+    connections: Record<string, ConnectionConfig> | undefined, signal: AbortSignal | undefined, branchId?: string | null): Promise<number> {
     let made = 0;
     for (let k = 0; k < 8; k++) {
       signal?.throwIfAborted();
       const path = await this.store.pathTo(messageId);
-      const all = await this.chapters(session.id);
+      const all = await this.chapters(session.id, branchId);
       const next = nextMerge(path, all, setup.memory);
       if (!next) break;
       const group = next.group.map((x) => x.chapter);
       const before = chaptersOnPath(path, all).filter((x) => !x.chapter.off && levelOf(x.chapter) === next.level && x.to < next.group[0]!.from).at(-1)?.chapter;
-      await this.core.events.emit("memory.status", { sessionId: session.id, text: `Merging ${group.length} old summaries…` });
-      const answer = await this.core.connections.complete(this.agentsConnection(setup, main, connections), mergeRequest(group, before), { signal, maxTokens: 1400 });
-      const parsed = parseChapter(answer.text);
-      if (!parsed.summary.trim()) throw new Error("The merged summary came back empty");
+      const request = mergeRequest(group, before);
+      await this.core.events.emit("memory.status", { sessionId: session.id, branchId, text: `Merging ${group.length} old summaries…` });
+      const parsed = await this.writeSummary(this.summaryConnection(setup, main, connections), request, setup.memory.summaryMaxTokens, signal);
       const merged: Chapter = {
         id: this.newId(), fromId: group[0]!.fromId, toId: group.at(-1)!.toId, title: parsed.title, summary: parsed.summary,
         messageCount: group.reduce((n, c) => n + c.messageCount, 0), createdAt: this.now(), level: next.level, parts: group.map((c) => c.id),
       };
       const saved = await this.serializeMemory(this.chapterWrites, session.id, async () => {
-        const latest = await this.chapters(session.id);
+        signal?.throwIfAborted();
+        if (branchId && !(await this.store.listBranches(session.id)).some(b => b.id === branchId)) return false;
+        const latest = await this.chapters(session.id, branchId);
         // the same summaries must still be free and unchanged
-        const again = nextMerge(await this.store.pathTo(messageId), latest, setup.memory);
-        if (!again || again.group.map((x) => `${x.chapter.id}|${x.chapter.summary}`).join() !== next.group.map((x) => `${x.chapter.id}|${x.chapter.summary}`).join()) return false;
-        await this.store.setAppSetting(`memory.chapters:${session.id}`, [...latest, merged]);
+        const freshPath = await this.store.pathTo(messageId);
+        const again = nextMerge(freshPath, latest, setup.memory);
+        if (!again || again.group.some((x, i) => x.chapter.id !== group[i]?.id)) return false;
+        const prior = chaptersOnPath(freshPath, latest).filter((x) => !x.chapter.off && levelOf(x.chapter) === again.level && x.to < again.group[0]!.from).at(-1)?.chapter;
+        if (mergeRequest(again.group.map(x => x.chapter), prior)[1]!.content !== request[1]!.content) return false;
+        await this.persistChapters(session.id, branchId, [...latest, merged]);
         return true;
       });
       if (!saved) break;
@@ -629,13 +702,13 @@ export class TurnPipeline {
   }
 
   /** Summarize now (the Memory group's button): a chapter from whatever waits, if at least 2 messages. */
-  async summarizeNow(sessionId: string, messageId: string, connection: ConnectionConfig, connections?: Record<string, ConnectionConfig>, signal?: AbortSignal): Promise<Chapter | undefined> {
+  async summarizeNow(sessionId: string, messageId: string, connection: ConnectionConfig, connections?: Record<string, ConnectionConfig>, signal?: AbortSignal, branchId?: string | null): Promise<Chapter | undefined> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
     const main = chatModel((setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection, setup);
-    try { return await this.summarize(session, setup, messageId, main, connections, { manual: true, signal }); }
-    finally { void this.core.events.emit("memory.status", { sessionId, text: null }); }
+    try { return await this.summarize(session, setup, messageId, main, connections, { manual: true, signal, branchId }); }
+    finally { void this.core.events.emit("memory.status", { sessionId, branchId, text: null }); }
   }
 
   /**
@@ -643,7 +716,7 @@ export class TurnPipeline {
    * after another, merging layers on the way. Stop keeps what is done. Returns how many chapters were written.
    */
   async catchUpMemory(sessionId: string, messageId: string, connection: ConnectionConfig, connections?: Record<string, ConnectionConfig>,
-    onProgress?: (done: number, left: number) => void, signal?: AbortSignal): Promise<number> {
+    onProgress?: (done: number, left: number) => void, signal?: AbortSignal, branchId?: string | null): Promise<number> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
@@ -652,16 +725,16 @@ export class TurnPipeline {
     try {
       for (let k = 0; k < 500; k++) {
         signal?.throwIfAborted();
-        const left = (await this.memoryAt(sessionId, messageId)).dueChapters;
+        const left = (await this.memoryAt(sessionId, messageId, branchId)).dueChapters;
         if (!left) break;
         onProgress?.(done, left);
-        const c = await this.summarize(session, setup, messageId, main, connections, { manual: false, signal });
+        const c = await this.summarize(session, setup, messageId, main, connections, { manual: false, signal, branchId });
         if (!c) break;
         done++;
       }
       onProgress?.(done, 0);
       return done;
-    } finally { void this.core.events.emit("memory.status", { sessionId, text: null }); }
+    } finally { void this.core.events.emit("memory.status", { sessionId, branchId, text: null }); }
   }
 
   /**
@@ -727,15 +800,27 @@ export class TurnPipeline {
     const main = chatModel((setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection, setup);
     const trigger = config.output === "inject" || config.output === "intercept"
       || config.triggers.some((t) => t.on === "turn" && t.phase === "before") ? "turn.before" : "turn.after";
+    let branchId: string | undefined;
+    if (setup.memory.on && config.input.chapters) {
+      const selected = await this.store.getAppSetting<string>(`branch:${sessionId}`);
+      const branches = await this.store.listBranches(sessionId);
+      const ordered = [...branches.filter(b => b.id === selected), ...branches.filter(b => b.id !== selected)];
+      for (const branch of ordered) {
+        if (branch.endMessageId && (await this.store.pathTo(branch.endMessageId)).some(m => m.id === messageId)) {
+          branchId = branch.id;
+          break;
+        }
+      }
+    }
     const runs = (await this.store.listAgentRuns(messageId)).filter((run) => run.status === "ok").sort((a, b) => a.startedAt - b.startedAt);
     const results = new Map(runs.map((run) => [run.agentId, run.output as unknown]));
-    return { session, setup, trigger, generationType: "normal", messageId, text: message.content, mainConnection: main,
+    return { session, branchId, setup, trigger, generationType: "normal", messageId, text: message.content, mainConnection: main,
       connections, names, seed: message.parentId ?? sessionId, results, signal };
   }
 
   /** Runs one agent by hand on a message (the "run now" button). */
   async runManual(sessionId: string, agentId: string, messageId: string, connection: ConnectionConfig, signal?: AbortSignal,
-    connections?: Record<string, ConnectionConfig>, options: { direction?: string } = {}): Promise<AgentOutcome | undefined> {
+    connections?: Record<string, ConnectionConfig>, options: { direction?: string; branchId?: string | null } = {}): Promise<AgentOutcome | undefined> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
@@ -752,7 +837,7 @@ export class TurnPipeline {
     const names = { char: speaking.character?.name ?? "Narrator", user, bySpeaker: (x: Message) => this.nameOf(x, user) };
     const main = chatModel((setup.connectionId ? connections?.[setup.connectionId] : undefined) ?? connection, setup);
     return this.runner.runOne(entry, {
-      session, setup, trigger: "manual", generationType: "normal", messageId, text: m.content, mainConnection: main, connections,
+      session, branchId: options.branchId, setup, trigger: "manual", generationType: "normal", messageId, text: m.content, mainConnection: main, connections,
       names, seed: m.parentId ?? sessionId, results: new Map(), signal, ...(options.direction?.trim() ? { direction: options.direction } : {}),
     }, this.runner.owners(entries));
   }
@@ -762,7 +847,7 @@ export class TurnPipeline {
    * `userText` = what is in the message box (shown as the last message). Agents that run before the reply
    * are not run, so what they would add is missing (the notes say so).
    */
-  async previewPrompt(sessionId: string, parentId: string | null, connection: ConnectionConfig, options: { connections?: Record<string, ConnectionConfig>; userText?: string } = {}): Promise<AssembledPrompt & { presetId: string; presetName: string; model: string; sent: number }> {
+  async previewPrompt(sessionId: string, parentId: string | null, connection: ConnectionConfig, options: { connections?: Record<string, ConnectionConfig>; userText?: string; branchId?: string | null } = {}): Promise<AssembledPrompt & { presetId: string; presetName: string; model: string; sent: number }> {
     const session = await this.store.getSession(sessionId);
     if (!session) throw new Error(`Session "${sessionId}" not found`);
     const setup = await this.setupFor(session);
@@ -778,7 +863,7 @@ export class TurnPipeline {
     if (options.userText?.trim()) {
       history = [...history, { id: "preview", sessionId, parentId, speaker: { kind: "user" }, kind: "user", visibility: { ai: "full", user: true }, content: options.userText, createdAt: this.now(), meta: {} }];
     }
-    const base: RunRequest = { session, setup, generationType: "normal", mainConnection: main, connections: options.connections, names, seed: parentId ?? session.id,
+    const base: RunRequest = { session, branchId: options.branchId, setup, generationType: "normal", mainConnection: main, connections: options.connections, names, seed: parentId ?? session.id,
       results: new Map(), trigger: "turn.after", messageId: parentId ?? "", text: "" };
     const inlineAgents = await this.runner.select(entries, base, (a) => isTurn(a, "after") && a.runMode === "inline");
     // agents that only add their own text cost nothing: the preview shows them (D-047); the others would need an AI call
@@ -788,7 +873,7 @@ export class TurnPipeline {
     // notes already written cost nothing either (D-057)
     if (parentId) injections.push(...await noteInjections(this.store, entries.map((e) => e.config), await this.store.pathTo(parentId)).catch(() => []));
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: speaking.character, persona: effPersona,
-      names, injections, inlineAgents, type: "normal", main, seed: parentId ?? session.id });
+      names, injections, inlineAgents, type: "normal", main, seed: parentId ?? session.id, branchId: options.branchId });
     const before = entries.filter((e) => isTurn(e.config, "before") && e.config.runMode !== "inline" && !(e.config.runMode === "text" && e.config.output === "inject"));
     if (before.length) built.notes.push(`Not in this preview: what ${before.map((e) => e.config.name).join(", ")} would add (they run just before the reply).`);
     const sent = (preset.squashSystem ? squashSystem(built.parts) : built.parts).length;
@@ -941,6 +1026,7 @@ export class TurnPipeline {
   /** Step 4 of the turn: the scene, the macros' context, and the preset → the prompt. */
   private async assemble(a: {
     session: Session; setup: ResolvedSetup; entries: AgentEntry[]; preset: Preset; parentId: string | null; history: Message[];
+    branchId?: string | null | undefined;
     character: ReturnType<typeof effectiveCharacter> | undefined; persona: ReturnType<typeof effectivePersona> | undefined;
     names: RunRequest["names"]; injections: PromptInjection[]; inlineAgents: AgentEntry[]; type: GenerationType; main: ConnectionConfig; seed: string;
     /** Smart recall's choice for this reply; without it memory sends every summary (also in Preview Prompt). */
@@ -966,7 +1052,7 @@ export class TurnPipeline {
     } });
     const cast = await this.castFor(a.session);
     // memory (D-054, D-083): summaries stand in for the messages they cover, just before what is left of the chat
-    const { memory, receipt, note } = await this.memoryFor(a.session.id, a.setup.memory, a.history, a.recall);
+    const { memory, receipt, note } = await this.memoryFor(a.session.id, a.setup.memory, a.history, a.recall, a.branchId);
     const injections = memory.text ? [...a.injections, { agentId: "memory", text: memory.text, position: "depth" as const, depth: 100_000, role: "system" as const }] : a.injections;
     const built = buildPrompt({
       preset: a.preset, generationType: a.type, character: a.character,
@@ -981,8 +1067,10 @@ export class TurnPipeline {
       macros: { model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, custom, vars },
       regex: await this.regexFor(a.preset, a.character, a.setup),
     });
-    const withNotes = note ? { ...built, notes: [...built.notes, note] } : built;
-    const withMemory = receipt ? { ...withNotes, memory: receipt } : withNotes;
+    const memorySent = built.parts.some((part) => part.source === "agent:memory");
+    const memoryNote = memory.text && !memorySent ? "Memory was skipped because the preset's Chat History block is inactive for this reply." : note;
+    const withNotes = memoryNote ? { ...built, notes: [...built.notes, memoryNote] } : built;
+    const withMemory = memorySent && receipt ? { ...withNotes, memory: receipt } : withNotes;
     return lore ? { ...withMemory, lore: lore.report } : withMemory;
   }
 
@@ -1122,14 +1210,14 @@ export class TurnPipeline {
 
   /** With "trackers only when the story continues", run the skipped trackers on the reply being continued. */
   private async catchUpTrackers(session: Session, setup: ResolvedSetup, entries: AgentEntry[], owners: Map<string, string>,
-    replyId: string, main: ConnectionConfig, names: RunRequest["names"], signal?: AbortSignal) {
+    replyId: string, main: ConnectionConfig, names: RunRequest["names"], signal?: AbortSignal, branchId?: string | null) {
     const reply = await this.store.getMessage(replyId);
     if (!reply || reply.speaker.kind === "user") return;
     // only replies written as swipes skipped their trackers
     if ((await this.store.getGenerationRecord(replyId))?.generationType !== "swipe") return;
     const ran = new Set((await this.store.listAgentRuns(replyId)).map((r) => r.agentId));
     const req: RunRequest = {
-      session, setup, trigger: "turn.after", generationType: "normal", messageId: replyId, text: reply.content,
+      session, branchId, setup, trigger: "turn.after", generationType: "normal", messageId: replyId, text: reply.content,
       mainConnection: main, names, seed: reply.parentId ?? session.id, results: new Map(), signal,
     };
     const missing = await this.runner.select(entries, req, (a) => isTurn(a, "after") && a.output === "state" && a.runMode === "separate" && !ran.has(a.id));

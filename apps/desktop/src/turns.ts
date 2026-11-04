@@ -11,6 +11,7 @@ import { getPrefs } from "./prefs.ts";
 
 /** What the stream sends while a reply is written (the same callbacks ChatService takes). */
 export interface StreamTo {
+  branchId: string | null;
   onToken: (piece: string, all: string) => void;
   onReasoning: (all: string) => void;
   onReply: (reply: Message) => void;
@@ -114,6 +115,7 @@ class TurnManager {
     const startedAt = Date.now();
     const p = getPrefs();
     const stream: StreamTo = {
+      branchId: opts.branchId,
       continueOnLength: p.autoContinue ? p.continueTimes : 0,
       onToken: (_p, all) => this.patch(opts.sessionId, e, { text: all }),
       onReasoning: (all) => this.patch(opts.sessionId, e, { reasoning: all }),
@@ -144,7 +146,7 @@ class TurnManager {
 
   /** A manual run edits a saved message or its state. It does not advance a branch. CODEX. */
   async runAgents(svc: AppServices, opts: {
-    sessionId: string; messageId: string; agentIds: string[]; direction?: string;
+    sessionId: string; messageId: string; agentIds: string[]; direction?: string; branchId?: string | null;
     connection: ConnectionConfig; connections: Record<string, ConnectionConfig>; onActivity: () => void;
   }): Promise<string | undefined> {
     const { sessionId, messageId, agentIds, direction, connection, connections } = opts;
@@ -162,7 +164,7 @@ class TurnManager {
       if (ctrl.signal.aborted) break;
       if (entry.manual?.agentId !== agentId) this.patch(sessionId, entry, { manual: { messageId, agentId } });
       try {
-        await svc.chat.turns.runManual(sessionId, agentId, messageId, connection, ctrl.signal, connections, { direction });
+        await svc.chat.turns.runManual(sessionId, agentId, messageId, connection, ctrl.signal, connections, { direction, branchId: opts.branchId ?? null });
       } catch (err) {
         if (!ctrl.signal.aborted) entry.error = err instanceof Error ? err.message : String(err);
       }

@@ -8,7 +8,7 @@
 // on any message makes the branch and puts you on it; a branch is a named end; each branch keeps its own versions.
 // 2026-10-29 (Daniel: "things stop generating when we leave the chat"): the turn lives in `turns.ts`, outside this
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, Fragment } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
 import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
@@ -20,7 +20,7 @@ import { WhoPicker } from "./WhoPicker.tsx";
 import type { AppServices } from "../core-instance.ts";
 import { turns, useTurn, type LiveTurn, type StreamTo } from "../turns.ts";
 import type { ConnectionState } from "../connection.ts";
-import { deletableFrom, nextBranchName, type ChatBranch, type ConnectionConfig, type ModelInfo, type ProviderDefinition } from "@homunculus/core";
+import { coveredChapterLabels, deletableFrom, nextBranchName, type Chapter, type ChatBranch, type ConnectionConfig, type ModelInfo, type ProviderDefinition } from "@homunculus/core";
 import { PromptCharacter } from "./PromptCharacter.tsx";
 import { ScenePanel } from "./ScenePanel.tsx";
 import { layerWithStyle, type Tracker } from "../trackers.ts";
@@ -185,7 +185,37 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const drawn = useRef<{ from: number; ids: string[] }>({ from: 0, ids: [] });
   // smart memory recall before a reply ("Recalling: weighing 12 chapters…", D-083)
   const [memStatus, setMemStatus] = useState<string | null>(null);
-  useEffect(() => svc.core.events.on("memory.status", (e) => { if (e.sessionId === session.id) setMemStatus(e.text); }, "chat-view"), [svc, session.id]);
+  useEffect(() => {
+    setMemStatus(null);
+    return svc.core.events.on("memory.status", (e) => {
+      if (e.sessionId === session.id && (e.branchId ?? null) === currentId) setMemStatus(e.text);
+    }, "chat-view");
+  }, [svc, session.id, currentId]);
+
+  // CODEX: Chapter coverage is separate from the manual visibility flag and follows the branch on screen.
+  const [memoryCoverage, setMemoryCoverage] = useState<{ sessionId: string; branchId: string; chapters: Chapter[] } | null>(null);
+  useEffect(() => {
+    if (!currentId) return;
+    let active = true;
+    let request = 0;
+    const enabled = svc.chat.turns.setupFor(session).then(setup => setup.memory.on);
+    const refresh = async () => {
+      const version = ++request;
+      try {
+        const chapters = await enabled ? await svc.chat.turns.chapters(session.id, currentId) : [];
+        if (active && version === request) setMemoryCoverage({ sessionId: session.id, branchId: currentId, chapters });
+      } catch {
+        if (active && version === request) setMemoryCoverage(null);
+      }
+    };
+    const unsubscribe = svc.core.events.on("memory.chaptersChanged", e => {
+      if (e.sessionId === session.id && (e.branchId === currentId || e.branchId === null)) void refresh();
+    }, "chat-memory-coverage");
+    void refresh();
+    return () => { active = false; unsubscribe(); };
+  }, [svc, session, storySetup?.memory, currentId]);
+  const summarized = useMemo(() => memoryCoverage?.sessionId === session.id && memoryCoverage.branchId === currentId && memoryCoverage.chapters.length
+    ? coveredChapterLabels(path, memoryCoverage.chapters) : null, [memoryCoverage, session.id, currentId, path]);
 
   /**
    * Moves the view to the end of a branch. The new list is loaded first and shown all at once,
@@ -383,7 +413,14 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     if (busy) return;
     setEditing(null); setDeletingMsg(null);
     const id = crypto.randomUUID();
+    const sourceId = currentRef.current;
     await svc.store.saveBranch({ id, sessionId: session.id, name: nextBranchName(branches.list.map((b) => b.name)), headMessageId: null, endMessageId: messageId });
+    try { await svc.chat.turns.forkMemory(session.id, messageId, sourceId, id); }
+    catch (e) {
+      await svc.store.deleteBranch(id);
+      setError(e instanceof Error ? e.message : String(e));
+      return;
+    }
     const info = await reloadBranches();
     const b = info.list.find((x) => x.recordId === id);
     if (!b) return;
@@ -430,9 +467,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   };
 
   const toggleHidden = async (m: Message) => {
-    await svc.store.updateMessage(m.id, { visibility: { ...m.visibility, ai: m.visibility.ai === "none" ? "full" : "none" } });
+    await svc.chat.setMessageAiVisibility(m.id, m.visibility.ai === "none" ? "full" : "none");
     scrollTarget.current = { id: m.id, block: "nearest" };
     await showBranch(headId ?? null);
+    setSceneKey((k) => k + 1);
   };
 
   const deleteMessage = async (m: Message) => {
@@ -576,7 +614,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   };
   const runAgentsOn = (agentIds: string[], messageId: string, direction = "") => {
     setError("");
-    return turns.runAgents(svc, { sessionId: session.id, messageId, agentIds, direction, onActivity, ...connection.forRequest() });
+    return turns.runAgents(svc, { sessionId: session.id, messageId, agentIds, direction, branchId: currentRef.current, onActivity, ...connection.forRequest() });
   };
   const runAgentOn = async (agentId: string, messageId: string, direction = "") => {
     const error = await runAgentsOn([agentId], messageId, direction);
@@ -676,6 +714,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               const isLastAi = m === lastAi && isLast;
               const user = m.speaker.kind === "user";
               const hidden = m.visibility.ai === "none";
+              const summaryChapter = summarized?.get(m.id);
               const fork = branches.forks.get(m.id);
               const isEditing = editing?.id === m.id;
               // what Delete removes here: this message and what follows, minus what other branches still use
@@ -709,6 +748,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                         onClick={() => void svc.chat.undoRegex(m.id).then(() => showBranch(headId ?? null))} data-testid="regex-undo">&nbsp;· changed by regex · Original</button>
                     )}
                     {hidden && <span className="hidden-tag" data-testid="hidden-tag"> · hidden from the AI</span>}
+                    {!hidden && summaryChapter && <span className="hidden-tag memory-covered-tag" data-testid="memory-covered-tag"
+                      title="Memory replaces this original in Chat History. Smart recall can include it as a quote.">
+                      {" · "}<Icon name="eyeOff" size={13} /> {summaryChapter} · hidden from AI history
+                    </span>}
                   </div>
                   {m.reasoning && prefs.thinking !== "hidden" && (
                     <details className="reasoning" data-testid="reasoning" open={prefs.thinking === "open" || undefined}>
@@ -879,8 +922,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               <PromptCharacter cards={session.cast.filter((m) => m.characterId && characters[m.characterId]).map((m) => ({ character: characters[m.characterId!]!, variantId: m.variantId, tracked: isTracked(m, characters[m.characterId!]!) }))}
                 avatars={avatars} onSave={onSaveCharacter} onOpenEditor={onOpenCharacter} />
             ) : undefined}
-            preview={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, userText: input }); }} />}
-          memory={<MemoryPane svc={svc} session={session} headId={headId ?? null} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession}
+            preview={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, userText: input, branchId: currentId }); }} />}
+          memory={<MemoryPane key={`${session.id}:${currentId ?? ""}`} svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession}
             refreshKey={sceneKey} lastReplyId={lastAi?.id ?? null} draft={input} />}
           reply={<ReplyPane providers={providers} svc={svc} session={session} storySetup={storySetup} messageId={replyFor ?? lastAi?.id ?? null} trackers={trackers} connection={connection}
             refreshKey={sceneKey} busy={busy} running={manual && manual.messageId === (replyFor ?? lastAi?.id) ? manual.agentId : null} onRun={runAgentsOn} />}

@@ -47,7 +47,9 @@ export interface CoreEvents extends Record<string, unknown> {
   "turn.finished": { sessionId: string; messageId: string };
   "core.error": { source: string; message: string };
   /** What memory is doing right now (D-083): "Recalling: weighing 12 chapters…", "Writing chapter 4…"; null = done. */
-  "memory.status": { sessionId: string; text: string | null };
+  "memory.status": { sessionId: string; branchId?: string | null | undefined; text: string | null };
+  /** CODEX: A saved change to the chapters a chat can use. Null means the legacy session-wide list. */
+  "memory.chaptersChanged": { sessionId: string; branchId: string | null };
 }
 
 export interface ModuleManifest {

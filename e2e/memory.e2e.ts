@@ -20,6 +20,89 @@ test("memory: switch it on, summarize now, edit a chapter; the preview sends the
   await expect(page.getByTestId("prompt-preview")).toContainText("Dan met Lyra.");
 });
 
+// CODEX: A fork at the same head copies existing chapters and owns its subsequent edits.
+test("memory chapters stay independent across branches with the same history", async ({ page }) => {
+  await page.goto("/");
+  await newChatWith(page);
+  for (const t of ["Covered original.", "Second scene.", "Newest scene."]) await send(page, t);
+  const memory = await memoryOn(page, { every: 4, keep: 1 });
+  const messages = page.getByTestId("message");
+  const markers = page.getByTestId("memory-covered-tag");
+  await expect(markers).toHaveCount(0);
+  await expect(memory.getByTestId("memory-next")).toContainText("Write Chapter Now covers #1–#4");
+  await memory.getByTestId("memory-write-now").click();
+  await expect(memory.getByTestId("memory-chapter")).toHaveCount(1);
+  await expect(memory.getByTestId("memory-stats")).toContainText("4 originals replaced");
+  await expect(markers).toHaveCount(4);
+  const covered = messages.filter({ hasText: "Covered original." }).first().getByTestId("memory-covered-tag");
+  await expect(covered).toContainText("Chapter 1 · hidden from AI history");
+  await expect(covered.locator("svg")).toHaveCount(1);
+  await expect(messages.last().getByTestId("memory-covered-tag")).toHaveCount(0);
+  await page.getByTestId("message").last().getByRole("button", { name: "Branch from Here" }).click();
+  await expect(page.getByTestId("branch-button")).toContainText("Branch 2");
+  await expect(memory.getByTestId("memory-chapter")).toHaveCount(1);
+  await memory.getByTestId("memory-peek").click();
+  await memory.getByRole("button", { name: /Chapter 1 · Offline chapter/ }).click();
+  await memory.getByLabel("Chapter 1 summary").fill("Only the fork knows this.");
+  await memory.getByLabel("Chapter 1 title").click();
+  await expect(memory.getByTestId("memory-peek-text")).toContainText("Only the fork knows this.");
+  await memory.getByRole("switch", { name: "Send Chapter 1" }).click();
+  await expect(markers).toHaveCount(0);
+
+  await page.getByTestId("branch-button").click();
+  await page.getByTestId("branch-row").filter({ hasText: "Main" }).locator(".branch-t").click();
+  await expect(page.getByTestId("branch-button")).toContainText("Main");
+  await expect(markers).toHaveCount(4);
+  await memory.getByTestId("memory-peek").click();
+  await expect(memory.getByTestId("memory-peek-text")).toContainText("The offline test AI summarized");
+  await expect(memory.getByTestId("memory-peek-text")).not.toContainText("Only the fork knows this.");
+  await openTab(page, "prompt");
+  await page.getByRole("button", { name: "Preview Prompt" }).click();
+  const preview = page.getByTestId("prompt-preview");
+  await expect(preview).not.toContainText("Covered original.");
+  await expect(preview).toContainText("Newest scene.");
+});
+
+// CODEX: Writer settings survive reopening the chat and the resulting chapter appears in the memory preview.
+test("memory saves a dedicated summary model, budget and prompt for the chat", async ({ page }) => {
+  await page.goto("/");
+  await newChatWith(page);
+  for (const t of ["Open the gate.", "Follow the path."]) await send(page, t);
+  const memory = await memoryOn(page, { keep: 1 });
+  const writer = memory.getByTestId("memory-fold-writer");
+  const openWriter = () => writer.getByRole("button", { name: /How the AI writes chapters/ }).click();
+  await openWriter();
+  await writer.getByLabel("Summary connection").selectOption("chat");
+  await writer.getByLabel("Summary model").fill("offline-chapter-model");
+  await writer.getByLabel("Max output tokens").fill("5500");
+  const instructions = writer.getByLabel("Summary prompt");
+  await instructions.fill("Summarize the clues in one paragraph.");
+  const save = writer.getByRole("button", { name: "Save Writer Settings" });
+  await save.click();
+  await expect(save).toBeDisabled();
+  await expect(writer).toContainText("offline-chapter-model");
+
+  await openLibrary(page, "Characters");
+  await openSession(page);
+  await openTab(page, "memory");
+  await openWriter();
+  await expect(writer.getByLabel("Summary connection")).toHaveValue("chat");
+  await expect(writer.getByLabel("Summary model")).toHaveValue("offline-chapter-model");
+  await expect(writer.getByLabel("Max output tokens")).toHaveValue("5500");
+  await expect(instructions).toHaveValue("Summarize the clues in one paragraph.");
+  await memory.getByRole("button", { name: "Write Chapter Now" }).click();
+  await expect(memory.getByTestId("memory-chapter")).toHaveCount(1);
+  await memory.getByTestId("memory-fold-placement").getByRole("button").click();
+  await expect(memory.getByTestId("memory-fold-placement")).toContainText("system message");
+  await memory.getByTestId("memory-peek").click();
+  await expect(memory.getByTestId("memory-peek-text")).toContainText("start of the preset’s Chat History block");
+  await expect(memory.getByTestId("memory-peek-text")).toContainText("Offline chapter");
+  await writer.getByRole("button", { name: "Reset Prompt" }).click();
+  await expect(instructions).toHaveValue(/You summarize part of an ongoing roleplay/);
+  await save.click();
+  await expect(save).toBeDisabled();
+});
+
 test("an agent's style is picked in the ✦ panel and How it shows is drawn", async ({ page }) => {
   await page.goto("/");
   await newChatWith(page);
@@ -108,6 +191,8 @@ test("a failed memory edit reports the error and can be retried without losing t
 
 test("memory off/on and chapter switches restore raw messages and retain manual edits after navigation", async ({ page }) => {
   const memory = await editableMemory(page);
+  const markers = page.getByTestId("memory-covered-tag");
+  await expect(markers).toHaveCount(6);
   await memory.getByLabel("Chapter 1 summary").fill("A permanent hand edit.");
   await memory.getByLabel("Chapter 1 title").click();
   await expect(memory.getByTestId("memory-chapter")).toContainText("edited by you");
@@ -117,6 +202,7 @@ test("memory off/on and chapter switches restore raw messages and retain manual 
   await expect(memory.getByTestId("memory-chapter")).not.toContainText("Not sent");
   await memory.getByRole("switch", { name: "Memory", exact: true }).click();
   await expect(memory).toContainText("kept while memory is off");
+  await expect(markers).toHaveCount(0);
   await openTab(page, "prompt");
   await page.getByRole("button", { name: "Preview Prompt" }).click();
   const preview = page.getByTestId("prompt-preview");
@@ -126,6 +212,7 @@ test("memory off/on and chapter switches restore raw messages and retain manual 
   await openTab(page, "memory");
   await memory.getByTestId("memory-turn-on").click();
   await expect(memory.getByTestId("memory-chapter")).toHaveCount(1);
+  await expect(markers).toHaveCount(6);
   await openLibrary(page, "Characters");
   await openSession(page);
   await openTab(page, "memory");

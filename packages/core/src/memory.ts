@@ -34,7 +34,19 @@ export interface Chapter {
   parts?: string[];
 }
 
+/** CODEX: Branch records can share a message path while keeping independent memory. */
+export const chapterKey = (sessionId: string, branchId?: string | null) =>
+  branchId ? `memory.chapters:${sessionId}:${branchId}` : `memory.chapters:${sessionId}`;
+
 export type MemoryMode = "simple" | "smart";
+
+const SUMMARY_RULES = "Keep what later scenes will need: who did what, decisions and promises (with their exact terms), what people learned or now believe, "
+  + "injuries, items gained or lost, where everyone ended up, open threads and plans, and how relationships changed. Prefer concrete specifics "
+  + "(\"promised to fix the radio by Friday\", not \"made a promise\"). Keep names exact. Leave out style and small talk. Do not invent anything. No commentary.";
+
+export const DEFAULT_SUMMARY_PROMPT = "You summarize part of an ongoing roleplay story into a chapter of its memory. Write in past tense, third person, plain prose. "
+  + SUMMARY_RULES + "\n\n"
+  + "Answer exactly in this form:\nTitle: <3 to 7 words>\n\n<the summary, 120 to 400 words>";
 
 export interface MemorySettings {
   on: boolean;
@@ -54,6 +66,11 @@ export interface MemorySettings {
   layerSize: number;
   /** How many merge into one. */
   layerMerge: number;
+  /** CODEX: Empty uses the agents' connection, null uses the chat connection. */
+  summaryConnectionId: string | null;
+  summaryModel: string;
+  summaryPrompt: string;
+  summaryMaxTokens: number;
   mode: MemoryMode;
   /** Smart recall: who answers the yes/no questions. "jev" = a decision model (nano-gpt's /decisions); "agents" = the agents' chat model. */
   decider: "jev" | "agents";
@@ -69,6 +86,7 @@ export interface MemorySettings {
 export const MEMORY_DEFAULTS: MemorySettings = {
   on: false, auto: true, every: 20, keep: 10, closeBy: "messages", everyTokens: 8000,
   layers: true, layerSize: 10, layerMerge: 3,
+  summaryConnectionId: "", summaryModel: "", summaryPrompt: DEFAULT_SUMMARY_PROMPT, summaryMaxTokens: 4096,
   mode: "simple", decider: "jev", deciderConnectionId: "", deciderModel: "typesafe/jev-latest", recallChapters: 4, recallQuotes: 3,
 };
 
@@ -91,6 +109,20 @@ export function chaptersOnPath(path: Message[], chapters: Chapter[]): Placed[] {
     const from = at.get(c.fromId), to = at.get(c.toId);
     if (from === undefined || to === undefined || to < from) continue;
     out.push({ chapter: c, from, to });
+  }
+  // CODEX: Older merges can span a gap or still refer to a chapter that has since been removed.
+  const byId = new Map(out.map(x => [x.chapter.id, x]));
+  const merges = out.filter(x => !x.chapter.off && x.chapter.parts?.length).sort((a, b) => levelOf(a.chapter) - levelOf(b.chapter));
+  for (const placed of merges) {
+    const { chapter } = placed;
+    let next = placed.from;
+    const contiguous = chapter.parts!.every(id => {
+      const part = byId.get(id);
+      if (!part || part.chapter.off || part.from !== next || levelOf(part.chapter) >= levelOf(chapter)) return false;
+      next = part.to + 1;
+      return true;
+    });
+    if (!contiguous || next !== placed.to + 1) placed.chapter = { ...chapter, off: true };
   }
   return out.sort((a, b) => a.from - b.from || levelOf(b.chapter) - levelOf(a.chapter));
 }
@@ -120,6 +152,23 @@ export function chapterLabel(x: Placed, level0: Placed[]): string {
   if (!inside.length) return "Earlier chapters";
   const a = inside[0]!.n, b = inside[inside.length - 1]!.n;
   return a === b ? `Chapter ${a}` : `Chapters ${a}–${b}`;
+}
+
+/** CODEX: Identify the chapter of each omitted original, preferring the source chapter inside a merge. */
+export function coveredChapterLabels(path: Message[], chapters: Chapter[]): Map<string, string> {
+  const messages = readable(path);
+  const placed = chaptersOnPath(path, chapters);
+  const level0 = placed.filter(x => levelOf(x.chapter) === 0);
+  const active = placed.filter(x => !x.chapter.off).sort((a, b) => levelOf(a.chapter) - levelOf(b.chapter));
+  const labels = new Map<string, string>();
+  for (const chapter of active) {
+    const label = chapterLabel(chapter, level0);
+    for (let i = chapter.from; i <= chapter.to; i++) {
+      const id = messages[i]!.id;
+      if (!labels.has(id)) labels.set(id, label);
+    }
+  }
+  return labels;
 }
 
 export const STORY_SO_FAR = "The story so far (summaries of earlier chapters; the messages after this continue from here):";
@@ -204,27 +253,23 @@ export function nextMerge(path: Message[], chapters: Chapter[], s: Pick<MemorySe
   const size = Math.max(merge, s.layerSize);
   for (let level = 0; level < MAX_LEVEL; level++) {
     const free = all.filter((x) => levelOf(x.chapter) === level && !coveredByHigher(x, all));
-    if (free.length > size) return { level: level + 1, group: free.slice(0, merge) };
+    if (free.length <= size) continue;
+    let start = 0;
+    for (let i = 1; i < free.length; i++) {
+      if (free[i - 1]!.to + 1 !== free[i]!.from) start = i;
+      if (i - start + 1 === merge) return { level: level + 1, group: free.slice(start, i + 1) };
+    }
   }
   return undefined;
 }
 
 type Turn = { role: "system" | "user"; content: string };
 
-const SUMMARY_RULES = "Keep what later scenes will need: who did what, decisions and promises (with their exact terms), what people learned or now believe, "
-  + "injuries, items gained or lost, where everyone ended up, open threads and plans, and how relationships changed. Prefer concrete specifics "
-  + "(\"promised to fix the radio by Friday\", not \"made a promise\"). Keep names exact. Leave out style and small talk. Do not invent anything. No commentary.";
-
 /** The request that writes one chapter. */
-export function chapterRequest(span: Message[], previous: Chapter | undefined, nameOf: (m: Message) => string): Turn[] {
+export function chapterRequest(span: Message[], previous: Chapter | undefined, nameOf: (m: Message) => string, prompt = DEFAULT_SUMMARY_PROMPT): Turn[] {
   const transcript = span.map((m) => `${nameOf(m)}: ${m.content.trim()}`).join("\n\n");
   return [
-    {
-      role: "system",
-      content: "You summarize part of an ongoing roleplay story into a chapter of its memory. Write in past tense, third person, plain prose. "
-        + SUMMARY_RULES + "\n\n"
-        + "Answer exactly in this form:\nTitle: <3 to 7 words>\n\n<the summary, 120 to 400 words>",
-    },
+    { role: "system", content: prompt },
     {
       role: "user",
       content: `${previous ? `The chapter before (for continuity, do not repeat it):\nTitle: ${previous.title}\n${previous.summary.trim()}\n\n` : ""}Messages to summarize:\n\n${transcript}`,
@@ -252,10 +297,11 @@ export function mergeRequest(group: Chapter[], before: Chapter | undefined): Tur
 
 /** Reads the model's answer: a "Title:" line, then the summary. */
 export function parseChapter(answer: string): { title: string; summary: string } {
-  const text = answer.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-  const m = /^\s*(?:\*\*)?title(?:\*\*)?\s*:\s*(.+)$/im.exec(text);
+  // CODEX: Match the title on a single line so an empty title cannot swallow the body.
+  const text = answer.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+  const m = /^(?:\*\*)?title(?:\*\*)?[ \t]*:(?:\*\*)?[ \t]*([^\r\n]*)/i.exec(text);
   if (!m) return { title: "", summary: text };
   const title = m[1]!.replace(/[*#"]/g, "").trim();
-  const summary = (text.slice(0, m.index) + text.slice(m.index + m[0].length)).trim();
+  const summary = text.slice(m[0].length).trim();
   return { title, summary };
 }

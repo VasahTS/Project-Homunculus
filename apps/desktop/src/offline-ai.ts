@@ -104,7 +104,10 @@ export const offlineAiModule: HomunculusModule = {
           return;
         }
         // memory chapters (D-054)
-        if (/summarize part of an ongoing roleplay/.test(req.messages[0]?.content ?? "")) { yield "Title: Offline chapter\n\nThe offline test AI summarized these messages."; return; }
+        // CODEX: Recognize the transcript envelope so offline chapters work with an edited writer prompt.
+        if (lastTurn.startsWith("Messages to summarize:\n\n") || lastTurn.startsWith("The chapter before (for continuity, do not repeat it):\n")) {
+          yield "Title: Offline chapter\n\nThe offline test AI summarized these messages."; return;
+        }
         // memory layers (D-083)
         if (/Merge consecutive chapter summaries/.test(req.messages[0]?.content ?? "")) { yield "Title: Offline merged chapters\n\nThe offline test AI merged these summaries."; return; }
         const last = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";

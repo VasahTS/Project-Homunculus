@@ -162,8 +162,10 @@ async function ask(decide: Decide, state: string, xhash: string, qs: DecisionQue
   signal: AbortSignal, count: { questions: number; cached: number }): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const todo: DecisionQuestion[] = [];
+  // CODEX: An edited chapter or its branch-local copy can retain the same question ID.
+  const cacheId = (q: DecisionQuestion) => `${q.id}:${hashText(q.instructions)}`;
   for (const q of qs) {
-    const hit = cache.get(q.id, xhash);
+    const hit = cache.get(cacheId(q), xhash);
     if (hit !== undefined) { out.set(q.id, hit); count.cached++; } else todo.push(q);
   }
   count.questions += qs.length;
@@ -175,7 +177,7 @@ async function ask(decide: Decide, state: string, xhash: string, qs: DecisionQue
       for (const q of runs[i + k]!) {
         const p = a.get(q.id);
         if (p === undefined || !Number.isFinite(p)) continue;
-        cache.set(q.id, xhash, p);
+        cache.set(cacheId(q), xhash, p);
         out.set(q.id, p);
       }
     });
