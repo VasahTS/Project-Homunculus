@@ -591,6 +591,8 @@ async fn card_site_response(response: reqwest::Response, target: &reqwest::Url, 
 }
 #[tauri::command]
 async fn card_site_request(request: CardSiteRequest) -> Result<serde_json::Value, String> {
+    // Reuse connections across catalog and portrait requests. Per-request deadlines still apply below. CODEX.
+    static CLIENT: std::sync::OnceLock<Result<reqwest::Client, String>> = std::sync::OnceLock::new();
     let mut target = reqwest::Url::parse(&request.url).map_err(|_| "Invalid card-site address.".to_string())?;
     check_card_site_url(&target, request.expect)?;
     let mut method = card_site_method(&request.method)?;
@@ -598,7 +600,7 @@ async fn card_site_request(request: CardSiteRequest) -> Result<serde_json::Value
     let mut body = request.body;
     let timeout = std::time::Duration::from_secs(request.expect.seconds());
     let started = std::time::Instant::now();
-    let client = web_client(request.expect.seconds())?;
+    let client = CLIENT.get_or_init(|| web_client(CardSiteExpect::Card.seconds())).as_ref().map_err(Clone::clone)?;
     for hop in 0..=5 {
         let host = target.host_str().unwrap_or("");
         let left = timeout.checked_sub(started.elapsed()).ok_or_else(|| format!("{host} did not answer in time."))?;

@@ -5,12 +5,14 @@ type FixtureState = {
   requests: string[];
   releaseWyvern: boolean;
   wyvernReleased: boolean;
+  releaseJanny: boolean;
+  jannyReleased: boolean;
   account: { username: string | null; showNsfw: boolean; showNsfl: boolean };
 };
 
-async function open(page: Page, options: { slowWyvern?: boolean; paging?: boolean } = {}) {
+async function open(page: Page, options: { slowWyvern?: boolean; slowJanny?: boolean; paging?: boolean } = {}) {
   await page.addInitScript((o) => {
-    const state: FixtureState = { requests: [], releaseWyvern: !o.slowWyvern, wyvernReleased: false, account: { username: null, showNsfw: false, showNsfl: false } };
+    const state: FixtureState = { requests: [], releaseWyvern: !o.slowWyvern, wyvernReleased: false, releaseJanny: !o.slowJanny, jannyReleased: false, account: { username: null, showNsfw: false, showNsfl: false } };
     Object.assign(globalThis, { __allSites: state });
     const ok = (data: unknown) => ({ status: 200, finalUrl: "", contentType: "application/json", cfMitigated: false, text: JSON.stringify(data) });
     let wyvernFailed = false;
@@ -29,7 +31,12 @@ async function open(page: Page, options: { slowWyvern?: boolean; paging?: boolea
           if (!o.paging) nodes.push({ fullPath: "adult", name: "Chub Adult", nsfw: true });
           return ok({ data: { nodes, cursor: o.paging && number < 3 ? "next" : null } });
         }
-        if (u.host === "jannyai.com") return { ...ok(null), text: "<html></html>" };
+        if (u.host === "jannyai.com") {
+          state.requests.push("janny:bootstrap");
+          while (!state.releaseJanny) await new Promise((resolve) => setTimeout(resolve, 20));
+          state.jannyReleased = true;
+          return { ...ok(null), text: "<html></html>" };
+        }
         if (u.host === "search.jannyai.com") {
           const q = JSON.parse(r.body ?? "{}").queries[0];
           state.requests.push(`janny:${q.page}:${q.q}`);
@@ -133,7 +140,17 @@ test("All Sites paginates working catalogs and retries a failed page independent
   const seen = await requests(page);
   expect(seen.filter((r) => r.startsWith("wyvern:"))).toEqual(["wyvern:1:", "wyvern:2:", "wyvern:2:"]);
   expect(seen.filter((r) => r.startsWith("chub:"))).toEqual(["chub:1:", "chub:1:", "chub:2:", "chub:3:"]);
-  expect(seen.filter((r) => r.startsWith("janny:"))).toEqual(["janny:1:"]);
+  expect(seen.filter((r) => r.startsWith("janny:1:"))).toEqual(["janny:1:"]);
+});
+
+test("leaving All Sites stops follow-up requests for the old search", async ({ page }) => {
+  await open(page, { slowJanny: true });
+  await expect.poll(() => requests(page)).toContain("janny:bootstrap");
+  await pick(page, "ChubAI");
+  await expect(page.getByTestId("cb-card")).toHaveCount(2);
+  await page.evaluate(() => { (globalThis as typeof globalThis & { __allSites: FixtureState }).__allSites.releaseJanny = true; });
+  await expect.poll(() => page.evaluate(() => (globalThis as typeof globalThis & { __allSites: FixtureState }).__allSites.jannyReleased)).toBe(true);
+  expect(await requests(page)).not.toContain("janny:1:");
 });
 
 test("All Sites shows fast results, discards late searches, and respects BotBooru account permissions", async ({ page }) => {

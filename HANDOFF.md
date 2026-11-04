@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## Card Browser loading after All Sites (2026-11-04) — CODEX
+
+- A new search drops obsolete queued portraits and stops follow-up requests from the old search. Opening a card gets its own picture slot, and grid and preview share an active download when they use the same URL.
+- Kept All Sites and portrait resolution. Verified two before/after regressions, 22 Chromium cases, 699 unit tests (3 skipped), 28 Rust tests, typecheck, and Vite build. Catalogs were simulated.
+- Signed **CODEX**.
+
 ## Observatory by default, window maximized (2026-11-04) — CLAUDE — D-087
 
 Daniel's Windows screenshot after D-086 showed Home in Mono: Observatory existed but was not switched on. Now it is the starting look (Mono settings switch once), the window opens maximized, and the Home title fits its plate in any look. Checks: typecheck, 699 unit, Home/Appearance/dialogue click tests.

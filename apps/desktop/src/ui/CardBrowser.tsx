@@ -40,75 +40,119 @@ let memory: Memory | null = null;
 const details = new Map<string, CardDetails | "failed">();
 
 // ------------------------------------------------------------------ pictures
-/** Last 300 grid pictures and the last 12 full-size ones (as avatars), at most 4 loading at a time, only for cards on screen. */
+/** Last 300 grid pictures and the last 12 full-size ones (as avatars). */
 const pictures = new Map<string, Avatar | null>();
 const fullPictures = new Map<string, Avatar | null>();
-const waiting: Array<() => void> = [];
-let loading = 0;
 /** Grid pictures are shrunk to what a card shows (sharp on a 2× screen), so a page of full-size pictures stays light.
  *  Animated GIFs and pictures already small enough are kept as they are. CLAUDE, 2026-11-03. */
 export async function shrinkPicture(bytes: Uint8Array, mime: string, maxHeight = 720): Promise<Avatar> {
-  const original = { mime, base64: bytesToBase64(bytes) };
-  if (mime === "image/gif" || typeof createImageBitmap === "undefined") return original;
+  const original = () => ({ mime, base64: bytesToBase64(bytes) });
+  if (mime === "image/gif" || typeof createImageBitmap === "undefined") return original();
   try {
     const bitmap = await createImageBitmap(new Blob([bytes as BlobPart], { type: mime }));
-    if (bitmap.height <= maxHeight) { bitmap.close(); return original; }
+    if (bitmap.height <= maxHeight) { bitmap.close(); return original(); }
     const width = Math.max(1, Math.round((bitmap.width * maxHeight) / bitmap.height));
     const canvas = document.createElement("canvas");
     canvas.width = width; canvas.height = maxHeight;
     const ctx = canvas.getContext("2d");
-    if (!ctx) { bitmap.close(); return original; }
+    if (!ctx) { bitmap.close(); return original(); }
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(bitmap, 0, 0, width, maxHeight);
     bitmap.close();
     const url = canvas.toDataURL("image/webp", 0.88);
     const comma = url.indexOf(",");
-    return comma > 0 ? { mime: url.slice(5, url.indexOf(";")), base64: url.slice(comma + 1) } : original;
-  } catch { return original; }
+    return comma > 0 ? { mime: url.slice(5, url.indexOf(";")), base64: url.slice(comma + 1) } : original();
+  } catch { return original(); }
 }
-async function picture(t: SiteTransport, url: string, full = false): Promise<Avatar | null> {
-  const cache = full ? fullPictures : pictures;
-  if (cache.has(url)) return cache.get(url) ?? null;
-  if (loading >= 4) await new Promise<void>((go) => waiting.push(go));
-  loading++;
+
+// Grid and sheet share an in-flight download for the same URL. Only queued pictures with a viewer
+// can start, and the sheet has a slot of its own so it never waits behind the grid. CODEX, 2026-11-04.
+type PictureListener = (avatar: Avatar | null) => void;
+type PictureRequest = { transport: SiteTransport; url: string; started: boolean; grid: Set<PictureListener>; sheet: Set<PictureListener> };
+const pictureRequests = new Map<string, PictureRequest>();
+let loadingGrid = 0;
+let loadingSheet = false;
+
+function savePicture(cache: Map<string, Avatar | null>, limit: number, url: string, avatar: Avatar | null, listeners: Set<PictureListener>) {
+  if (!listeners.size) return;
+  cache.set(url, avatar);
+  if (cache.size > limit) cache.delete(cache.keys().next().value!);
+  for (const listener of listeners) listener(avatar);
+}
+
+async function loadPicture(job: PictureRequest, sheet: boolean) {
+  job.started = true;
+  if (sheet) loadingSheet = true;
+  else loadingGrid++;
+  let gridPicture: Avatar | null = null;
+  let sheetPicture: Avatar | null = null;
   try {
-    const r = await t.request({ url, method: "GET", expect: "image" });
-    const ok = r.status >= 200 && r.status < 300 && r.bytes && r.mime;
-    const a = ok ? (full ? { mime: r.mime!, base64: bytesToBase64(r.bytes!) } : await shrinkPicture(r.bytes!, r.mime!)) : null;
-    cache.set(url, a);
-    if (cache.size > (full ? 12 : 300)) cache.delete(cache.keys().next().value!);
-    return a;
-  } catch { cache.set(url, null); return null; }
-  finally { loading--; waiting.shift()?.(); }
+    const r = await job.transport.request({ url: job.url, method: "GET", expect: "image" });
+    if (r.status >= 200 && r.status < 300 && r.bytes && r.mime) {
+      if (job.grid.size) gridPicture = await shrinkPicture(r.bytes, r.mime);
+      if (job.sheet.size) sheetPicture = { mime: r.mime, base64: bytesToBase64(r.bytes) };
+    }
+  } catch { /* Leave the letter placeholder when a picture cannot be fetched. */ }
+  pictureRequests.delete(job.url);
+  if (sheet) loadingSheet = false;
+  else loadingGrid--;
+  savePicture(pictures, 300, job.url, gridPicture, job.grid);
+  savePicture(fullPictures, 12, job.url, sheetPicture, job.sheet);
+  loadWaitingPictures();
+}
+
+function loadWaitingPictures() {
+  if (!loadingSheet) {
+    const next = [...pictureRequests.values()].find((job) => !job.started && job.sheet.size);
+    if (next) void loadPicture(next, true);
+  }
+  for (const job of pictureRequests.values()) {
+    if (loadingGrid >= 4) break;
+    if (!job.started && job.grid.size) void loadPicture(job, false);
+  }
+}
+
+function watchPicture(transport: SiteTransport, url: string, full: boolean, listener: PictureListener) {
+  const job = pictureRequests.get(url) ?? { transport, url, started: false, grid: new Set<PictureListener>(), sheet: new Set<PictureListener>() };
+  pictureRequests.set(url, job);
+  const listeners = full ? job.sheet : job.grid;
+  listeners.add(listener);
+  loadWaitingPictures();
+  return () => {
+    listeners.delete(listener);
+    if (!job.started && !job.grid.size && !job.sheet.size) pictureRequests.delete(url);
+  };
 }
 /** `full`: the sheet's picture (the site's biggest, `item.image`), falling back to the grid one while it loads or if it fails. */
 function usePicture(t: SiteTransport, item: CardItem | null, visible: boolean, full = false): Avatar | undefined {
   const url = (full ? item?.image || item?.thumb : item?.thumb) ?? "";
   const cache = full ? fullPictures : pictures;
-  const [a, setA] = useState<Avatar | null | undefined>(() => (url ? cache.get(url) : null));
+  const [result, setResult] = useState<{ url: string; avatar: Avatar | null }>();
   useEffect(() => {
-    if (!url) { setA(null); return; }
-    if (cache.has(url)) { setA(cache.get(url)); return; }
-    setA(undefined);
-    if (!visible) return;
-    let live = true;
-    void picture(t, url, full).then((x) => { if (live) setA(x); });
-    return () => { live = false; };
-  }, [t, url, visible, item, full, cache]);
+    if (!url || !visible || cache.has(url)) return;
+    return watchPicture(t, url, full, (avatar) => setResult({ url, avatar }));
+  }, [t, url, visible, full, cache]);
+  const a = result?.url === url ? result.avatar : cache.get(url);
   const small = item?.thumb ? pictures.get(item.thumb) : undefined;
   return a ?? (full ? small ?? undefined : undefined);
 }
+
+const onScreen = new Map<Element, (visible: boolean) => void>();
+let pictureObserver: IntersectionObserver | undefined;
 function useOnScreen<T extends Element>(): [RefObject<T | null>, boolean] {
   const ref = useRef<T>(null);
   const [on, setOn] = useState(false);
   useEffect(() => {
     const el = ref.current;
-    if (!el || on) return;
+    if (!el) return;
     if (typeof IntersectionObserver === "undefined") { setOn(true); return; }
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setOn(true); io.disconnect(); } }, { rootMargin: "200px" });
+    const io = pictureObserver ??= new IntersectionObserver((entries) => {
+      for (const entry of entries) onScreen.get(entry.target)?.(entry.isIntersecting);
+    }, { rootMargin: "200px" });
+    onScreen.set(el, setOn);
     io.observe(el);
-    return () => io.disconnect();
-  }, [on]);
+    return () => { onScreen.delete(el); io.unobserve(el); };
+  }, []);
   return [ref, on];
 }
 
@@ -239,6 +283,11 @@ export function CardBrowser(p: CardBrowserProps) {
   const run = async (mode: SearchMode) => {
     if (mode !== "search" && key !== lastKey.current) return;
     const id = ++seq.current;
+    // Let an in-flight request finish, but don't start another step for a superseded search. CODEX.
+    const transport: SiteTransport = { ...p.transport, request: async (request) => {
+      if (id !== seq.current) throw new DOMException("Search superseded.", "AbortError");
+      return p.transport.request(request);
+    } };
     const more = mode === "more";
     const nextPage = more ? page + 1 : 1;
     const query: CardQuery = { text: text.trim(), sort, page: nextPage, nsfw, include, exclude, filters };
@@ -261,7 +310,7 @@ export function CardBrowser(p: CardBrowserProps) {
           const siteNsfw = nsfw && site.nsfw !== "never" && (site.id !== "botbooru" || botbooruNsfw);
           const siteNsfl = site.id !== "botbooru" || account.showNsfl;
           try {
-            const result = await site.search({ ...query, page: sitePage, sort: site.defaultSort, nsfw: siteNsfw }, p.transport);
+            const result = await site.search({ ...query, page: sitePage, sort: site.defaultSort, nsfw: siteNsfw }, transport);
             if (id !== seq.current) return;
             const cards = result.items.filter((item) => {
               const adult = item.nsfw || item.nsfl;
@@ -278,7 +327,7 @@ export function CardBrowser(p: CardBrowserProps) {
         }));
         return;
       }
-      const r = await source.search(query, p.transport);
+      const r = await source.search(query, transport);
       if (id !== seq.current) return;
       setItems((old) => { if (!more) return r.items; const have = new Set(old.map(cardKey)); return [...old, ...r.items.filter((x) => !have.has(cardKey(x)))]; });
       setTotal(r.total); setHasMore(r.hasMore); setPage(nextPage);
@@ -294,7 +343,8 @@ export function CardBrowser(p: CardBrowserProps) {
   // search by itself ½ s after typing stops (and at once when anything else changes); not again when coming back
   useEffect(() => {
     if (key === lastKey.current && !busy) return () => { ++seq.current; };
-    const typing = lastKey.current !== "" && JSON.parse(lastKey.current)[1] !== text.trim();
+    const [lastSource, lastText] = lastKey.current ? JSON.parse(lastKey.current) : [];
+    const typing = lastSource === sourceId && lastText !== text.trim();
     // marked as asked only when it runs, so a cancelled timer (typing on, or React's double effect) asks again
     const timer = setTimeout(() => { lastKey.current = key; void run("search"); }, typing ? 500 : 0);
     return () => { clearTimeout(timer); ++seq.current; };

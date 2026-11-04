@@ -71,3 +71,50 @@ test("ChubAI cards use the full picture: shrunk in the grid, full size in the sh
   await expect(reader).toHaveCount(0);
   await expect(browser.getByTestId("cb-sheet")).toContainText("Elf 2");
 });
+
+// Slow downloads expose the queue shared across catalog searches. CODEX, 2026-11-04.
+test("a new search drops queued old pictures and opening a card prioritizes a single shared download", async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = { requests: [] as string[], releaseOld: false };
+    const canvas = new OffscreenCanvas(12, 24);
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#346";
+    context.fillRect(0, 0, 12, 24);
+    const portrait = canvas.convertToBlob().then(async (blob) => new Uint8Array(await blob.arrayBuffer()));
+    const ok = { status: 200, finalUrl: "", contentType: "application/json", cfMitigated: false };
+    Object.assign(globalThis, { __cbQueue: state, __h2FakeCardSites: {
+      async request(r: { url: string; expect: string }) {
+        const url = new URL(r.url);
+        if (r.expect === "image") {
+          state.requests.push(url.pathname);
+          while (url.pathname.includes("/old-") && !state.releaseOld) await new Promise((resolve) => setTimeout(resolve, 20));
+          return { ...ok, bytes: await portrait, mime: "image/png" };
+        }
+        if (url.pathname === "/search") {
+          const nodes = url.searchParams.get("search")
+            ? [{ fullPath: "fixture/new", name: "New portrait" }, { fullPath: "fixture/another", name: "Another portrait" }]
+            : Array.from({ length: 30 }, (_, i) => ({ fullPath: `fixture/old-${i}`, name: `Old portrait ${i}` }));
+          return { ...ok, text: JSON.stringify({ data: { nodes } }) };
+        }
+        return { ...ok, text: JSON.stringify({ node: { definition: { first_message: "Hello." } } }) };
+      },
+    } });
+  });
+  const requests = () => page.evaluate(() => (globalThis as typeof globalThis & { __cbQueue: { requests: string[] } }).__cbQueue.requests);
+  await page.goto("/");
+  await page.getByTestId("place-list").getByRole("button", { name: "Card Browser" }).click();
+  await expect(page.getByTestId("cb-card")).toHaveCount(30);
+  await expect.poll(async () => (await requests()).length).toBe(4);
+
+  await page.getByTestId("cb-search").fill("new");
+  const card = page.getByTestId("cb-card").filter({ hasText: "New portrait" });
+  await card.click();
+  await expect(page.getByTestId("cb-sheet").locator("img.vs-pic")).toHaveJSProperty("naturalHeight", 24);
+
+  await page.evaluate(() => { (globalThis as typeof globalThis & { __cbQueue: { releaseOld: boolean } }).__cbQueue.releaseOld = true; });
+  await expect(card.locator("img.card-pic")).toHaveJSProperty("naturalHeight", 24);
+  await expect(page.getByTestId("cb-card").filter({ hasText: "Another portrait" }).locator("img.card-pic")).toHaveJSProperty("naturalHeight", 24);
+  const seen = await requests();
+  expect(seen.filter((path) => path.includes("/old-"))).toHaveLength(4);
+  expect(seen.filter((path) => path.includes("/new/"))).toHaveLength(1);
+});

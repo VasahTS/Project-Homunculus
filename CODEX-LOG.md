@@ -1,5 +1,9 @@
 # Work log — CODEX
 
+## Card Browser search and portrait loading (2026-11-04) — CODEX
+
+Reproduced a portrait queue blocking a new search and a superseded All Sites query making a follow-up request. Discarded obsolete queued pictures, prioritized the preview, shared active downloads, stopped stale follow-up requests, and reused native HTTP connections. Typecheck, Vite build, 699 unit tests (3 skipped), 28 Rust tests, and 22 Chromium cases with synthetic catalogs passed. Signed **CODEX**.
+
 ## gpt publication batch (2026-11-04) — CODEX
 
 Daniel authorized publishing the recent local Card Browser and Memory changes on `gpt`. Typecheck, Vite build, 699 unit tests (3 skipped), and 42 Card Browser, branch, and Memory Chromium cases passed with synthetic data. The earlier local lockfile metadata changes were kept outside the batch. Signed **CODEX**.

@@ -1,5 +1,12 @@
 # CODEX change record
 
+## Card Browser search and portrait loading (2026-11-04) — CODEX
+
+- `apps/desktop/src/ui/CardBrowser.tsx` drops queued portraits after their cards leave view, shares active downloads between grid and preview, and reserves a preview slot. Switching catalogs skips the typing delay. Superseded searches stop before their next request.
+- `apps/desktop/src-tauri/src/lib.rs` reuses the Card Browser HTTP client across requests and preserves each request's deadline and URL checks.
+- Reproduced both regressions with the original module using `e2e/card-browser-all-sites.e2e.ts` and `e2e/card-browser-pictures.e2e.ts`. Both passed with the fix. Typecheck, Vite build, 699 unit tests (3 skipped), 28 Rust tests, and 22 related Chromium tests passed.
+- Kept All Sites and the existing portrait quality. Browser tests used synthetic catalogs. Live catalog latency was not measured. Signed **CODEX**.
+
 ## Consolidated gpt publication (2026-11-03) — CODEX
 
 Daniel explicitly authorized reviewing and pushing all local gpt updates; the earlier local-only restriction is superseded.
