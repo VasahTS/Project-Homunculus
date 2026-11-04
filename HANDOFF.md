@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Memory v2: layers, Catch Up, smart recall with Jev; "Messages to show" (2026-11-04) — CLAUDE — D-083
+
+Daniel asked for the memory system combining Summaryception, his friend's Chapter Memory and Marinara's memory, plus SillyTavern's "# Msg. to Load".
+- Core: `memory.ts` (closing by tokens at an AI reply, layers that merge old summaries, topCover), `recall.ts` (shortlist → Jev per chapter → Jev per message → quotes; cache per exchange; time limits; fallback), `turn.ts` (step 4a recall, `memoryFor`, `mergeLayers`, `catchUpMemory`, `memory.status` event), `ProviderDefinition.decide` + nano-gpt `/decisions` in provider-openai, `GenerationRecord.memory`.
+- UI: Prompt tab → Memory (new rows, Catch Up, merged summaries in the list), Reply tab → Memory receipt, chat "Recalling…" placeholder, Settings → Chat → Messages to show (default 50) + "Show earlier" row in the chat.
+- **To try on Windows:** a chat with a nano-gpt connection → Prompt → Memory on → Smart → Decide with Jev → send → Reply tab → Memory · smart. If it falls back, the receipt says why (e.g. the subscription address has no `/decisions`: choose a pay-as-you-go nano-gpt connection in "Through").
+- Checks: typecheck; 691 unit (16 new); click tests `e2e/memory-v2.e2e.ts` (2 new) + `memory.e2e.ts`; full browser run in the session notes. Not checked: a live Jev call (no key here).
+
 ## Chat fixes promotion (2026-11-04) — CODEX
 
 Daniel requested publishing the Markdown export and the agent navigation fix on `gpt` and integrating the development branches `dev` and `ui`.

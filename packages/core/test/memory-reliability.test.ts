@@ -95,7 +95,7 @@ describe("T-001 tree paths, settings and turn isolation", () => {
     await w.chat.turns.saveChapters(w.session.id, [hand]);
     const swipe = await w.chat.generate(w.session.id, w.path[1]!.id, connection);
     const branchPath = await w.store.pathTo(swipe.id);
-    expect(applyChapters(branchPath, [hand])).toEqual({ history: branchPath, text: "", covered: 0 });
+    expect(applyChapters(branchPath, [hand])).toEqual({ history: branchPath, text: "", covered: 0, sent: 0 });
     expect(applyChapters(w.path, [hand]).covered).toBe(4);
     expect((await w.chat.turns.memoryAt(w.session.id, swipe.id)).chapters).toEqual([]);
     await w.store.deleteMessages(w.session.id, w.path.slice(3).map(m => m.id));

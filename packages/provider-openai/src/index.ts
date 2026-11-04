@@ -1,6 +1,6 @@
 // Homunculus 2 — module: OpenAI-compatible chat provider (OpenRouter, OpenAI, many local servers).
 // Author: CLAUDE, 2026-10-23.
-import type { ConnectionConfig, GenerateRequest, HomunculusModule, ModelInfo, RichTurn, StreamChunk, ToolCall } from "@homunculus/core";
+import type { ConnectionConfig, DecisionAnswer, DecisionRequest, GenerateRequest, HomunculusModule, ModelInfo, RichTurn, StreamChunk, ToolCall } from "@homunculus/core";
 
 export const OPENROUTER_URL = "https://openrouter.ai/api/v1";
 
@@ -185,6 +185,48 @@ export async function listModels(connection: ConnectionConfig, fetchFn: FetchLik
   return parseModels(await res.json());
 }
 
+/**
+ * Yes/no questions to a decision model (D-083): TypeSafe's System One format, as nano-gpt serves it at
+ * `POST <address>/decisions` (models typesafe/jev-latest, typesafe/jev-1.13…). Each question is a `noul`; the answer
+ * is the probability that it is true. Only input tokens are billed. Docs: docs.nano-gpt.com, "jev-decisions".
+ */
+export async function decide(req: DecisionRequest, fetchFn: FetchLike): Promise<DecisionAnswer> {
+  const { connection } = req;
+  const base = (connection.baseUrl ?? OPENROUTER_URL).replace(/\/+$/, "");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (connection.apiKey) headers.Authorization = `Bearer ${connection.apiKey}`;
+  const body = {
+    model: connection.model,
+    state: req.state,
+    questions: Object.fromEntries(req.questions.map((q) => [q.id, {
+      type: "noul", instructions: q.instructions,
+      ...(q.yes && q.no ? { criteria: { true: q.yes, false: q.no } } : {}),
+    }])),
+  };
+  let res: Response;
+  try {
+    res = await fetchFn(`${base}/decisions`, { method: "POST", headers, body: JSON.stringify(body), signal: req.signal });
+  } catch (e) {
+    if (req.signal?.aborted) throw e;
+    throw new Error(`Could not reach ${base}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(res.status === 404
+      ? `${base} has no decision models (/decisions answered 404). Use a nano-gpt address such as https://nano-gpt.com/api/v1.`
+      : `The decision model answered ${res.status}: ${text.slice(0, 300) || res.statusText}`);
+  }
+  const json = await res.json().catch(() => null) as { answers?: Record<string, { noul?: unknown }>; usage?: { input_tokens?: number; cost?: number; estimated_cost?: number } } | null;
+  if (!json || typeof json.answers !== "object" || !json.answers) throw new Error("The decision model's answer has an unexpected shape.");
+  const answers: Record<string, number> = {};
+  for (const q of req.questions) {
+    const p = num(json.answers[q.id]?.noul);
+    if (p !== undefined) answers[q.id] = Math.min(1, Math.max(0, p));
+  }
+  const cost = num(json.usage?.cost) ?? num(json.usage?.estimated_cost);
+  return { answers, ...(json.usage?.input_tokens !== undefined ? { tokensIn: json.usage.input_tokens } : {}), ...(cost !== undefined ? { cost } : {}) };
+}
+
 export function createOpenAICompatibleModule(fetchFn: FetchLike = (i, init) => fetch(i, init)): HomunculusModule {
   return {
     manifest: { id: "provider-openai", version: "0.0.1" },
@@ -195,6 +237,7 @@ export function createOpenAICompatibleModule(fetchFn: FetchLike = (i, init) => f
         help: "Works with OpenRouter by default. For other services, set their address (base URL) and API key.",
         stream: (req) => streamChat(req, fetchFn),
         listModels: (connection, signal) => listModels(connection, fetchFn, signal),
+        decide: (req) => decide(req, fetchFn),
       });
     },
   };

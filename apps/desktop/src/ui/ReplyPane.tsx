@@ -169,11 +169,12 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
             </span>
           </Row>
         )}
-        {rec.promptNotes?.map((n, i) => <Row key={i} wide><span className="hint warn-text" data-testid="reply-note">{n}</span></Row>)}
+        {rec.promptNotes?.filter((n) => !(rec.memory && n.startsWith("Memory"))).map((n, i) => <Row key={i} wide><span className="hint warn-text" data-testid="reply-note">{n}</span></Row>)}
         <Row wide>
           <Button small onClick={() => setPromptOpen(true)}><Icon name="eye" size={13} />Open the Full Prompt</Button>
         </Row>
       </Group>
+      {rec.memory && <MemoryReceipt m={rec.memory} />}
       {promptOpen && (
         <PromptSheet title="Prompt of This Reply" testId="reply-prompt" trackers={trackers} parts={rec.prompt} budget={rec.budget} notes={rec.promptNotes}
           meta={<>{r.presetName ? <>preset <strong>{r.presetName}</strong> · </> : null}{rec.providerId === "offline-test" ? "offline test AI" : rec.model}</>}
@@ -249,4 +250,29 @@ function diffState(before: ResolvedState, after: ResolvedState, trackers: Tracke
     }
   }
   return out;
+}
+
+/** What memory sent with this reply (D-083): simple summaries, or what smart recall chose and why. CLAUDE, 2026-11-04. */
+function MemoryReceipt({ m }: { m: NonNullable<GenerationRecord["memory"]> }) {
+  const smart = m.mode === "smart";
+  const aside = smart && !m.fallback
+    ? `${m.picked?.length ?? 0} of ${m.chapters} chapters${m.quotes ? ` · ${m.quotes} quote${m.quotes === 1 ? "" : "s"}` : ""}`
+    : `${m.sent} summar${m.sent === 1 ? "y" : "ies"}`;
+  return (
+    <Group title={smart ? "Memory · smart" : "Memory"} testId="reply-memory" aside={<span data-testid="reply-memory-aside">{aside}</span>}
+      help={smart ? "Before this reply, a decision model chose which chapters bear on it, and which of their messages to quote word for word. The last chapter and merged summaries always go." : "Every chapter summary went in place of the messages it covers."}>
+      <Row label="Stood in for" help="Older messages the summaries replaced in this prompt."><span className="tabular">{m.covered} message{m.covered === 1 ? "" : "s"}</span></Row>
+      {smart && m.fallback && <Row wide><span className="hint warn-text" data-testid="reply-memory-fallback">Every summary went instead: {m.fallback}</span></Row>}
+      {smart && !m.fallback && <>
+        <Row label="Decided by"><span className="tabular">{m.decider}{m.ms !== undefined ? ` · ${(m.ms / 1000).toFixed(1)} s` : ""}{m.questions ? ` · ${m.questions} question${m.questions === 1 ? "" : "s"}${m.cached ? ` (${m.cached} reused)` : ""}` : ""}</span></Row>
+        {!!m.layers && <Row label="Merged summaries" help="Short summaries of old stretches, always sent."><span className="tabular">{m.layers}</span></Row>}
+        <Row wide>
+          <ul className="memory-picked" data-testid="reply-memory-picked">
+            {m.picked?.map((c, i) => <li key={i}><span>{c.title}</span><span className="hint tabular">{c.p === undefined ? "latest, always" : `${Math.round(c.p * 100)}%`}</span></li>)}
+          </ul>
+        </Row>
+        {m.asked !== undefined && m.asked < m.chapters - 1 && <Row wide><span className="hint">{m.chapters - 1 - m.asked} chapter(s) were left out before asking: they share fewer words with this exchange.</span></Row>}
+      </>}
+    </Group>
+  );
 }

@@ -102,6 +102,12 @@ export function ChatSection() {
           <Segmented small label="Text width" value={p.chatWidth} onChange={(chatWidth) => set({ chatWidth })}
             options={[{ value: "narrow", label: "Narrow" }, { value: "medium", label: "Medium" }, { value: "wide", label: "Wide" }, { value: "full", label: "Full" }]} />
         </Row>
+        <Row label="Messages to show" help="Only the newest messages are drawn, so long chats open fast; “Show earlier” at the top brings the rest. The AI still reads the whole chat (and its memory). 0 = all.">
+          <select aria-label="Messages to show" value={p.messagesToShow} onChange={(e) => set({ messagesToShow: Number(e.target.value) })}>
+            {[...new Set([10, 25, 50, 100, 200, 500, p.messagesToShow])].filter((n) => n > 0).sort((a, b) => a - b).map((n) => <option key={n} value={n}>{n} messages</option>)}
+            <option value={0}>All</option>
+          </select>
+        </Row>
         <Row label="Model thinking" help="What a reasoning model thought before replying.">
           <Segmented small label="Model thinking" value={p.thinking} onChange={(thinking) => set({ thinking })}
             options={[{ value: "hidden", label: "Hidden" }, { value: "folded", label: "Folded" }, { value: "open", label: "Open" }]} />

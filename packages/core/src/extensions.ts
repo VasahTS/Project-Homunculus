@@ -122,6 +122,24 @@ export interface ProviderDefinition {
   stream(req: GenerateRequest): AsyncIterable<StreamChunk>;
   /** The models the service offers, when it can tell (only address and key are used). */
   listModels?(connection: ConnectionConfig, signal?: AbortSignal): Promise<ModelInfo[]>;
+  /**
+   * Yes/no questions to a decision model (TypeSafe's System One format, e.g. Jev on nano-gpt's /decisions; D-083).
+   * Answers are the probability that each statement is true. Providers that cannot, leave it out.
+   */
+  decide?(req: DecisionRequest): Promise<DecisionAnswer>;
+}
+
+export interface DecisionRequest {
+  connection: ConnectionConfig;
+  state: string;
+  questions: Array<{ id: string; instructions: string; yes?: string; no?: string }>;
+  signal?: AbortSignal;
+}
+
+export interface DecisionAnswer {
+  answers: Record<string, number>;
+  tokensIn?: number;
+  cost?: number;
 }
 
 /** The result of a whole (non-streamed) AI call. */

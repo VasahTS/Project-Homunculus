@@ -109,6 +109,23 @@ export const GenerationRecord = z.object({
   promptNotes: z.array(z.string()).optional(),
   /** Which lorebook entries went in (and the sticky/cooldown timers after this reply). Slice 3. */
   lore: LoreReport.optional(),
+  /** What memory sent with this reply (D-083): the mode, and for smart recall what the decider chose. */
+  memory: z.object({
+    mode: z.enum(["simple", "smart"]),
+    /** Summaries sent / chapters on the path / messages they stand in for. */
+    sent: z.number().int(),
+    chapters: z.number().int(),
+    covered: z.number().int(),
+    decider: z.string().optional(),
+    asked: z.number().int().optional(),
+    picked: z.array(z.object({ title: z.string(), p: z.number().optional() })).optional(),
+    layers: z.number().int().optional(),
+    quotes: z.number().int().optional(),
+    questions: z.number().int().optional(),
+    cached: z.number().int().optional(),
+    ms: z.number().int().optional(),
+    fallback: z.string().optional(),
+  }).optional(),
   /** Ids of agents that ran for this reply, by phase. */
   agents: z.record(z.string(), z.array(Id)).default({}),
   tokensIn: z.number().int().optional(),

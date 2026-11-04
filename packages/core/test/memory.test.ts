@@ -1,7 +1,7 @@
 // Simple memory: chapter summaries (D-054). Author: CLAUDE, 2026-10-30.
 import { describe, expect, it } from "vitest";
 import type { Message } from "@homunculus/schemas";
-import { applyChapters, nextChapterSpan, parseChapter, resolveSetup, type Chapter } from "../src/index.ts";
+import { applyChapters, MEMORY_DEFAULTS, nextChapterSpan, parseChapter, resolveSetup, type Chapter } from "../src/index.ts";
 import { connection, world } from "./helpers.ts";
 
 const msg = (i: number): Message => ({
@@ -13,8 +13,10 @@ const ch = (fromId: string, toId: string, over: Partial<Chapter> = {}): Chapter 
 
 describe("memory (chapters)", () => {
   it("is off by default and each value inherits on its own", () => {
-    expect(resolveSetup({}).memory).toEqual({ on: false, every: 20, keep: 10 });
-    expect(resolveSetup({ story: { memory: { on: true } }, session: { memory: { keep: 4 } } }).memory).toEqual({ on: true, every: 20, keep: 4 });
+    expect(resolveSetup({}).memory).toEqual(MEMORY_DEFAULTS);
+    expect(MEMORY_DEFAULTS).toMatchObject({ on: false, every: 20, keep: 10, mode: "simple", layers: true });
+    expect(resolveSetup({ story: { memory: { on: true, mode: "smart" } }, session: { memory: { keep: 4 } } }).memory)
+      .toEqual({ ...MEMORY_DEFAULTS, on: true, keep: 4, mode: "smart" });
   });
 
   it("chapters stand in for the messages they cover; a chapter off the path or switched off does nothing", () => {

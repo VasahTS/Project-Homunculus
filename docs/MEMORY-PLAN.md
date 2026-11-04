@@ -1,7 +1,7 @@
 # Memory — chapters + recall (plan for slice 8)
 
 Author: CLAUDE, 2026-10-29, at Daniel's request ("we'll sort this out later, but save it now").
-**Status: study only. Nothing approved, nothing to code now.** Comes after branching and slice 5 (full agents). See BLUEPRINT §4.3 ("Chapter summary"), §5.2 (ceiling "chapters ≤ 15%"), §8 (`memory-chapters`, `recall`), §10 (slice 8).
+**Status (2026-11-04): built as D-054 (simple chapters) and D-083 (closing by tokens, layers, Catch Up, smart recall with Jev).** Still open: closing on a scene change, per-character memories, embeddings, a "Fix" pass. Comes after branching and slice 5 (full agents). See BLUEPRINT §4.3 ("Chapter summary"), §5.2 (ceiling "chapters ≤ 15%"), §8 (`memory-chapters`, `recall`), §10 (slice 8).
 
 ## The idea in one sentence
 **A single memory engine**, which answers three questions: **when to close a chapter**, **how to keep it** and **what to send to the AI**. Each reference below comes in as a set of choices, not as a separate system.

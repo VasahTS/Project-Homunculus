@@ -179,6 +179,13 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const [copied, setCopied] = useState<string | null>(null);
   /** After the next load, scroll to this message instead of the end. */
   const scrollTarget = useRef<{ id: string; block: ScrollLogicalPosition } | null>(null);
+  // "Messages to show" (below): how many more than the setting are drawn, and what is drawn now (for jumps)
+  const [shownExtra, setShownExtra] = useState(0);
+  useEffect(() => { setShownExtra(0); }, [session.id]);
+  const drawn = useRef<{ from: number; ids: string[] }>({ from: 0, ids: [] });
+  // smart memory recall before a reply ("Recalling: weighing 12 chapters…", D-083)
+  const [memStatus, setMemStatus] = useState<string | null>(null);
+  useEffect(() => svc.core.events.on("memory.status", (e) => { if (e.sessionId === session.id) setMemStatus(e.text); }, "chat-view"), [svc, session.id]);
 
   /**
    * Moves the view to the end of a branch. The new list is loaded first and shown all at once,
@@ -275,6 +282,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   useEffect(() => {
     const t = scrollTarget.current;
     if (t) {
+      // a message above the drawn ones: draw down to it first, then scroll on the next render
+      const at = drawn.current.ids.indexOf(t.id);
+      if (at >= 0 && at < drawn.current.from) { setShownExtra((n) => n + drawn.current.from - at + 3); return; }
       scrollTarget.current = null;
       stickRef.current = false;
       document.querySelector(`[data-mid="${t.id}"]`)?.scrollIntoView({ block: t.block });
@@ -282,7 +292,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       return;
     }
     if (stickRef.current && !holdRef.current) toEnd();
-  }, [path, pending]);
+  }, [path, pending, shownExtra]);
 
   /** Starts a turn in turns.ts (it keeps going if you leave this chat). */
   function run(start: { parentId: string | null; userText?: string }, task: (signal: AbortSignal, stream: StreamTo) => Promise<string | null>) {
@@ -488,6 +498,21 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const cut = pending ? (pending.parentId === null ? 0 : path.findIndex((m) => m.id === pending.parentId) + 1) : path.length;
   const visible = path.slice(0, cut);
   const last = visible[visible.length - 1];
+  // Settings → Chat → "Messages to show" (SillyTavern's "# Msg. to Load"): only the newest are drawn, so a chat with
+  // thousands of messages opens fast; "Show earlier" adds more. The AI still gets everything (this is only the screen).
+  const drawFrom = prefs.messagesToShow > 0 ? Math.max(0, visible.length - prefs.messagesToShow - shownExtra) : 0;
+  drawn.current = { from: drawFrom, ids: visible.map((m) => m.id) };
+  const keepScroll = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = storyRef.current;
+    if (keepScroll.current === null || !el) return;
+    el.scrollTop += el.scrollHeight - keepScroll.current;
+    keepScroll.current = null;
+  }, [drawFrom]);
+  const showEarlier = (all: boolean) => {
+    keepScroll.current = storyRef.current?.scrollHeight ?? null;
+    setShownExtra((n) => all ? visible.length : n + Math.max(10, prefs.messagesToShow));
+  };
   // Opening a chat (D-072, the Coffra reference): the messages on screen rise in one after another, then the composer.
   // Only once per chat, when its messages first show; new messages keep their own arrival (.msg.fresh).
   const listRef = useRef<HTMLOListElement>(null);
@@ -636,7 +661,15 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               onAllow={(xs) => void svc.store.approveRegex(xs.map(regexKey)).then(() => { setRegexTick((t) => t + 1); onRegexChanged?.(); })} />
           )}
           <ol className="messages-list" data-testid="messages" ref={listRef}>
+            {drawFrom > 0 && (
+              <li className="show-earlier" data-testid="show-earlier">
+                <button type="button" className="link" onClick={() => showEarlier(false)}>Show {Math.min(drawFrom, Math.max(10, prefs.messagesToShow))} earlier messages</button>
+                <span className="hint">{drawFrom} not drawn</span>
+                <button type="button" className="link quiet" onClick={() => showEarlier(true)}>Show all</button>
+              </li>
+            )}
             {visible.map((m, i) => {
+              if (i < drawFrom) return null;
               const versions = versionsOf(m);
               const vIndex = versions.indexOf(m.id);
               const isLast = m === last;
@@ -763,7 +796,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             )}
             {pending && (
               <li className="msg character streaming fresh" data-testid="streaming">
-                <div className="who">{leadChar?.name ?? "…"} {pending.reasoning && !pending.text ? "is thinking…" : "is writing…"}</div>
+                <div className="who">{leadChar?.name ?? "…"} {!pending.text && !pending.reasoning && memStatus?.startsWith("Recalling") ? <span className="hint" data-testid="memory-recalling">{memStatus}</span> : pending.reasoning && !pending.text ? "is thinking…" : "is writing…"}</div>
                 {pending.reasoning && prefs.thinking !== "hidden" && (
                   <details className="reasoning" data-testid="reasoning-live" open={prefs.thinking === "open" || undefined}>
                     <summary>Reasoning</summary>

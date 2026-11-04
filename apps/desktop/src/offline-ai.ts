@@ -83,6 +83,15 @@ export const offlineAiModule: HomunculusModule = {
       async listModels() {
         return [{ id: "offline", name: "Offline test AI", description: "Repeats scripted lines. For trying the app." }];
       },
+      // smart memory recall (D-083): a made-up decision model that likes summaries sharing words with the exchange
+      async decide(req) {
+        const words = new Set((req.state.toLowerCase().match(/[a-z]{4,}/g) ?? []));
+        return { answers: Object.fromEntries(req.questions.map((q, i) => {
+          const body = q.instructions.split("\n\n").slice(1).join(" ").toLowerCase();
+          const shared = (body.match(/[a-z]{4,}/g) ?? []).filter((w) => words.has(w)).length;
+          return [q.id, Math.min(0.95, 0.2 + shared * 0.15 + (i === 0 ? 0.35 : 0))];
+        })) };
+      },
       async *stream(req) {
         if (req.tools?.length && req.rich) { yield* offlineAssistant(req.rich); return; }
         const lastTurn = req.messages.at(-1)?.content ?? "";
@@ -96,6 +105,8 @@ export const offlineAiModule: HomunculusModule = {
         }
         // memory chapters (D-054)
         if (/summarize part of an ongoing roleplay/.test(req.messages[0]?.content ?? "")) { yield "Title: Offline chapter\n\nThe offline test AI summarized these messages."; return; }
+        // memory layers (D-083)
+        if (/Merge consecutive chapter summaries/.test(req.messages[0]?.content ?? "")) { yield "Title: Offline merged chapters\n\nThe offline test AI merged these summaries."; return; }
         const last = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
         const reply = `${lines[calls++ % lines.length]} "You said: ${last.slice(0, 80)}"`;
         // like a thinking model: a little "reasoning" first, which the app keeps apart from the reply

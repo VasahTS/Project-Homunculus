@@ -18,6 +18,8 @@ Media: `apps/desktop/src/sounds/pop.mp3` ("pop on", Pixabay sound effect 269286)
 
 Formats read at the "border" (no code copied): SillyTavern's persona backup / settings (`public/scripts/personas.js` `onBackupPersonas`, `persona_description_positions`; commit 06bde939) for `packages/st-personas`; SillyTavern's Chat Completion preset format and prompt assembly order (`public/scripts/openai.js` `preparePromptsForChatCompletion`, `populationInjectionPrompts`; `default/content/presets/openai/Default.json`; macro names from `public/scripts/macros/`) for `packages/st-presets`, `packages/core/src/presets.ts` and `macros.ts`.
 
+Memory v2 (D-083), ideas and prompt wording, no code copied: Daniel's friend's "Chapter Memory" (Python, shared by Daniel on 2026-10-29: two-tier yes/no recall, question wording, summary rules); Summaryception (Lodactio/Extension-Summaryception, AGPL-3.0: recursive layers, backlog catch-up); Marinara Engine (Pasta-Devs/Marinara-Engine e5ead06, AGPL-3.0: `docs/agents/memory.md` and `advanced-memory-decisions.ts` — shortlist before the decision model, the scene after the best three, time limits and fallback receipt; `decision/system-one.client.ts` — the System One `noul` request shape). Decision API: nano-gpt `/decisions` (docs.nano-gpt.com, "jev-decisions").
+
 Reference projects studied (ideas, not code, unless listed above): SillyTavern, SillyBunny, Homunculus v1 (VasahTS/Homunculus), Marinara Engine, Aventuras. Studied commits are pinned in `docs/reference/pins.json`.
 
 Fonts bundled with the app (SIL Open Font License 1.1, from Google Fonts through Fontsource): Literata, Geist and Geist Mono (Vercel), Archivo (Omnibus-Type). D-073.

@@ -37,6 +37,8 @@ export interface AppPrefs {
   followReply: boolean;
   autoContinue: boolean;
   continueTimes: number;
+  /** How many of the newest messages the chat draws (SillyTavern's "# Msg. to Load"); 0 = all. Older ones wait behind "Show earlier". */
+  messagesToShow: number;
   // Appearance
   lineSpacing: number;
   avatarShape: AvatarShape;
@@ -52,7 +54,7 @@ export interface AppPrefs {
 export const DEFAULT_PREFS: AppPrefs = {
   openAt: "last", replyNotice: true, replySound: "off", soundVolume: 60, customSound: "", customSoundName: "", systemNotify: false, spoilerFree: false,
   showTime: true, showNumber: true, showTokens: true, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
-  smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2,
+  smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50,
   lineSpacing: 1.72, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
   autoBackup: "off", keepBackups: 10, emptyTrashDays: 0,
 };
@@ -88,6 +90,7 @@ export function cleanPrefs(saved: unknown): AppPrefs {
   out.soundVolume = Math.min(100, Math.max(0, out.soundVolume));
   out.smoothSpeed = Math.min(200, Math.max(5, out.smoothSpeed));
   out.continueTimes = Math.min(5, Math.max(1, Math.round(out.continueTimes)));
+  out.messagesToShow = Math.min(1000, Math.max(0, Math.round(out.messagesToShow)));
   out.lineSpacing = Math.min(2.4, Math.max(1.1, out.lineSpacing));
   out.keepBackups = Math.min(100, Math.max(1, Math.round(out.keepBackups)));
   out.emptyTrashDays = Math.max(0, Math.round(out.emptyTrashDays));

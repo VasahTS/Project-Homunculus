@@ -3,6 +3,19 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
+## Unreleased
+
+### Memory
+
+- Chapters can close **by size in tokens** (always ending at an AI reply), not only every N messages.
+- **Merge old chapters:** when summaries pile up, the oldest merge into one shorter summary, so very long stories keep a small memory.
+- **Catch Up** writes every chapter an old or imported chat is missing, with progress and Stop.
+- **Smart recall:** before each reply, a decision model (Jev on nano-gpt, or your agents' model) picks the chapters that matter right now and quotes their key messages word for word. The Reply tab shows what it chose and why.
+
+### Chat
+
+- **Messages to show** (Settings → Chat): long chats draw only the newest messages and open faster; **Show earlier** brings the rest. The AI still reads everything.
+
 ## 0.2.0 — 2026-11-01
 
 This release adds the Library Assistant, web search, on-screen agent controls and chapter memory, and expands prompt editing, trackers, narrators and library organization. The changes below cover the shipped differences from 0.1.0; intermediate design drafts are not listed as features.

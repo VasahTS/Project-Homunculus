@@ -46,6 +46,8 @@ export interface CoreEvents extends Record<string, unknown> {
   "generation.failed": { sessionId: string; parentId: string | null; reason: string };
   "turn.finished": { sessionId: string; messageId: string };
   "core.error": { source: string; message: string };
+  /** What memory is doing right now (D-083): "Recalling: weighing 12 chapters…", "Writing chapter 4…"; null = done. */
+  "memory.status": { sessionId: string; text: string | null };
 }
 
 export interface ModuleManifest {

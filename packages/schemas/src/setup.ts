@@ -107,6 +107,20 @@ export const SetupLayer = z.object({
     every: z.number().int().min(4).max(500).optional(),
     /** The newest messages that always go word for word. */
     keep: z.number().int().min(0).max(500).optional(),
+    /** D-083: what closes a chapter (a number of messages, or the waiting messages' size in tokens). */
+    closeBy: z.enum(["messages", "tokens"]).optional(),
+    everyTokens: z.number().int().min(500).max(200_000).optional(),
+    /** Layers (Summaryception): merge the oldest summaries when one level has more than layerSize. */
+    layers: z.boolean().optional(),
+    layerSize: z.number().int().min(3).max(100).optional(),
+    layerMerge: z.number().int().min(2).max(10).optional(),
+    /** simple = every summary goes; smart = a decision model picks chapters and quotes per reply. */
+    mode: z.enum(["simple", "smart"]).optional(),
+    decider: z.enum(["jev", "agents"]).optional(),
+    deciderConnectionId: z.string().optional(),
+    deciderModel: z.string().optional(),
+    recallChapters: z.number().int().min(0).max(30).optional(),
+    recallQuotes: z.number().int().min(0).max(12).optional(),
   }).optional(),
   limits: z
     .object({

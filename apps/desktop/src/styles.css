@@ -2144,6 +2144,15 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .memory-chapter-title small { color: var(--label-2); font-size: var(--size-small); }
 .memory-chapter-body { display: grid; gap: 6px; padding: 0 8px 8px; }
 .memory-chapter-body textarea { font-family: var(--font-prose); line-height: var(--leading-prose); }
+/* memory v2 (D-083): merged summaries stand out a little; chapters inside one are indented and quieter */
+.memory-chapter.merged { box-shadow: inset 3px 0 0 var(--accent); }
+.memory-chapter.inside { margin-left: 14px; width: calc(100% - 14px); }
+.memory-chapter.inside .memory-chapter-title b { font-weight: 500; color: var(--label-2); }
+.memory-status .row-line { display: inline-flex; gap: 6px; align-items: center; }
+.memory-picked { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 4px; }
+.memory-picked li { display: flex; justify-content: space-between; gap: 10px; }
+/* "Messages to show" (D-083): the row above the drawn messages */
+.show-earlier { list-style: none; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 0 14px; color: var(--label-2); font-size: var(--size-small); }
 
 /* ■ Stop in the sidebar (30/10) */
 .side-stop { flex: none; margin-left: 4px; padding: 0 4px; border-radius: calc(4px * var(--round)); font-size: 9px; line-height: 16px; color: var(--label-2); background: var(--fill); cursor: pointer; }

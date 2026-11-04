@@ -160,3 +160,27 @@ describe("reasoning usage breakdown", () => {
     expect(chunks[0]).toEqual({ usage: { tokensIn: undefined, tokensOut: 10, cost: undefined } });
   });
 });
+
+// Jev on nano-gpt's /decisions (D-083). CLAUDE, 2026-11-04.
+import { decide } from "../src/index.ts";
+describe("decision models (/decisions)", () => {
+  it("sends noul questions and reads the probability of true", async () => {
+    let sent: { url: string; body: any; auth?: string } | undefined;
+    const fetchFn = async (url: string, init: RequestInit) => {
+      sent = { url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization };
+      return new Response(JSON.stringify({ answers: { ch_a: { type: "noul", noul: 0.83 }, ch_b: { type: "noul", noul: 1.4 } }, usage: { input_tokens: 120, estimated_cost: 0.00001 } }));
+    };
+    const r = await decide({ connection: { providerId: "openai-compatible", model: "typesafe/jev-latest", baseUrl: "https://nano-gpt.com/api/v1/", apiKey: "k" },
+      state: "<latest_exchange>hi</latest_exchange>", questions: [{ id: "ch_a", instructions: "Relevant?", yes: "y", no: "n" }, { id: "ch_b", instructions: "Other?" }] }, fetchFn);
+    expect(sent!.url).toBe("https://nano-gpt.com/api/v1/decisions");
+    expect(sent!.auth).toBe("Bearer k");
+    expect(sent!.body).toEqual({ model: "typesafe/jev-latest", state: "<latest_exchange>hi</latest_exchange>", questions: {
+      ch_a: { type: "noul", instructions: "Relevant?", criteria: { true: "y", false: "n" } }, ch_b: { type: "noul", instructions: "Other?" } } });
+    expect(r).toEqual({ answers: { ch_a: 0.83, ch_b: 1 }, tokensIn: 120, cost: 0.00001 });
+  });
+
+  it("explains a service without decision models", async () => {
+    const fetchFn = async () => new Response("not found", { status: 404 });
+    await expect(decide({ connection: { providerId: "x", model: "m", baseUrl: "https://example.com/v1" }, state: "", questions: [] }, fetchFn)).rejects.toThrow(/no decision models/);
+  });
+});
