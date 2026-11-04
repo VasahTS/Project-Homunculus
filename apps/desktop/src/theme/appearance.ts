@@ -7,10 +7,11 @@
 import { useSyncExternalStore } from "react";
 import { applyProfile, BUILTIN_PROFILES, DEFAULT_PROFILE_ID, type AppearanceProfile } from "./themes.ts";
 import { applyMessageLook } from "../messageLook.ts";
+import { isIconSet, setIconSet, type IconSetId } from "./iconSets.ts";
 
 export type MotionSpeed = "calm" | "normal" | "quick";
 export interface MotionPrefs { on: boolean; speed: MotionSpeed; followSystem: boolean }
-export interface LookTweaks { accent?: string; storyFont?: "prose" | "ui"; storySize?: number }
+export interface LookTweaks { accent?: string; storyFont?: "prose" | "ui"; storySize?: number; /** D-086 */ icons?: IconSetId }
 export interface AppearanceState {
   activeId: string;
   tweaks: Record<string, LookTweaks>;
@@ -60,12 +61,15 @@ export function resolvedLook(s: AppearanceState = state): AppearanceProfile {
   }
   if (t.storyFont === "ui") tokens["font-prose"] = "var(--font-ui)";
   if (t.storySize) tokens["size-prose"] = `${t.storySize}px`;
-  return { ...look, tokens, css: safeMode ? "" : look.css };
+  const icons = t.icons ?? look.icons;
+  return { ...look, tokens, css: safeMode ? "" : look.css, ...(icons ? { icons } : {}) };
 }
 
 function apply(): void {
   if (typeof document === "undefined") return;
-  applyProfile(resolvedLook());
+  const look = resolvedLook();
+  applyProfile(look);
+  setIconSet(isIconSet(look.icons) ? look.icons : "lines");
   applyMessageLook();
   const root = document.documentElement;
   root.dataset.motion = motionOff() ? "off" : "on";
@@ -120,7 +124,7 @@ export async function copyLook(from: AppearanceProfile, name = `${from.name} (ed
 
 /** The file a look is exported as. */
 export const exportLook = (look: AppearanceProfile): string =>
-  JSON.stringify({ format: LOOK_FORMAT, name: look.name, description: look.description, layout: look.layout, tokens: look.tokens, css: look.css ?? "", effects: look.effects, tweaks: look.tweaks }, null, 2);
+  JSON.stringify({ format: LOOK_FORMAT, name: look.name, description: look.description, layout: look.layout, tokens: look.tokens, css: look.css ?? "", effects: look.effects, tweaks: look.tweaks, ...(look.icons ? { icons: look.icons } : {}) }, null, 2);
 
 const SAFE_VALUE = /^[^;{}<>]{0,300}$/;
 const TOKEN_NAME = /^[a-z][a-z0-9-]{0,40}$/;
@@ -140,7 +144,7 @@ export function cleanLook(raw: unknown): AppearanceProfile {
   return {
     id: typeof r.id === "string" && /^look-[a-z0-9-]{1,40}$/.test(r.id) ? r.id : `look-${crypto.randomUUID().slice(0, 8)}`,
     name, description: typeof r.description === "string" ? r.description.slice(0, 200) : "",
-    layout: "inspector", effects: [], tweaks: {}, tokens, css,
+    layout: "inspector", effects: [], tweaks: {}, tokens, css, ...(isIconSet(r.icons) ? { icons: r.icons } : {}),
   };
 }
 export async function importLook(text: string): Promise<AppearanceProfile> {

@@ -6,6 +6,7 @@ import { createContext, useContext, useLayoutEffect, useRef, useState, type Butt
 import { Help } from "./Help.tsx";
 import { EASE_OUT, reducedMotion, useSlidingPill } from "./motion.ts";
 import { motionFactor } from "../theme/appearance.ts";
+import { useIconOverrides } from "../theme/iconSets.ts";
 
 type ButtonVariant = "plain" | "bordered" | "prominent" | "destructive";
 
@@ -124,15 +125,18 @@ export function Row({ label, help, children, wide = false }: { label?: ReactNode
 
 /** Icons: one stroke family, matched to the text weight. Decorative unless `label` is given. */
 export function Icon({ name, size = 16, label, stroke = 1.6 }: { name: keyof typeof ICONS; size?: number; label?: string; stroke?: number }) {
+  // a look may redraw some icons (Appearance → Icons, D-086); names it doesn't redraw keep these lines
+  const set = useIconOverrides();
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round"
       role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
-      <path d={ICONS[name]} />
+      <path d={set[name] ?? ICONS[name]} />
     </svg>
   );
 }
 
 export const ICONS = {
+  home: "M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z",
   branch: "M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9",
   copy: "M11 9h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1",
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v-4M12 8h.01",

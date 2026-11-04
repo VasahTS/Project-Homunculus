@@ -1,10 +1,13 @@
 // Styled chat messages and CSS-only animation, isolated from the app. Author: CODEX, 2026-11-03.
+// CLAUDE, 2026-11-04 (D-086): dialogue follows the look's color inside styled messages too; only a color the AI set on
+// the quote's own container (style="color…" or <font color>) is kept. Before, any element with a class won, so a
+// message drawn by a render agent never took the look's dialogue color.
 // CLAUDE, 2026-11-03: while a reply streams, only the body is replaced in the loaded frame, so the frame is not
 // reloaded (blank flash, lost height, restarted page) on every token; a new <style>/policy still reloads it.
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatRichMessage, type MessageLook } from "../messageFormat.ts";
 
-const BASE = `html{overflow-wrap:anywhere}body{margin:0;padding:10px 0;min-height:0;display:flow-root;color:var(--app-label,#ddd);font-family:var(--app-font,Georgia,serif);font-size:var(--app-size,16.5px);line-height:1.65;white-space:normal}*,*::before,*::after{box-sizing:border-box}p{margin:0 0 .8em}img,svg{max-width:100%}img{height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere}q.dlg{color:var(--app-dialogue,inherit);quotes:none}q.dlg::before,q.dlg::after{content:none}:not([class])>em{color:var(--app-narration,inherit)}[class] q.dlg{color:inherit}.img-gate,.code-copy{font:inherit;color:inherit;cursor:pointer}.code-wrap{position:relative}.code-copy{float:right}`;
+const BASE = `html{overflow-wrap:anywhere}body{margin:0;padding:10px 0;min-height:0;display:flow-root;color:var(--app-label,#ddd);font-family:var(--app-font,Georgia,serif);font-size:var(--app-size,16.5px);line-height:1.65;white-space:normal}*,*::before,*::after{box-sizing:border-box}p{margin:0 0 .8em}img,svg{max-width:100%}img{height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere}q.dlg{color:var(--app-dialogue,inherit);quotes:none}q.dlg::before,q.dlg::after{content:none}:not([class])>em{color:var(--app-narration,inherit)}[style*="color"] q.dlg,font[color] q.dlg{color:inherit}.img-gate,.code-copy{font:inherit;color:inherit;cursor:pointer}.code-wrap{position:relative}.code-copy{float:right}`;
 const MOTION = `@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}:root[data-app-motion="off"] *,:root[data-app-motion="off"] *::before,:root[data-app-motion="off"] *::after{animation:none!important;transition:none!important}`;
 const escapeAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 /** The CSP source for one approved picture (its path only), or nothing when the address is not a valid URL. */

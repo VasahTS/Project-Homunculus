@@ -14,6 +14,8 @@
 //             (sidebar, toolbar, inspector, story, message, composer, library, editor…) — their names
 //             never change once shipped (D-018).
 
+import type { IconSetId } from "./iconSets.ts";
+
 export interface AppearanceProfile {
   id: string;
   name: string;
@@ -24,9 +26,33 @@ export interface AppearanceProfile {
   /** Per-profile tweak values (e.g. an effect's color), read by effects. */
   tweaks: Record<string, string | number | boolean>;
   css?: string;
+  /** The icon set this look draws with (theme/iconSets.ts); none = the default lines. D-086. */
+  icons?: IconSetId;
 }
 
 export const DEFAULT_PROFILE_ID = "mono";
+
+/** The square, hairline layout Mono introduced (D-073), shared by the looks built on it; `edge` is the outline of a bordered button. */
+const hairlineCss = (edge: string, edgeHover = "var(--fill)"): string => [
+  '[data-region="app"] { gap: 0; padding: 0; }',
+  '[data-region="sidebar"] { border-radius: 0; box-shadow: none; border-right: 1px solid var(--separator); padding: 24px 12px 16px; }',
+  '[data-region="inspector"] { border-radius: 0; box-shadow: none; border-left: 1px solid var(--separator); }',
+  '.toolbar { border-bottom: 1px solid var(--separator); height: 56px; }',
+  // selected = solid block in the text color with the window color on it (segmented controls, the sidebar's place)
+  '.segmented, .mode-switch { background: transparent; box-shadow: inset 0 0 0 1px var(--separator); padding: 0; }',
+  '.segmented .slide-pill { background: var(--label); box-shadow: none; }',
+  '.segmented button.on { color: var(--window); }',
+  '.mode-switch { padding: 0; } .mode-switch button.on { background: var(--label); color: var(--window); box-shadow: none; }',
+  `.btn-bordered, .ghost { background: transparent; box-shadow: inset 0 0 0 1px ${edge}; }`,
+  `.btn-bordered:hover:not(:disabled), .ghost:hover { background: ${edgeHover}; }`,
+  '.group { border-top: 1px solid var(--separator); border-bottom: 1px solid var(--separator); }',
+  '.composer-box:focus-within { box-shadow: none; }',
+  // switches and dots stay round: they are objects, not panels
+  '.switch, .switch span { border-radius: 999px; }',
+  '.switch.on span { background: var(--window); }',
+  // agent kinds keep a dot (it means something) but quieter than in the colorful looks
+  '.kind-dot { filter: saturate(.5); }',
+].join("\n");
 
 export const BUILTIN_PROFILES: AppearanceProfile[] = [
   {
@@ -55,26 +81,35 @@ export const BUILTIN_PROFILES: AppearanceProfile[] = [
       orb: "#f2f2f2", "orb-ring": "none", "assistant-wash": "linear-gradient(transparent, transparent)",
       "collection-title": "36px",
     },
-    css: [
-      '[data-region="app"] { gap: 0; padding: 0; }',
-      '[data-region="sidebar"] { border-radius: 0; box-shadow: none; border-right: 1px solid var(--separator); padding: 24px 12px 16px; }',
-      '[data-region="inspector"] { border-radius: 0; box-shadow: none; border-left: 1px solid var(--separator); }',
-      '.toolbar { border-bottom: 1px solid var(--separator); height: 56px; }',
-      // selected = solid white block with black text (segmented controls, the sidebar's place)
-      '.segmented, .mode-switch { background: transparent; box-shadow: inset 0 0 0 1px var(--separator); padding: 0; }',
-      '.segmented .slide-pill { background: var(--label); box-shadow: none; }',
-      '.segmented button.on { color: var(--window); }',
-      '.mode-switch { padding: 0; } .mode-switch button.on { background: var(--label); color: var(--window); box-shadow: none; }',
-      '.btn-bordered, .ghost { background: transparent; box-shadow: inset 0 0 0 1px rgba(242,242,242,.18); }',
-      '.btn-bordered:hover:not(:disabled), .ghost:hover { background: var(--fill); }',
-      '.group { border-top: 1px solid var(--separator); border-bottom: 1px solid var(--separator); }',
-      '.composer-box:focus-within { box-shadow: none; }',
-      // switches and dots stay round: they are objects, not panels
-      '.switch, .switch span { border-radius: 999px; }',
-      '.switch.on span { background: var(--window); }',
-      // agent kinds keep a dot (it means something) but quieter than in the colorful looks
-      '.kind-dot { filter: saturate(.5); }',
-    ].join("\n"),
+    css: hairlineCss("rgba(242,242,242,.18)"),
+  },
+  {
+    // D-086 (2026-11-04): the look of Home draft H3 ("Index of plates", canvas "Homunculus 2 — Home"), which Daniel picked:
+    // bone on warm black, Instrument Serif for titles, JetBrains Mono for the interface, the Alchemical icons.
+    id: "observatory", name: "Observatory", description: "Bone on warm black. Serif titles, a typewriter interface, alchemical icons.",
+    layout: "inspector", effects: [], tweaks: {}, icons: "alchemical",
+    tokens: {
+      window: "#0b0b0a", backdrop: "#0b0b0a", surface: "#121210", field: "#161513",
+      label: "#ece6d6", "label-2": "#a39d8f", "label-3": "#8d877a",
+      separator: "#262521", fill: "rgba(236,230,214,.05)", "fill-hover": "rgba(236,230,214,.09)", "fill-selected": "rgba(236,230,214,.13)", group: "transparent",
+      accent: "#ece6d6", "accent-ink": "#0b0b0a", "accent-soft": "rgba(236,230,214,.07)", "focus-ring": "rgba(236,230,214,.6)",
+      ok: "#7fc49a", warn: "#d9b46a", danger: "#e2685f", "danger-soft": "rgba(226,104,95,.12)",
+      dialogue: "#e3cf9c", narration: "#a8a192",
+      glass: "#0b0b0a", "glass-edge": "#262521", pop: "#141412", "glass-blur": "none",
+      "shadow-float": "none", "shadow-pop": "0 0 0 1px #3a3833, 0 16px 40px rgba(0,0,0,.6)",
+      flash: "rgba(236,230,214,.14)", scrim: "rgba(0,0,0,.72)", "preview-scrim": "rgba(0,0,0,.72)",
+      round: "0",
+      "font-ui": '"JetBrains Mono Variable", ui-monospace, Consolas, monospace',
+      "font-mono": '"JetBrains Mono Variable", ui-monospace, Consolas, monospace',
+      "font-figures": '"JetBrains Mono Variable", ui-monospace, Consolas, monospace',
+      "font-display": '"Instrument Serif", Georgia, serif',
+      "display-weight": "400", "display-stretch": "100%",
+      "size-ui": "12.5px",
+      "letter-bg": "#1d1c19", "portrait-bg": "#161513",
+      orb: "#ece6d6", "orb-ring": "none", "assistant-wash": "linear-gradient(transparent, transparent)",
+      "collection-title": "42px",
+    },
+    css: hairlineCss("#3a3833", "rgba(236,230,214,.05)"),
   },
   {
     id: "graphite", name: "Graphite", description: "Neutral dark graphite with a verdigris accent. Sidebar, story and inspector.",

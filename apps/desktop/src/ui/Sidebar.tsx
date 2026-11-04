@@ -23,7 +23,7 @@ export type LibraryArea = "characters" | LibraryCategory;
 export type Place = NavigationPlace | "settings" | null;
 
 export function Sidebar({ sessions, stories, characters, avatars, lastLines, branchCounts = {}, activeSessionId, activeStoryId, activeChatId = null, place, status,
-  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenCardBrowser, onOpenLibrary, onOpenVault, onOpenSettings }: {
+  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenCardBrowser, onOpenLibrary, onOpenVault, onOpenSettings, onOpenHome }: {
   navigation: NavigationProfile;
   searchItems: SidebarSearchItem[];
   /** Play / Assistant (D-062): the switch at the top. */
@@ -52,6 +52,8 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
   onOpenLibrary: () => void;
   onOpenVault: () => void;
   onOpenSettings: () => void;
+  /** Home (D-086): the item at the top and a click on the name. */
+  onOpenHome?: () => void;
 }) {
   const live = useTurns();
   /** What a chat with a turn running shows instead of its last line. */
@@ -104,7 +106,9 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
     <nav className="sidebar glass" aria-label="Sidebar" data-region="sidebar" ref={navRef}>
       <span className="slide-pill side-pill" ref={pillRef} aria-hidden />
       <div className="sidebar-brand">
-        <span className="brand">Homunculus</span>
+        {onOpenHome
+          ? <button type="button" className="brand brand-home" onClick={onOpenHome} title="Home (Ctrl+H)">Homunculus</button>
+          : <span className="brand">Homunculus</span>}
         {status && <span className="status-chip" data-testid="status">{status}</span>}
       </div>
       {mode && onMode && <ModeSwitch mode={mode} onMode={onMode} />}
@@ -114,6 +118,10 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
       </label>
 
       <ul className="side-list side-places" data-testid="place-list">
+        {onOpenHome && <li><button className="side-item" onClick={onOpenHome} title="Home (Ctrl+H)" data-testid="side-home">
+          <span className="side-icon"><Icon name="home" /></span><span className="side-text"><strong>Home</strong></span>
+          <kbd className="side-count" aria-hidden="true">Ctrl H</kbd>
+        </button></li>}
         {navigation.places.map((item) => {
           const actions = { stories: onOpenStories, characters: onOpenCharacters, "card-browser": onOpenCardBrowser ?? (() => {}), library: onOpenLibrary, vault: onOpenVault };
           const count = item.id === "stories" ? stories.length : item.id === "characters" ? characters.length : null;

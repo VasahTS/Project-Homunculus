@@ -6,6 +6,7 @@ import {
   setMotion, setTweaks, useAppearance, useSafeMode, type MotionSpeed,
 } from "../theme/appearance.ts";
 import { BUILTIN_PROFILES, type AppearanceProfile } from "../theme/themes.ts";
+import { ICON_SET_NAMES, type IconSetId } from "../theme/iconSets.ts";
 import { saveExport } from "../files.ts";
 import { revealLook } from "./motion.ts";
 import { Button, Group, Icon, Row, Segmented, Switch } from "./kit.tsx";
@@ -157,6 +158,10 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
               <Icon name="plus" size={14} />
             </label>
           </span>
+        </Row>
+        <Row label="Icons" help="How the icons are drawn: plain lines, or alchemical objects (a flask for Home, an astrolabe for Settings…).">
+          <Segmented small label="Icons" value={tweaks.icons ?? look.icons ?? "lines"} onChange={(icons) => void setTweaks(look.id, { icons })}
+            options={(Object.keys(ICON_SET_NAMES) as IconSetId[]).map((value) => ({ value, label: ICON_SET_NAMES[value] }))} />
         </Row>
         <Row label="Story font" help="The face of messages and story text.">
           <Segmented small label="Story font" value={tweaks.storyFont ?? "prose"} onChange={(storyFont) => void setTweaks(look.id, { storyFont })}

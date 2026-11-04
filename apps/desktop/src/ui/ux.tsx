@@ -13,6 +13,11 @@ export function useSendKey(): [SendKey, (key: SendKey) => void] {
   const key = useSyncExternalStore(useCallback(fn => { sendListeners.add(fn); return () => { sendListeners.delete(fn); }; }, []), () => sendKey);
   return [key, next => { sendKey = next; try { localStorage.setItem("homunculus.ui.sendKey", next); } catch { /* This window still uses the preference. */ } for (const fn of sendListeners) fn(); }];
 }
+/** Fills a draft from another screen (Home's Assistant box → the Assistant's message box, D-086). CLAUDE. */
+export function setDraftValue<T>(key: string, value: T): void {
+  drafts.set(key, value);
+  for (const fn of listeners) fn();
+}
 /** Drafts last for this window's lifetime; no personal content is written to browser storage. */
 export function useDraft<T,>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
   if (!drafts.has(key)) drafts.set(key, initial);

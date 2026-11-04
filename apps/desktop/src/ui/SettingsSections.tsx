@@ -42,9 +42,9 @@ export function GeneralSection() {
   return (
     <div className="settings-page" data-testid="settings-general-body">
       <Group icon="play" title="Starting and sending" help="What you see when the app opens, and how a message goes out.">
-        <Row label="Open at" help="Where the app starts.">
+        <Row label="Open at" help="Where the app starts. Home comes back any time with Ctrl+H.">
           <select aria-label="Open at" value={p.openAt} onChange={(e) => set({ openAt: e.target.value as AppPrefs["openAt"] })}>
-            <option value="last">Last chat</option><option value="stories">Stories</option><option value="characters">Characters</option><option value="card-browser">Card Browser</option>
+            <option value="home">Home</option><option value="last">Last chat</option><option value="stories">Stories</option><option value="characters">Characters</option><option value="card-browser">Card Browser</option>
           </select>
         </Row>
         <Row label="Send messages with" help="For the chat and the Assistant. The other key makes a new line.">

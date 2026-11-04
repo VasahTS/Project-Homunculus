@@ -17,6 +17,10 @@
 @import "@fontsource-variable/geist/index.css";
 @import "@fontsource-variable/geist-mono/index.css";
 @import "@fontsource-variable/archivo/standard.css";
+/* the Observatory look's faces (OFL): Instrument Serif for titles, JetBrains Mono for the interface. D-086 */
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
 
 :root,
 :root[data-theme="graphite"] {

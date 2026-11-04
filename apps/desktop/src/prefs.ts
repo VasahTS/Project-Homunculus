@@ -2,7 +2,10 @@
 // every screen like messageLook.ts. Defaults keep how the app behaved before Settings v2. CLAUDE, 2026-11-03 (D-082).
 import { useSyncExternalStore } from "react";
 
-export type OpenAt = "last" | "stories" | "characters" | "card-browser";
+export type OpenAt = "home" | "last" | "stories" | "characters" | "card-browser";
+const OPEN_AT: OpenAt[] = ["home", "last", "stories", "characters", "card-browser"];
+/** Browser click tests drive the app from the sidebar, so for them it opens at the last chat as before Home (D-086). */
+const automated = typeof navigator !== "undefined" && navigator.webdriver === true;
 export type ReplySound = "off" | "chime" | "soft-click" | "bell" | "drop" | "arpeggio" | "low-gong" | "pop" | "custom";
 export type ChatWidth = "narrow" | "medium" | "wide" | "full";
 export type Thinking = "hidden" | "folded" | "open";
@@ -49,14 +52,16 @@ export interface AppPrefs {
   keepBackups: number;
   /** 0 = never. */
   emptyTrashDays: number;
+  /** Home was offered once as where the app opens (D-086); a setting saved before Home exists has no such key. */
+  homeOffered: boolean;
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
-  openAt: "last", replyNotice: true, replySound: "off", soundVolume: 60, customSound: "", customSoundName: "", systemNotify: false, spoilerFree: false,
+  openAt: automated ? "last" : "home", replyNotice: true, replySound: "off", soundVolume: 60, customSound: "", customSoundName: "", systemNotify: false, spoilerFree: false,
   showTime: true, showNumber: true, showTokens: true, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
   smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50,
   lineSpacing: 1.72, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
-  autoBackup: "off", keepBackups: 10, emptyTrashDays: 0,
+  autoBackup: "off", keepBackups: 10, emptyTrashDays: 0, homeOffered: true,
 };
 
 const KEY = "app.prefs";
@@ -94,13 +99,20 @@ export function cleanPrefs(saved: unknown): AppPrefs {
   out.lineSpacing = Math.min(2.4, Math.max(1.1, out.lineSpacing));
   out.keepBackups = Math.min(100, Math.max(1, Math.round(out.keepBackups)));
   out.emptyTrashDays = Math.max(0, Math.round(out.emptyTrashDays));
+  if (!OPEN_AT.includes(out.openAt)) out.openAt = DEFAULT_PREFS.openAt;
   return out;
 }
 
 export async function loadPrefs(s: Store): Promise<AppPrefs> {
   if (store === s) return prefs;
   store = s;
-  prefs = cleanPrefs(await s.getAppSetting(KEY).catch(() => undefined));
+  const saved = await s.getAppSetting(KEY).catch(() => undefined);
+  prefs = cleanPrefs(saved);
+  // D-086: settings saved before Home said "Last chat" because it was the only default; open on Home once, Settings can change it back
+  if (saved && typeof saved === "object" && !("homeOffered" in saved) && !automated) {
+    if (prefs.openAt === "last") prefs = { ...prefs, openAt: "home" };
+    await s.setAppSetting(KEY, prefs).catch(() => {});
+  }
   apply(prefs);
   listeners.forEach((f) => f());
   return prefs;

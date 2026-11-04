@@ -6,6 +6,15 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Home — CLAUDE, 2026-11-04 · ✅ draft H3 approved ("H3 is my favorite"); in the app (D-086)
+
+Drafts: canvas "Homunculus 2 — Home" (claude.ai artifact F6em97hJPej4Zr6Lzc9AtH), rows A–D, B2–B3, G1–G3, H1–H3, I1–I3 and the Icons board.
+- **What it is for:** the screen the app opens on: pick up the last chat, a character you played, a story, the Assistant or the Library in one click.
+- **Shape (H3, "index of plates"):** no sidebar; a top bar (mark, name, Back to … Esc, Search Ctrl+K, Settings); a grid of five plates: I Continue (wide, art behind, the bone card with cover, title, last line, Continue), II Played last, III Stories, IV Assistant (art behind, a box that hands the text to the Assistant), V Library.
+- **Leaving and coming back:** anything picked opens the app with its sidebar; Esc goes back; Ctrl+H, the sidebar's Home item and the name bring Home back.
+- **Art only in fixed places** (Daniel): plates I and IV; covers and portraits are the item's own picture or its initials.
+- **States:** no chats → plate I offers New Story / Chat with a Character; no characters played → a line pointing to Characters and the Card Browser; no stories → only the New Story tile. Narrow windows (< 1000 px) stack the plates and scroll.
+
 ## Card Browser — CLAUDE, 2026-11-02 · ✅ approved; in the app on `ui` (T-007 by CODEX, T-008 … T-012 by Claude, D-081)
 
 **What it is for:** find a character on ChubAI, JannyAI, Wyvern, Pygmalion or DataCat, read it, and have it in Characters in one

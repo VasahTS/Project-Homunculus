@@ -30,6 +30,8 @@ import { Picker, type PickKind } from "./ui/Picker.tsx";
 import { ChatList, type ChatRow } from "./ui/ChatList.tsx";
 import { CharacterEditor } from "./ui/CharacterEditor.tsx";
 import { lastLineOf, Sidebar, type LibraryArea, type Place } from "./ui/Sidebar.tsx";
+import { HomePage } from "./ui/HomePage.tsx";
+import { setDraftValue } from "./ui/ux.tsx";
 import { CharacterGallery, CharacterSheet, type VaultTab } from "./ui/Gallery.tsx";
 import { KitSheet, SaveNpcSheet, type NpcDraft, type SaveNpcChoice, NarratorEditor, NewStorySheet, NpcEditor, narratorCard, npcCard, StorySheet, storyCard, VaultPage, type FieldSetOption, type NewStoryChoice } from "./ui/Vault.tsx";
 import { changesIn, StoryPage, type NewChatChoice, type StoryChat } from "./ui/StoryPage.tsx";
@@ -166,6 +168,9 @@ export function App() {
   /** Branches per session (D-032): "⑂ 3" in the sidebar, "3 branches" on a story's chat card. */
   const [branchCounts, setBranchCounts] = useState<Record<string, number>>({});
   const [view, setViewNow] = useState<View>({ kind: "session" });
+  // Home (D-086): a full-window layer over the app; anything picked on it (or anywhere) closes it. It is up from the first
+  // paint so the app does not flash its last screen first; the "Open at" setting decides once the data is in.
+  const [homeOpen, setHomeOpen] = useState(() => !(typeof navigator !== "undefined" && navigator.webdriver));
   const [notice, setNotice] = useState<Notice | null>(null);
   // Keep failed agent drafts across editor navigation, only within this app instance. CODEX, D-051.
   const [agentDrafts] = useState(() => new Map<string, AgentDraft>());
@@ -173,7 +178,7 @@ export function App() {
   useEffect(() => { setAgentPreview(null); }, [view]);
   const [loreBack, setLoreBack] = useState<string | null>(null);
   // the lorebook editor saves by itself (D-028), also when it closes; its last save must see the view as it is now
-  const setView = (next: View | ((current: View) => View)) => typeof next === "function" ? setViewNow(next) : navigate(() => setViewNow(next));
+  const setView = (next: View | ((current: View) => View)) => { setHomeOpen(false); return typeof next === "function" ? setViewNow(next) : navigate(() => setViewNow(next)); };
   const viewRef = useRef(view);
   // the way back to the session lasts while you stay in Lorebooks
   useEffect(() => { if (view.kind !== "lorebooks") setLoreBack(null); }, [view.kind]);
@@ -183,7 +188,7 @@ export function App() {
   const connection = useConnections(svc?.store ?? null);
   // the Assistant mode (D-062): its own sidebar and chats; Play is everything else
   const [mode, setModeState] = useState<AppMode>(() => { try { return localStorage.getItem("homunculus.mode") === "assistant" ? "assistant" : "play"; } catch { return "play"; } });
-  const setMode = (m: AppMode) => navigate(() => { setModeState(m); try { localStorage.setItem("homunculus.mode", m); } catch { /* private window */ } });
+  const setMode = (m: AppMode) => { setHomeOpen(false); navigate(() => { setModeState(m); try { localStorage.setItem("homunculus.mode", m); } catch { /* private window */ } }); };
   const asst = useAssistant(svc);
   // a newer version on GitHub (D-037): a quiet bar on top + Settings → About
   const updates = useUpdates();
@@ -241,6 +246,26 @@ export function App() {
     };
     document.addEventListener("keydown", search);
     return () => document.removeEventListener("keydown", search);
+  }, []);
+
+  // Ctrl+H opens Home and, pressed on Home, goes back (D-086). The lorebook editor keeps Ctrl+H for Find and Replace:
+  // it marks the key as handled first, so it never reaches here. Esc on Home goes back too, unless a sheet is open over it.
+  const overHome = useRef(false);
+  const homeRef = useRef(homeOpen);
+  homeRef.current = homeOpen;
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "h") {
+        event.preventDefault();
+        setHomeOpen(!homeRef.current);
+      } else if (event.key === "Escape" && homeRef.current && !overHome.current) {
+        event.preventDefault();
+        setHomeOpen(false);
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
   }, []);
 
   /** Stories, narrators and NPCs (the Vault). */
@@ -307,6 +332,7 @@ export function App() {
       setSvc(s);
       setActiveId(ss[0]?.id ?? null);
       // Settings → General: where the app opens
+      setHomeOpen(p.openAt === "home");
       if (p.openAt === "stories") setViewNow({ kind: "vault", tab: "stories", id: null });
       else if (p.openAt === "characters") setViewNow({ kind: "characters", id: null });
       else if (p.openAt === "card-browser") setViewNow({ kind: "card-browser" });
@@ -1616,6 +1642,7 @@ export function App() {
     const openChat = (x: Session) => go(() => { setActiveId(x.id); setView({ kind: "session" }); });
     const sections = COLLECTION_NAVIGATION.groups.flatMap((g) => g.items);
     return [
+      { id: "go:home", name: "Home", group: "Go to", keywords: "start index plates", onOpen: go(() => setHomeOpen(true)) },
       { id: "go:stories", name: "Stories", group: "Go to", onOpen: go(() => { setVaultQuery(""); setView({ kind: "vault", tab: "stories", id: null }); }) },
       { id: "go:characters", name: "Characters", group: "Go to", onOpen: go(() => setView({ kind: "characters", id: null })) },
       { id: "go:card-browser", name: "Card Browser", group: "Go to", keywords: "find download chub janny wyvern pygmalion web online", onOpen: go(() => setView({ kind: "card-browser" })) },
@@ -1636,6 +1663,45 @@ export function App() {
       ...agents.map((a) => ({ id: `agent:${a.id}`, name: a.name, group: "Agents", onOpen: go(() => openAgent(a.id)) })),
     ];
   };
+
+  overHome.current = paletteOpen || !!newStoryOpen || !!picker || !!savingNpc;
+  const overlays = (
+    <>
+      {savingNpc && (() => {
+        const chat = sessions.find((x) => x.id === savingNpc.sessionId);
+        const st = chat?.storyId ? stories.find((x) => x.id === chat.storyId) : undefined;
+        return <SaveNpcSheet draft={savingNpc.draft} fieldSets={fieldSets} story={st ? { id: st.id, name: st.name } : undefined} folders={folderRows("npc")}
+          onSave={(c) => void saveNpcToVault(savingNpc.sessionId, c)} onClose={() => setSavingNpc(null)} />;
+      })()}
+      {paletteOpen && <CommandPalette searchMessages={searchMessages} items={paletteItems()} groupOrder={PALETTE_GROUPS} onClose={() => setPaletteOpen(false)} />}
+      {picker && <Picker title={picker.title} kinds={picker.kinds} {...(picker.initial ? { initial: picker.initial } : {})} onClose={() => setPicker(null)} />}
+      {newStoryOpen && <NewStorySheet characters={characters} avatars={avatars} lorebooks={lorebooks} setup={setupProps} initialCardId={newStoryOpen.cardId}
+        onCreate={(c) => void createStory(c)} onClose={() => setNewStoryOpen(false)} />}
+    </>
+  );
+  // Home (D-086): the whole window, no sidebar; the app under it stays as it was, so Esc goes straight back.
+  const backSessionOnHome = activeId ? sessions.find((x) => x.id === activeId) : undefined;
+  if (homeOpen) return (
+    <div className="app home-mode" data-region="app">
+      <HomePage sessions={sessions} stories={stories} characters={characters} avatars={avatars} lastLines={lastLines} lastTimes={lastTimes} messageCounts={messageCounts}
+        counts={{ lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, personas: personas.length }}
+        backTo={mode === "assistant" ? "the Assistant" : view.kind === "session" ? (backSessionOnHome?.title ?? null)
+          : ({ settings: "Settings", characters: "Characters", "card-browser": "the Card Browser", story: "the Story", vault: "the Vault" } as Partial<Record<View["kind"], string>>)[view.kind] ?? (libraryCategory ? "the Library" : "where you were")}
+        onBack={() => setHomeOpen(false)}
+        onOpenChat={(id) => { setActiveId(id); setMode("play"); setView({ kind: "session" }); }}
+        onOpenStory={(id) => { setMode("play"); setView({ kind: "story", id }); }}
+        onNewStory={() => setNewStoryOpen({ cardId: null })}
+        onStories={() => { setMode("play"); setVaultQuery(""); setView({ kind: "vault", tab: "stories", id: null }); }}
+        onCharacters={() => { setMode("play"); setView({ kind: "characters", id: null }); }}
+        onLibrary={(area) => { setMode("play"); openLibrary(area); }}
+        onCardBrowser={() => { setMode("play"); setView({ kind: "card-browser" }); }}
+        onImportFiles={(files) => { setMode("play"); void importFiles(files); }}
+        onAsk={(text) => { asst.setActiveId(null); if (text) setDraftValue("assistant:new", { text, atts: [] }); setMode("assistant"); }}
+        onSearch={() => setPaletteOpen(true)}
+        onSettings={() => { setMode("play"); setView({ kind: "settings", tab: "general" }); }} />
+      {overlays}
+    </div>
+  );
 
   return (
     <div className="app" data-region="app">
@@ -1678,6 +1744,7 @@ export function App() {
           onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "general" })}
+          onOpenHome={() => setHomeOpen(true)}
         />
       )}
       <div className="content" ref={contentRef}>
@@ -1698,16 +1765,7 @@ export function App() {
           onOpen={openLibrary}>{content}</LibraryWorkspace> : content}
         </CollectionOrderContext.Provider>
       </div>
-      {savingNpc && (() => {
-        const chat = sessions.find((x) => x.id === savingNpc.sessionId);
-        const st = chat?.storyId ? stories.find((x) => x.id === chat.storyId) : undefined;
-        return <SaveNpcSheet draft={savingNpc.draft} fieldSets={fieldSets} story={st ? { id: st.id, name: st.name } : undefined} folders={folderRows("npc")}
-          onSave={(c) => void saveNpcToVault(savingNpc.sessionId, c)} onClose={() => setSavingNpc(null)} />;
-      })()}
-      {paletteOpen && <CommandPalette searchMessages={searchMessages} items={paletteItems()} groupOrder={PALETTE_GROUPS} onClose={() => setPaletteOpen(false)} />}
-      {picker && <Picker title={picker.title} kinds={picker.kinds} {...(picker.initial ? { initial: picker.initial } : {})} onClose={() => setPicker(null)} />}
-      {newStoryOpen && <NewStorySheet characters={characters} avatars={avatars} lorebooks={lorebooks} setup={setupProps} initialCardId={newStoryOpen.cardId}
-        onCreate={(c) => void createStory(c)} onClose={() => setNewStoryOpen(false)} />}
+      {overlays}
     </div>
   );
 }

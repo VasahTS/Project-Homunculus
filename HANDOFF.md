@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Home (H3), Observatory look, Alchemical icons, dialogue color fix (2026-11-04) — CLAUDE — D-086
+
+Daniel picked draft H3 on the canvas "Homunculus 2 — Home" and asked for it with the Alchemical icons, Home that disappears when you pick something and comes back with Ctrl+H, and why dialogue colors don't follow the theme.
+- **Home** opens with the app (Settings → General → Open at → Home, the new default; old "Last chat" settings switch once). No sidebar; picking anything opens the app as usual. Back to Home: **Ctrl+H**, **Home** at the top of the sidebar, a click on **Homunculus**, Ctrl+K → Home. **Esc** on Home goes back to where you were.
+- **Observatory look** (Settings → Appearance): the H3 colors and faces, Alchemical icons. **Icons** (Lines / Alchemical) is also a tweak on every look.
+- **Dialogue color:** styled messages (render agents) now take the look's dialogue color; before, any AI element with a class blocked it.
+- **To try on Windows:** Settings → Appearance → Observatory; Ctrl+H; Esc; a chat with an HTML/render-agent reply, switch looks and watch the dialogue color.
+- Checks: typecheck; 699 unit; new click tests `e2e/home.e2e.ts` (3) and `e2e/dialogue-color.e2e.ts` pass. In Claude's cloud machine (Node 22) some click tests fail **with and without** these changes (compared file by file: message-html, message-format, settings-v2 time row, ui-review-fixes Quick Connection, ux-review unsent message, agent-reliability, assistant-background): please run `npm run test:all` on the PC once.
+
 ## Memory redesign waiting for Daniel (2026-11-04) — CLAUDE
 
 Daniel found the Memory tab (D-083/D-084) buggy and confusing; CODEX's fixes (`118051b`) are now in `dev` (fast-forward, 699 unit tests pass). Next step, **not started**: the redesign "Chapters + Recall, no layers" — plan, draft link and the 3 open questions in `docs/MEMORY-PLAN.md` (top). Ask Daniel those questions first; no code before he approves the draft.
