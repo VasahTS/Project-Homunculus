@@ -3,11 +3,12 @@
 // Like the original app's panel: search, trackers and agents together, the switch on the left, the kind and the model as
 // labels, a status line that follows the run live (agent.started / finished / failed), ▶ to run and ✎ to edit. A run's
 // details show why it answered that: the model's reasoning, what it read, the raw answer, the result, and Compare.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AgentConfig, AgentRun, Session, SetupLayer } from "@homunculus/schemas";
 import type { DryRun } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
+import type { LiveTurn } from "../turns.ts";
 import { kindOf, whenOf } from "../agents.ts";
 import { layerHasTracker, type Tracker } from "../trackers.ts";
 import { useFloatingMenu } from "./FloatingMenu.ts";
@@ -16,23 +17,6 @@ import { Modal } from "./Vault.tsx";
 import { AgentView, type MessageAgentResults } from "./AgentResults.tsx";
 
 interface Item { id: string; name: string; kind: string; tracker: boolean; manual: boolean; agent?: AgentConfig }
-type Live = Record<string, { since: number } | undefined>;
-
-/** Agents that are running right now on this session's messages, from the core's events. */
-function useLiveRuns(svc: AppServices, onDone: () => void): Live {
-  const [live, setLive] = useState<Live>({});
-  const done = useRef(onDone); done.current = onDone;
-  useEffect(() => {
-    const ev = svc.core.events;
-    const offs = [
-      ev.on("agent.started", (e) => setLive((l) => ({ ...l, [e.agentId]: { since: Date.now() } })), "agents-panel"),
-      ev.on("agent.finished", (e) => { setLive((l) => ({ ...l, [e.agentId]: undefined })); done.current(); }, "agents-panel"),
-      ev.on("agent.failed", (e) => { setLive((l) => ({ ...l, [e.agentId]: undefined })); done.current(); }, "agents-panel"),
-    ];
-    return () => offs.forEach((off) => off());
-  }, [svc]);
-  return live;
-}
 
 function useTick(active: boolean) {
   const [, setT] = useState(0);
@@ -51,28 +35,28 @@ const overStory = (fallback: number) => {
 const secs = (ms: number | undefined) => (ms === undefined ? "" : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`);
 const shortModel = (m: string | undefined) => (m ? m.replace(/^.*\//, "").replace(/:thinking$/, "") : "");
 
-export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest, latestBefore, latestId, busy, connection, onToggle, onRun, onOpen, onEditTracker, onChanged, onPick, onStyle }: {
+export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest, latestBefore, latestId, turn, connection, onToggle, onRun, onOpen, onEditTracker, onPick, onStyle }: {
   svc: AppServices; agents: AgentConfig[]; trackers: Tracker[]; session: Session; storySetup?: SetupLayer | undefined;
   /** What agents did on the latest reply (and its id). */
   latest: MessageAgentResults | undefined; latestId: string | null;
   /** What "before the reply" agents did (they record on the message the reply answers). */
   latestBefore?: MessageAgentResults | undefined;
-  busy: boolean; connection: ConnectionState;
+  turn?: LiveTurn; connection: ConnectionState;
   /** Switches an agent or a tracker on/off for this chat. */
   onToggle: (id: string, on: boolean, tracker: boolean) => void;
   /** Runs an agent (or tracker) by hand on the latest message, with an optional direction for that run (D-057). */
   onRun: (id: string, direction?: string) => Promise<void>;
   onOpen: (id: string | null) => void;
   onEditTracker: (id: string) => void;
-  /** Something finished: reload what is shown in the chat. */
-  onChanged: () => void;
   /** Sends a choice (choices agents that show "only in the panel"); undefined while a reply is being written. */
   onPick?: ((text: string) => void) | undefined;
   /** Picks an agent's style for this chat (null = the story's / the agent's default). */
   onStyle?: (agentId: string, styleId: string | null) => void;
 }) {
-  const live = useLiveRuns(svc, onChanged);
-  const anyLive = Object.values(live).some(Boolean);
+  const live = turn?.activeAgents;
+  const busy = !!turn && turn.phase !== "done";
+  const replyBusy = busy && turn.phase !== "agents";
+  const anyLive = !!live?.size;
   useTick(anyLive);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
@@ -100,11 +84,11 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
   };
 
   const status = (i: Item) => {
-    const l = live[i.id];
-    if (l) return <span className="agp-status run"><i />Running… {Math.max(0, Math.round((Date.now() - l.since) / 1000))} s</span>;
+    const since = live?.get(i.id);
+    if (since !== undefined) return <span className="agp-status run"><i />Running… {Math.max(0, Math.round((Date.now() - since) / 1000))} s</span>;
     if (!isOn(i.id)) return <span className="agp-status"><i />Off in this chat</span>;
     const r = runOf(i.id);
-    if (!r) return <span className="agp-status"><i />{busy && !i.manual && (i.tracker || whenOf(i.agent!).when === "after") ? "Waiting for the reply" : i.manual ? "Runs when you ask" : "Not run on the last reply"}</span>;
+    if (!r) return <span className="agp-status"><i />{replyBusy && !i.manual && (i.tracker || whenOf(i.agent!).when === "after") ? "Waiting for the reply" : i.manual ? "Runs when you ask" : "Not run on the last reply"}</span>;
     if (r.status === "failed") return <span className="agp-status bad" title={r.error}><i />Failed: {r.error}</span>;
     if (r.status === "cancelled") return <span className="agp-status"><i />Stopped</span>;
     const what = Array.isArray(r.output) ? ` · ${r.output.length} options` : "";
@@ -133,7 +117,7 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
           {status(i)}
         </button>
         <span className="agp-acts">
-          {here && <IconButton label={`Run ${i.name}`} className="agp-ib" disabled={busy || !!live[i.id] || !latestId} onClick={() => void run(i.id, isOpen ? direction : "")}><Icon name="play" size={13} /></IconButton>}
+          {here && <IconButton label={`Run ${i.name}`} className="agp-ib" disabled={busy || !latestId} onClick={() => void run(i.id, isOpen ? direction : "")}><Icon name="play" size={13} /></IconButton>}
           <IconButton label={`Edit ${i.name}`} className="agp-ib" onClick={() => { m.setOpen(false); i.tracker ? onEditTracker(i.id) : onOpen(i.id); }}><Icon name="pencil" size={13} /></IconButton>
         </span>
         {isOpen && (
@@ -155,7 +139,7 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
             {r?.status === "failed" && <p className="error-text">{r.error}</p>}
             {here && !i.tracker && i.agent?.runMode !== "text" && (
               <label className="agp-direction"><span className="sr-only">Direction for the next run of {i.name}</span>
-                <input placeholder="Direction for the next run (optional) · Enter runs" value={direction} disabled={busy || !!live[i.id] || !latestId}
+                <input placeholder="Direction for the next run (optional) · Enter runs" value={direction} disabled={busy || !latestId}
                   onChange={(e) => setDirection(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void run(i.id, direction); } }} />
               </label>
             )}

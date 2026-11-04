@@ -60,7 +60,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
     if (!t || t.phase === "done") return null;
     // ■ stops the reply without opening the chat (inside the row's button, so a span that acts as one)
     const stop = (e: { stopPropagation: () => void; preventDefault: () => void }) => { e.stopPropagation(); e.preventDefault(); turns.stop(id); };
-    return <span className="side-line side-writing" data-testid="side-writing"><i aria-hidden />{t.phase === "writing" ? "writing…" : "updating the scene…"}
+    return <span className="side-line side-writing" data-testid="side-writing"><i aria-hidden />{t.phase === "writing" ? "writing…" : t.phase === "agents" ? "Running…" : "updating the scene…"}
       {t.phase === "writing" && <span role="button" tabIndex={0} className="side-stop" aria-label="Cancel this reply" title="Stop this reply" data-testid="side-stop"
         onClick={stop} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") stop(e); }}>■</span>}</span>;
   };

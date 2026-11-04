@@ -1,5 +1,16 @@
 # CODEX tasks
 
+### Markdown export from the open chat · Status: Done (publication authorized) — CODEX
+
+Daniel requested a Markdown download to test chat outputs. **⋯ → Export as Markdown** saves the selected branch using the existing exporter.
+Validated the downloaded file in Chromium. See `CODEX-LOG.md`. Signed: **CODEX**.
+
+### Chat agents across navigation · Status: Done (publication authorized) — CODEX
+
+Daniel reported that agents appeared to stop when leaving a chat and requested the `gpt` branch.
+Manual and automatic progress follows the originating chat. Manual runs save against the original message and retain Stop after navigation.
+Reapplied and validated in the local checkout after fast-forwarding to `origin/gpt` at `b6c9fd4`. See `CODEX-LOG.md`. Signed: **CODEX**.
+
 ### Consolidated gpt publication · Status: Done (publication authorized) — CODEX
 
 Direct request from Daniel: review all local updates and push them to GitHub on gpt.

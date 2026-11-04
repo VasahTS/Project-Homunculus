@@ -14,6 +14,7 @@ import { offlineAiModule } from "./offline-ai.ts";
 import { installStarterTrackers } from "./trackers.ts";
 import { installStarterAgents } from "./agents.ts";
 import { installConnectionProfiles } from "./connection.ts";
+import { turns } from "./turns.ts";
 
 export interface AppServices {
   core: HomunculusCore;
@@ -38,6 +39,7 @@ async function boot(): Promise<AppServices> {
   const core = new HomunculusCore({ tree: store, stateRepository: store });
   await core.loadModules([createOpenAICompatibleModule(), offlineAiModule, createSillyTavernCardsModule(), createSillyTavernPersonasModule(), createSillyTavernPresetsModule(), createSillyTavernLorebooksModule()]);
   const chat = new ChatService(core, store);
+  turns.watchAgentRuns(core);
   await installStarterTrackers(store); // once; editable data, not code (D-017)
   await installStarterAgents(store); // once; one small example per kind, editable data (D-047)
   await installConnectionProfiles(store); // once: the old single connection becomes a saved profile (D-020)

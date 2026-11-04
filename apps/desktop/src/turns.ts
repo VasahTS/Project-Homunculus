@@ -4,6 +4,7 @@
 // and runs the trackers whether the chat is on screen or not, and several chats can write at the same time (like
 // Marinara). The chat screen only watches the turn of its own chat (`useTurn`) and shows it.
 import { useSyncExternalStore } from "react";
+import type { ConnectionConfig, CoreEvents, HomunculusCore } from "@homunculus/core";
 import type { Message } from "@homunculus/schemas";
 import type { AppServices } from "./core-instance.ts";
 import { getPrefs } from "./prefs.ts";
@@ -24,8 +25,11 @@ export interface LiveTurn {
   id: number;
   /** The branch the turn writes on (its end follows the new messages). */
   branchId: string | null;
-  /** writing = the reply is arriving; trackers = the reply is saved, trackers still work; done = finished (kept until seen). */
-  phase: "writing" | "trackers" | "done";
+  /** A reply, its after-agents, a manual run, or a finished turn kept until seen. */
+  phase: "writing" | "trackers" | "agents" | "done";
+  manual?: { messageId: string; agentId: string } | undefined;
+  activeAgents: ReadonlyMap<string, number>;
+  agentSeq: number;
   /** Where the reply hangs, and the words you sent (shown until the reply is saved). */
   parentId: string | null;
   userText?: string | undefined;
@@ -53,14 +57,36 @@ class TurnManager {
   subscribe = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
   all = () => this.snapshot;
 
-  private emit() {
-    this.snapshot = new Map([...this.turns].map(([k, v]) => [k, publicView(v)]));
+  private emit(sessionId: string) {
+    const snapshot = new Map(this.snapshot);
+    const entry = this.turns.get(sessionId);
+    if (entry) snapshot.set(sessionId, publicView(entry));
+    else snapshot.delete(sessionId);
+    this.snapshot = snapshot;
     for (const fn of this.listeners) fn();
   }
   private patch(sessionId: string, e: Entry, change: Partial<Entry>) {
     if (this.turns.get(sessionId) !== e) return; // an older turn of this chat (it was cleared or replaced)
     Object.assign(e, change);
-    this.emit();
+    this.emit(sessionId);
+  }
+
+  /** CODEX: follow both automatic and manual agents for the lifetime of the app. */
+  watchAgentRuns(core: HomunculusCore) {
+    const update = (event: CoreEvents["agent.started"], started: boolean, reason?: string) => {
+      const entry = this.turns.get(event.sessionId);
+      if (!entry || entry.phase === "done") return;
+      const activeAgents = new Map(entry.activeAgents);
+      if (started) activeAgents.set(event.agentId, Date.now());
+      else activeAgents.delete(event.agentId);
+      this.patch(event.sessionId, entry, {
+        activeAgents, agentSeq: entry.agentSeq + (started ? 0 : 1),
+        error: entry.manual && reason && !entry.ctrl.signal.aborted ? reason : entry.error,
+      });
+    };
+    core.events.on("agent.started", (e) => update(e, true), "turns");
+    core.events.on("agent.finished", (e) => update(e, false), "turns");
+    core.events.on("agent.failed", (e) => update(e, false, e.reason), "turns");
   }
 
   /** Is a reply being written or are trackers working in this chat? */
@@ -81,9 +107,10 @@ class TurnManager {
     const e: Entry = {
       sessionId: opts.sessionId, id: nextId++, phase: "writing", parentId: opts.parentId, userText: opts.userText, text: "", reasoning: "",
       head: opts.before, headSeq: 0, ctrl: new AbortController(), branchId: opts.branchId, onActivity: opts.onActivity,
+      activeAgents: new Map(), agentSeq: 0,
     };
     this.turns.set(opts.sessionId, e);
-    this.emit();
+    this.emit(opts.sessionId);
     const startedAt = Date.now();
     const p = getPrefs();
     const stream: StreamTo = {
@@ -115,19 +142,49 @@ class TurnManager {
     })();
   }
 
+  /** A manual run edits a saved message or its state. It does not advance a branch. CODEX. */
+  async runAgents(svc: AppServices, opts: {
+    sessionId: string; messageId: string; agentIds: string[]; direction?: string;
+    connection: ConnectionConfig; connections: Record<string, ConnectionConfig>; onActivity: () => void;
+  }): Promise<string | undefined> {
+    const { sessionId, messageId, agentIds, direction, connection, connections } = opts;
+    const firstAgentId = agentIds[0];
+    if (!firstAgentId || this.running(sessionId)) return;
+    const ctrl = new AbortController();
+    const entry: Entry = {
+      sessionId, id: nextId++, phase: "agents", manual: { messageId, agentId: firstAgentId },
+      activeAgents: new Map(), agentSeq: 0, parentId: null, branchId: null, head: null, headSeq: 0,
+      text: "", reasoning: "", ctrl, onActivity: opts.onActivity,
+    };
+    this.turns.set(sessionId, entry);
+    this.emit(sessionId);
+    for (const agentId of agentIds) {
+      if (ctrl.signal.aborted) break;
+      if (entry.manual?.agentId !== agentId) this.patch(sessionId, entry, { manual: { messageId, agentId } });
+      try {
+        await svc.chat.turns.runManual(sessionId, agentId, messageId, connection, ctrl.signal, connections, { direction });
+      } catch (err) {
+        if (!ctrl.signal.aborted) entry.error = err instanceof Error ? err.message : String(err);
+      }
+    }
+    this.patch(sessionId, entry, { phase: "done", activeAgents: new Map() });
+    entry.onActivity();
+    return entry.error;
+  }
+
   /** Stop: the reply keeps what arrived so far (saved as incomplete by the core). */
   stop(sessionId: string) { this.turns.get(sessionId)?.ctrl.abort(); }
 
   /** The chat on screen saw the finished turn: forget it. */
   clear(sessionId: string, turn: LiveTurn) {
     const t = this.turns.get(sessionId);
-    if (t && t.phase === "done" && t.id === turn.id) { this.turns.delete(sessionId); this.emit(); }
+    if (t && t.phase === "done" && t.id === turn.id) { this.turns.delete(sessionId); this.emit(sessionId); }
   }
 }
 
 function publicView(e: Entry): LiveTurn {
   return { sessionId: e.sessionId, id: e.id, branchId: e.branchId, phase: e.phase, parentId: e.parentId, userText: e.userText, text: e.text, reasoning: e.reasoning,
-    head: e.head, headSeq: e.headSeq, error: e.error };
+    head: e.head, headSeq: e.headSeq, error: e.error, manual: e.manual, activeAgents: e.activeAgents, agentSeq: e.agentSeq };
 }
 
 /** The branch the turn started on now ends at `head` (D-032 v2: a branch is a named end). */
@@ -159,5 +216,5 @@ export function useTurns(): ReadonlyMap<string, LiveTurn> {
 
 /** One chat's turn, or undefined when nothing runs there. */
 export function useTurn(sessionId: string): LiveTurn | undefined {
-  return useTurns().get(sessionId);
+  return useSyncExternalStore(turns.subscribe, () => turns.all().get(sessionId));
 }

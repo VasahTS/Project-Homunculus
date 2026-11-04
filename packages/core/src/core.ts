@@ -26,11 +26,14 @@ import {
 } from "./extensions.ts";
 import { MemoryStateRepository, WorldState, type MessageTree, type StateRepository } from "./state.ts";
 
+// CODEX: the desktop can attribute live agent work to its originating chat.
+type AgentRunEvent = { sessionId: string; agentId: string; messageId: string; trigger: string };
+
 export interface CoreEvents extends Record<string, unknown> {
   "module.loaded": { moduleId: string };
-  "agent.started": { agentId: string; messageId: string; trigger: string };
-  "agent.finished": { agentId: string; messageId: string; trigger: string };
-  "agent.failed": { agentId: string; messageId: string; trigger: string; reason: string };
+  "agent.started": AgentRunEvent;
+  "agent.finished": AgentRunEvent;
+  "agent.failed": AgentRunEvent & { reason: string };
   /** Results the UI may show: choices, check results, proposals, speaker picks, notes. */
   "agent.output": { agentId: string; messageId: string; kind: string; output: unknown };
   "state.changed": { sessionId: string; messageId: string; namespaces: string[] };

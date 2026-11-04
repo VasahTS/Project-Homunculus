@@ -32,13 +32,11 @@ interface Receipt {
 export const approxTokens = (text: string) => Math.ceil(text.length / 4);
 export const fmtTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
-export function ReplyPane({ providers, svc, session, storySetup, messageId, trackers, connection, refreshKey, onChanged }: {
-  providers: ProviderDefinition[]; svc: AppServices; session: Session; storySetup?: SetupLayer | undefined; messageId: string | null; trackers: Tracker[]; connection: ConnectionState; refreshKey: number; onChanged: () => void;
+export function ReplyPane({ providers, svc, session, storySetup, messageId, trackers, connection, refreshKey, busy, running, onRun }: {
+  providers: ProviderDefinition[]; svc: AppServices; session: Session; storySetup?: SetupLayer | undefined; messageId: string | null; trackers: Tracker[]; connection: ConnectionState; refreshKey: number;
+  busy: boolean; running: string | null; onRun: (agentIds: string[], messageId: string) => void;
 }) {
   const [r, setR] = useState<Receipt | null>(null);
-  const [running, setRunning] = useState<string | null>(null);
-  const [runError, setRunError] = useState("");
-  const [tick, setTick] = useState(0);
   const [promptOpen, setPromptOpen] = useState(false);
   const paneRef = useRef<HTMLDivElement>(null);
   useEnter(paneRef, `${messageId}:${r ? "y" : "n"}`, ":scope > section", { y: 8, stagger: 40 });
@@ -70,7 +68,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
       if (!cancelled) setR({ message, record, runs, before, after, cast, withUser, who, presetName });
     })();
     return () => { cancelled = true; };
-  }, [svc, session, messageId, refreshKey, tick]);
+  }, [svc, session, messageId, refreshKey]);
 
   if (!messageId || !r) return <div className="pane" data-testid="reply-pane"><p className="pane-note">Pick a reply's details in the story to see what went into it.</p></div>;
   if (!r.record) return <div className="pane" data-testid="reply-pane"><p className="pane-note">This message wasn’t written by the AI in this app (a greeting, your own message or an imported one), so there is nothing to show.</p></div>;
@@ -89,17 +87,6 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
   const params = rec.params as { temperature?: number; topP?: number; maxTokens?: number };
   const changes = groupChanges(diffState(r.before, r.after, trackers, session, r.cast, storySetup, r.withUser));
   const changeCount = changes.reduce((n, t) => n + t.count, 0);
-
-  const runAgain = async (agentId: string) => {
-    setRunning(agentId);
-    setRunError("");
-    // failed runs record their reason (shown below); anything that fails before the run starts is shown here (D-057)
-    try { await svc.chat.turns.runManual(session.id, agentId, r.message.id, connection.forRequest().connection, undefined, connection.forRequest().connections); }
-    catch (e) { setRunError(e instanceof Error ? e.message : String(e)); }
-    setRunning(null);
-    setTick((x) => x + 1);
-    onChanged();
-  };
 
   return (
     <div className="pane" data-testid="reply-pane" ref={paneRef}>
@@ -149,12 +136,11 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
           <Row key={run.id} label={<><span className={`status-dot ${run.status}`} />{agentName(run.agentId, trackers)}</>}>
             <span className="run-meta">
               <span className="tabular">{(run.durationMs / 1000).toFixed(1)} s{run.tokensIn || run.tokensOut ? `, ${fmtTokens((run.tokensIn ?? 0) + (run.tokensOut ?? 0))} tok` : ""}</span>
-              <Button variant="plain" small disabled={running !== null} onClick={() => void runAgain(run.agentId)}>{running === run.agentId ? "Running…" : "Run Again"}</Button>
+              <Button variant="plain" small disabled={busy} onClick={() => onRun([run.agentId], r.message.id)}>{running === run.agentId ? "Running…" : "Run Again"}</Button>
             </span>
           </Row>
         ))}
         {r.runs.filter((x) => x.error).map((x) => <Row key={`e-${x.id}`} wide><span className="run-error">{agentName(x.agentId, trackers)}: {x.error}</span></Row>)}
-        {runError && <Row wide><span className="run-error" role="alert">{runError}</span></Row>}
       </Group>
 
       <Group title="What was sent" aside={<span data-testid="sent-total">{rec.tokensIn ? `${total.toLocaleString()} tokens` : `about ${fmtTokens(total)} tokens`}</span>}

@@ -1,5 +1,24 @@
 # HANDOFF — Homunculus 2
 
+## Chat fixes promotion (2026-11-04) — CODEX
+
+Daniel requested publishing the Markdown export and the agent navigation fix on `gpt` and integrating the development branches `dev` and `ui`.
+The published changes cover **⋯ → Export as Markdown** and agent progress, results, and Stop after leaving a chat.
+Pre-push checks passed with synthetic data. Typecheck, Vite build, 677 unit tests (3 skipped), and 27 Chromium tests. Signed: **CODEX**.
+
+## Markdown export from the open chat (2026-11-04) — CODEX
+
+Daniel requested a simple Markdown export for testing outputs. Open a Play chat and choose **⋯ → Export as Markdown**.
+The action saves the selected branch's transcript with the existing exporter. The download regression covers an older branch while a newer one exists.
+Initial checks passed with synthetic data. Typecheck, Vite build, 677 unit tests (3 skipped), and 25 Chromium tests. Signed: **CODEX**.
+
+## Chat agents across navigation (2026-11-04) — CODEX
+
+Manual agents and tracker batches share the chat turn manager, retain their message target, and can be stopped after returning.
+Live progress follows the originating chat. A rewrite started from Reply updates the same message after navigation.
+Three regressions failed before the fix. The local `gpt` checkout now matches `origin/gpt` at `b6c9fd4`, with the fix reapplied and the pre-sync work backed up in stash `1420c287`.
+Initial checks passed with the offline provider. Typecheck, Vite build, 677 unit tests (3 skipped), and 37 Chromium tests. Signed: **CODEX**.
+
 ## Settings v2, reply sounds, card reading view (2026-11-03) — CLAUDE — D-082
 
 Daniel approved the canvas drafts ("Homunculus 2 — Settings & card reading") and asked to implement everything, with his own "pop" sound.

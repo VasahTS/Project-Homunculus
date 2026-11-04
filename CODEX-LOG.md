@@ -1,5 +1,24 @@
 # Work log — CODEX
 
+## Chat fixes promotion (2026-11-04) — CODEX
+
+Prepared the Markdown export and agent navigation fix for `gpt`, `dev`, and `ui` at Daniel's request.
+Pre-push typecheck, Vite build, 677 unit tests (3 skipped), and 27 Chromium tests passed with synthetic data.
+The local npm metadata changes in `package-lock.json` are outside this commit. Signed: **CODEX**.
+
+## Markdown export from the open chat (2026-11-04) — CODEX
+
+Added **Export as Markdown** to the Play chat menu. Reused the existing save flow and passed the branch end shown on screen.
+The download test verifies the filename and saved transcript when the selected branch is older than another branch.
+Initial checks passed with synthetic data. Typecheck, Vite build, 677 unit tests (3 skipped), and 25 Chromium tests. Signed: **CODEX**.
+
+## Chat agents across navigation (2026-11-04) — CODEX
+
+Tracked automatic and manual agent progress by chat. Manual work from Agents, Scene, and Reply survives navigation and shares the chat's Stop control.
+Kept manual rewrites on the original message without advancing the branch. Four browser cases cover completion, progress isolation, cancellation and rewriting.
+Fast-forwarded local `gpt` to `origin/gpt` at `b6c9fd4` and reapplied the fix. Pre-sync work is backed up in stash `1420c287`.
+Initial checks passed with the offline provider. Typecheck, Vite build, 677 unit tests (3 skipped), and 37 Chromium tests. Signed: **CODEX**.
+
 ## Consolidated gpt publication (2026-11-03) — CODEX
 
 Daniel explicitly authorized reviewing and pushing all local gpt updates; the earlier local-only restriction is superseded.

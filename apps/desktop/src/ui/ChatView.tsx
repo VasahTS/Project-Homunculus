@@ -45,7 +45,7 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex }: {
   /** Open the chat at this message (a chat search result, round 3): its branch, scrolled to it. */
   focusMessageId?: string | null;
   svc: AppServices;
@@ -89,6 +89,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   trackers: Tracker[];
   onActivity: () => void;
   onRename: (title: string) => void;
+  onExportMarkdown: (endId: string) => void;
   /** Several trackers at once (D-079). */
   onToggleTrackers?: (ids: string[], on: boolean) => void;
   onDelete: () => void;
@@ -135,10 +136,13 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const [title, setTitle] = useState(session.title);
   const endRef = useRef<HTMLDivElement>(null);
   const loadSeq = useRef(0);
+  const requestedHead = useRef<string | null>(null);
   // ---- this chat's turn (turns.ts): it runs outside this screen, so it survives leaving the chat
   const turn = useTurn(session.id);
   /** A turn is running: the reply may already be on screen while trackers still work. */
   const busy = !!turn && turn.phase !== "done";
+  const manual = turn?.phase === "agents" ? turn.manual : undefined;
+  const canRefreshManual = !!turn?.manual && headId !== undefined;
   /** The last state of the reply while it was being written: kept on screen until the list with the saved reply shows. */
   const lastWriting = useRef<LiveTurn | null>(null);
   if (turn?.phase === "writing") lastWriting.current = turn;
@@ -181,6 +185,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
    * so nothing blinks or disappears in between (bug of 27/10: the sent message vanished).
    */
   async function showBranch(head: string | null, afterLoad?: () => void) {
+    requestedHead.current = head;
     const seq = ++loadSeq.current;
     const p = head ? await svc.store.pathTo(head) : [];
     const info: Record<string, SiblingInfo> = {};
@@ -286,6 +291,11 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       branchId: currentRef.current, onActivity, task });
   }
 
+  // Agent results can arrive one at a time while a turn is still working. CODEX.
+  useEffect(() => {
+    if (turn?.agentSeq) setSceneKey((k) => k + 1);
+  }, [turn?.id, turn?.agentSeq]);
+
   // the turn's end moved (reply saved, or the turn ended): show it — the "writing…" bubble goes away together with the
   // new list appearing. Only when you are still on the branch it writes on (else just refresh the branch list).
   useEffect(() => {
@@ -296,12 +306,17 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       setSceneKey((k) => k + 1);
       if (turn.phase === "done") { if (turn.error) setError(turn.error); turns.clear(session.id, turn); }
     };
+    if (turn.manual) {
+      // Reload whichever branch this view is opening or showing, including any rewritten text. CODEX.
+      if (turn.phase === "done" && canRefreshManual) void showBranch(requestedHead.current).then(finish);
+      return;
+    }
     if (!behind) { if (turn.phase === "done") finish(); return; }
     if (turn.branchId && currentRef.current && turn.branchId !== currentRef.current) { setBranchTick((t) => t + 1); finish(); return; }
     scrollTarget.current = null;
     void showBranch(turn.head, finish);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turn?.id, turn?.headSeq, turn?.phase]);
+  }, [turn?.id, turn?.headSeq, turn?.phase, canRefreshManual]);
 
   /** A choice button: sends its words as your message, like typing them (D-047). */
   const sendText = (text: string) => {
@@ -534,19 +549,13 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     await showBranch(headId ?? null);
     setSceneKey((k) => k + 1);
   };
-  /** Runs an agent by hand on a message (D-057: with an optional direction), and says why when it failed. */
+  const runAgentsOn = (agentIds: string[], messageId: string, direction = "") => {
+    setError("");
+    return turns.runAgents(svc, { sessionId: session.id, messageId, agentIds, direction, onActivity, ...connection.forRequest() });
+  };
   const runAgentOn = async (agentId: string, messageId: string, direction = "") => {
-    const r = connection.forRequest();
-    try {
-      const out = await svc.chat.turns.runManual(session.id, agentId, messageId, r.connection, undefined, r.connections, { direction });
-      if (!out) {
-        const run = (await svc.store.listAgentRuns(messageId)).filter((x) => x.agentId === agentId).sort((a, b) => a.startedAt - b.startedAt).at(-1);
-        if (run?.status === "failed") throw new Error(run.error ?? "It failed.");
-      }
-    } finally {
-      await showBranch(headId ?? null);
-      setSceneKey((k) => k + 1);
-    }
+    const error = await runAgentsOn([agentId], messageId, direction);
+    if (error) throw new Error(error);
   };
   const runAgentByHand = async (agentId: string, direction = "") => {
     const target = lastAi ?? last;
@@ -597,15 +606,16 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           trailing={<>
             {onToggleAgent && onOpenAgent && (
               <AgentsPanel svc={svc} agents={agents} trackers={trackers} session={session} storySetup={storySetup}
-                latest={lastAi ? agentResults.get(lastAi.id) : undefined} latestBefore={latestParentId ? agentResults.get(latestParentId) : undefined} latestId={(lastAi ?? last)?.id ?? null} busy={busy} connection={connection}
+                latest={lastAi ? agentResults.get(lastAi.id) : undefined} latestBefore={latestParentId ? agentResults.get(latestParentId) : undefined} latestId={(lastAi ?? last)?.id ?? null} turn={turn} connection={connection}
                 onToggle={(id, on, tracker) => tracker ? onToggleTracker(id, on) : onToggleAgent(id, on)} onRun={runAgentByHand} onOpen={onOpenAgent}
-                onEditTracker={onEditTracker} onChanged={() => setSceneKey((k) => k + 1)} onPick={busy ? undefined : sendText}
+                onEditTracker={onEditTracker} onPick={busy ? undefined : sendText}
                 onStyle={(id, sid) => void onChangeSession({ ...session, setup: layerWithStyle(session.setup, id, sid) })} />
             )}
             {onOpenStory && <Button onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
             {/* an icon (29/10): the words took the room of the title, branch and "with …" in narrow windows */}
             {/* UX review item 6 (D-078): deleting no longer sits beside everyday buttons; it is in the chat's ⋯ menu */}
-            <ChatMenu onRename={() => setEditingTitle(true)} onDelete={onDelete} />
+            <ChatMenu onRename={() => setEditingTitle(true)} onDelete={onDelete}
+              onExportMarkdown={headId ? () => onExportMarkdown(headId) : undefined} />
             <IconButton label={inspectorOpen ? "Hide Inspector" : "Show Inspector"} onClick={onToggleInspector} aria-pressed={inspectorOpen}>
               <Icon name="inspector" size={17} />
             </IconButton>
@@ -775,7 +785,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         </main>
 
         {error && <div className="error-bar" role="alert">{error}</div>}
-        {busy && !pending && <div className="turn-status" data-testid="turn-status">Reply saved. Trackers are updating…</div>}
+        {busy && !pending && <div className="turn-status" data-testid="turn-status">{manual ? "Running…" : "Reply saved. Trackers are updating…"}</div>}
 
         {lastAi && !busy && !pending && <ComposerChoices results={agentResults.get(lastAi.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(lastAi.id)} />}
         <form className="composer" data-region="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
@@ -820,7 +830,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       {inspectorOpen && headId !== undefined && (
         <Inspector tab={tab} onTab={setTab} onClose={onToggleInspector}
           scene={<ScenePanel svc={svc} session={session} storySetup={storySetup} messageId={last?.id ?? null} busy={busy} refreshKey={sceneKey}
-            trackers={trackers} connection={connection} avatars={sceneAvatars} onToggle={onToggleTracker} onToggleAll={onToggleTrackers} onPickSet={onPickFieldSet} onEditTracker={onEditTracker}
+            trackers={trackers} running={manual && manual.messageId === last?.id ? manual.agentId : null} onRun={runAgentsOn}
+            avatars={sceneAvatars} onToggle={onToggleTracker} onToggleAll={onToggleTrackers} onPickSet={onPickFieldSet} onEditTracker={onEditTracker}
             onNewTracker={onNewTracker} onChanged={() => setSceneKey((k) => k + 1)} onChangeSession={onChangeSession} onSaveToVault={onSaveNpcToVault} />}
           prompt={<PromptPane c={connection} providers={providers} session={session} storySetup={storySetup} storyName={storyInfo?.name} director={storyInfo?.role === "director"} setupProps={setupProps} onChangeSession={onChangeSession} onOpenSettings={onOpenSettings}
             presets={presets} defaultPresetId={defaultPresetId} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} trackers={trackers}
@@ -837,7 +848,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             ) : undefined}
             preview={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, userText: input }); }} />}
           reply={<ReplyPane providers={providers} svc={svc} session={session} storySetup={storySetup} messageId={replyFor ?? lastAi?.id ?? null} trackers={trackers} connection={connection}
-            refreshKey={sceneKey} onChanged={() => setSceneKey((k) => k + 1)} />}
+            refreshKey={sceneKey} busy={busy} running={manual && manual.messageId === (replyFor ?? lastAi?.id) ? manual.agentId : null} onRun={runAgentsOn} />}
         />
       )}
     </div>
@@ -877,8 +888,8 @@ function shortTokens(n: number): string {
 }
 
 
-/** The chat's ⋯ menu: Rename, Move to Trash (D-078). */
-function ChatMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) {
+/** The chat's ⋯ menu: Rename, Export as Markdown, Move to Trash. */
+function ChatMenu({ onRename, onExportMarkdown, onDelete }: { onRename: () => void; onExportMarkdown?: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -894,6 +905,7 @@ function ChatMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () =
       {open && (
         <div className="look-menu chat-menu-pop" role="menu">
           <button type="button" role="menuitem" onClick={() => { setOpen(false); onRename(); }}>Rename</button>
+          <button type="button" role="menuitem" disabled={!onExportMarkdown} onClick={() => { setOpen(false); onExportMarkdown?.(); }}>Export as Markdown</button>
           <button type="button" role="menuitem" className="danger" title="The chat goes to Library → Trash; you can restore it." onClick={() => { setOpen(false); onDelete(); }}>Move to Trash</button>
         </div>
       )}

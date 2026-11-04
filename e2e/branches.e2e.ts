@@ -1,6 +1,7 @@
 // Click tests of branches and the message action bar (D-032, canvas "Homunculus 2 — Branches"). Author: CLAUDE, 2026-10-29.
 // v2 (29/10, after Daniel's test): branches are direct, like SillyTavern and Marinara — Branch from here puts you on
 // the new branch at once; a branch can be made inside a branch.
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 async function sendMessage(page: Page, text: string) {
@@ -57,6 +58,28 @@ test("Branch from here puts you on the new branch at once, and the marker shows 
   await expect(list.getByTestId("branch-row").first()).toContainText("you are here");
   await list.getByTestId("branch-row").filter({ hasText: "Dark path" }).locator(".branch-t").click();
   await expect(msgs(page).nth(3)).toContainText("B1");
+});
+
+// CODEX: export the branch on screen even when another branch has newer messages.
+test("the chat menu downloads the selected branch as Markdown", async ({ page }) => {
+  await twoBranches(page);
+  await expect(msgs(page).nth(3)).toContainText("B1");
+  await page.getByTestId("branch-button").click();
+  await page.getByTestId("branch-row").filter({ hasText: "Main" }).locator(".branch-t").click();
+  await expect(msgs(page).nth(3)).toContainText("A2");
+
+  await page.getByTestId("chat-menu").click();
+  const action = page.getByRole("menuitem", { name: "Export as Markdown" });
+  await expect(action).toBeEnabled();
+  const [file] = await Promise.all([page.waitForEvent("download"), action.click()]);
+  expect(file.suggestedFilename()).toBe("Session with Lyra.md");
+  const markdown = await readFile(await file.path(), "utf8");
+  expect(markdown).toMatch(/^# Session with Lyra\n/);
+  expect(markdown).toContain("**User:** A1");
+  expect(markdown).toContain("**User:** A2");
+  expect(markdown).toContain('You said: A2"');
+  expect(markdown).not.toContain("**User:** B1");
+  expect(markdown).not.toContain("pretending to think");
 });
 
 test("Branch from here on the last message: a new branch right away; what you do next stays in it", async ({ page }) => {

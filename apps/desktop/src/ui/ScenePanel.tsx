@@ -20,7 +20,6 @@ import {
   applyBasicMacros, applyInto, briefFields, castOf, untrackedCards, userInStory, DEFAULT_USER_NAME, formatFieldValue, PAIR, trackerPeople, USER_ID, type ListItem, type ResolvedState, type TrackerCastMember,
 } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
-import type { ConnectionState } from "../connection.ts";
 import { fieldSetOf, isOnIn, type Tracker } from "../trackers.ts";
 import { Help } from "./Help.tsx";
 import { Button, Collapse, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
@@ -57,7 +56,7 @@ interface Cell { t: Tracker; f: TrackerField; value: unknown; was: unknown; mine
 /** A person (or a pair) of one tracker, with the accessors for their values. */
 interface Person { key: string; t: Tracker; schema: TrackerSchema; id: string; name: string; you: boolean; here: boolean; pair: boolean; cells: Cell[] }
 
-export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshKey, trackers, connection, avatars, onToggle, onToggleAll, onPickSet, onEditTracker, onNewTracker, onChanged, onChangeSession, onSaveToVault }: {
+export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshKey, trackers, running, onRun, avatars, onToggle, onToggleAll, onPickSet, onEditTracker, onNewTracker, onChanged, onChangeSession, onSaveToVault }: {
   svc: AppServices;
   session: Session;
   /** The story's layer, for a story chat: trackers it turns on are on here too (D-031). */
@@ -68,7 +67,8 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
   busy: boolean;
   refreshKey: number;
   trackers: Tracker[];
-  connection: ConnectionState;
+  running: string | null;
+  onRun: (agentIds: string[], messageId: string) => void;
   avatars: Record<string, Avatar>;
   onToggle: (trackerId: string, on: boolean) => void;
   /** Several at once (D-079). */
@@ -83,7 +83,6 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
   onSaveToVault?: ((d: { name: string; schemaId: string; values: Record<string, unknown> }) => void) | undefined;
 }) {
   const [view, setView] = useState<View | null>(null);
-  const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
   const [menu, setMenu] = useState(false);
@@ -137,18 +136,10 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
-  const run = async (list: Tracker[]) => {
+  const run = (list: Tracker[]) => {
     if (!messageId) return;
     setError("");
-    for (const t of list) {
-      setRunning(t.agent.id);
-      try {
-        await svc.chat.turns.runManual(session.id, t.agent.id, messageId, connection.forRequest().connection, undefined, connection.forRequest().connections);
-      } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    }
-    setRunning(null);
-    setTick((x) => x + 1);
-    onChanged();
+    onRun(list.map((t) => t.agent.id), messageId);
   };
 
   const schemaOf = (t: Tracker) => t.sets.find((s) => s.id === fieldSetOf(session, t.agent.id, storySetup)) ?? t.sets.find((s) => s.id === t.agent.state?.schemaId) ?? t.sets[0]!;
@@ -339,7 +330,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
       <header className="q-top">
         <span className="grow">{busy ? <span className="updating-chip" data-testid="scene-busy"><span className="spinner" aria-hidden />Updating…</span> : "Scene"}</span>
         {enabled.length > 0 && (
-          <IconButton label="Update Now" disabled={!messageId || busy || running !== null} onClick={() => void run(enabled)}>
+          <IconButton label="Update Now" disabled={!messageId || busy} onClick={() => run(enabled)}>
             <span className={running ? "spin-icon" : ""}><Icon name="refresh" size={14} /></span>
           </IconButton>
         )}
@@ -424,7 +415,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
 
           {/* how each tracker ran, all together at the end, quiet */}
           <section className={busy ? "q-runs updating" : "q-runs"} aria-label="Tracker runs">
-            {enabled.map((t) => <RunInfo key={t.agent.id} t={t} runs={view.runs} messageId={messageId} busy={busy} running={running} onRun={() => void run([t])} />)}
+            {enabled.map((t) => <RunInfo key={t.agent.id} t={t} runs={view.runs} messageId={messageId} busy={busy} running={running} onRun={() => run([t])} />)}
           </section>
         </div>
       )}
@@ -729,7 +720,7 @@ function RunInfo({ t, runs, messageId, busy, running, onRun }: { t: Tracker; run
     <div className="run-log q-run" data-testid="run-log" data-tracker={t.agent.id}>
       <span className="q-run-name">{shortName(t.agent.name)}</span>
       {last ? <RunLine run={last} /> : <span className="muted">Not run at this message.</span>}
-      <button className="link" disabled={!messageId || busy || running !== null} onClick={onRun}>
+      <button className="link" disabled={!messageId || busy} onClick={onRun}>
         {running === t.agent.id ? "running…" : last ? "Run again" : "Run now"}
       </button>
     </div>

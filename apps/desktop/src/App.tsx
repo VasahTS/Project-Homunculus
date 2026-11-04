@@ -1118,9 +1118,9 @@ export function App() {
 
   // ---- chats: search, export, open at a message (round 3, D-036)
   const searchChats = (ids: string[]) => (q: string) => svc.store.searchMessages(ids, q);
-  const exportSession = async (sessionId: string, format: ChatExportFormat) => {
+  const exportSession = async (sessionId: string, format: ChatExportFormat, endId?: string) => {
     try {
-      const file = await exportChat(svc.store, sessionId, format);
+      const file = await exportChat(svc.store, sessionId, format, endId);
       const where = await saveExport(file);
       if (!where) return;
       setNotice({ kind: "ok", title: `Exported “${sessions.find((x) => x.id === sessionId)?.title ?? "chat"}”`, lines: [`Saved to: ${where}`] });
@@ -1573,6 +1573,7 @@ export function App() {
         }}
         onOpenChat={async (id) => { await refresh(svc); setActiveId(id); setView({ kind: "session" }); }}
         onRename={(t) => void renameSession(t)}
+        onExportMarkdown={(endId) => void exportSession(active.id, "markdown", endId)}
         onDelete={() => void deleteSession()}
         onToggleTracker={(id, on) => void toggleTracker(id, on)}
         onToggleTrackers={(ids, on) => void toggleTrackers(ids, on)}

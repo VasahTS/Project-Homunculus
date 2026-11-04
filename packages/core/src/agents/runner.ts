@@ -193,7 +193,8 @@ export class AgentRunner {
     const a = entry.config;
     const started = this.deps.now();
     const usage: Usage = {};
-    await core.events.emit("agent.started", { agentId: a.id, messageId: req.messageId, trigger: req.trigger });
+    const event = { sessionId: req.session.id, agentId: a.id, messageId: req.messageId, trigger: req.trigger };
+    await core.events.emit("agent.started", event);
     try {
       req.signal?.throwIfAborted(); // Text/code agents must honor Stop too. CODEX, D-051.
       if (a.output === "state") {
@@ -232,13 +233,13 @@ export class AgentRunner {
       req.results.set(a.id, parsed.data);
       await this.record(a, req, "ok", started, this.deps.now() - started, { output: parsed.data as never, ...usage, ...(warnings ? { warnings } : {}) });
       await core.events.emit("agent.output", { agentId: a.id, messageId: req.messageId, kind: a.output, output: parsed.data });
-      await core.events.emit("agent.finished", { agentId: a.id, messageId: req.messageId, trigger: req.trigger });
+      await core.events.emit("agent.finished", event);
       return { agentId: a.id, kind: a.output, output: parsed.data, config: a };
     } catch (e) {
       const cancelled = isAbort(e, req.signal);
       const reason = cancelled ? "Stopped" : errorText(e);
       await this.record(a, req, cancelled ? "cancelled" : "failed", started, this.deps.now() - started, { error: reason, ...usage });
-      await core.events.emit("agent.failed", { agentId: a.id, messageId: req.messageId, trigger: req.trigger, reason });
+      await core.events.emit("agent.failed", { ...event, reason });
       return undefined;
     }
   }
