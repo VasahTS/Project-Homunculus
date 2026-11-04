@@ -1,5 +1,9 @@
 # HANDOFF — Homunculus 2
 
+## Jev never streamed (2026-11-04) — CLAUDE — D-085
+
+Daniel hit nano-gpt's "Decision models do not support streaming". Decision models are now recognized by name and always asked through /decisions; using one to write chapters or replies explains what to do instead. 694 unit tests.
+
 ## Memory has its own tab, explained (2026-11-04) — CLAUDE — D-084
 
 Daniel: memory in the Prompt tab was hard to understand; make a separate tab like v1, with everything separated, how to use it and examples.

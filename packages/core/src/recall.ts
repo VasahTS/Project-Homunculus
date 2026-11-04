@@ -14,6 +14,12 @@
 import type { Message } from "@homunculus/schemas";
 import { chaptersOnPath, coveredIds, levelOf, memoryText, readable, topCover, type Chapter, type MemorySettings, type Placed } from "./memory.ts";
 
+/**
+ * Decision models (nano-gpt's catalog: typesafe/jev-*, liquid/d1, perplexity/pplx-decider-*, cloudflare/clef*) only
+ * answer yes/no questions through /decisions; they cannot chat or stream. D-085.
+ */
+export const isDecisionModel = (model: string) => /(^|\/)(jev-|jev$)|^liquid\/d1|pplx-decider|(^|\/)clef(-|$)/i.test(model.trim());
+
 /** The header of a recalled memory block. */
 export const RECALLED = "The story so far (earlier chapters recalled because they bear on this moment; treat them as established; the messages after this continue from here):";
 

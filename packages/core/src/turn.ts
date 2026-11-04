@@ -57,7 +57,7 @@ import { characterNoteOf, effectiveCharacter, effectivePersona } from "./variant
 import { castPart, narratorAsCharacter, SIMPLE_NARRATOR } from "./stories.ts";
 import { applyLorePatch } from "./lore-versions.ts";
 import { applyChapters, chapterLabel, chapterRequest, chaptersOnPath, dueSpan, levelOf, mergeRequest, nextMerge, parseChapter, topCover, waitingSpan, waitingTokens, type Chapter, type MemorySettings } from "./memory.ts";
-import { chatDecide, DecisionCache, smartRecall, type Decide, type RecallResult } from "./recall.ts";
+import { chatDecide, DecisionCache, isDecisionModel, smartRecall, type Decide, type RecallResult } from "./recall.ts";
 
 export interface TurnOptions {
   newId?: () => string;
@@ -483,10 +483,11 @@ export class TurnPipeline {
     const s = setup.memory;
     const byId = (id: string | null | undefined) => (id ? connections?.[id] ?? this.options.connectionById?.(id) : undefined);
     const agents = byId(setup.agentConnectionId) ?? main;
-    if (s.decider === "jev") {
+    // a decision model picked as the agents' model (or as "Through"'s own model) still goes through /decisions (D-085)
+    if (s.decider === "jev" || isDecisionModel(agents.model)) {
       const base = byId(s.deciderConnectionId) ?? agents;
       const { fallback: _no, ...rest } = base;
-      const conn: ConnectionConfig = { ...rest, model: s.deciderModel.trim() || "typesafe/jev-latest" };
+      const conn: ConnectionConfig = { ...rest, model: s.decider === "jev" ? s.deciderModel.trim() || "typesafe/jev-latest" : agents.model };
       const provider = this.core.providers.get(conn.providerId);
       if (!provider?.decide) throw new Error(`"${provider?.name ?? conn.providerId}" cannot ask decision models. Choose "The agents' model" to decide.`);
       return { name: conn.model, decide: async (state, questions, signal) =>
@@ -541,7 +542,11 @@ export class TurnPipeline {
 
   private agentsConnection(setup: ResolvedSetup, main: ConnectionConfig, connections: Record<string, ConnectionConfig> | undefined): ConnectionConfig {
     const id = setup.agentConnectionId;
-    return (id ? connections?.[id] ?? this.options.connectionById?.(id) : undefined) ?? main;
+    const conn = (id ? connections?.[id] ?? this.options.connectionById?.(id) : undefined) ?? main;
+    if (isDecisionModel(conn.model)) {
+      throw new Error(`"${conn.model}" is a decision model: it can pick chapters but cannot write them. Choose a chat model for the agents' connection, and put Jev in Memory → Recall → Decide with Jev.`);
+    }
+    return conn;
   }
 
   private async summarizeChapter(session: Session, setup: ResolvedSetup, messageId: string, main: ConnectionConfig,

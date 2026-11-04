@@ -897,3 +897,7 @@ Daniel, with a screenshot of the v1 Memory panel: "make a separate tab just for 
 - **Recall:** "What the AI reads" as two choices that state their cost (Simple / Smart); "The decision model" (what it does, Jev vs the agents' model, Through, Model, limits); **Try it** (`testRecall`: what Smart would pick for a line you might say, with % and the text, nothing sent); "The last reply" (its memory receipt).
 - **Guide:** how memory works in 5 steps, a worked example (the owl locket), the words used, good-to-knows (edits, branches, edited messages, Catch Up, cost, Reply tab).
 - Core: `memoryAt` also returns message numbers (`from`/`to`, `waitingFrom`/`waitingTo`), `promptTokens`, `covered`; new `memoryPreview`, `addOwnChapter`, `testRecall`; schema `SetupLayer.memory.auto`.
+
+## D-085 — Decision models are never streamed (2026-11-04)
+
+Daniel's test: "The AI service answered 400: Decision models do not support streaming" (nano-gpt). A decision model (Jev…) had been picked as a connection's model, so it was called like a chat model. `isDecisionModel` (typesafe/jev-*, liquid/d1, pplx-decider, clef) now: routes recall through `/decisions` even when "Decide with" is the agents' model; stops chapter writing with a plain message when the agents' connection is a decision model; and the chat provider refuses such a model with an explanation instead of a 400.

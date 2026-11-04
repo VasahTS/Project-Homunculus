@@ -33,6 +33,10 @@ export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator
 
 export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): AsyncGenerator<StreamChunk> {
   const { connection } = req;
+  // decision models (Jev…) only answer through /decisions and refuse streaming: say so plainly (D-085)
+  if (/(^|\/)(jev-|jev$)|^liquid\/d1|pplx-decider|(^|\/)clef(-|$)/i.test(connection.model.trim())) {
+    throw new Error(`"${connection.model}" is a decision model: it only answers Memory's yes/no questions and cannot write replies. Use it in Memory → Recall → Decide with Jev, and keep a chat model on this connection.`);
+  }
   const base = (connection.baseUrl ?? OPENROUTER_URL).replace(/\/+$/, "");
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (connection.apiKey) headers.Authorization = `Bearer ${connection.apiKey}`;

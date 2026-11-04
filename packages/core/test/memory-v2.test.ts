@@ -200,3 +200,26 @@ describe("memory v2 in a chat", () => {
     expect(await w.chat.turns.addOwnChapter(session.id, at, "", "Nothing waits now.")).toBeUndefined();
   });
 });
+
+describe("decision models picked as a chat model (D-085)", () => {
+  it("recognizes them", async () => {
+    const { isDecisionModel } = await import("../src/index.ts");
+    for (const m of ["typesafe/jev-latest", "typesafe/jev-1.13", "jev-latest", "liquid/d1", "perplexity/pplx-decider-v1.2", "cloudflare/clef-flash", "clef"]) expect(isDecisionModel(m)).toBe(true);
+    for (const m of ["z-ai/glm-5.3:thinking", "openai/gpt-5", "jevon/chat", "anthropic/claude"]) expect(isDecisionModel(m)).toBe(false);
+  });
+
+  it("a Jev agents' connection with 'Agents' model' still asks through /decisions", async () => {
+    const summarizer = (m: ChatTurn[]) => /summarize part/.test(m[0]?.content ?? "") ? "Title: T\n\nS." : "ok";
+    const w = await world(summarizer);
+    let decided = 0;
+    w.core.providers.get("fake")!.decide = async (req) => { decided++; return { answers: Object.fromEntries(req.questions.map((q) => [q.id, 0.7])) }; };
+    await w.store.setDefaultSetup({ memory: { on: true, every: 4, keep: 2 } });
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    let at = firstMessage!.id;
+    for (let i = 1; i <= 6; i++) at = (await w.chat.send(session.id, at, `Turn ${i}.`, connection)).reply.id;
+    await w.store.setDefaultSetup({ memory: { on: true, every: 4, keep: 2, mode: "smart", decider: "agents" } });
+    const r = await w.chat.turns.testRecall(session.id, at, "Turn 1?", { ...connection, model: "typesafe/jev-latest" });
+    expect(r?.receipt.fallback).toBeUndefined();
+    expect(decided).toBeGreaterThan(0);
+  });
+});
