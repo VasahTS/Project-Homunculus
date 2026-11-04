@@ -650,3 +650,43 @@ The engine already works (D-027): it activates entries exactly like SillyTavern 
 **States:** empty ("Ask for a tracker, a character or a lorebook" + 3 example requests as chips), streaming, tool error (red line, it retries), steps limit reached, connection error (Retry), model without images (notice before sending), long conversation (older tool steps folded).
 
 **Later (noted, not in v1):** reading chats ("make lore entries from the last 40 turns"); presets, regex, narrators, NPCs, Kits; **Director's notes** (Daniel's idea): instructions kept *outside* the chat, each permanent or for N turns, injected after the history and gone from the prompt when they expire — the assistant can create and edit them.
+
+## Settings v2 (a general Settings page) — CLAUDE, 11/03/2026 · ⏳ proposal, waiting for Daniel's pick
+
+Daniel (11/03): "a nice Settings menu with general settings — not SillyTavern's UI — look at what settings we can include".
+Sources: ST's User Settings (Daniel's screenshot), what H2 already has (scattered over Customize, Defaults, About and
+browser storage), and the behaviours H2 fixes in code today. Legend: ✅ exists (moves or stays) · ➕ new · ✖ left out.
+
+**Places (tabs, one style, D-078):** General · Chat · Appearance · Connections · Defaults · Lorebooks · Data · About.
+
+- **General** — ➕ open at start (last chat / Stories / Characters) · ✅ Enter sends vs Ctrl+Enter (from Customize) ·
+  ➕ "reply ready" notice on/off · ➕ sound when a reply finishes · ➕ system notification when the app is in the background ·
+  ➕ Spoiler-free (hide a card's definition in sheets until "Show").
+- **Chat** — ➕ show date/time · ➕ message number · ➕ token counts (CODEX's metadata, today always on) · ➕ reading width ·
+  ➕ smooth streaming (on/off, speed) · ➕ follow the reply while it streams (auto-scroll) · ➕ thinking: hidden / folded /
+  open · ➕ swipe arrows and gestures · ➕ continue automatically when a reply is cut off (max N times) · ✅ message
+  formatting: Markdown, dialogue/narration colors, links, images from links, colors and styles from the AI (from
+  Customize → Advanced).
+- **Appearance** — ✅ today's Customize (looks, accent, fonts, text size, corners, motion, extra CSS) · ➕ line spacing ·
+  ➕ avatars in the chat (shape, size, hidden) · ➕ default card size for collections.
+- **Connections / Defaults / Lorebooks** — ✅ as they are.
+- **Data** — ✅ data folder and Backup Now (from About) · ➕ automatic backups (how often, how many kept) · ➕ empty the Trash
+  after N days · ➕ export everything (one file) · ⏳ import a SillyTavern/v1 folder (when that slice comes).
+- **About** — ✅ version, updates.
+
+**Left out of ST on purpose:** iOS/Android streaming workarounds and "aggressive DOM unloading" (desktop app; long chats
+are a performance task, not a switch) · Zen sliders, Mad Lab mode, model icons, char-list subheader (ST-specific UI) ·
+"Confirm message deletion" (H2 has Trash + Undo) · example-messages behaviour, OOC/HTML context depth, relax trim in
+groups (prompt matters: they belong to presets/regex, not to Settings) · token probabilities and "log prompts to console"
+(H2 has "see the prompt" per message) · Visual Novel mode (later, with media).
+
+Next, after Daniel's pick: a clickable draft with his real data (`docs/drafts/settings-v2/`), then code, one place at a
+time.
+
+## Card reading view (Card Browser, Characters, Stories) — CLAUDE, 11/03/2026 · ⏳ to draft
+
+Daniel (11/03): "a bigger preview of the card, to read without scrolling the fields on the right". Idea for the draft: the
+sheet's picture or a "Read" button opens the card full-window — the picture large on the left, every field on the right
+in one readable column (greetings ‹ 1/N ›), Esc closes; the same view for a character of yours and a story.
+Done on 11/03 without a draft (bugs, same pattern as the Card Browser sheet): full-size pictures, Close on the sheet,
+fields that scroll instead of "…", big pictures in Characters/Stories sheets, Stories cards enter like Characters'.

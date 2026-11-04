@@ -16,6 +16,7 @@ import { layerHasTracker } from "../trackers.ts";
 import { CollectionTools, FolderHits, SizeSwitch, ViewSwitch, type CollectionPrefs, type FolderHit } from "./CollectionTools.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { SortSelect, useCollectionOrder } from "./CollectionOrder.tsx";
+import { CASCADE, useEnter } from "./motion.ts";
 
 /** A field set an NPC sheet can use (a Scene: Characters set, or any set with per-character fields). */
 export interface FieldSetOption { id: string; label: string; schema: TrackerSchema }
@@ -46,6 +47,9 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
   // portrait cards with a size, except beside the narrators' wide editor
   const portrait = !wide && prefs ? ` portrait size-${prefs.size}` : "";
   const visible = ordered.items.filter((c) => !isStories || !recent || (activity[c.id] ?? 0) > 0);
+  // the cards arrive one after another when the page opens, as on Characters (D-072; Daniel 11/03: "Stories has no motion")
+  const cardsRef = useRef<HTMLDivElement>(null);
+  useEnter(cardsRef, `open:${tab}`, undefined, { ...CASCADE, stagger: 60 });
   return (
     <div className={`page${isStories ? " collection-page" : " resource-page"}`} data-region="collection">
       <Toolbar lead={lead} title={title} subtitle={isStories ? "Your worlds, their cast and every conversation." : undefined}
@@ -60,7 +64,7 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
         <div className={`gallery-grid${portrait}`}>
           {!search.trim() && folders}
           {search.trim() && onOpenFolder && <FolderHits hits={folderHits} onOpen={onOpenFolder} />}
-          <div className="gallery-cards" data-testid={`vault-${tab}`}>
+          <div className="gallery-cards" data-testid={`vault-${tab}`} ref={cardsRef}>
             {isStories && <div className="collection-heading"><h2>{search ? "Search results" : prefs?.view === "everything" ? "Every story" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
             {visible.map((c, i) => <Fragment key={c.id}>
               {ordered.mode === "original" && c.group && c.group !== visible[i - 1]?.group && <div className="gallery-group" role="heading" aria-level={3}>{c.group}</div>}

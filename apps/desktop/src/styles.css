@@ -1172,6 +1172,7 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .vs-sec h3 { margin: 0; font-size: var(--size-section); font-weight: 600; color: var(--label-2); }
 .vs-text { white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; }
 .vs-text.prose { font-family: var(--font-prose); font-size: 14px; }
+.vs-text.scroll { display: block; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; }
 
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
 .form-grid > label { display: grid; gap: 4px; }
@@ -1789,6 +1790,15 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .collection-page .vs-actions .btn-prominent { flex: 1 1 auto; }
 .collection-page .vs-sec { padding: 16px 0 0; border-radius: 0; background: transparent; border-top: 1px solid var(--glass-edge); }
 .collection-page .vs-sec h3 { color: var(--label); text-transform: none; letter-spacing: normal; font-size: var(--size-small); }
+/* The picture big and at its own shape on top of the sheet (Daniel, 11/03: "the preview image is super small"), as in the
+   Card Browser. CLAUDE, 2026-11-03. */
+.collection-page .view-sheet { grid-template-columns: minmax(0, 1fr); }
+.collection-page .view-sheet > .vs-pic, .collection-page .view-sheet > .vs-pic-pick, .collection-page .view-sheet > .story-mark { grid-column: 1; grid-row: auto; width: 100%; height: auto; max-height: min(64vh, 640px); aspect-ratio: auto; object-fit: contain; object-position: center; }
+.collection-page .view-sheet > .vs-pic.letter, .collection-page .view-sheet > .story-mark.letter { width: 100%; height: 220px; max-height: 220px; font-size: 64px; }
+.collection-page .view-sheet > .vs-head { grid-column: 1; grid-row: auto; }
+.collection-page .vs-pic-pick .image-picker, .collection-page .vs-pic-pick .ip-button { width: 100%; max-width: none; }
+.collection-page .vs-pic-pick .image-picker img { width: 100% !important; height: auto !important; max-height: min(64vh, 640px); object-fit: contain; }
+.collection-page .vs-pic-pick .ip-letter { width: 100% !important; height: 220px !important; font-size: 64px !important; }
 .collection-page .folders { margin-bottom: 10px; }
 .collection-heading { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; color: var(--label-2); font-size: var(--size-small); margin: 0 0 -3px; }
 .collection-heading h2 { margin: 0; font-size: var(--size-ui); color: var(--label); font-weight: 600; }

@@ -1,5 +1,15 @@
 # HANDOFF — Homunculus 2
 
+## Sheets readable: big pictures, fields that scroll; Stories cards enter; Settings v2 proposal (2026-11-03) — CLAUDE
+
+Daniel: "in Characters the preview is bad: fields end in '…' and can't scroll, the picture is tiny; Stories has no motion".
+- `SheetSection` (Characters, Stories, Kits sheets): long text scrolls in its box instead of being cut with "…".
+- Characters/Stories sheets: the picture on top, full width, at its own shape (was 65×83 px beside the name).
+- Stories (and the other Vault tabs): cards arrive one after another like Characters' (`useEnter`, D-072).
+- `docs/UI-PLAN.md` → "Settings v2" (a proposal: General · Chat · Appearance · Connections · Defaults · Lorebooks · Data · About,
+  what exists / is new / is left out of ST) and "Card reading view" — **waiting for Daniel's pick, then a draft**.
+- Checks: typecheck, 671 unit, 262/264 browser (message-format needs internet; ui-review-fixes:66 is flaky, 2/3, untouched screen).
+
 ## Card Browser pictures: real size, not a 200 px square; the sheet closes (2026-11-03) — CLAUDE
 
 Daniel: "the images are in horrible quality and square; the preview on the right can't be closed". Checked live in his browser: ChubAI's `avatar.webp` is a 200×200 square crop; `chara_card_v2.png` is the real picture (850–1750 px tall, about 1.6 MB).

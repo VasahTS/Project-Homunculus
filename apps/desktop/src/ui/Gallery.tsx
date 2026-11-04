@@ -84,12 +84,14 @@ export function GalleryCard({ name, avatar, by, summary, tags = [], size, select
   );
 }
 
-/** A labelled box of text in a view sheet (Scenario, Description…); long text is cut to a few lines. */
-export function SheetSection({ title, children, lines = 4, prose = false }: { title: string; children: ReactNode; lines?: number; prose?: boolean }) {
+/** A labelled box of text in a view sheet (Scenario, Description…). Long text scrolls inside its box instead of being cut
+ *  with "…" (Daniel, 11/03: "the fields can't scroll, so you only see '…'"), as in the Card Browser. `lines` is the box's
+ *  height before it scrolls. CLAUDE, 2026-11-03. */
+export function SheetSection({ title, children, lines = 6, prose = false }: { title: string; children: ReactNode; lines?: number; prose?: boolean }) {
   return (
     <section className="vs-sec">
       <h3>{title}</h3>
-      <div className={`vs-text${prose ? " prose" : ""}`} style={{ WebkitLineClamp: lines }}>{children}</div>
+      <div className={`vs-text scroll${prose ? " prose" : ""}`} tabIndex={0} style={{ maxHeight: `calc(${Math.max(lines, 6) * 1.5}em + 4px)` }}>{children}</div>
     </section>
   );
 }
