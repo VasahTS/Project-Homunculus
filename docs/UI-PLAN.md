@@ -651,7 +651,7 @@ The engine already works (D-027): it activates entries exactly like SillyTavern 
 
 **Later (noted, not in v1):** reading chats ("make lore entries from the last 40 turns"); presets, regex, narrators, NPCs, Kits; **Director's notes** (Daniel's idea): instructions kept *outside* the chat, each permanent or for N turns, injected after the history and gone from the prompt when they expire — the assistant can create and edit them.
 
-## Settings v2 (a general Settings page) — CLAUDE, 11/03/2026 · ⏳ proposal, waiting for Daniel's pick
+## Settings v2 (a general Settings page) — CLAUDE, 11/03/2026 · Daniel OK'd the list; 🟡 draft on the canvas "Homunculus 2 — Settings & card reading", waiting for Daniel
 
 Daniel (11/03): "a nice Settings menu with general settings — not SillyTavern's UI — look at what settings we can include".
 Sources: ST's User Settings (Daniel's screenshot), what H2 already has (scattered over Customize, Defaults, About and
@@ -683,7 +683,7 @@ groups (prompt matters: they belong to presets/regex, not to Settings) · token 
 Next, after Daniel's pick: a clickable draft with his real data (`docs/drafts/settings-v2/`), then code, one place at a
 time.
 
-## Card reading view (Card Browser, Characters, Stories) — CLAUDE, 11/03/2026 · ⏳ to draft
+## Card reading view (Card Browser, Characters, Stories) — CLAUDE, 11/03/2026 · 🟡 draft on the same canvas (Tweaks: context Card Browser / Characters / Stories), waiting for Daniel
 
 Daniel (11/03): "a bigger preview of the card, to read without scrolling the fields on the right". Idea for the draft: the
 sheet's picture or a "Read" button opens the card full-window — the picture large on the left, every field on the right
