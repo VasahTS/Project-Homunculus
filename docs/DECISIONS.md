@@ -845,3 +845,30 @@ Daniel (translated): "make an implementation plan of the Card Browser for CODEX 
 - **Later the same night:** Daniel: "let's leave JanitorAI aside for now" → T-013 parked; the five other sites go ahead. The JanitorAI plan (§7 of `docs/CARD-BROWSER.md`) stays for when he wants it.
 
 Signed: **CLAUDE**.
+
+## D-082 — Settings v2 (General, Chat, Appearance, Data), reply sounds, and the card reading view (2026-11-03)
+
+Daniel (translated): "a nice Settings menu with general settings — not SillyTavern's UI" · on the first draft: "everything blends
+together, find a better and easier way to see the options" · "include this [pop] sound and implement everything" · "reuse that view
+of the Card Browser for Characters too". Drafts: canvas "Homunculus 2 — Settings & card reading" (approved).
+- **Tabs:** General · Chat · Appearance (the old Customize; its id stays `customize`) · Connections · Defaults · Lorebooks · Data · About.
+  Settings opens on General; "manage connections" links still open Connections.
+- **Annotated groups** (inside Settings only, `SettingsLook` in `kit.tsx`): icon, title and purpose on the left; the rows in a card on
+  the right; a row's help written under its label instead of behind "?". **Search** across tabs hides rows that don't match;
+  connection words offer Open Connections.
+- **One preferences object** (`app.prefs`, `apps/desktop/src/prefs.ts`); defaults keep the old behaviour.
+- **General:** open at (last chat / Stories / Characters / Card Browser), Send key (moved from Customize), "Reply ready" notice on/off,
+  reply sound (six synthesized ones, Daniel's Pop, or your own file ≤ 2 MB) with volume and Test, Windows notification while in the
+  background (Tauri notification plugin — new dependency), Spoiler-free sheets.
+- **Chat:** date/time, message number, token counts, swipe arrows, two-finger trackpad swipe on the last reply, text width, model
+  thinking hidden/folded/open, Smooth text (+ speed), Follow the reply, **Continue when cut off** (at most N): providers now report
+  `{ finish }`; on "length" the turn asks the model to go on in the same message and adds the usage (`turn.ts`, `CONTINUE_NUDGE`).
+  Message formatting moved here from Customize.
+- **Appearance:** line spacing, avatars beside chat messages (hidden by default), avatar size, default card size for collections.
+- **Data:** open the data folder, Back Up Now, automatic backups when the app opens (daily/weekly, keep N — Rust `backups_info`,
+  `prune_backups`; only `homunculus-<secs>.db` files are touched), empty the Trash after N days (`emptyTrashOlderThan`; items in use
+  stay), Export everything (a copy of the database in Downloads, `export_database`; API keys are not in it).
+- **Card reading view** (`ui/CardReader.tsx`): Card Browser (Read button or the picture; ← → change card), Characters and Stories
+  (Read). Back to Preview, Esc and the mouse's back button return to the sheet; click the picture to see it alone.
+
+Signed: **CLAUDE**.

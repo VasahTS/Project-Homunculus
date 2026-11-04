@@ -48,6 +48,8 @@ export interface GenerateOptions {
   signal?: AbortSignal;
   /** Every connection by profile id; the session's setup picks the story's and the agents' from here. */
   connections?: Record<string, ConnectionConfig>;
+  /** Settings → Chat (D-082): when the model stops at its length limit, ask it to go on, at most this many times. */
+  continueOnLength?: number;
 }
 
 export class ChatService {

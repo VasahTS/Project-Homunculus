@@ -3224,3 +3224,82 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .collection-order { display: inline-flex; align-items: center; gap: 6px; min-inline-size: 0; font-size: var(--size-small); color: var(--label-2); }
 .collection-order select { max-inline-size: 170px; min-inline-size: 0; }
 .collection-tools, .collection-right { flex-wrap: wrap; }
+
+/* ---- Settings v2 (D-082, approved draft "Homunculus 2 — Settings & card reading"). CLAUDE, 2026-11-03.
+   Each group: icon, title and purpose on the left; its rows in a card on the right; help written under each label. */
+.settings-look .settings-page { max-width: 1060px; gap: 0; padding-top: 0; }
+.settings-look .group-section.annotated { display: flex; flex-wrap: wrap; gap: 14px 40px; padding: 28px 0; border-bottom: 1px solid var(--separator); }
+.settings-look .group-section.annotated:last-child { border-bottom: 0; }
+.group-intro { flex: 1 1 200px; max-width: 250px; display: flex; flex-direction: column; gap: 8px; }
+.group-icon { width: 34px; height: 34px; display: grid; place-items: center; background: var(--fill-selected); color: var(--label); border-radius: calc(8px * var(--round)); }
+.group-title { margin: 4px 0 0; font-size: 17px; font-weight: 600; color: var(--label); letter-spacing: -0.005em; }
+.group-help { margin: 0; color: var(--label-2); font-size: 12.5px; line-height: 1.5; }
+.settings-look .annotated > .group { flex: 999 1 420px; min-width: 0; background: var(--surface); box-shadow: inset 0 0 0 1px var(--separator); border-radius: var(--radius-group); border-top: 0; border-bottom: 0; overflow: visible; }
+.settings-look .annotated .row { grid-template-columns: minmax(0, 1fr) auto; gap: 24px; padding: 14px 18px; min-height: 40px; }
+.settings-look .annotated .row-wide { grid-template-columns: minmax(0, 1fr); }
+.settings-look .annotated .row-label { display: flex; flex-direction: column; gap: 4px; color: var(--label); }
+.row-name { font-size: 14px; font-weight: 500; color: var(--label); }
+.row-help { color: var(--label-2); font-size: 12.5px; line-height: 1.45; font-weight: 400; }
+.settings-look .annotated .row-value > select, .settings-look .annotated .row-value > input:not([type="range"]):not(.num):not(.wide-num) { width: auto; min-width: 200px; max-width: 320px; }
+.settings-look .annotated .row-value input[type="range"] { width: 160px; }
+.settings-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-search { width: 280px; max-width: 100%; }
+.settings-search-results { padding-bottom: 40px; }
+.settings-search-tab { margin: 24px 0 0; font-size: var(--size-small); color: var(--label-2); text-transform: none; }
+.settings-range { display: inline-flex; align-items: center; gap: 10px; }
+.settings-range output { width: 56px; text-align: right; font-family: var(--font-figures); font-size: 12px; color: var(--label-2); }
+.settings-path { font-family: var(--font-mono); font-size: 12px; color: var(--label-2); overflow-wrap: anywhere; text-align: right; }
+.spoiler-gate { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 0; border-top: 1px solid var(--glass-edge, var(--separator)); color: var(--label-2); }
+/* Settings → Chat / Appearance (D-082): swipe arrows can be hidden; avatars beside messages (off by default) */
+:root[data-swipe-arrows="off"] .msg .swipes { display: none; }
+:root:is([data-avatars="round"], [data-avatars="square"]) .msg { display: grid; grid-template-columns: var(--chat-avatar, 36px) minmax(0, 1fr); column-gap: 12px; align-items: start; }
+:root:is([data-avatars="round"], [data-avatars="square"]) .msg > * { grid-column: 2; }
+:root:is([data-avatars="round"], [data-avatars="square"]) .msg > .chat-avatar { grid-column: 1; grid-row: 1 / span 6; }
+:root[data-avatar-size="small"] { --chat-avatar: 28px; }
+:root[data-avatar-size="medium"] { --chat-avatar: 36px; }
+:root[data-avatar-size="large"] { --chat-avatar: 52px; }
+.msg > .chat-avatar { width: var(--chat-avatar, 36px); height: var(--chat-avatar, 36px); font-size: calc(var(--chat-avatar, 36px) * .42); object-fit: cover; object-position: top; }
+:root[data-avatars="round"] .msg > .chat-avatar { border-radius: 50%; }
+:root[data-avatars="square"] .msg > .chat-avatar { border-radius: calc(6px * var(--round)); }
+
+/* ---- Card reading view (D-082): the card full window; picture left, every field whole on the right. CLAUDE, 2026-11-03 */
+.card-reader { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--window); color: var(--label); outline: none; animation: cr-in .18s var(--ease-out, ease-out); }
+@keyframes cr-in { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .card-reader { animation: none; } }
+.cr-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 56px; padding: 8px 24px; border-bottom: 1px solid var(--separator); }
+.cr-where, .cr-hint { color: var(--label-3); font-size: var(--size-small); }
+.cr-grow { flex: 1; }
+.cr-body { flex: 1; min-height: 0; display: flex; flex-wrap: wrap; }
+.cr-picture { flex: 1 1 380px; max-width: 46%; min-width: 280px; min-height: 0; box-sizing: border-box; padding: 24px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--separator); background: color-mix(in srgb, var(--window) 70%, black); }
+.cr-pic-button { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
+.cr-pic-button img { max-width: 100%; max-height: calc(100vh - 150px); object-fit: contain; border-radius: var(--radius-group); }
+.cr-letter { flex: 1; display: grid; place-items: center; font-family: var(--font-prose); font-size: 96px; color: var(--label-3); background: var(--letter-bg, var(--fill)); }
+.cr-pic-hint { color: var(--label-3); font-size: var(--size-small); text-align: center; }
+.cr-text { flex: 999 1 480px; min-width: 0; min-height: 0; max-height: calc(100vh - 56px); overflow-y: auto; box-sizing: border-box; padding: 32px 48px 64px; display: flex; flex-direction: column; gap: 22px; }
+.cr-text > * { max-width: 720px; }
+.cr-head { display: grid; gap: 10px; }
+.cr-head h1 { margin: 0; font-family: var(--font-prose); font-weight: 400; font-size: 36px; line-height: 1.2; overflow-wrap: anywhere; }
+.cr-byline { color: var(--label-2); }
+.cr-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.cr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cr-nav { position: sticky; top: -32px; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 8px 0; border-top: 1px solid var(--separator); border-bottom: 1px solid var(--separator); background: var(--window); }
+.cr-nav a { padding: 4px 10px; color: var(--label-2); text-decoration: none; font-size: var(--size-small); }
+.cr-nav a:hover { color: var(--label); background: var(--fill-hover); }
+.cr-tokens { color: var(--label-3); font-size: var(--size-small); font-family: var(--font-figures); }
+.cr-sec { display: grid; gap: 8px; scroll-margin-top: 48px; }
+.cr-sec h2 { margin: 0; font-size: var(--size-small); font-weight: 600; color: var(--label-2); letter-spacing: .02em; }
+.cr-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cr-greet { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-figures); font-size: 12px; color: var(--label-2); }
+.cr-field { font-size: 15px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cr-field.prose { font-family: var(--font-prose); font-size: 16px; line-height: var(--leading-prose, 1.7); }
+.cr-field a { color: var(--accent); }
+.cr-zoom { position: fixed; inset: 0; z-index: 2; display: grid; place-items: center; padding: 24px; border: 0; background: var(--scrim, rgba(0,0,0,.85)); cursor: zoom-out; }
+.cr-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.vs-pic-read { padding: 0; border: 0; background: transparent; cursor: zoom-in; display: block; width: 100%; }
+@media (max-width: 900px) { .cr-picture { max-width: none; border-right: 0; border-bottom: 1px solid var(--separator); max-height: 50vh; } .cr-text { max-height: none; padding: 24px; } .card-reader { overflow-y: auto; } }
+.card-browser .view-sheet.cb-sheet > .vs-pic-read { grid-column: 1; }
+.card-browser .view-sheet.cb-sheet > .vs-pic-read > .vs-pic { width: 100%; height: auto; max-height: min(72vh, 760px); object-fit: contain; aspect-ratio: auto; }
+.card-browser .view-sheet.cb-sheet > .vs-pic-read > .vs-pic.letter { aspect-ratio: 4 / 5; max-height: min(50vh, 480px); }
+.collection-page .view-sheet > .vs-pic-read { grid-column: 1; }
+.collection-page .view-sheet > .vs-pic-read > .vs-pic { width: 100%; height: auto; max-height: min(64vh, 640px); aspect-ratio: auto; object-fit: contain; object-position: center; }
+.collection-page .view-sheet > .vs-pic-read > .vs-pic.letter { height: 220px; font-size: 64px; }

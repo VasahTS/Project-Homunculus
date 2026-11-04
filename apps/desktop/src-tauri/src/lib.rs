@@ -130,6 +130,55 @@ fn backup_database(place: tauri::State<DataPlace>) -> Result<Option<String>, Str
     Ok(Some(backups.join(name).to_string_lossy().into_owned()))
 }
 
+// ---- Settings → Data (D-082, CLAUDE 2026-11-03): automatic backups keep the newest N; "Export everything" copies the
+// database to Downloads. Only the app's own `homunculus-<seconds>.db` backups are ever counted or removed.
+fn backup_files(dir: &Path) -> Vec<(PathBuf, u64)> {
+    let mut out: Vec<(PathBuf, u64)> = std::fs::read_dir(dir).into_iter().flatten().flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let stamp = name.strip_prefix("homunculus-")?.strip_suffix(".db")?;
+            let secs = stamp.parse::<u64>().ok()?;
+            e.file_type().ok()?.is_file().then(|| (e.path(), secs))
+        })
+        .collect();
+    out.sort_by_key(|(_, secs)| *secs);
+    out
+}
+fn prune_backup_dir(dir: &Path, keep: usize) -> std::io::Result<usize> {
+    let files = backup_files(dir);
+    let extra = files.len().saturating_sub(keep.max(1));
+    for (path, _) in files.iter().take(extra) {
+        std::fs::remove_file(path)?;
+        for side in DB_SIDE_FILES {
+            let mut p = path.clone().into_os_string();
+            p.push(side);
+            let _ = std::fs::remove_file(PathBuf::from(p));
+        }
+    }
+    Ok(extra)
+}
+#[tauri::command]
+fn backups_info(place: tauri::State<DataPlace>) -> serde_json::Value {
+    let dir = place.dir.join("backups");
+    let files = backup_files(&dir);
+    serde_json::json!({ "dir": dir.to_string_lossy(), "count": files.len(), "last": files.last().map(|(_, s)| *s) })
+}
+#[tauri::command]
+fn prune_backups(place: tauri::State<DataPlace>, keep: usize) -> Result<usize, String> {
+    prune_backup_dir(&place.dir.join("backups"), keep).map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn export_database(app: tauri::AppHandle, place: tauri::State<DataPlace>) -> Result<String, String> {
+    if !place.dir.join(DB_FILE).exists() { return Err("There is nothing to export yet.".into()); }
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
+    let mut name = format!("Homunculus export {stamp}.db");
+    let mut n = 2;
+    while dir.join(&name).exists() { name = format!("Homunculus export {stamp} ({n}).db"); n += 1; }
+    copy_database(&place.dir, &dir, &name).map_err(|e| e.to_string())?;
+    Ok(dir.join(name).to_string_lossy().into_owned())
+}
+
 // ---- Secrets (API keys) (D-011, D-030).
 // Normal install: the operating system's keychain (Windows Credential Manager; on Linux the Secret Service,
 // e.g. GNOME Keyring or KWallet); keys never touch files.
@@ -576,6 +625,7 @@ pub fn run() {
         .manage(janny::JannyBridge::default())
         .manage(botbooru::BotbooruBridge::default())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
         // A hidden account window must not keep the app alive after its main window closes. CODEX, 2026-11-02.
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
@@ -618,6 +668,9 @@ pub fn run() {
             database_url,
             data_location,
             backup_database,
+            backups_info,
+            prune_backups,
+            export_database,
             secret_get,
             secret_set,
             secret_delete,
@@ -944,5 +997,26 @@ mod card_site_tests {
                 assert!(card_site_request(input).await.is_err());
             }
         });
+    }
+}
+
+// Settings → Data: only the app's own backups are counted and removed, oldest first. CLAUDE, 2026-11-03.
+#[cfg(test)]
+mod backup_tests {
+    use super::*;
+    #[test]
+    fn prune_keeps_the_newest_and_never_touches_other_files() {
+        let dir = std::env::temp_dir().join(format!("h2-backups-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for s in [100, 300, 200, 400] { std::fs::write(dir.join(format!("homunculus-{s}.db")), b"x").unwrap(); }
+        std::fs::write(dir.join("homunculus-300.db-wal"), b"x").unwrap();
+        for other in ["notes.txt", "homunculus-abc.db", "mine-500.db"] { std::fs::write(dir.join(other), b"x").unwrap(); }
+        assert_eq!(backup_files(&dir).iter().map(|(_, s)| *s).collect::<Vec<_>>(), vec![100, 200, 300, 400]);
+        assert_eq!(prune_backup_dir(&dir, 2).unwrap(), 2);
+        assert_eq!(backup_files(&dir).iter().map(|(_, s)| *s).collect::<Vec<_>>(), vec![300, 400]);
+        for other in ["notes.txt", "homunculus-abc.db", "mine-500.db", "homunculus-300.db-wal"] { assert!(dir.join(other).exists(), "{other}"); }
+        assert_eq!(prune_backup_dir(&dir, 0).unwrap(), 1, "keep is at least one");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

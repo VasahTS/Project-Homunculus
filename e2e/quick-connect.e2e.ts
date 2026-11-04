@@ -16,6 +16,7 @@ async function mockModels(page: Page) {
 
 async function makeOpenRouter(page: Page) {
   await page.getByTestId("app-list").getByRole("button", { name: "Settings" }).click();
+  await page.getByTestId("settings-connections").click(); // Settings v2 opens on General (D-082)
   await page.getByRole("button", { name: "New Connection" }).click();
   await editor(page).getByLabel("Connection name").fill("Router");
   await page.getByRole("button", { name: "Create Connection" }).click();

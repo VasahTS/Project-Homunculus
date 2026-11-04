@@ -140,7 +140,8 @@ describe("tool calling and images (D-062)", () => {
     expect(body.messages[0].content[1]).toEqual({ type: "image_url", image_url: { url: "data:image/png;base64,QUJD" } });
     expect(body.messages[1]).toMatchObject({ role: "assistant", content: null, tool_calls: [{ id: "c0", type: "function", function: { name: "read", arguments: "{}" } }] });
     expect(body.messages[2]).toEqual({ role: "tool", tool_call_id: "c0", content: "result" });
-    expect(out).toEqual([{ toolCalls: [{ id: "c1", name: "find", arguments: "{\"query\":\"Lyra\"}" }, { id: "c2", name: "guide", arguments: "{}" }] }]);
+    // the finish reason follows the calls (D-082: "length" lets the chat continue a cut-off reply)
+    expect(out).toEqual([{ toolCalls: [{ id: "c1", name: "find", arguments: "{\"query\":\"Lyra\"}" }, { id: "c2", name: "guide", arguments: "{}" }] }, { finish: "tool_calls" }]);
   });
 });
 

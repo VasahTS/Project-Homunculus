@@ -1,4 +1,3 @@
-import { useSendKey } from "./ux.tsx";
 // Homunculus 2 — Settings → Customize (D-075): the look, its tweaks, messages, motion, and advanced (colors, extra CSS).
 // Built from the approved draft `docs/drafts/neutral-look/` page 2 and the plan in docs/UI-PLAN.md ("Customize"). CLAUDE, 2026-11-01.
 import { useEffect, useRef, useState } from "react";
@@ -10,7 +9,7 @@ import { BUILTIN_PROFILES, type AppearanceProfile } from "../theme/themes.ts";
 import { saveExport } from "../files.ts";
 import { revealLook } from "./motion.ts";
 import { Button, Group, Icon, Row, Segmented, Switch } from "./kit.tsx";
-import { MessageLookRows } from "./MessageLookSection.tsx";
+import { PicturesAndReadingGroup } from "./SettingsSections.tsx";
 
 /** Token groups shown in Edit colors, with plain names (D-075). */
 const TOKEN_GROUPS: Array<{ title: string; tokens: Array<[string, string]> }> = [
@@ -83,7 +82,6 @@ function TokenRow({ name, label, value, onChange }: { name: string; label: strin
 }
 
 export function CustomizeSection({ notify }: { notify: (title: string, lines?: string[]) => void }) {
-  const [sendKey, setSendKey] = useSendKey();
   const st = useAppearance();
   const safe = useSafeMode();
   const look = activeLook(st);
@@ -127,7 +125,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
 
   return (
     <div className="settings-page customize" data-testid="settings-customize-body">
-      <Group title="Look" help="Each look brings its colors, fonts and corners. It changes the whole app at once; nothing you wrote changes."
+      <Group icon="masks" title="Look" help="Each look brings its colors, fonts and corners. It changes the whole app at once; nothing you wrote changes."
         aside={<><Button small variant="bordered" onClick={() => file.current?.click()}>Import Look…</Button>
           <input ref={file} type="file" accept=".json,application/json" hidden aria-label="Look file" onChange={(e) => { void doImport(e.target.files?.[0]); e.target.value = ""; }} /></>}>
         <div className="look-grid" role="radiogroup" aria-label="Look">
@@ -146,7 +144,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
         {safe && <p className="hint look-safe">This look's extra CSS is off until the app restarts (Ctrl+Shift+0 turns it back on).</p>}
       </Group>
 
-      <Group title={`Tweaks for ${look.name}`} help="Kept for this look only. They never change the look itself."
+      <Group icon="sliders" title={`Tweaks for ${look.name}`} help="Kept for this look only. They never change the look itself."
         aside={<Button small variant="plain" onClick={() => void resetTweaks(look.id)} disabled={!Object.keys(tweaks).length}>Reset {look.name}</Button>}>
         <Row label="Accent" help="The main button, the selection, links. Text on it turns black or white by itself.">
           <span className="accent-swatches" role="radiogroup" aria-label="Accent">
@@ -173,12 +171,10 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
         </Row>
       </Group>
 
-      <Group title="Messages" help="How the text of messages is drawn (was Settings → Messages). Nothing here changes what is saved or what the AI is sent.">
-        <Row label="Send With"><select aria-label="Send Messages With" value={sendKey} onChange={e => setSendKey(e.target.value as "enter" | "ctrl-enter")}><option value="enter">Enter</option><option value="ctrl-enter">Ctrl+Enter</option></select></Row>
-        <MessageLookRows />
-      </Group>
+      {/* Settings v2 (D-082): Send With went to General and the message rows to Chat; new reading/picture rows here */}
+      <PicturesAndReadingGroup />
 
-      <Group title="Motion" help="Titles that rise, cascades, sliding tabs. Every look uses the same motion.">
+      <Group icon="sparkle" title="Motion" help="Titles that rise, cascades, sliding tabs. Every look uses the same motion.">
         <Row label="Animations">
           <Switch label="Animations" checked={st.motion.on} onChange={(on) => void setMotion({ on })} />
         </Row>
@@ -192,7 +188,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
         {motionOffBySystem && <p className="hint">Windows is asking for less animation, so motion is off now.</p>}
       </Group>
 
-      <Group title="Advanced">
+      <Group icon="tool" title="Advanced">
         <details className="cz-adv" data-testid="edit-colors">
           <summary>Edit Colors</summary>
           {builtin && <p className="hint">{look.name} is built in and stays as it is: your first change makes a copy, “{look.name} (edited)”, and switches to it.</p>}

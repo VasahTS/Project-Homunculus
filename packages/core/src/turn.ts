@@ -84,7 +84,12 @@ export interface TurnRequest {
   onReasoning?: (soFar: string) => void;
   /** The reply is saved; "after" agents (trackers…) still run. Lets the UI show the reply right away. */
   onReply?: (reply: Message) => void;
+  /** Settings → Chat (D-082): when the model stops at its length limit, ask it to go on, at most this many times. */
+  continueOnLength?: number;
 }
+
+/** What the model is told when its reply was cut off by its length limit (D-082). */
+export const CONTINUE_NUDGE = "[Your last reply was cut off by the length limit. Continue it exactly where it stopped, mid-sentence if needed. Do not repeat anything, do not summarize, and add no preface.]";
 
 export interface TurnResult {
   userMessage?: Message;
@@ -208,11 +213,25 @@ export class TurnPipeline {
     let text = "";
     let reasoning = "";
     const usage: { tokensIn?: number; tokensOut?: number; tokensReasoning?: number; cost?: number } = {};
+    const turnsSent = toTurns(preset.squashSystem ? squashSystem(prompt) : prompt);
     try {
-      for await (const chunk of this.core.connections.stream(main, toTurns(preset.squashSystem ? squashSystem(prompt) : prompt), req.signal)) {
-        if (typeof chunk === "string") { text += chunk; req.onToken?.(chunk, text); }
-        else if ("reasoning" in chunk) { reasoning += chunk.reasoning; req.onReasoning?.(reasoning); }
-        else if ("usage" in chunk) Object.assign(usage, chunk.usage);
+      // a continuation (D-082) adds to the same reply and its usage; the first call's prompt size is what tokensIn shows
+      const take = async (turnsNow: typeof turnsSent, first: boolean): Promise<string> => {
+        let finish = "";
+        for await (const chunk of this.core.connections.stream(main, turnsNow, req.signal)) {
+          if (typeof chunk === "string") { text += chunk; req.onToken?.(chunk, text); }
+          else if ("reasoning" in chunk) { reasoning += chunk.reasoning; req.onReasoning?.(reasoning); }
+          else if ("usage" in chunk) {
+            if (first) Object.assign(usage, chunk.usage);
+            else for (const k of ["tokensOut", "tokensReasoning", "cost"] as const) if (chunk.usage[k] !== undefined) usage[k] = (usage[k] ?? 0) + chunk.usage[k]!;
+          }
+          else if ("finish" in chunk) finish = chunk.finish;
+        }
+        return finish;
+      };
+      let finish = await take(turnsSent, true);
+      for (let k = 0; finish === "length" && k < (req.continueOnLength ?? 0) && text.trim(); k++) {
+        finish = await take([...turnsSent, { role: "assistant", content: text }, { role: "user", content: CONTINUE_NUDGE }], false);
       }
     } catch (error) {
       const reason = isAbort(error, req.signal) ? "Stopped" : error instanceof Error ? error.message : String(error);

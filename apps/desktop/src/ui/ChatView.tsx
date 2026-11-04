@@ -31,6 +31,9 @@ import { Button, Icon, IconButton } from "./kit.tsx";
 import { RegexReview, SessionRegex } from "./RegexScripts.tsx";
 import { MessageText } from "./MessageText.tsx";
 import { MessageMetadata, MessageTime } from "./MessageMetadata.tsx";
+import { getPrefs, usePrefs } from "../prefs.ts";
+import { useSmoothText } from "../smoothText.ts";
+import { CardPicture } from "./Gallery.tsx";
 import { AuthorsNoteGroup, noteMarkAt } from "./AuthorsNote.tsx";
 import { QuickConnect } from "./QuickConnect.tsx";
 import { Toolbar } from "./Toolbar.tsx";
@@ -124,6 +127,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const [siblings, setSiblings] = useState<Record<string, SiblingInfo>>({});
   const [error, setError] = useState("");
   const [sendKey] = useSendKey();
+  const prefs = usePrefs();
+  // Settings → Chat (D-082): two-finger sideways swipe on the last reply
+  const swipeAcc = useRef({ x: 0, last: 0, fired: 0 });
   const [input, setInput] = useDraft(`play:${session.id}`, "");
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(session.title);
@@ -141,6 +147,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const behind = !!turn && (turn.id !== shown.id ? turn.headSeq > 0 : turn.headSeq > shown.seq);
   /** A reply being written right now: where it hangs, the user's words (if any) and what has arrived so far. */
   const pending: Pending | null = turn?.phase === "writing" ? turn : behind && lastWriting.current?.id === turn?.id ? lastWriting.current : null;
+  // Settings → Chat (D-082): a live reply revealed evenly ("Smooth text")
+  const liveText = useSmoothText(pending?.text ?? "", prefs.smoothText && !!pending, prefs.smoothSpeed);
   const [sceneKey, setSceneKey] = useState(0);
   const [tab, setTab] = useState<InspectorTab>("scene");
   /** The reply shown in the Reply tab (null = the latest one). */
@@ -237,7 +245,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     const el = storyRef.current;
     if (!el) return;
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (dist < 24) stickRef.current = true;
+    if (dist < 24) { stickRef.current = true; holdRef.current = false; }
     else if (el.scrollTop < lastTopRef.current - 1) stickRef.current = false; // you moved up
     lastTopRef.current = el.scrollTop;
     setAwayFromEnd(!stickRef.current);
@@ -251,7 +259,13 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   useEffect(() => { toEnd(); }, [session.id]);
   // a new turn starts (you sent, swiped or regenerated): go to the end once
   const turnStarted = pending !== null;
-  useEffect(() => { if (turnStarted) toEnd(); }, [turnStarted]);
+  // Settings → Chat (D-082): with "Follow the reply" off, the chat goes to the end once, then stays where you are
+  const holdRef = useRef(false);
+  useEffect(() => {
+    if (!turnStarted) return;
+    toEnd();
+    if (!getPrefs().followReply) { const t = window.setTimeout(() => { holdRef.current = true; }, 80); return () => window.clearTimeout(t); }
+  }, [turnStarted]);
 
   useEffect(() => {
     const t = scrollTarget.current;
@@ -262,7 +276,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       onStoryScroll();
       return;
     }
-    if (stickRef.current) toEnd();
+    if (stickRef.current && !holdRef.current) toEnd();
   }, [path, pending]);
 
   /** Starts a turn in turns.ts (it keeps going if you leave this chat). */
@@ -627,9 +641,23 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               return (
                 <Fragment key={m.id}>
                 {noteAt === i && noteMark}
-                <li className={`msg ${m.speaker.kind}${hidden ? " hidden-ai" : ""}${isLast ? " last" : ""}`} data-testid="message" data-region="message" data-mid={m.id}>
+                <li className={`msg ${m.speaker.kind}${hidden ? " hidden-ai" : ""}${isLast ? " last" : ""}`} data-testid="message" data-region="message" data-mid={m.id}
+                  onWheel={isLastAi && prefs.gestures ? (e) => {
+                    // trackpad: sideways two-finger swipe; left = previous version, right = next (or a new one at the end)
+                    if (busy || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+                    const a = swipeAcc.current, now = Date.now();
+                    if (now - a.last > 300) a.x = 0;
+                    a.last = now; a.x += e.deltaX;
+                    if (Math.abs(a.x) < 120 || now - a.fired < 800) return;
+                    const dir = a.x > 0 ? 1 : -1;
+                    a.x = 0; a.fired = now;
+                    if (dir === 1 && vIndex === versions.length - 1) { if (m.parentId !== null) regenerate(m); }
+                    else if (dir === -1 ? vIndex > 0 : vIndex < versions.length - 1) void switchSibling(m, dir);
+                  } : undefined}>
+                  {prefs.avatarShape !== "hidden" && <CardPicture className="chat-avatar" name={speakerName(m)}
+                    avatar={m.speaker.kind === "character" ? avatars[m.speaker.characterId] : m.speaker.kind === "user" && persona ? avatars[persona.id] : undefined} />}
                   <div className="msg-body">
-                  <div className="who">{speakerName(m)} <MessageTime at={m.createdAt} />
+                  <div className="who">{speakerName(m)} {prefs.showTime && <MessageTime at={m.createdAt} />}
                     {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} current={m.content} canWriteAgain={isLastAi && m.parentId !== null && !busy}
                       onSaveText={(t) => void saveText(m, t)} onWriteAgain={() => regenerate(m)} />}
                     {m.meta.incomplete === true && <span className="warn"> · incomplete</span>}
@@ -639,8 +667,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     )}
                     {hidden && <span className="hidden-tag" data-testid="hidden-tag"> · hidden from the AI</span>}
                   </div>
-                  {m.reasoning && (
-                    <details className="reasoning" data-testid="reasoning">
+                  {m.reasoning && prefs.thinking !== "hidden" && (
+                    <details className="reasoning" data-testid="reasoning" open={prefs.thinking === "open" || undefined}>
                       <summary>Reasoning</summary>
                       <div className="reasoning-text">{regex.scripts.length ? applyRegexScripts(regex.scripts, m.reasoning, { target: "reasoning", mode: "display", depth: visible.length - i - 1 }, regex.ctx) : m.reasoning}</div>
                     </details>
@@ -666,7 +694,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     <Choices results={agentResults.get(m.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(m.id)} />
                   )}
                   </div>
-                  <MessageMetadata svc={svc} message={m} position={i + 1} />
+                  {(prefs.showNumber || prefs.showTokens) && <MessageMetadata svc={svc} message={m} position={i + 1} showNumber={prefs.showNumber} showTokens={prefs.showTokens} />}
                   {deletingMsg === m.id ? (
                     <div className="msg-delete" data-testid="message-delete-confirm">
                       <span><strong>Delete {gone.length > 1 ? `this message and the ${gone.length - 1} after it` : "this message"} for good?</strong>
@@ -726,13 +754,13 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             {pending && (
               <li className="msg character streaming fresh" data-testid="streaming">
                 <div className="who">{leadChar?.name ?? "…"} {pending.reasoning && !pending.text ? "is thinking…" : "is writing…"}</div>
-                {pending.reasoning && (
-                  <details className="reasoning" data-testid="reasoning-live">
+                {pending.reasoning && prefs.thinking !== "hidden" && (
+                  <details className="reasoning" data-testid="reasoning-live" open={prefs.thinking === "open" || undefined}>
                     <summary>Reasoning</summary>
                     <div className="reasoning-text">{pending.reasoning}</div>
                   </details>
                 )}
-                <div className="text prose">{pending.text ? <MessageText text={show(pending.text)} richHtml /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
+                <div className="text prose">{pending.text ? <MessageText text={show(liveText)} richHtml /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
               </li>
             )}
           </ol>

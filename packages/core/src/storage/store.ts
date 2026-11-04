@@ -915,6 +915,18 @@ export class SqlStore implements StateRepository, MessageTree {
     await this.personas.delete(id);
   }
 
+  /** Settings → Data (D-082): deletes for good what has been in the Trash since before `cutoff` (ms). Sessions go first so
+   *  their characters can follow; anything still in use stays (it would throw). Returns how many left. CLAUDE, 2026-11-03. */
+  async emptyTrashOlderThan(cutoff: number): Promise<number> {
+    const items = (await this.listTrash()).filter((x) => x.trashedAt < cutoff);
+    const order: TrashKind[] = ["session", "story", "persona", "preset", "lorebook", "kit", "npc", "narrator", "character"];
+    let gone = 0;
+    for (const kind of order) for (const it of items.filter((x) => x.kind === kind)) {
+      try { await this.deleteForever(kind, it.id); gone++; } catch { /* still in use: it waits */ }
+    }
+    return gone;
+  }
+
   /** Deletes everything in the Trash for good (sessions first, so their characters can go too). */
   async emptyTrash(): Promise<void> {
     const items = await this.listTrash();

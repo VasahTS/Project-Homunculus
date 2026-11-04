@@ -8,7 +8,7 @@ import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Sessio
 import { blocksText, narratorBlocks, narratorText, npcSheetFields, npcTagline, type ListItem } from "@homunculus/core";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
-import { CardPicture, GalleryCard, SheetSection, type VaultTab } from "./Gallery.tsx";
+import { CardPicture, GalleryCard, SheetSection, SpoilerGate, type VaultTab } from "./Gallery.tsx";
 import { StoryMark } from "./Sidebar.tsx";
 import { ImagePicker } from "./ImagePicker.tsx";
 import { SetupFields, SetupSection, type StorySetupProps } from "./SetupFields.tsx";
@@ -17,6 +17,7 @@ import { CollectionTools, FolderHits, SizeSwitch, ViewSwitch, type CollectionPre
 import { Toolbar } from "./Toolbar.tsx";
 import { SortSelect, useCollectionOrder } from "./CollectionOrder.tsx";
 import { CASCADE, useEnter } from "./motion.ts";
+import { CardReader } from "./CardReader.tsx";
 
 /** A field set an NPC sheet can use (a Scene: Characters set, or any set with per-character fields). */
 export interface FieldSetOption { id: string; label: string; schema: TrackerSchema }
@@ -102,8 +103,22 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
   // first, Continue / + New Chat, then its chats
   const people = [...cardNames, ...npcNames];
   const opening = story.openings.find((o) => o.trim());
+  const [reading, setReading] = useState(false);
   return (
     <div className="view-sheet" data-testid="story-sheet">
+      {reading && <CardReader name={story.name} where="Stories" byline={`Told by ${narratorName} · ${ROLE_LABEL[story.userRole]}`} picture={avatar}
+        actions={<>
+          {onContinue && <Button variant="prominent" onClick={() => { setReading(false); onContinue(); }}>Continue “{latestTitle}”</Button>}
+          <Button variant={onContinue ? "bordered" : "prominent"} onClick={() => { setReading(false); onNewChat(); }}>{onContinue ? "+ New Chat" : "Play"}</Button>
+          <Button onClick={() => { setReading(false); onOpen(); }}><Icon name="pencil" size={13} /> Open Story</Button>
+        </>}
+        sections={[
+          { id: "about", title: "About", text: story.description, prose: true },
+          { id: "scenario", title: "Scenario", text: story.scenario, prose: true },
+          { id: "people", title: "People", text: people.join(", ") },
+        ]}
+        greetings={story.openings.filter((o) => o.trim())} greetingLabel="Opening"
+        onBack={() => setReading(false)} onClose={() => setReading(false)} />}
       {onImage
         ? <div className="vs-pic-pick"><ImagePicker name={story.name} avatar={avatar} own={ownImage} onChange={onImage} shape="square" size={96} testId="story-image" /></div>
         : <StoryMark name={story.name} avatar={avatar} size={96} />}
@@ -114,15 +129,18 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
         {onContinue && <Button variant="prominent" onClick={onContinue} data-testid="continue-story-chat">Continue “{latestTitle}”</Button>}
         <Button variant={onContinue ? "bordered" : "prominent"} onClick={onNewChat} data-testid="story-new-chat">{onContinue ? "+ New Chat" : "Play"}</Button>
         <Button onClick={onOpen}><Icon name="pencil" size={13} /> Open Story</Button>
+        <Button onClick={() => setReading(true)} data-testid="story-read">Read</Button>
         <Button onClick={onDuplicate}>Duplicate</Button>
         {onSaveAsKit && <Button onClick={onSaveAsKit} title="Keep how this story starts in Library › Kits, to start new stories from it">Save as Kit</Button>}
         <ConfirmButton label="Move to Trash" confirmLabel="Click Again" className="btn btn-plain btn-small danger-text" onConfirm={onTrash} />
       </div>
       {folder && <div className="vs-folder">{folder}</div>}
+      <SpoilerGate key={story.id} what="story's details">
       {story.description.trim() && <SheetSection title="About" prose>{story.description}</SheetSection>}
       {story.scenario.trim() && <SheetSection title="Scenario" prose>{story.scenario}</SheetSection>}
       {people.length > 0 && <SheetSection title="People">{people.join(", ")}</SheetSection>}
       {opening && <SheetSection title={story.openings.filter((o) => o.trim()).length > 1 ? `Opening 1 of ${story.openings.filter((o) => o.trim()).length}` : "Opening"} prose lines={5}>{opening}</SheetSection>}
+      </SpoilerGate>
       {chats && <section className="vs-sec vs-chats"><h3>Chats</h3>{chats}</section>}
     </div>
   );

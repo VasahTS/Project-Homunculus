@@ -41,6 +41,8 @@ export type StreamChunk =
   | string
   | { reasoning: string }
   | { usage: { tokensIn?: number; tokensOut?: number; tokensReasoning?: number; cost?: number } }
+  /** Why the model stopped, when the provider says ("length" = it hit its output limit). D-082. */
+  | { finish: string }
   | { toolCalls: ToolCall[] };
 
 // ---- tool calling and images (the Library Assistant, D-062) ----

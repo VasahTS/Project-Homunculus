@@ -11,10 +11,12 @@ import { BotbooruAccount } from "./BotbooruAccount.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { Help } from "./Help.tsx";
 import { CardPicture, GalleryCard } from "./Gallery.tsx";
+import { CardReader } from "./CardReader.tsx";
 import { SizeSwitch, type CollectionPrefs } from "./CollectionTools.tsx";
 import { childrenOf } from "./Folders.tsx";
 import { openLink } from "./MessageText.tsx";
 import { siteIndex, type FolderChoice } from "../importCharacters.ts";
+import { getPrefs } from "../prefs.ts";
 
 // ------------------------------------------------------------------ remembered state
 /** Between runs (a per-viewer convenience, D-068 style): never required, defaults apply without it. */
@@ -24,8 +26,8 @@ const DEFAULT_PREFS: Prefs = { source: "chub", sorts: {}, nsfw: {}, size: "m", f
 function loadPrefs(): Prefs {
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Partial<Prefs>;
-    return { ...DEFAULT_PREFS, ...raw, source: isSourceId(raw.source) ? raw.source : "chub", size: raw.size === "s" || raw.size === "l" ? raw.size : "m" };
-  } catch { return DEFAULT_PREFS; }
+    return { ...DEFAULT_PREFS, ...raw, source: isSourceId(raw.source) ? raw.source : "chub", size: raw.size === "s" || raw.size === "m" || raw.size === "l" ? raw.size : getPrefs().cardSize };
+  } catch { return { ...DEFAULT_PREFS, size: getPrefs().cardSize }; }
 }
 const savePrefs = (p: Prefs) => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* storage unavailable */ } };
 
@@ -245,6 +247,11 @@ export function CardBrowser(p: CardBrowserProps) {
   const activeFilters = filters.must.length + (filters.ascending ? 1 : 0) + (filters.minTokens ? 1 : 0) + (filters.maxTokens ? 1 : 0) + (filters.lowQuality ? 1 : 0);
   const hasFilters = source.mustHave.length > 0 || source.ascending || source.tokens || source.lowQuality;
   const chosen = items.find((x) => x.id === selected) ?? null;
+  // the card reading view (D-082) stays open while ← → move to other cards
+  const [reading, setReading] = useState(false);
+  useEffect(() => { if (!chosen) setReading(false); }, [chosen]);
+  const at = chosen ? items.indexOf(chosen) : -1;
+  const stepCard = (d: 1 | -1) => { const next = items[at + d]; if (next) setSelected(next.id); };
 
   const onKey = (e: ReactKeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
@@ -353,7 +360,9 @@ export function CardBrowser(p: CardBrowserProps) {
         <aside className={`gallery-sheet${chosen ? " has-card" : ""}`} data-region="sheet">
           <div className="collection-detail-label cb-sheet-label">Card details{chosen && <IconButton className="cb-sheet-close" label="Close" onClick={() => setSelected(null)}><Icon name="close" size={13} /></IconButton>}</div>
           {chosen
-            ? <CardSheet key={`${chosen.source}:${chosen.id}`} item={chosen} source={source} {...p} onImportDownloaded={() => fileInput.current?.click()} prefs={prefs} setPrefs={setPrefs} addedId={added.get(`${chosen.source}:${chosen.id}`) ?? null} />
+            ? <CardSheet key={`${chosen.source}:${chosen.id}`} item={chosen} source={source} {...p} onImportDownloaded={() => fileInput.current?.click()} prefs={prefs} setPrefs={setPrefs} addedId={added.get(`${chosen.source}:${chosen.id}`) ?? null}
+                reading={reading} setReading={setReading} onCloseSheet={() => setSelected(null)}
+                onPrev={at > 0 ? () => stepCard(-1) : undefined} onNext={at >= 0 && at < items.length - 1 ? () => stepCard(1) : undefined} />
             : <div className="empty-detail"><p>Pick a card to read it here.</p><p className="hint">Add to Characters saves it in your library, with its lorebook.</p></div>}
         </aside>
       </div>
@@ -377,8 +386,9 @@ function ResultCard({ item, t, selected, added, onClick }: { item: CardItem; t: 
 }
 
 // ------------------------------------------------------------------ the sheet
-function CardSheet({ item, source, transport, characters: _c, folders, onAdd, onSavePng, onOpenCharacter, onChat, onNewFolder, onError, onImportDownloaded, prefs, setPrefs, addedId }: CardBrowserProps & {
+function CardSheet({ item, source, transport, characters: _c, folders, onAdd, onSavePng, onOpenCharacter, onChat, onNewFolder, onError, onImportDownloaded, prefs, setPrefs, addedId, reading, setReading, onCloseSheet, onPrev, onNext }: CardBrowserProps & {
   onImportDownloaded: () => void; item: CardItem; source: CardSource; prefs: Prefs; setPrefs: (f: (x: Prefs) => Prefs) => void; addedId: string | null;
+  reading: boolean; setReading: (v: boolean) => void; onCloseSheet: () => void; onPrev?: (() => void) | undefined; onNext?: (() => void) | undefined;
 }) {
   const k = `${item.source}:${item.id}`;
   const [d, setD] = useState<CardDetails | "failed" | null>(details.get(k) ?? null);
@@ -421,24 +431,42 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
   const badges = [full?.hasLorebook && "Lorebook", greetings.length > 1 && `${greetings.length} Greetings`, item.nsfw && (item.nsfl ? "NSFL" : "NSFW")].filter(Boolean) as string[];
   const figs = figures(item);
 
-  return (
-    <div className="view-sheet cb-sheet" data-testid="cb-sheet">
-      <div className="vs-actions cb-sticky-actions">
-        <strong className="cb-action-name" title={item.name}>{item.name}</strong>
+  const mainActions = <>
         {mine
           ? <>{justAdded ? <Button variant="prominent" data-testid="cb-chat" onClick={() => onChat(mine)}>Chat Now</Button>
                         : <Button variant="prominent" data-testid="cb-open" onClick={() => onOpenCharacter(mine)}>Open in Characters</Button>}</>
           : <Button variant="prominent" data-testid="cb-add" disabled={working !== null} onClick={() => void add()}>{working === "add" ? "Adding…" : "Add to Characters"}</Button>}
         <Button data-testid="cb-png" disabled={working !== null} onClick={() => void png()}>{working === "png" ? "Saving…" : "Save as PNG"}</Button>
         <Button onClick={() => void openLink(item.url)}>Open on {source.name}</Button>
+  </>;
+  const by = [item.creator && `by ${item.creator}`, figs].filter(Boolean).join(" · ");
+  return (
+    <div className="view-sheet cb-sheet" data-testid="cb-sheet">
+      <div className="vs-actions cb-sticky-actions">
+        <strong className="cb-action-name" title={item.name}>{item.name}</strong>
+        {mainActions}
+        <Button data-testid="cb-read" onClick={() => setReading(true)}>Read</Button>
         {mine && <span className="cb-menu">
           <IconButton label="More" aria-expanded={menu} onClick={() => setMenu(!menu)}><Icon name="dots" /></IconButton>
           {menu && <span className="cb-pop cb-pop-right" role="menu"><button type="button" role="menuitem" data-testid="cb-add-again" onClick={() => void add()}>Add Again</button></span>}
         </span>}
       </div>
-      <CardPicture name={item.name} avatar={pic} className="vs-pic" />
+      <button type="button" className="vs-pic-read" aria-label={`Read ${item.name} full window`} onClick={() => setReading(true)}><CardPicture name={item.name} avatar={pic} className="vs-pic" /></button>
+      {reading && <CardReader name={item.name} where={`Card Browser · ${source.name}`} byline={by} picture={pic} tags={tags}
+        actions={mainActions} greetings={greetings} greetingLabel="First Message" renderText={(t) => <Linked text={t} />}
+        sections={[
+          { id: "notes", title: "Creator's Notes", text: full?.creatorNotes || (d === "failed" ? item.tagline : "") },
+          { id: "description", title: "Description", text: full?.description ?? "" },
+          { id: "scenario", title: "Scenario", text: full?.scenario ?? "", prose: true },
+          { id: "personality", title: "Personality", text: full?.personality ?? "" },
+          { id: "examples", title: "Example Dialogue", text: full?.exampleDialogue ?? "" },
+          { id: "system", title: "System Prompt", text: full?.systemPrompt ?? "" },
+          { id: "post", title: "Post-History Instructions", text: full?.postHistory ?? "" },
+        ]}
+        extra={d === null ? <p className="hint">Loading…</p> : undefined}
+        onBack={() => setReading(false)} onClose={() => { setReading(false); onCloseSheet(); }} onPrev={onPrev} onNext={onNext} />}
       <div className="vs-head">
-        <div className="vs-title"><h2>{item.name}</h2><span className="hint">{[item.creator && `by ${item.creator}`, figs].filter(Boolean).join(" · ")}</span></div>
+        <div className="vs-title"><h2>{item.name}</h2><span className="hint">{by}</span></div>
       </div>
       {badges.length > 0 && <div className="vs-tags cb-badges">{badges.map((b) => <span key={b} className="gallery-tag big">{b}</span>)}</div>}
 

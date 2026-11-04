@@ -51,6 +51,10 @@ import { CommandPalette, type PaletteItem } from "./ui/CommandPalette.tsx";
 import { AssistantSidebar, AssistantView, useAssistant, type AppMode, type LibraryEntry } from "./ui/Assistant.tsx";
 import { RegexPage } from "./ui/RegexScripts.tsx";
 import { loadMessageLook } from "./messageLook.ts";
+import { getPrefs, loadPrefs, usePrefs } from "./prefs.ts";
+import { playReplySound } from "./sounds.ts";
+import { notifyInBackground } from "./systemNotify.ts";
+import { isDesktop } from "./db.ts";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
 import { applyDefaultAppearance, loadAppearance, toggleSafeMode } from "./theme/appearance.ts";
@@ -86,6 +90,19 @@ function usePanel(key: string, initial: boolean): [boolean, () => void] {
 }
 
 /** Story chats made before D-031 were named "<Story>, session N": they become "Chat N" (once; the pattern is gone after). */
+/** Settings → Data (D-082): a backup when the app opens, if the newest is older than a day or a week; keeps the newest N. */
+async function autoBackup(every: "off" | "daily" | "weekly", keep: number): Promise<void> {
+  if (every === "off" || !isDesktop) return;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const info = await invoke<{ last: number | null }>("backups_info");
+    const age = info.last ? Date.now() / 1000 - info.last : Infinity;
+    if (age < (every === "daily" ? 86_400 : 7 * 86_400)) return;
+    await invoke("backup_database");
+    await invoke("prune_backups", { keep });
+  } catch { /* a backup must never stop the app from opening */ }
+}
+
 async function renameOldStoryChats(s: AppServices) {
   const names = Object.fromEntries((await s.store.listStories()).map((st) => [st.id, st.name]));
   for (const x of await s.store.listSessions()) {
@@ -130,7 +147,9 @@ export function App() {
   const [collPrefs, setCollPrefs] = useState<Record<string, CollectionPrefs>>(() => {
     try { return JSON.parse(localStorage.getItem(COLL_PREFS_KEY) ?? "{}") as Record<string, CollectionPrefs>; } catch { return {}; }
   });
-  const prefsOf = (page: string): CollectionPrefs => ({ ...DEFAULT_PREFS, ...collPrefs[page] });
+  // Settings → Appearance (D-082): the card size a collection opens with, until the page picks its own
+  const appPrefs = usePrefs();
+  const prefsOf = (page: string): CollectionPrefs => ({ ...DEFAULT_PREFS, size: appPrefs.cardSize, ...collPrefs[page] });
   const setPrefs = (page: string) => (next: CollectionPrefs) => setCollPrefs((all) => {
     const out = { ...all, [page]: next };
     try { localStorage.setItem(COLL_PREFS_KEY, JSON.stringify(out)); } catch { /* per-viewer only */ }
@@ -280,10 +299,18 @@ export function App() {
     let cancelled = false;
     servicesReady.then(async (s) => {
       await renameOldStoryChats(s);
+      const p = await loadPrefs(s.store);
+      // Settings → Data (D-082): items in the Trash longer than chosen leave for good (ones still in use stay)
+      if (p.emptyTrashDays > 0) await s.store.emptyTrashOlderThan(Date.now() - p.emptyTrashDays * 86_400_000).catch(() => 0);
       const { ss } = await refresh(s);
       if (cancelled) return;
       setSvc(s);
       setActiveId(ss[0]?.id ?? null);
+      // Settings → General: where the app opens
+      if (p.openAt === "stories") setViewNow({ kind: "vault", tab: "stories", id: null });
+      else if (p.openAt === "characters") setViewNow({ kind: "characters", id: null });
+      else if (p.openAt === "card-browser") setViewNow({ kind: "card-browser" });
+      void autoBackup(p.autoBackup, p.keepBackups);
     }).catch((e) => setBootError(errorText(e)));
     return () => { cancelled = true; };
   }, [refresh]);
@@ -296,8 +323,12 @@ export function App() {
       const before = phases.current.get(id);
       phases.current.set(id, t.phase);
       if (before !== "writing" || t.phase === "writing" || t.error) continue;
-      if (view.kind === "session" && activeId === id) continue;
+      // Settings → General (D-082): the sound and the Windows notification are for any reply; the notice only off screen
+      playReplySound();
       const chat = sessions.find((x) => x.id === id);
+      void notifyInBackground("Reply ready", chat?.title ?? "A chat answered.");
+      if (view.kind === "session" && activeId === id) continue;
+      if (!getPrefs().replyNotice) continue;
       setNotice({ kind: "ok", title: `Reply ready in “${chat?.title ?? "a chat"}”`, lines: [], action: { label: "Open", run: () => { setActiveId(id); setView({ kind: "session" }); } } });
     }
     for (const id of [...phases.current.keys()]) if (!live.has(id)) phases.current.delete(id);
@@ -1211,7 +1242,7 @@ export function App() {
             storyNames={stories.filter((st) => st.narrator.kind === "card" && st.narrator.characterId === sheetOf.id).map((st) => st.name)}
             onContinue={chatsWith(sheetOf.id)[0] ? () => openChat(chatsWith(sheetOf.id)[0]!.session.id) : undefined}
             latestTitle={chatsWith(sheetOf.id)[0]?.session.title}
-            folder={folderPick("character", sheetOf.id)}
+            folder={folderPick("character", sheetOf.id)} folderName={folderLabel(folders, mapOf("character")[sheetOf.id]) || undefined}
             chats={<ChatList chats={chatsWith(sheetOf.id)} search={searchChats(chatsWith(sheetOf.id).map((x) => x.session.id))}
               onOpen={openChat} onRename={(id, t) => void renameChat(id, t)} onExport={(id, f) => void exportSession(id, f)} onTrash={(id) => void trashChat(id)}
               testId="character-chats" empty={`No chats with ${sheetOf.name} yet.`} />}
@@ -1330,7 +1361,7 @@ export function App() {
     );
   } else if (view.kind === "settings") {
     content = (
-      <SettingsPage lead={lead} tab={view.tab} onTab={(tab) => setView({ kind: "settings", tab })} c={connection} updates={updates}
+      <SettingsPage lead={lead} tab={view.tab} onTab={(tab) => setView({ kind: "settings", tab })} c={connection} updates={updates} trashCount={trash.length}
         providers={svc.core.providers.all()} trackers={trackers} presets={presets} defaultPresetId={defaultPresetId} personas={personas} defaultPersonaId={defaultPersonaId}
         defaultSetup={defaultSetup} onSetDefaultSetup={setDefaultSetup} onSetDefaultPersona={setDefaultPersona}
         lorebooks={lorebooks} loreSettings={loreSettings} onSaveLoreSettings={async (x) => { setLoreSettings(await svc.store.setLoreSettings(x)); }}
@@ -1588,7 +1619,7 @@ export function App() {
       { id: "go:characters", name: "Characters", group: "Go to", onOpen: go(() => setView({ kind: "characters", id: null })) },
       { id: "go:card-browser", name: "Card Browser", group: "Go to", keywords: "find download chub janny wyvern pygmalion web online", onOpen: go(() => setView({ kind: "card-browser" })) },
       ...sections.map((it) => ({ id: `go:${it.id}`, name: it.label, group: "Go to", hint: "Library", keywords: "library", onOpen: go(() => openLibrary(it.id)) })),
-      { id: "go:settings", name: "Settings", group: "Go to", onOpen: go(() => setView({ kind: "settings", tab: "connections" })) },
+      { id: "go:settings", name: "Settings", group: "Go to", onOpen: go(() => setView({ kind: "settings", tab: "general" })) },
       ...sessions.slice(0, 5).map((x) => ({ id: `recent:${x.id}`, name: x.title, group: "Recent chats", hint: storyOf(x) ?? leadOf(x), onOpen: openChat(x) })),
       { id: "do:new-story", name: "New Story", group: "Actions", keywords: "create start", onOpen: go(() => setNewStoryOpen({ cardId: null })) },
       ...characters.map((c) => ({ id: `character:${c.id}`, name: c.name, group: "Characters", onOpen: go(() => setView({ kind: "characters", id: c.id })) })),
@@ -1609,7 +1640,7 @@ export function App() {
     <div className="app" data-region="app">
       {sidebarOpen && mode === "assistant" && (
         <AssistantSidebar st={asst} onMode={setMode} status={svc.isDesktop ? "" : "preview · not saved"}
-          onSettings={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }} />
+          onSettings={() => { setMode("play"); setView({ kind: "settings", tab: "general" }); }} />
       )}
       {sidebarOpen && mode === "play" && (
         <Sidebar
@@ -1645,7 +1676,7 @@ export function App() {
           onOpenCardBrowser={() => setView({ kind: "card-browser" })}
           onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
-          onOpenSettings={() => setView({ kind: "settings", tab: "connections" })}
+          onOpenSettings={() => setView({ kind: "settings", tab: "general" })}
         />
       )}
       <div className="content" ref={contentRef}>

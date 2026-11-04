@@ -82,7 +82,7 @@ test("Import Look reads a look file and switches to it; a broken file says why",
 });
 
 test("a dialogue color can be taken back: Theme's returns to the look's own color (Daniel, 11/02)", async ({ page }) => {
-  await openCustomize(page);
+  await openCustomize(page); await page.getByTestId("settings-chat").click(); // D-082: message rows moved to Settings → Chat
   const q = page.getByTestId("settings-messages-body").locator("q.dlg").first();
   const before = await q.evaluate((el) => getComputedStyle(el).color);
   await page.getByLabel("Dialogue color", { exact: true }).fill("#ff0000");

@@ -12,6 +12,8 @@ import { Help } from "./Help.tsx";
 import { Button, Icon, Segmented } from "./kit.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { CASCADE, useEnter } from "./motion.ts";
+import { usePrefs } from "../prefs.ts";
+import { CardReader } from "./CardReader.tsx";
 import { CollectionTools, FolderHits, type CollectionPrefs, type FolderHit } from "./CollectionTools.tsx";
 import type { LibraryArea } from "./Sidebar.tsx";
 import { SortSelect, useCollectionOrder } from "./CollectionOrder.tsx";
@@ -81,6 +83,19 @@ export function GalleryCard({ name, avatar, by, summary, tags = [], size, select
         )}
       </span>
     </button>
+  );
+}
+
+/** Settings → General "Spoiler-free cards" (D-082): a sheet's definition stays hidden until Show. CLAUDE, 2026-11-03. */
+export function SpoilerGate({ children, what = "card's definition" }: { children: ReactNode; what?: string }) {
+  const p = usePrefs();
+  const [show, setShow] = useState(false);
+  if (!p.spoilerFree || show) return <>{children}</>;
+  return (
+    <div className="spoiler-gate" data-testid="spoiler-gate">
+      <span>Spoiler-free: the {what} is hidden.</span>
+      <Button small variant="bordered" onClick={() => setShow(true)}>Show</Button>
+    </div>
   );
 }
 
@@ -187,7 +202,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
  * completo antes de abrir o chat"). Versions are tabs (what you see is that version); Continue opens the newest chat,
  * New Chat starts one with the version shown.
  */
-export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNames, onChat, onEdit, onTurnIntoStory, onExport, onContinue, latestTitle, chats, folder }: {
+export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNames, onChat, onEdit, onTurnIntoStory, onExport, onContinue, latestTitle, chats, folder, folderName, onCloseSheet }: {
   c: Character; avatar?: Avatar | undefined; avatars?: Record<string, Avatar>; lorebookNames: string[]; storyNames: string[];
   /** A new chat with this version (null = Main). */
   onChat: (variantId: string | null) => void; onEdit: () => void; onTurnIntoStory: () => void; onExport?: (() => void) | undefined;
@@ -198,15 +213,37 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
   chats?: ReactNode;
   /** The "Folder" pick. */
   folder?: ReactNode;
+  /** The folder it is in (the reading view's place line). */
+  folderName?: string | undefined;
+  /** Closes the sheet (× in the reading view). */
+  onCloseSheet?: (() => void) | undefined;
 }) {
   const [vid, setVid] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
   const shown = effectiveCharacter(c, vid);
   const pic = (vid ? avatars[`${c.id}#${vid}`] : undefined) ?? avatar;
   const facts = [c.tracked === false && "not tracked in the Scene", c.creator && `by ${c.creator}`, shown.firstMessages.length > 1 && `${shown.firstMessages.length} greetings`,
     lorebookNames.length && `lorebook ${lorebookNames.join(", ")}`].filter(Boolean);
   return (
     <div className="view-sheet" data-testid="character-sheet">
-      <CardPicture name={shown.name} avatar={pic} className="vs-pic" />
+      <button type="button" className="vs-pic-read" aria-label={`Read ${shown.name} full window`} onClick={() => setReading(true)}><CardPicture name={shown.name} avatar={pic} className="vs-pic" /></button>
+      {reading && <CardReader name={shown.name} where={`Characters${folderName ? ` · ${folderName}` : ""}`} byline={facts.join(" · ") || undefined} picture={pic} tags={shown.tags}
+        actions={<>
+          {onContinue && <Button variant="prominent" onClick={() => { setReading(false); onContinue(); }}>Continue “{latestTitle}”</Button>}
+          <Button variant={onContinue ? "bordered" : "prominent"} onClick={() => { setReading(false); onChat(vid); }}>{onContinue ? "+ New Chat" : "Chat Now"}</Button>
+          <Button onClick={() => { setReading(false); onEdit(); }}><Icon name="pencil" size={13} /> Edit</Button>
+          {onExport && <Button onClick={onExport}>Export</Button>}
+        </>}
+        sections={[
+          { id: "description", title: "Description", text: shown.description },
+          { id: "personality", title: "Personality", text: shown.personality },
+          { id: "scenario", title: "Scenario", text: shown.scenario, prose: true },
+          { id: "examples", title: "Example Messages", text: shown.exampleMessages },
+          { id: "system", title: "System Prompt", text: shown.systemPrompt },
+          { id: "post", title: "Post-History Instructions", text: shown.postHistoryInstructions },
+        ]}
+        greetings={shown.firstMessages.filter((x) => x.trim())}
+        onBack={() => setReading(false)} onClose={() => { setReading(false); onCloseSheet?.(); }} />}
       <div className="vs-head">
         <div className="vs-title"><h2>{shown.name}</h2>{facts.length > 0 && <span className="hint">{facts.join(", ")}</span>}</div>
         <span className="gallery-tag big">~{shortTokens(cardTokens(shown))}</span>
@@ -219,16 +256,19 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
         {onContinue && <Button variant="prominent" onClick={onContinue} data-testid="continue-chat">Continue “{latestTitle}”</Button>}
         <Button variant={onContinue ? "bordered" : "prominent"} onClick={() => onChat(vid)} data-testid="new-chat-with">{onContinue ? "+ New Chat" : "Chat Now"}</Button>
         <Button onClick={onEdit}><Icon name="pencil" size={13} /> Edit</Button>
+        <Button onClick={() => setReading(true)} data-testid="character-read">Read</Button>
         <Button onClick={onTurnIntoStory} title="For cards that are really a narrator or a whole world: makes a story told by this card. The card is not changed.">Turn into a Story</Button>
         {onExport && <Button onClick={onExport}>Export</Button>}
       </div>
       {folder && <div className="vs-folder">{folder}</div>}
       {storyNames.length > 0 && <p className="hint">Tells the story {storyNames.map((n) => `“${n}”`).join(", ")}.</p>}
       {shown.tags.length > 0 && <div className="vs-tags">{shown.tags.map((t) => <span key={t} className="gallery-tag">{t}</span>)}</div>}
+      <SpoilerGate key={c.id}>
       {shown.description.trim() && <SheetSection title="Description" lines={8}>{shown.description}</SheetSection>}
       {shown.personality.trim() && <SheetSection title="Personality">{shown.personality}</SheetSection>}
       {shown.scenario.trim() && <SheetSection title="Scenario" prose>{shown.scenario}</SheetSection>}
       {shown.firstMessages[0]?.trim() && <SheetSection title={shown.firstMessages.length > 1 ? `Opening message 1 of ${shown.firstMessages.length}` : "Opening message"} prose lines={5}>{shown.firstMessages[0]}</SheetSection>}
+      </SpoilerGate>
       {chats && <section className="vs-sec vs-chats"><h3>Chats</h3>{chats}</section>}
     </div>
   );

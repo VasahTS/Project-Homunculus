@@ -107,7 +107,7 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
       if (tc.function?.name) c.name += tc.function.name;
       if (tc.function?.arguments) c.arguments += tc.function.arguments;
     }
-    if (json.choices?.[0]?.finish_reason) yield* flushCalls();
+    if (json.choices?.[0]?.finish_reason) { yield* flushCalls(); yield { finish: json.choices[0].finish_reason }; }
     if (json.usage) {
       // CODEX: completion_tokens includes reasoning; retain its optional breakdown without changing billing totals.
       const reasoning = json.usage.completion_tokens_details?.reasoning_tokens;

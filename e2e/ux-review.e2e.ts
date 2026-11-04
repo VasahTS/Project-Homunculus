@@ -10,7 +10,7 @@ test("Play and Assistant retain separate unsent drafts across navigation", async
   await page.getByRole("tab", { name: "Assistant", exact: true }).click(); await expect(page.getByLabel("Message to the Assistant")).toHaveValue("Assistant draft");
 });
 test("unsaved connection can stay, save then navigate, or discard", async ({ page }) => {
-  await page.goto("/"); await page.getByTestId("app-list").getByRole("button", { name: "Settings", exact: true }).click();
+  await page.goto("/"); await page.getByTestId("app-list").getByRole("button", { name: "Settings", exact: true }).click(); await page.getByTestId("settings-connections").click();
   await page.getByLabel("Connection name").fill("Protected connection"); await page.getByTestId("settings-defaults").click();
   const dialog = page.getByRole("dialog", { name: "Unsaved Changes" }); await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Stay", exact: true }).click(); await expect(page.getByLabel("Connection name")).toHaveValue("Protected connection");
@@ -47,8 +47,8 @@ test("empty composer names continuation and global search finds actual message t
   await expect(page.getByTestId("messages")).toContainText("cobalt-needle-UX");
 });
 test("one send-key preference applies to both composers", async ({ page }) => {
-  await page.goto("/"); await page.getByTestId("app-list").getByRole("button", { name: "Settings", exact: true }).click(); await page.getByTestId("settings-customize").click();
-  await page.getByLabel("Send Messages With").selectOption("ctrl-enter");
+  await page.goto("/"); await page.getByTestId("app-list").getByRole("button", { name: "Settings", exact: true }).click(); await page.getByTestId("settings-general").click();
+  await page.getByRole("radiogroup", { name: "Send Messages With" }).getByRole("radio", { name: "Ctrl+Enter" }).click();
   await page.getByTestId("session-list").getByRole("button").first().click(); const play = page.getByLabel("Your message", { exact: true });
   await play.fill("First line"); await play.press("Enter"); await expect(play).toHaveValue("First line\n"); await expect(page.getByTestId("message")).toHaveCount(1);
   await play.press("Control+Enter"); await expect(page.getByTestId("message")).toHaveCount(3);

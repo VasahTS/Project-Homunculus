@@ -4,6 +4,7 @@ import { openLibrary, send } from "./ui.ts";
 
 async function openSettings(page: Page) {
   await page.getByTestId("app-list").getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByTestId("settings-connections").click(); // Settings v2 opens on General (D-082)
 }
 
 test("Quick Connection stays on screen after usage appears and while the window resizes", async ({ page }) => {
@@ -56,11 +57,14 @@ test("Settings tabs use arrows, wrap, move focus and leave one Tab stop", async 
   await expect(page.getByTestId("settings-defaults")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("settings-defaults")).toBeFocused();
   await expect(tabs.locator('[tabindex="0"]')).toHaveCount(1);
-  await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft");
+  // Settings v2: General · Chat · Appearance · Connections …; from General, Left wraps to About
+  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowLeft");
+  await expect(page.getByTestId("settings-general")).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
   await expect(page.getByTestId("settings-about")).toBeFocused();
   await expect(page.getByTestId("settings-about")).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByTestId("settings-connections")).toBeFocused();
+  await expect(page.getByTestId("settings-general")).toBeFocused();
 });
 
 test("Advanced help becomes visible on mouse hover and keyboard focus", async ({ page }) => {

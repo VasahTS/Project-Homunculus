@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Settings v2, reply sounds, card reading view (2026-11-03) — CLAUDE — D-082
+
+Daniel approved the canvas drafts ("Homunculus 2 — Settings & card reading") and asked to implement everything, with his own "pop" sound.
+- Settings: General · Chat · Appearance · Connections · Defaults · Lorebooks · Data · About, annotated groups, search across tabs. Every new row works (see D-082).
+- Card reading view in the Card Browser, Characters and Stories (Read / the picture; Back to Preview, Esc, mouse back; ← → in the Card Browser).
+- New native pieces: notification plugin; `backups_info`, `prune_backups`, `export_database` (allowed in `permissions/app.toml`; guard test updated by itself).
+- Core: providers report `{ finish }`; "Continue when cut off" continues a reply in the same message (`turn.ts`).
+- **To try on Windows:** the Windows notification (asks permission the first time), the sounds, Open Folder, Back Up Now, Export.
+
 ## Sheets readable: big pictures, fields that scroll; Stories cards enter; Settings v2 proposal (2026-11-03) — CLAUDE
 
 Daniel: "in Characters the preview is bad: fields end in '…' and can't scroll, the picture is tiny; Stories has no motion".

@@ -6,6 +6,7 @@ import { openSession, openTab, send } from "./ui.ts";
 
 async function openSettings(page: Page) {
   await page.getByTestId("app-list").getByRole("button", { name: "Settings" }).click();
+  await page.getByTestId("settings-connections").click(); // Settings v2 opens on General (D-082)
 }
 const editor = (page: Page) => page.getByLabel("Connection editor");
 const sse = (text: string) => `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`;

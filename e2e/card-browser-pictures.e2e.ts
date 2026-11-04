@@ -58,4 +58,16 @@ test("ChubAI cards use the full picture: shrunk in the grid, full size in the sh
   await browser.getByRole("button", { name: "Close" }).click();
   await expect(browser.locator("[data-region=sheet]")).toBeHidden();
   expect((await browser.locator(".gallery-grid").boundingBox())!.width).toBeGreaterThan(before);
+
+  // the reading view (D-082): full window, ← → change card, Back to Preview returns to the sheet
+  await cards.first().click();
+  await browser.getByTestId("cb-read").click();
+  const reader = page.getByTestId("card-reader");
+  await expect(reader.getByRole("heading", { name: "Elf 1" })).toBeVisible();
+  await expect(reader.getByText("Hello.")).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(reader.getByRole("heading", { name: "Elf 2" })).toBeVisible();
+  await reader.getByTestId("reader-back").click();
+  await expect(reader).toHaveCount(0);
+  await expect(browser.getByTestId("cb-sheet")).toContainText("Elf 2");
 });

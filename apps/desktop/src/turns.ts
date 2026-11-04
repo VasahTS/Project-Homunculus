@@ -6,12 +6,15 @@
 import { useSyncExternalStore } from "react";
 import type { Message } from "@homunculus/schemas";
 import type { AppServices } from "./core-instance.ts";
+import { getPrefs } from "./prefs.ts";
 
 /** What the stream sends while a reply is written (the same callbacks ChatService takes). */
 export interface StreamTo {
   onToken: (piece: string, all: string) => void;
   onReasoning: (all: string) => void;
   onReply: (reply: Message) => void;
+  /** Settings → Chat (D-082): how many times a reply cut off by the length limit is continued (0 = off). */
+  continueOnLength: number;
 }
 
 /** One chat's turn, as the screens see it. */
@@ -82,7 +85,9 @@ class TurnManager {
     this.turns.set(opts.sessionId, e);
     this.emit();
     const startedAt = Date.now();
+    const p = getPrefs();
     const stream: StreamTo = {
+      continueOnLength: p.autoContinue ? p.continueTimes : 0,
       onToken: (_p, all) => this.patch(opts.sessionId, e, { text: all }),
       onReasoning: (all) => this.patch(opts.sessionId, e, { reasoning: all }),
       // the reply is saved: the branch ends at it and it shows now (the "writing…" bubble goes away together with it);

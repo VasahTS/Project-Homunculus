@@ -5,14 +5,15 @@ import { useUnsavedChanges, useGuardedNavigation } from "./ux.tsx";
 import { CustomizeSection } from "./CustomizeSection.tsx";
 import type { Lorebook, LoreSettings } from "@homunculus/schemas";
 import { LoreSettingsSection } from "./LorePanels.tsx";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ConnectionProfile, type Persona, type Preset, type SetupLayer } from "@homunculus/schemas";
 import { AUTHORS_NOTE_DEFAULTS, profileToConfig, type Completion, type ConnectionConfig, type ModelInfo, type ProviderDefinition } from "@homunculus/core";
 import { keyNameOf, needsKey, newProfile, suggestName, type ConnectionState } from "../connection.ts";
 import { cachedModels, ModelPicker, modelMeta } from "./ModelPicker.tsx";
 import type { Tracker } from "../trackers.ts";
 import { ConfirmButton, Help } from "./Help.tsx";
-import { Button, Group, Icon, Row, Segmented, Switch } from "./kit.tsx";
+import { Button, Group, Icon, Row, Segmented, SettingsLook, Switch } from "./kit.tsx";
+import { ChatSection, DataSection, GeneralSection } from "./SettingsSections.tsx";
 import { useSlidingPill } from "./motion.ts";
 import { AuthorsNoteGroup } from "./AuthorsNote.tsx";
 import { ParamRows } from "./ConnectionPanel.tsx";
@@ -20,9 +21,10 @@ import { Toolbar } from "./Toolbar.tsx";
 import type { Updates } from "../updates.ts";
 import { AboutSection } from "./About.tsx";
 
-export type SettingsTab = "connections" | "defaults" | "lorebooks" | "customize" | "about";
+/** "customize" is the Appearance tab (its id kept from before Settings v2, D-082). */
+export type SettingsTab = "general" | "chat" | "customize" | "connections" | "defaults" | "lorebooks" | "data" | "about";
 
-export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels, trackers, presets, defaultPresetId, personas, defaultPersonaId, defaultSetup, onSetDefaultSetup, onSetDefaultPersona, notify, lorebooks, loreSettings, onSaveLoreSettings, updates }: {
+export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels, trackers, presets, defaultPresetId, personas, defaultPersonaId, defaultSetup, onSetDefaultSetup, onSetDefaultPersona, notify, lorebooks, loreSettings, onSaveLoreSettings, updates, trashCount = 0 }: {
   lead: ReactNode;
   tab: SettingsTab;
   onTab: (t: SettingsTab) => void;
@@ -45,27 +47,82 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
   loreSettings: LoreSettings;
   onSaveLoreSettings: (s: LoreSettings) => Promise<void>;
   updates: Updates;
+  /** Items in the Trash now (Settings → Data). */
+  trashCount?: number;
 }) {
+  const [q, setQ] = useState("");
+  const searching = q.trim() !== "";
+  const lore = <LoreSettingsSection settings={loreSettings} onSave={onSaveLoreSettings} books={lorebooks} defaultSetup={defaultSetup} onSetDefaultSetup={onSetDefaultSetup} />;
+  const defaults = <DefaultsSection c={c} trackers={trackers} presets={presets} defaultPresetId={defaultPresetId} personas={personas} defaultPersonaId={defaultPersonaId} defaultSetup={defaultSetup}
+    onSetDefaultSetup={onSetDefaultSetup} onSetDefaultPersona={onSetDefaultPersona} />;
+  const section = (t: SettingsTab) => t === "general" ? <GeneralSection /> : t === "chat" ? <ChatSection /> : t === "customize" ? <CustomizeSection notify={notify} />
+    : t === "data" ? <DataSection notify={notify} trashCount={trashCount} /> : t === "about" ? <AboutSection u={updates} /> : t === "lorebooks" ? lore
+    : t === "connections" ? <ConnectionsSection c={c} providers={providers} test={test} listModels={listModels} notify={notify} /> : defaults;
   return (
-    // UX review items 1–2 (D-078): Settings is a place like Library — a big title and the same row of tabs under it
-    <section className="library-workspace settings-workspace" data-region="library-workspace">
-      <Toolbar lead={lead} title="Settings" subtitle="Connections, defaults for new chats, and how the app looks" />
-      <SettingsTabs tab={tab} onTab={onTab} />
+    <SettingsLook.Provider value={true}>
+    <section className="library-workspace settings-workspace settings-look" data-region="library-workspace">
+      <Toolbar lead={lead} title="Settings" subtitle="How the app behaves, how it looks, and where your things are kept"
+        trailing={<label className="search-box toolbar-search settings-search"><Icon name="search" size={13} />
+          <input aria-label="Search settings" placeholder="Search settings" value={q} onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }} data-testid="settings-search" /></label>} />
+      <SettingsTabs tab={searching ? null : tab} onTab={(t) => { setQ(""); onTab(t); }} />
       <div className="library-workspace-content settings-content">
-      {tab === "about" ? <AboutSection u={updates} />
-        : tab === "customize" ? <CustomizeSection notify={notify} />
-        : tab === "lorebooks" ? <LoreSettingsSection settings={loreSettings} onSave={onSaveLoreSettings} books={lorebooks} defaultSetup={defaultSetup} onSetDefaultSetup={onSetDefaultSetup} />
-        : tab === "connections"
-        ? <ConnectionsSection c={c} providers={providers} test={test} listModels={listModels} notify={notify} />
-        : <DefaultsSection c={c} trackers={trackers} presets={presets} defaultPresetId={defaultPresetId} personas={personas} defaultPersonaId={defaultPersonaId} defaultSetup={defaultSetup}
-            onSetDefaultSetup={onSetDefaultSetup} onSetDefaultPersona={onSetDefaultPersona} />}
+        {searching ? <SettingsSearch q={q} onOpen={(t) => { setQ(""); onTab(t); }} sections={SEARCHABLE.map((t) => ({ tab: t, node: section(t) }))} /> : section(tab)}
       </div>
     </section>
+    </SettingsLook.Provider>
+  );
+}
+
+/** Every tab whose rows can be searched; Connections is a list of saved connections, offered as a link instead. */
+const SEARCHABLE: SettingsTab[] = ["general", "chat", "customize", "defaults", "lorebooks", "data", "about"];
+const CONNECTION_WORDS = /^(conn|api|key|model|provid|address|url|proxy|temper|sampl|think|reason|token|limit|backup conn)/;
+
+/** Search across tabs (D-082): every searchable tab is drawn, then rows that don't match are hidden. */
+function SettingsSearch({ q, sections, onOpen }: { q: string; sections: Array<{ tab: SettingsTab; node: ReactNode }>; onOpen: (t: SettingsTab) => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [none, setNone] = useState(false);
+  const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const connections = words.some((w) => CONNECTION_WORDS.test(w));
+  useLayoutEffect(() => {
+    const root = box.current;
+    if (!root) return;
+    let any = false;
+    for (const sec of root.querySelectorAll<HTMLElement>("[data-search-tab]")) {
+      let secHit = false;
+      for (const g of sec.querySelectorAll<HTMLElement>(".group-section")) {
+        const intro = g.querySelector(".group-intro, .group-head")?.textContent ?? "";
+        const rows = [...g.querySelectorAll<HTMLElement>(".row")];
+        let gHit = false;
+        if (rows.length) for (const r of rows) {
+          const hit = words.every((w) => `${intro} ${r.textContent ?? ""}`.toLowerCase().includes(w));
+          r.hidden = !hit; gHit ||= hit;
+        } else gHit = words.every((w) => (g.textContent ?? "").toLowerCase().includes(w));
+        g.hidden = !gHit; secHit ||= gHit;
+      }
+      sec.hidden = !secHit; any ||= secHit;
+    }
+    setNone(!any && !connections);
+  });
+  return (
+    <div className="settings-search-results" ref={box} data-testid="settings-search-results">
+      {connections && (
+        <div className="settings-page"><section className="group-section annotated"><div className="group-intro"><span className="group-icon" aria-hidden><Icon name="plug" size={17} /></span><h2 className="group-title">Connections</h2><p className="group-help">Addresses, API keys, models, sampling and limits live in each saved connection.</p></div>
+          <div className="group"><div className="row"><span className="row-label"><span className="row-name">Open Connections</span></span><span className="row-value"><Button small variant="bordered" onClick={() => onOpen("connections")}>Open</Button></span></div></div></section></div>
+      )}
+      {sections.map(({ tab, node }) => (
+        <div key={tab} data-search-tab={tab}>
+          <h2 className="settings-search-tab">{SECTIONS.find((x) => x.value === tab)?.label}</h2>
+          {node}
+        </div>
+      ))}
+      {none && <p className="hint" role="status">No setting matches “{q.trim()}”.</p>}
+    </div>
   );
 }
 
 /** Settings' tab row, with the underline gliding to the open section (D-080). */
-function SettingsTabs({ tab, onTab }: { tab: SettingsTab; onTab: (t: SettingsTab) => void }) {
+function SettingsTabs({ tab, onTab }: { tab: SettingsTab | null; onTab: (t: SettingsTab) => void }) {
   const nav = useRef<HTMLElement>(null);
   const line = useRef<HTMLSpanElement>(null);
   useSlidingPill(nav, line, '[aria-current="page"]', tab);
@@ -74,7 +131,7 @@ function SettingsTabs({ tab, onTab }: { tab: SettingsTab; onTab: (t: SettingsTab
       onKeyDown={(e) => {
         if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
         e.preventDefault();
-        const index = SECTIONS.findIndex((x) => x.value === tab);
+        const index = Math.max(0, SECTIONS.findIndex((x) => x.value === tab));
         const next = SECTIONS[(index + (e.key === "ArrowRight" ? 1 : -1) + SECTIONS.length) % SECTIONS.length]!;
         onTab(next.value);
         requestAnimationFrame(() => nav.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
@@ -82,15 +139,16 @@ function SettingsTabs({ tab, onTab }: { tab: SettingsTab; onTab: (t: SettingsTab
       <span className="slide-pill tab-line" ref={line} aria-hidden />
       {SECTIONS.map((x) => (
         <button key={x.value} type="button" role="tab" aria-selected={tab === x.value} className="library-tab" aria-current={tab === x.value ? "page" : undefined}
-          data-testid={`settings-${x.value}`} tabIndex={tab === x.value ? 0 : -1} onClick={() => onTab(x.value)}><span>{x.label}</span></button>
+          data-testid={`settings-${x.value}`} tabIndex={tab === x.value || (tab === null && x.value === "general") ? 0 : -1} onClick={() => onTab(x.value)}><span>{x.label}</span></button>
       ))}
     </nav>
   );
 }
 
 const SECTIONS: Array<{ value: SettingsTab; label: string }> = [
+  { value: "general", label: "General" }, { value: "chat", label: "Chat" }, { value: "customize", label: "Appearance" },
   { value: "connections", label: "Connections" }, { value: "defaults", label: "Defaults" }, { value: "lorebooks", label: "Lorebooks" },
-  { value: "customize", label: "Customize" }, { value: "about", label: "About" },
+  { value: "data", label: "Data" }, { value: "about", label: "About" },
 ];
 
 // ---------------------------------------------------------------- Connections

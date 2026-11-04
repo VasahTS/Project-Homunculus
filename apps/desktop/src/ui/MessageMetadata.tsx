@@ -14,7 +14,7 @@ export function MessageTime({ at }: { at: number }) {
   return <time className="message-time" dateTime={value.toISOString()} data-testid="message-time"><span>{date.format(value)}</span>{" "}<span>· {time.format(value)}</span></time>;
 }
 
-export function MessageMetadata({ svc, message, position }: { svc: AppServices; message: Message; position: number }) {
+export function MessageMetadata({ svc, message, position, showNumber = true, showTokens = true }: { svc: AppServices; message: Message; position: number; showNumber?: boolean; showTokens?: boolean }) {
   const [saved, setSaved] = useState<{ id: string; content: string; record?: GenerationRecord; edited: boolean } | null>(null);
   useEffect(() => {
     let live = true;
@@ -29,9 +29,9 @@ export function MessageMetadata({ svc, message, position }: { svc: AppServices; 
   const current = saved?.id === message.id && saved.content === message.content ? saved : null;
   const counts = messageTokenCounts(message, current?.record, current?.edited);
   return <div className="message-metadata" data-testid="message-metadata">
-    <span data-testid="message-number">#{position}</span>
-    <span data-testid="message-text-tokens" title={counts.textEstimated ? "Estimated tokens in the message text" : "Text tokens reported by the provider, excluding reasoning"}>Text {counts.textEstimated ? "~" : ""}{number.format(counts.text)}t</span>
+    {showNumber && <span data-testid="message-number">#{position}</span>}
+    {showTokens && <><span data-testid="message-text-tokens" title={counts.textEstimated ? "Estimated tokens in the message text" : "Text tokens reported by the provider, excluding reasoning"}>Text {counts.textEstimated ? "~" : ""}{number.format(counts.text)}t</span>
     {(counts.reasoning > 0 || !!message.reasoning) && <span className="message-reasoning-count" data-testid="message-reasoning-tokens"
-      title={counts.reasoningEstimated ? "Estimated tokens in the reasoning text" : "Reasoning tokens reported by the provider"}>Reasoning {counts.reasoningEstimated ? "~" : ""}{number.format(counts.reasoning)}t</span>}
+      title={counts.reasoningEstimated ? "Estimated tokens in the reasoning text" : "Reasoning tokens reported by the provider"}>Reasoning {counts.reasoningEstimated ? "~" : ""}{number.format(counts.reasoning)}t</span>}</>}
   </div>;
 }

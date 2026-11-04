@@ -2,7 +2,7 @@
 // Look comes only from theme tokens (theme/tokens.css) via the classes in styles.css, so a new theme
 // or a restyle never touches the screens. Keep this list short: one button family, one switch, one
 // segmented control, grouped lists.
-import { useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Help } from "./Help.tsx";
 import { EASE_OUT, reducedMotion, useSlidingPill } from "./motion.ts";
 import { motionFactor } from "../theme/appearance.ts";
@@ -74,8 +74,24 @@ export function Switch({ checked, onChange, label, disabled = false }: { checked
   );
 }
 
+/** Inside Settings (D-082) a group is drawn "annotated": icon, title and what it is for on the left, its rows in a card on
+ *  the right; a row's help is written under its label instead of behind "?" (Daniel 11/03: "everything blends together"). */
+export const SettingsLook = createContext(false);
+
 /** A titled group of rows, like the system Settings. */
-export function Group({ title, help, aside, children, testId }: { title?: string; help?: string; aside?: ReactNode; children: ReactNode; testId?: string }) {
+export function Group({ title, help, aside, children, testId, icon }: { title?: string; help?: string; aside?: ReactNode; children: ReactNode; testId?: string; icon?: keyof typeof ICONS }) {
+  const annotated = useContext(SettingsLook);
+  if (annotated) return (
+    <section className="group-section annotated" data-testid={testId}>
+      <div className="group-intro">
+        {icon && <span className="group-icon" aria-hidden><Icon name={icon} size={17} /></span>}
+        {title && <h2 className="group-title">{title}</h2>}
+        {help && <p className="group-help">{help}</p>}
+        {aside && <span className="group-aside">{aside}</span>}
+      </div>
+      <div className="group">{children}</div>
+    </section>
+  );
   return (
     <section className="group-section" data-testid={testId}>
       {(title || aside) && (
@@ -91,6 +107,13 @@ export function Group({ title, help, aside, children, testId }: { title?: string
 
 /** One row of a group: a label on the left, the value or control on the right. */
 export function Row({ label, help, children, wide = false }: { label?: ReactNode; help?: string; children?: ReactNode; wide?: boolean }) {
+  const annotated = useContext(SettingsLook);
+  if (annotated) return (
+    <div className={`row${wide ? " row-wide" : ""}`}>
+      {label !== undefined && <span className="row-label"><span className="row-name">{label}</span>{help && <span className="row-help">{help}</span>}</span>}
+      {children !== undefined && <span className="row-value">{children}</span>}
+    </div>
+  );
   return (
     <div className={`row${wide ? " row-wide" : ""}`}>
       {label !== undefined && <span className="row-label label-row">{label}{help && <Help text={help} />}</span>}
