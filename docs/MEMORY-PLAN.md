@@ -1,4 +1,27 @@
-# Memory — chapters + recall (plan for slice 8)
+# Memory — chapters + recall
+
+## Next: memory redesign "Chapters + Recall" (2026-11-04, morning) — CLAUDE — waiting for Daniel
+
+**Status: proposal + draft, not approved, no code.** Daniel (11/04): the Memory tab (D-083/D-084) "got full of bugs" (CODEX fixed them in `118051b`), the hybrid "got strange to understand"; he is used to either Summaryception or Chapters. He asked for a review of CODEX's fixes, a draft before any code, a plain explanation, and a recommendation. He will come back to it later.
+
+**Draft:** Design canvas **"Homunculus 2 — Memory"** (claude.ai artifact VVbWTfA4C4TwqwuTVfBwiA), 5 artboards: 1 Chapters (default view), 2 a chapter and the settings open, 3 Recall, 4 the chat (covered messages dimmed, "In Chapter 3", a "Chapter 3 ends here" rule), 5 Memory off.
+
+**Recommendation given to Daniel: Chapters + Recall, no layers.**
+- Chapters = what you see and edit (like v1's `classic-memory.js` panel): **two tabs only, Chapters and Recall**; no Guide tab, no three big numbers, no "Merging old chapters".
+- Chapters tab: a summary strip ("3 chapters · 3 on · ~1,240 tokens in the prompt", Preview); **New chapter** (Since the last chapter / Last N messages / From #X to #Y; "Will cover #25 to #38"; "Hide summarized messages from the AI, keeping the last N visible"; Generate Chapter / Write It Myself); the list (title, range, tokens, first lines, on/off; opens in place: title, summary, Rewrite with AI, Show the Messages, Delete); folds with their value shown: **Automatic chapters**, **Where chapters go in the prompt** (Before the chat / With the character / Inside the chat at depth N), **How the AI writes chapters** (CODEX's writer settings: connection, model, longest chapter, instructions).
+- Recall tab: one switch (Off = every chapter that is on goes; On = a decision model picks the ones that matter now), an example, Decision model (connection, Jev or the agents' model, "Connected" status), What goes in (at most N chapters, always the newest, quote exact lines), Try it, Last reply.
+- Layers (Summaryception) are dropped: with Recall on, only relevant chapters go, so the prompt does not grow; a separate "Summaryception style" can come later, not mixed in.
+
+**Open questions for Daniel (ask first when he comes back):**
+1. Chapters + Recall without layers: agreed?
+2. Build the three v1 features the draft shows (they do not exist yet): a free range "From #X to #Y", sending a chapter without hiding its messages, and choosing where chapters go in the prompt? Or keep only "since the last chapter"?
+3. What to change in the draft?
+
+**Then:** text plan → (approved) code on top of CODEX's `118051b` (branch-scoped chapters, writer settings, chapter markers in the chat, the fixes listed in REGISTRO-CODEX / HANDOFF). Remove or hide the layers code paths and the Guide tab; keep the engine's tree rules (D-054).
+
+---
+
+## Earlier study (2026-10-29)
 
 Author: CLAUDE, 2026-10-29, at Daniel's request ("we'll sort this out later, but save it now").
 **Status (2026-11-04): built as D-054 (simple chapters) and D-083 (closing by tokens, layers, Catch Up, smart recall with Jev).** Still open: closing on a scene change, per-character memories, embeddings, a "Fix" pass. Comes after branching and slice 5 (full agents). See BLUEPRINT §4.3 ("Chapter summary"), §5.2 (ceiling "chapters ≤ 15%"), §8 (`memory-chapters`, `recall`), §10 (slice 8).

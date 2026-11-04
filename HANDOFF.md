@@ -1,5 +1,9 @@
 # HANDOFF — Homunculus 2
 
+## Memory redesign waiting for Daniel (2026-11-04) — CLAUDE
+
+Daniel found the Memory tab (D-083/D-084) buggy and confusing; CODEX's fixes (`118051b`) are now in `dev` (fast-forward, 699 unit tests pass). Next step, **not started**: the redesign "Chapters + Recall, no layers" — plan, draft link and the 3 open questions in `docs/MEMORY-PLAN.md` (top). Ask Daniel those questions first; no code before he approves the draft.
+
 ## gpt publication batch (2026-11-04) — CODEX
 
 - This batch includes Card Browser All Sites, per-chat chapter writer settings, branch-local memory and prompt coverage fixes, and chapter markers in chat.
