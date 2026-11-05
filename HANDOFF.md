@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## Prepare and publish 0.3.0 (2026-11-05) — CODEX
+
+- Daniel explicitly requested promoting gpt to main, publishing Windows/Linux installers, and updating the README with screenshots; this supersedes earlier branch/release restrictions for this task.
+- Updated README and seven screenshots, including real tracker execution with fictional data and scripted model responses. The new Scene capture records Characters, Plot and World as successfully updated.
+- Prepared CHANGELOG 0.3.0. Preserve the existing Publish release workflow: it sets the version, tests, builds Windows NSIS/Linux deb/AppImage, signs updater artifacts and publishes only after both builds succeed.
+- Preflight: typecheck, 726 unit passes (3 skipped), in-memory production build, 16 Home/Stories/trackers Chromium passes and browser capture navigation; native and live-provider behavior are not claimed. No application implementation or workflow changes. Signed **CODEX**.
+
 ## Publish all local gpt changes (2026-11-05) — CODEX
 
 - Daniel authorized committing and pushing every local change to gpt, superseding the local-only status below.

@@ -1,5 +1,12 @@
 # Work log — CODEX
 
+## Prepare and publish 0.3.0 (2026-11-05) — CODEX
+
+- Daniel authorized gpt → main and the Windows/Linux release, overriding prior task-local publication restrictions.
+- README now shows current Home, Stories, Scene/world state, Memory, Agents, Assistant and tracker editing; CHANGELOG has the 0.3.0 section.
+- Scene image uses real tracker validation/application/run records with scripted local model responses and fictional data. All three trackers report updated; no live-provider validation is implied.
+- Passed typecheck, 726 unit tests (3 skipped), in-memory Vite build, 16 Home/Stories/trackers Chromium tests and screenshot navigation. Use the existing Publish release workflow for versioning, signed builds and publication. Signed **CODEX**.
+
 ## Publish all local gpt changes (2026-11-05) — CODEX
 
 - Daniel authorized committing and pushing every local change to gpt, superseding the local-only status below.

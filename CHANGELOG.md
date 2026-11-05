@@ -5,6 +5,29 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-05
+
+Home and the Observatory look, character browsing across six catalogs, Quick Replies, expanded chapter memory, and more control over connections and background agents.
+
+<!-- Release notes prepared by CODEX, 2026-11-05; existing entries below retain their original authorship. -->
+
+### Home and character browsing
+
+- **Home** brings together your last chat, recently played characters, stories, the Assistant and Library shortcuts. Open it from the sidebar or with **Ctrl+H**.
+- **Observatory** is the starting look, with warm paper colors, serif story text and alchemical icons. Other looks remain available in Appearance.
+- **Card Browser** searches ChubAI, JannyAI, Wyvern, Pygmalion, DataCat and BotBooru. **All Sites** combines their results with source labels, independent pagination and retries. Site consent, account access and download permissions apply.
+- Card details include readable descriptions and full-size pictures. Preview downloads take priority, repeated image requests share work, and obsolete queued downloads are discarded when searches change.
+
+### Connections and reliability
+
+- **Streaming per connection:** turn it off for services that return complete responses instead of streamed chunks.
+- **Summary writer:** choose a connection, model, instructions and answer limit for writing chapters in each chat.
+- **Recall:** use the agents' model or choose a custom connection and model. Dedicated decision models use their decision endpoint; chat models use chat completions.
+- Chapters stay isolated on each branch. Covered messages are marked in the chat; hiding original messages also retires summaries that could contain them.
+- Background agents keep running when you leave the chat. Their results and Stop control remain attached to the chat that started them.
+- Markdown chat export follows the selected branch, including its chosen message versions.
+- Shorter interface text across settings, memory, trackers, agents, the Assistant and Library.
+
 ### Opening
 
 - **A short opening when the app starts:** the name typed on a typewriter, a strike, then it settles into Home. A click or any key skips it; **Settings → General → Skip the opening** turns it off, and **Opening sound** keeps it silent.
@@ -31,7 +54,7 @@ inside the app, so write it for the people who use the app, not for programmers.
 - Chapters can close **by size in tokens** (always ending at an AI reply), not only every N messages.
 - **Merge old chapters:** when summaries pile up, the oldest merge into one shorter summary, so very long stories keep a small memory.
 - **Catch Up** writes every chapter an old or imported chat is missing, with progress and Stop.
-- **Smart recall:** before each reply, a decision model (Jev on nano-gpt, or your agents' model) picks the chapters that matter right now and quotes their key messages word for word. The Reply tab shows what it chose and why.
+- **Smart recall:** before each reply, your agents' model or a custom recall model picks the chapters that matter right now and quotes their key messages word for word. The Reply tab shows what it chose and why.
 
 ### Chat
 

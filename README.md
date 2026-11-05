@@ -17,40 +17,65 @@
 
 </div>
 
-<p align="center"><img src="docs/images/app.png" width="860" alt="Homunculus 2 version 0.2.0: a chat with Lyra and the current Scene panel" /></p>
+<p align="center"><img src="docs/images/home.png" width="1000" alt="Homunculus Home in the Observatory look, with recent play, stories, the Assistant and library shortcuts" /></p>
 
-*Current interface, captured November 1, 2026. Screenshots use the browser preview, built-in sample character and offline test AI; sample tracker values are illustrative.*
+*Interface captured November 5, 2026 for 0.3.0. Screenshots use the browser preview and fictional demonstration data. The Scene screenshot shows the real tracker runner applying scripted model responses; it is not a live-provider test.*
+
+<!-- Screenshot preparation and verification: CODEX, 2026-11-05. -->
 
 ## What it does
 
 - **Chats and stories.** Talk 1:1 with a character, or start a **Story** told by a narrator, with NPCs, a scenario and openings. Save a setup as a **Kit** and start new stories from it.
+- **A Home for your stories.** Continue your last chat, pick a story, or open the Assistant and Library from one place. The Observatory look adds warm paper colors and alchemical icons.
+- **Browse character cards.** Search ChubAI, JannyAI, Wyvern, Pygmalion, DataCat and BotBooru individually or together in **All Sites**. Read a card before importing it, and keep its source. Site access and download permissions still apply.
 - **Trackers.** After each reply, a separate AI call keeps the **Scene** up to date — who is here, where, when, moods, goals — and you see exactly what changed.
 - **An Assistant for your library.** Draft and revise characters, lorebooks, trackers, Kits and narrators in a separate conversation. Attach files or pictures, choose an assistant and model, review proposed changes, and undo creations. It can organize folders and make character versions.
 - **Web search with sources.** The desktop Assistant can search DuckDuckGo and read public pages, with a Web switch for each chat and sources under its replies. Roleplay chats do not search the web.
 - **Agents you control.** Run helpers before, alongside or after a reply. Inspect their inputs and results, compare rewrites word by word, undo changes, or use **Try it** in the agent editor without saving a run to your chat.
-- **Simple memory.** Summarize older messages into chapters, edit their summaries, and choose what the model receives. Inspect the prompt and token usage.
+- **Chapter memory and recall.** Summarize older messages into chapters, edit their summaries, catch up an existing chat, and choose what the model receives. Optional smart recall selects relevant chapters. Summary and recall connections can be configured separately, and chapters follow each branch.
+- **Quick Replies.** Keep reusable texts as buttons or a searchable list, stack them in the message box, and import or export SillyTavern sets.
 - **SillyTavern at the border.** Import and export character cards (PNG/JSON), lorebooks (World Info, same activation rules), personas and Chat Completion presets. Export chats as SillyTavern JSONL, Markdown or text.
 - **A library that is easier to browse.** Portrait cards in three sizes, folders or an Everything view, search by folder, and Library categories in one row of tabs. Press **Ctrl+K** to open a character, chat, resource or section.
 - **Messages your way.** Markdown, dialogue colors, controlled image loading and editable regex scripts for display or prompts, with original text kept.
 - **Nothing lost in silence.** Branches, swipes, character versions, an Author's Note, a Trash with undo, and the exact prompt sent for every reply.
 - **Your data stays on your computer.** A local SQLite database with automatic backups before upgrades; API keys in the system keychain (Windows Credential Manager, GNOME Keyring / KWallet on Linux).
-- **Any OpenAI-compatible service.** OpenRouter, OpenAI, or a local server.
+- **Any OpenAI-compatible service.** OpenRouter, OpenAI, or a local server, with streaming configurable per connection.
 - **Windows and Linux.** A Windows installer, a Linux AppImage and a Debian/Ubuntu `.deb`.
 - **Updates itself.** When a new version is out, a quiet bar offers **Update & Restart**. Nothing installs until you click.
 
 ## A closer look
 
+### Stories
+
+Keep the cast, narrator, openings and setup together. Continue the story you played last, or start another chat within it.
+
+<p align="center"><img src="docs/images/stories.png" width="1000" alt="Stories with portrait covers and a selected story's cast, scenario and Play controls" /></p>
+
+### Scene and world state
+
+Track time, place, weather, quests and the people in the scene. Each tracker records whether its update succeeded; values belong to the current message and branch.
+
+<p align="center"><img src="docs/images/app.png" width="1000" alt="A story chat with updated world time, location, weather and quests; Characters, Plot and World trackers each report a successful update" /></p>
+
+### Memory and agents
+
+Keep older events in chapters and inspect which messages they replace. Agents can add instructions, check continuity, suggest choices, revise prose or maintain structured state.
+
+<p align="center"><img src="docs/images/memory.png" width="1000" alt="The Memory tab shows a chapter and identifies the original messages it replaces in AI history" /></p>
+
+<p align="center"><img src="docs/images/agents.png" width="1000" alt="The Agents library lists editable helpers with their kind, timing, triggers and execution mode" /></p>
+
 ### Assistant
 
 Build library items in conversation, keep drafts until you choose to save them, and inspect context, tools and activity in Details.
 
-<p align="center"><img src="docs/images/assistant.png" width="860" alt="The Assistant creates a World tracker, with context and activity in Details" /></p>
+<p align="center"><img src="docs/images/assistant.png" width="1000" alt="The Assistant workspace with a draft request to create a Thornwood mystery and its context controls" /></p>
 
 ### Library
 
 The current Library keeps its categories in a single row. Starter trackers can be edited and reused across chats and stories.
 
-<p align="center"><img src="docs/images/library.png" width="860" alt="The current Library tabs and the three built-in Scene trackers" /></p>
+<p align="center"><img src="docs/images/library.png" width="1000" alt="Library categories and the character tracker editor with reusable field sets, groups and fields" /></p>
 
 ## Install
 
@@ -88,7 +113,7 @@ On Windows you can also double-click **`Open Homunculus.bat`**.
 - **`dev`** — day-to-day work. Every push runs the tests.
 - **`main`** — what testers get. Merge `dev` into `main` when it is ready to ship.
 
-To release: **Actions → Publish release → Run workflow** on `main`, and type the new version (e.g. `0.2.0`). The workflow runs the tests, builds and signs the Windows installer and the Linux `.deb` and AppImage, publishes the release with `latest.json` for the in-app updater, and merges the new version number back into `dev`. Step by step: [`docs/RELEASING.md`](docs/RELEASING.md).
+To release: **Actions → Publish release → Run workflow** on `main`, and type the new version (e.g. `0.3.0`). The workflow runs the tests, builds and signs the Windows installer and the Linux `.deb` and AppImage, publishes the release with `latest.json` for the in-app updater, and merges the new version number back into `dev`. Step by step: [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Project docs
 

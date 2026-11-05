@@ -1,5 +1,13 @@
 # CODEX change record
 
+## Prepare and publish 0.3.0 (2026-11-05) — CODEX
+
+- Daniel explicitly authorized pushing gpt to main, creating Windows/Linux installers, and publishing current screenshots in the README. This is the task-specific exception to earlier branch/release restrictions.
+- Changed README.md, CHANGELOG.md, docs/images/{app,assistant,library,home,stories,memory,agents}.png, HANDOFF.md, CODEX-LOG.md and this record. The changelog retains existing authors' entries and adds the release summary and current connection, memory and catalog behavior.
+- Captures show the unmodified browser preview with fictional in-memory data. The new world-state screenshot executes the real tracker runner against scripted model responses: Characters, Plot and World complete successfully and the applied world delta and statuses are saved in the local dev-data/release-0.3.0/screenshots/world-state-proof.json evidence. No personal installation or keys were accessed.
+- Preflight passed: TypeScript, 726 unit tests (3 skipped), an in-memory production build, 16 existing Home/Stories/trackers Chromium tests, and browser screenshot navigation with no errors. The existing build import warning remains. Native Tauri and real providers are outside this local check; the release workflow builds Windows NSIS and Linux deb/AppImage and signs updater artifacts before publishing.
+- No application implementation or workflow modifications. Version changes are performed by the existing release workflow. Commit author/committer: CODEX; promotion uses regular fast-forward pushes preserving all authorship. Signed **CODEX**.
+
 ## Publish all local gpt changes (2026-11-05) — CODEX
 
 - Daniel explicitly requested pushing all local changes to gpt. This authorizes the commit and push and supersedes earlier local/unpublished notes for this batch.
