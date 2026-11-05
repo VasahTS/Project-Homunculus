@@ -937,3 +937,13 @@ Daniel, looking at Stories: "this small square picture doesn't fit" → after th
 - Tests: `e2e/ui-round-1104.e2e.ts` (6); the picture tests in `cards` / `round2` click **Crop**.
 
 Signed: **CLAUDE**.
+
+## D-089 — Chat pictures: a faint ring, the number and tokens under the picture; the chat's size in the bar (2026-11-04)
+
+Daniel (screenshots of SillyTavern and of the chat): "can you give the chat pictures a light border, very subtle, to separate them? And move that info to the left under the picture, separating the reasoning and reply tokens" · "up top, show how many tokens the chat has so far, to know more easily how big the current chat is getting".
+- With pictures on (Round / Square / Portrait), each message's **#number**, **reply tokens** and **reasoning tokens** (a small pill with the sparkle icon) sit under its picture, one per line. With pictures hidden, the line under the message stays as before.
+- The picture has a 1 px ring at 14 % of the text color.
+- The chat bar shows **~N tokens · M msg** beside “with …”: the messages of the branch on screen, text only, estimated (characters ÷ 4). The tooltip says the reasoning is apart and that the Reply tab has a reply's real prompt total.
+- Test: `e2e/ui-round-1104.e2e.ts` (7th case).
+
+Signed: **CLAUDE**.

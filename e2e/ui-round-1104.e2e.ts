@@ -105,7 +105,25 @@ test("chat avatars: Portrait is 2:3 and Large is big", async ({ page }) => {
   await page.getByRole("radiogroup", { name: "Avatars in the chat" }).getByRole("radio", { name: "Portrait" }).click();
   await page.getByRole("radiogroup", { name: "Avatar size" }).getByRole("radio", { name: "Large" }).click();
   await newChatWith(page);
-  const box = (await page.locator(".msg > .chat-avatar").first().boundingBox())!;
+  const box = (await page.locator(".msg-side > .chat-avatar").first().boundingBox())!;
   expect(box.width).toBeGreaterThanOrEqual(100);
   expect(box.height / box.width).toBeCloseTo(1.5, 1);
+});
+
+test("with pictures on, the number and tokens sit under the picture; the bar shows the chat's size", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByTestId("settings-customize").click();
+  await page.getByRole("radiogroup", { name: "Avatars in the chat" }).getByRole("radio", { name: "Portrait" }).click();
+  await newChatWith(page);
+  const msg = page.getByTestId("message").first();
+  const pic = (await msg.locator(".msg-side > .chat-avatar").boundingBox())!;
+  const meta = (await msg.locator(".msg-side [data-testid=message-metadata]").boundingBox())!;
+  expect(meta.y).toBeGreaterThan(pic.y + pic.height - 1);
+  await expect(msg.getByTestId("message-number")).toHaveText("#1");
+  await expect(msg.getByTestId("message-text-tokens")).toHaveText(/^~?\d[\d,.]*t$/);
+  await expect(msg.locator("[data-testid=message-metadata]")).toHaveCount(1);
+  await expect(page.getByTestId("chat-size")).toHaveText(/~\d[\d.]*k? tokens · 1 msg/);
+  const ring = await msg.locator(".chat-avatar").evaluate((el) => getComputedStyle(el).boxShadow);
+  expect(ring).not.toBe("none");
 });

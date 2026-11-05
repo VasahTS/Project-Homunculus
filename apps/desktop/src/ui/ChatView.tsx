@@ -15,7 +15,7 @@ import { AgentsPanel } from "./AgentsPanel.tsx";
 import { MemoryPane } from "./MemoryPane.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
-import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, isTracked } from "@homunculus/core";
+import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, estimateTokens, isTracked } from "@homunculus/core";
 import { WhoPicker } from "./WhoPicker.tsx";
 import type { AppServices } from "../core-instance.ts";
 import { turns, useTurn, type LiveTurn, type StreamTo } from "../turns.ts";
@@ -665,6 +665,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             )}
             <WhoPicker session={session} characters={characters} personas={personas} defaultPersonaId={defaultPersonaId}
               avatars={avatars} onChange={onChangeSession} story={storyInfo} npcs={npcs} />
+            {visible.length > 0 && <ChatSize messages={visible} />}
           </>}
           trailing={<>
             {onToggleAgent && onOpenAgent && (
@@ -740,7 +741,11 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     if (dir === 1 && vIndex === versions.length - 1) { if (m.parentId !== null) regenerate(m); }
                     else if (dir === -1 ? vIndex > 0 : vIndex < versions.length - 1) void switchSibling(m, dir);
                   } : undefined}>
-                  {prefs.avatarShape !== "hidden" && <CardPicture className="chat-avatar" name={name} avatar={avatar} />}
+                  {/* D-089: with pictures on, the message's number and tokens sit under its picture */}
+                  {prefs.avatarShape !== "hidden" && <div className="msg-side">
+                    <CardPicture className="chat-avatar" name={name} avatar={avatar} />
+                    {(prefs.showNumber || prefs.showTokens) && <MessageMetadata svc={svc} message={m} position={i + 1} showNumber={prefs.showNumber} showTokens={prefs.showTokens} side />}
+                  </div>}
                   <div className="msg-body">
                   <div className="who">{name} {prefs.showTime && <MessageTime at={m.createdAt} />}
                     {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} current={m.content} canWriteAgain={isLastAi && m.parentId !== null && !busy}
@@ -783,7 +788,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     <Choices results={agentResults.get(m.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(m.id)} />
                   )}
                   </div>
-                  {(prefs.showNumber || prefs.showTokens) && <MessageMetadata svc={svc} message={m} position={i + 1} showNumber={prefs.showNumber} showTokens={prefs.showTokens} />}
+                  {prefs.avatarShape === "hidden" && (prefs.showNumber || prefs.showTokens) && <MessageMetadata svc={svc} message={m} position={i + 1} showNumber={prefs.showNumber} showTokens={prefs.showTokens} />}
                   {deletingMsg === m.id ? (
                     <div className="msg-delete" data-testid="message-delete-confirm">
                       <span><strong>Delete {gone.length > 1 ? `this message and the ${gone.length - 1} after it` : "this message"} for good?</strong>
@@ -842,7 +847,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             )}
             {pending && (
               <li className={`msg ${storyInfo ? "narrator" : "character"} streaming fresh`} data-testid="streaming">
-                {storyInfo && prefs.avatarShape !== "hidden" && <CardPicture className="chat-avatar" name={storyInfo.name} avatar={storyInfo.avatar} />}
+                {storyInfo && prefs.avatarShape !== "hidden" && <div className="msg-side"><CardPicture className="chat-avatar" name={storyInfo.name} avatar={storyInfo.avatar} /></div>}
                 <div className="who">{storyInfo?.name ?? leadChar?.name ?? "…"} {!pending.text && !pending.reasoning && memStatus?.startsWith("Recalling") ? <span className="hint" data-testid="memory-recalling">{memStatus}</span> : pending.reasoning && !pending.text ? "is thinking…" : "is writing…"}</div>
                 {pending.reasoning && prefs.thinking !== "hidden" && (
                   <details className="reasoning" data-testid="reasoning-live" open={prefs.thinking === "open" || undefined}>
@@ -1001,6 +1006,20 @@ function ChatMenu({ onRename, onExportMarkdown, onDelete }: { onRename: () => vo
           <button type="button" role="menuitem" className="danger" title="The chat goes to Library → Trash; you can restore it." onClick={() => { setOpen(false); onDelete(); }}>Move to Trash</button>
         </div>
       )}
+    </span>
+  );
+}
+
+/** How big the chat is so far (Daniel, 11/04: "to know more easily how big the current chat is getting"): the messages
+ *  of the branch on screen, text only, estimated like the rest of the app (D-089). */
+function ChatSize({ messages }: { messages: Array<{ content: string; reasoning?: string }> }) {
+  const text = messages.reduce((n, m) => n + estimateTokens(m.content), 0);
+  const thinking = messages.reduce((n, m) => n + (m.reasoning ? estimateTokens(m.reasoning) : 0), 0);
+  const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1).replace(/\.0$/, "")}k` : String(n));
+  return (
+    <span className="chat-size" data-testid="chat-size"
+      title={`About ${text.toLocaleString()} tokens in the ${messages.length} messages of this branch (text only, estimated)${thinking ? `; the reasoning adds about ${thinking.toLocaleString()}, which is not sent back` : ""}. The prompt also carries the card, lore, preset and memory: the Reply tab shows the real total of a reply.`}>
+      ~{short(text)} tokens <span className="chat-size-count">· {messages.length} msg</span>
     </span>
   );
 }

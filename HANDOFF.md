@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## Chat pictures: ring, number and tokens under the picture, chat size in the bar (2026-11-04) — CLAUDE — D-089
+
+- With chat pictures on, #number · reply tokens · reasoning tokens sit under the picture; a faint ring around it; the bar shows "~N tokens · M msg" for the branch on screen. Pushed to `gpt`.
+- To try: Settings → Appearance → Avatars in the chat → Portrait; open a chat with a thinking model.
+- Checks: typecheck; 699 unit; click tests `ui-round-1104` (7), `message-metadata`, `stories`, `chat`, `settings-v2` — 31 passed.
+
 ## UI round 11/04: Stories V3, crop sheet, colors per look, inspector, Connections, chat avatars (2026-11-04) — CLAUDE — D-088
 
 Daniel asked for these in this session, in his local `Homunculus-gpt` folder, then asked Claude to push them to `gpt` (commit includes CODEX's local "story name and picture in chat" change that was not committed yet). Claude merges `gpt` into `dev` when asked. Not included: Daniel's local `package-lock.json` change (only `"peer": true` lines dropped by a different npm).
