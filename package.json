@@ -1,7 +1,7 @@
 {
   "name": "homunculus2",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Homunculus 2 — roleplay app with native agents. Foundation by CLAUDE.",
   "license": "AGPL-3.0-only",
   "type": "module",
