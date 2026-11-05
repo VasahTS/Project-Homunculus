@@ -186,7 +186,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 /* ───────────── composer */
 .composer { flex: none; padding: 10px 32px 14px; display: grid; justify-items: center; gap: 6px; }
 .composer-box { width: min(760px, 100%); display: flex; align-items: flex-end; gap: 10px; padding: 8px 8px 8px 14px; border-radius: calc(12px * var(--round)); background: var(--field); border: 1px solid var(--separator); }
-.composer-box textarea { flex: 1; border: 0; background: transparent; padding: 4px 0; resize: none; font-size: 14px; line-height: 1.5; outline: none; }
+.composer-box textarea { flex: 1; border: 0; background: transparent; padding: 6px 0; resize: none; font-size: 14px; line-height: 1.5; outline: none; min-height: calc(1.5em + 12px); max-height: 50vh; overflow-y: auto; align-self: center; }
 .composer-box:focus-within { border-color: var(--accent); }
 .composer-meta { width: min(760px, 100%); display: flex; gap: 14px; font-size: var(--size-small); }
 

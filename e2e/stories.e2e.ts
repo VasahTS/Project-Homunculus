@@ -81,7 +81,7 @@ test("narration shows the story name and its cover from Stories", async ({ page 
       yield "A door opens.";
     };
   });
-  await page.getByPlaceholder(/Write your message/).fill("I look at the lantern.");
+  await page.getByPlaceholder(/Type a message/).fill("I look at the lantern.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   const live = page.getByTestId("streaming");
   await expect(live.getByTestId("reasoning-live")).toBeVisible();
@@ -149,7 +149,7 @@ test("director mode: the user is not in the story, and their messages are direct
   await expect(page.getByLabel("Opening 1")).toHaveValue(/That's close enough/);
   await expect(page.getByTestId("story-setup").getByLabel("You play as")).toHaveCount(0);
   await startChat(page);
-  await page.getByPlaceholder(/Write your message|direction/i).fill("have Lyra hear a noise");
+  await page.getByPlaceholder(/Type a message|direction/i).fill("have Lyra hear a noise");
   const sheet = await previewPrompt(page);
   await expect(sheet).toContainText("is not in the story");
   await expect(sheet).toContainText("### Lyra");

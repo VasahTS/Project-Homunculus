@@ -385,6 +385,14 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     onEdit: (setId, replyId) => onOpenQuickReply?.(setId, replyId),
   };
 
+  // The box grows with what you write, up to half the window (like SillyTavern's #send_textarea), then scrolls
+  useLayoutEffect(() => {
+    const b = boxRef.current;
+    if (!b) return;
+    b.style.height = "auto";
+    b.style.height = `${Math.min(b.scrollHeight, Math.round(window.innerHeight * 0.5))}px`;
+  }, [input]);
+
   const send = () => {
     const text = input.trim();
     if (busy) return;
@@ -895,8 +903,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           {qrStyle === "bar" && <QuickReplyBar host={qrHost} />}
           <div className="composer-box">
             {qrStyle === "drawer" && <QuickReplyDrawer host={qrHost} />}
-            <textarea ref={boxRef} value={input} rows={2} aria-label="Your message" title={sendKey === "enter" ? "Enter sends · Shift+Enter makes a new line · Empty Enter continues" : "Ctrl+Enter sends or continues · Enter makes a new line"}
-              placeholder="Write your message"
+            <textarea ref={boxRef} value={input} rows={1} aria-label="Your message" title={sendKey === "enter" ? "Enter sends · Shift+Enter makes a new line · Empty Enter continues" : "Ctrl+Enter sends or continues · Enter makes a new line"}
+              placeholder="Type a message"
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (sendKey === "enter" || e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } }} />
             {busy

@@ -15,7 +15,7 @@ async function rename(page: Page, name: string) {
 const chat = (page: Page, name: string) => page.getByTestId("session-list").getByRole("button", { name: new RegExp(`^${name}`) });
 
 async function write(page: Page, text: string) {
-  await page.getByPlaceholder(/Write your message/).fill(text);
+  await page.getByPlaceholder(/Type a message/).fill(text);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("streaming")).toBeVisible();
 }
@@ -54,7 +54,7 @@ test("leaving a chat while it writes: the reply keeps going and is there when yo
   // a new reply in the first chat continues the same branch (no stray branch)
   await chat(page, "Alpha").click();
   await page.evaluate(() => { (globalThis as { __h2ReplyDelayMs?: number }).__h2ReplyDelayMs = 5; });
-  await page.getByPlaceholder(/Write your message/).fill("Again.");
+  await page.getByPlaceholder(/Type a message/).fill("Again.");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("message")).toHaveCount(5, { timeout: 15_000 });
   await expect(page.getByTestId("session-list").locator(".side-fork")).toHaveCount(0); // still one branch per chat

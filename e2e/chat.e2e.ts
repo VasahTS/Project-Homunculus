@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { openTab } from "./ui.ts";
 
 async function sendMessage(page: Page, text: string) {
-  await page.getByPlaceholder(/Write your message/).fill(text);
+  await page.getByPlaceholder(/Type a message/).fill(text);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });
 }
@@ -87,7 +87,7 @@ test("the sent message stays on screen while the reply is being written", async 
     };
     requestAnimationFrame(tick);
   });
-  await page.getByPlaceholder(/Write your message/).fill("Still here?");
+  await page.getByPlaceholder(/Type a message/).fill("Still here?");
   await page.getByRole("button", { name: "Send" }).click();
   await page.evaluate(() => { (window as unknown as { __watch: boolean }).__watch = true; });
   await expect(page.getByTestId("streaming")).toContainText("She");
@@ -117,7 +117,7 @@ test("a new version (swipe) replaces the old one on screen while it is written",
 
 test("a thinking model shows its reasoning live before the reply starts", async ({ page }) => {
   await page.goto("/");
-  await page.getByPlaceholder(/Write your message/).fill("Think first");
+  await page.getByPlaceholder(/Type a message/).fill("Think first");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("reasoning-live")).toHaveCount(1);
   await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });

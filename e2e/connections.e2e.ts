@@ -103,7 +103,7 @@ test("a failing AI shows a readable error and keeps the user's message", async (
   await page.getByRole("switch", { name: "Default connection" }).click();
   await expect(page.getByTestId("connection-list")).toContainText("OpenRouter — some/modeldefault");
   await openSession(page);
-  await page.getByPlaceholder(/Write your message/).fill("Are you there?");
+  await page.getByPlaceholder(/Type a message/).fill("Are you there?");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("alert")).toContainText("401");
   await expect(page.getByRole("alert")).toContainText("Invalid API key");

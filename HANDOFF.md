@@ -1,5 +1,9 @@
 # HANDOFF — Homunculus 2
 
+## Message box grows; "Type a message" (2026-11-04) — CLAUDE
+
+- Daniel: the box did not grow with the text, and the placeholder was misaligned. The chat's box now starts at one line (centered with its buttons) and grows with the text up to half the window, then scrolls (like SillyTavern's #send_textarea). Placeholder "Type a message". Checks: typecheck, 713 unit, 45 click tests (chat, quick-replies, library, branches, settings-v2, presets, cards).
+
 ## Quick Replies (2026-11-04) — CLAUDE — D-090
 
 - SillyTavern's Quick Reply, text only: sets of saved texts as buttons above the box (or one bolt button with a searchable list, Ctrl+/ — Settings → Chat → Quick Replies). `{{input}}`, Send / Put in the box, inject before/after like ST, plus **Stack** (clicks pile up). ⋮ menus with chaining. Sets on Global / Story / Character / Chat (Prompt tab). Import/export of ST's files.

@@ -167,7 +167,7 @@ test("styled HTML streams and finishes as the same readable message", async ({ p
       yield '<style>.live-fragment { color: rgb(90, 190, 160); padding: 8px }</style>';
     };
   });
-  await page.getByPlaceholder(/Write your message/).fill("Look.");
+  await page.getByPlaceholder(/Type a message/).fill("Look.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByTestId("streaming").frameLocator('iframe[data-testid="message-html"]').locator(".live-fragment")).toHaveText("The gate is open.");
   await page.evaluate(() => (window as unknown as { releaseHtml: () => void }).releaseHtml());
@@ -207,7 +207,7 @@ test("streaming text keeps the same frame document until a new style arrives", a
       yield '<style>.live-fragment { color: rgb(90, 190, 160) }</style>';
     };
   });
-  await page.getByPlaceholder(/Write your message/).fill("Look.");
+  await page.getByPlaceholder(/Type a message/).fill("Look.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   const iframe = page.getByTestId("streaming").locator('iframe[data-testid="message-html"]');
   const frame = page.getByTestId("streaming").frameLocator('iframe[data-testid="message-html"]');

@@ -53,7 +53,7 @@ export async function openTab(page: Page, tab: "scene" | "prompt" | "memory" | "
 
 /** Writes a message, sends it, and waits until the turn ends (reply and trackers). */
 export async function send(page: Page, text: string) {
-  await page.getByPlaceholder(/Write your message/).fill(text);
+  await page.getByPlaceholder(/Type a message/).fill(text);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible({ timeout: 15_000 });

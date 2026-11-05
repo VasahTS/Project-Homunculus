@@ -28,7 +28,7 @@ test("create a character, then start a session with them", async ({ page }) => {
 
 test("switch between sessions keeps each conversation separate", async ({ page }) => {
   await page.goto("/");
-  await page.getByPlaceholder(/Write your message/).fill("Message in Lyra's story");
+  await page.getByPlaceholder(/Type a message/).fill("Message in Lyra's story");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("message")).toHaveCount(3, { timeout: 10_000 });
 

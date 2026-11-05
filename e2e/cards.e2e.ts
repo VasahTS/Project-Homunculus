@@ -87,7 +87,7 @@ test("a card's embedded lorebook works in its sessions: the keyword brings the e
   await page.getByTestId("import-input").setInputFiles({ name: "Mira.png", mimeType: "image/png", buffer: cardPng() });
   await expect(page.getByTestId("notice")).toContainText(`embedded lorebook "Mira's lorebook" (1 entries) was added`);
   await page.getByTestId("character-sheet").getByRole("button", { name: "Chat Now" }).click();
-  await page.getByPlaceholder(/Write your message/).fill("Is that the lighthouse?");
+  await page.getByPlaceholder(/Type a message/).fill("Is that the lighthouse?");
   await page.getByRole("tab", { name: "Prompt" }).click();
   await page.getByRole("button", { name: "Preview Prompt" }).click();
   const sheet = page.getByTestId("prompt-preview");

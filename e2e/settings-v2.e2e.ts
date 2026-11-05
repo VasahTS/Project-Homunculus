@@ -32,7 +32,7 @@ test("Chat settings change the chat: time, number, tokens, swipe arrows and thin
     const svc = await (await import("/src/core-instance.ts" as string)).servicesReady;
     svc.core.connections.stream = async function* () { yield { reasoning: "Thinking about the mill." }; yield "The gate creaks."; };
   });
-  await page.getByPlaceholder(/Write your message/).fill("Hello");
+  await page.getByPlaceholder(/Type a message/).fill("Hello");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   const last = page.getByTestId("message").last();
   await expect(last).toContainText("The gate creaks.");

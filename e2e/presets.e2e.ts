@@ -32,7 +32,7 @@ test("the default preset: blocks can be switched, moved and added; the next repl
 
   await openSession(page);
   await openTab(page, "prompt");
-  await page.getByPlaceholder(/Write your message/).fill("Hello there");
+  await page.getByPlaceholder(/Type a message/).fill("Hello there");
   await page.getByRole("button", { name: "Preview Prompt" }).click();
   const preview = page.getByTestId("prompt-preview");
   await expect(preview).toContainText("Homunculus Default");

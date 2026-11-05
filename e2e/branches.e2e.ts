@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 async function sendMessage(page: Page, text: string) {
-  await page.getByPlaceholder(/Write your message/).fill(text);
+  await page.getByPlaceholder(/Type a message/).fill(text);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByTestId("turn-status")).toHaveCount(0, { timeout: 10_000 });

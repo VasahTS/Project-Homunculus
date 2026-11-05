@@ -108,7 +108,7 @@ test("the panel lists trackers too and shows a tracker running live", async ({ p
   await page.goto("/");
   await page.evaluate(() => { (globalThis as { __h2AgentDelayMs?: number }).__h2AgentDelayMs = 2500; });
   await turnOn(page, "Scene: World");
-  await page.getByPlaceholder(/Write your message/).fill("Where are we?");
+  await page.getByPlaceholder(/Type a message/).fill("Where are we?");
   await page.getByRole("button", { name: "Send" }).click();
   await page.getByTestId("agents-menu-button").click();
   const menu = page.getByTestId("agents-menu");

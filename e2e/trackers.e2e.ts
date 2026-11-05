@@ -112,7 +112,7 @@ test("the reply appears before the trackers finish", async ({ page }) => {
   await makeTracker(page, "Slow values");
   await setTracker(page, "Slow values");
   await expect(page.getByTestId("run-log")).toBeVisible();
-  await page.getByPlaceholder(/Write your message/).fill("Hi");
+  await page.getByPlaceholder(/Type a message/).fill("Hi");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByTestId("turn-status")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("streaming")).toHaveCount(0);
