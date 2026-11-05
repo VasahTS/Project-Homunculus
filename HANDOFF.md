@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## Quick Replies (2026-11-04) — CLAUDE — D-090
+
+- SillyTavern's Quick Reply, text only: sets of saved texts as buttons above the box (or one bolt button with a searchable list, Ctrl+/ — Settings → Chat → Quick Replies). `{{input}}`, Send / Put in the box, inject before/after like ST, plus **Stack** (clicks pile up). ⋮ menus with chaining. Sets on Global / Story / Character / Chat (Prompt tab). Import/export of ST's files.
+- **To try:** Library → Quick Replies → Import your sets from ST (Extensions → Quick Reply → Export each set, or ST's `data/default-user/settings.json`), select a set → "On in every chat"; open a chat, type something, click AuthorS.
+- Checks: typecheck; 713 unit; click tests `quick-replies` (3), `chat`, `regex`, `library`, `navigation`, `settings-v2`, `collections` — 31 passed. Written to Daniel's `Homunculus-gpt` folder (no push from this session): commit it on `gpt` with GitHub Desktop.
+
 ## Chat pictures: ring, number and tokens under the picture, chat size in the bar (2026-11-04) — CLAUDE — D-089
 
 - With chat pictures on, #number · reply tokens · reasoning tokens sit under the picture; a faint ring around it; the bar shows "~N / limit tokens · M msg": the next reply's whole prompt (like Preview Prompt, nothing sent) against the preset's context. Pushed to `gpt`.

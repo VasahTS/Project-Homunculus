@@ -29,3 +29,4 @@ export * from "./lore-versions.ts";
 export * from "./memory.ts";
 export * from "./recall.ts";
 export * from "./regex.ts";
+export * from "./quick-replies.ts";

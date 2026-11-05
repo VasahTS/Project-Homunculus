@@ -13,6 +13,9 @@ export type AvatarShape = "round" | "square" | "portrait" | "hidden";
 export type AvatarSize = "small" | "medium" | "large";
 export type CardSize = "s" | "m" | "l";
 export type AutoBackup = "off" | "daily" | "weekly";
+/** Quick Replies (D-090): a bar of buttons above the box (like SillyTavern), one button that opens a list, or none. */
+export type QuickReplyStyle = "bar" | "drawer" | "off";
+const QR_STYLES: QuickReplyStyle[] = ["bar", "drawer", "off"];
 
 export interface AppPrefs {
   // General
@@ -42,6 +45,7 @@ export interface AppPrefs {
   continueTimes: number;
   /** How many of the newest messages the chat draws (SillyTavern's "# Msg. to Load"); 0 = all. Older ones wait behind "Show earlier". */
   messagesToShow: number;
+  quickReplies: QuickReplyStyle;
   // Appearance
   lineSpacing: number;
   avatarShape: AvatarShape;
@@ -59,7 +63,7 @@ export interface AppPrefs {
 export const DEFAULT_PREFS: AppPrefs = {
   openAt: automated ? "last" : "home", replyNotice: true, replySound: "off", soundVolume: 60, customSound: "", customSoundName: "", systemNotify: false, spoilerFree: false,
   showTime: true, showNumber: true, showTokens: true, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
-  smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50,
+  smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50, quickReplies: "bar",
   lineSpacing: 1.72, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
   autoBackup: "off", keepBackups: 10, emptyTrashDays: 0, homeOffered: true,
 };
@@ -100,6 +104,7 @@ export function cleanPrefs(saved: unknown): AppPrefs {
   out.keepBackups = Math.min(100, Math.max(1, Math.round(out.keepBackups)));
   out.emptyTrashDays = Math.max(0, Math.round(out.emptyTrashDays));
   if (!OPEN_AT.includes(out.openAt)) out.openAt = DEFAULT_PREFS.openAt;
+  if (!QR_STYLES.includes(out.quickReplies)) out.quickReplies = DEFAULT_PREFS.quickReplies;
   return out;
 }
 

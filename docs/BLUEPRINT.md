@@ -406,7 +406,8 @@ Rules:
 | Prose Polisher | 🔄 | part of the **Style Reviewer** (§4.4) |
 | Conversation mode | ⏳ later | its own module |
 | Card scripts with a sandbox | ❓ | §12 |
-| ST extensions, Quick Replies, slash commands | ❌ | modules and agents instead |
+| Quick Replies | ✅ | text only, no STscript (D-090) |
+| ST extensions, slash commands | ❌ | modules and agents instead |
 | Text Completion/instruct, Horde, Kobold, NovelAI | ❌ for now | only Chat Completion (covers nano-gpt, OpenRouter, compatible local servers) |
 
 ---

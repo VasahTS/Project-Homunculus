@@ -9,11 +9,11 @@ test("Library categories are one row of tabs in their groups, and resource editi
   const navigation = page.getByRole("navigation", { name: "Library categories" });
   // D-069: one row of tabs under the title; the groups are kept (split by a line), Trash apart on the right
   await expect(navigation.getByRole("group")).toHaveCount(4);
-  await expect(navigation.getByRole("group", { name: "Writing and context" }).getByRole("button")).toHaveText([/Personas/, /Lorebooks/, /Presets/, /Regex/]);
+  await expect(navigation.getByRole("group", { name: "Writing and context" }).getByRole("button")).toHaveText([/Personas/, /Lorebooks/, /Presets/, /Regex/, /Quick Replies/]);
   const kitsBox = await navigation.getByRole("button", { name: "Kits", exact: true }).boundingBox();
   const agentsBox = await navigation.getByRole("button", { name: "Agents", exact: true }).boundingBox();
   expect(Math.abs((kitsBox?.y ?? 0) - (agentsBox?.y ?? 99))).toBeLessThan(2);
-  await expect(navigation.getByRole("button")).toHaveCount(10);
+  await expect(navigation.getByRole("button")).toHaveCount(11);
   await expect(navigation.getByRole("button", { name: "Kits", exact: true })).toHaveAttribute("aria-current", "page");
   const inactive = navigation.getByRole("button", { name: "NPCs", exact: true });
   expect(await inactive.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");

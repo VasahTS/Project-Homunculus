@@ -29,6 +29,7 @@ import { PromptPane } from "./ConnectionPanel.tsx";
 import { approxTokens, fmtTokens, ReplyPane } from "./ReplyPane.tsx";
 import { Button, Group, Icon, IconButton, Row } from "./kit.tsx";
 import { RegexReview, SessionRegex } from "./RegexScripts.tsx";
+import { QuickReplyBar, QuickReplyDrawer, SessionQuickReplies, useQuickReplyStyle, type QuickReplyHost } from "./QuickReplies.tsx";
 import { MessageText } from "./MessageText.tsx";
 import { MessageMetadata, MessageTime } from "./MessageMetadata.tsx";
 import { getPrefs, usePrefs } from "../prefs.ts";
@@ -45,7 +46,10 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex, onOpenQuickReply, onError }: {
+  /** Ctrl+click on a quick reply, or "Edit sets" in the Prompt tab: Library → Quick Replies (D-090). */
+  onOpenQuickReply?: ((setId?: string, replyId?: string) => void) | undefined;
+  onError?: ((e: unknown) => void) | undefined;
   /** Open the chat at this message (a chat search result, round 3): its branch, scrolled to it. */
   focusMessageId?: string | null;
   svc: AppServices;
@@ -367,6 +371,18 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       const { reply } = await svc.chat.send(session.id, parentId, text, r.connection, { signal, connections: r.connections, ...streamTo });
       return reply.id;
     });
+  };
+
+  // Quick Replies (D-090): the box's text goes in and out through the same draft as typing
+  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const qrStyle = useQuickReplyStyle();
+  const castIds = session.cast.map((c) => c.characterId).filter((id): id is string => !!id);
+  const qrHost: QuickReplyHost = {
+    storyId: session.storyId, characterIds: castIds, chatId: session.id, input,
+    setInput: (t) => setInput(t),
+    focusInput: () => requestAnimationFrame(() => { const b = boxRef.current; if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); b.scrollTop = b.scrollHeight; } }),
+    send: (t) => { if (busy) return false; sendText(t); return true; },
+    onEdit: (setId, replyId) => onOpenQuickReply?.(setId, replyId),
   };
 
   const send = () => {
@@ -876,8 +892,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
 
         {lastAi && !busy && !pending && <ComposerChoices results={agentResults.get(lastAi.id)} agents={agents} onPick={sendText} onEdit={(t) => setInput(t)} onRun={againOn(lastAi.id)} />}
         <form className="composer" data-region="composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
+          {qrStyle === "bar" && <QuickReplyBar host={qrHost} />}
           <div className="composer-box">
-            <textarea value={input} rows={2} aria-label="Your message" title={sendKey === "enter" ? "Enter sends · Shift+Enter makes a new line · Empty Enter continues" : "Ctrl+Enter sends or continues · Enter makes a new line"}
+            {qrStyle === "drawer" && <QuickReplyDrawer host={qrHost} />}
+            <textarea ref={boxRef} value={input} rows={2} aria-label="Your message" title={sendKey === "enter" ? "Enter sends · Shift+Enter makes a new line · Empty Enter continues" : "Ctrl+Enter sends or continues · Enter makes a new line"}
               placeholder="Write your message"
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (sendKey === "enter" || e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } }} />
@@ -927,6 +945,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               <SessionLorebooks session={session} all={lorebooks} load={loadLorebooks} onChangeSession={onChangeSession} onOpen={onOpenLorebook} />
               <SessionRegex rows={regexRows} regexOff={session.setup.regexOff ?? []} onOpenLibrary={() => onOpenRegex?.()}
                 onChange={(regexOff) => { void onChangeSession({ ...session, setup: { ...session.setup, regexOff } }); setRegexTick((t) => t + 1); }} />
+              <SessionQuickReplies chatId={session.id} storyId={session.storyId} storyName={storyInfo?.name}
+                cast={castIds.map((id) => ({ id, name: characters[id]?.name ?? "Character" })).filter((c, i, a) => a.findIndex((x) => x.id === c.id) === i)}
+                onOpenLibrary={() => onOpenQuickReply?.()} onError={(e) => onError?.(e)} />
             </>}
             memory={<MemoryLink session={session} storySetup={storySetup} onOpen={() => setTab("memory")} />}
             character={onSaveCharacter && onOpenCharacter ? (

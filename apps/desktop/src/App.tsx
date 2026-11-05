@@ -53,6 +53,8 @@ import { CollectionOrderContext } from "./ui/CollectionOrder.tsx";
 import { CommandPalette, type PaletteItem } from "./ui/CommandPalette.tsx";
 import { AssistantSidebar, AssistantView, useAssistant, type AppMode, type LibraryEntry } from "./ui/Assistant.tsx";
 import { RegexPage } from "./ui/RegexScripts.tsx";
+import { QuickRepliesPage } from "./ui/QuickReplies.tsx";
+import { loadQuickReplies } from "./quickReplies.ts";
 import { loadMessageLook } from "./messageLook.ts";
 import { getPrefs, loadPrefs, usePrefs } from "./prefs.ts";
 import { playReplySound } from "./sounds.ts";
@@ -71,6 +73,7 @@ type View =
   | { kind: "lorebooks"; id: string | null; draft?: Lorebook; justSaved?: boolean }
   | { kind: "trash" }
   | { kind: "regex" }
+  | { kind: "quick-replies"; setId?: string | undefined; replyId?: string | undefined }
   | { kind: "settings"; tab: SettingsTab }
   | { kind: "trackers"; draft?: TrackerDraft; isNew?: boolean; fromSession?: boolean }
   | { kind: "agents"; id: string | null; fromSession?: boolean }
@@ -293,6 +296,7 @@ export function App() {
     void loadAppearance(s.store);
     setGlobalRegex(await s.store.getGlobalRegex());
     setApprovedRegex(await s.store.getApprovedRegex());
+    void loadQuickReplies(s.store);
     const av: Record<string, Avatar> = {};
     for (const x of [...cs, ...ps]) Object.assign(av, await s.store.getAvatarsFor(x.id));
     setSessions(ss);
@@ -1204,9 +1208,9 @@ export function App() {
       <Icon name="sidebar" size={17} />
     </IconButton>
   );
-  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "regex" ? { kind: "regex" } : area === "agents" ? { kind: "agents", id: null } : { kind: "trackers" }); };
+  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "regex" ? { kind: "regex" } : area === "quick-replies" ? { kind: "quick-replies" } : area === "agents" ? { kind: "agents", id: null } : { kind: "trackers" }); };
   const libraryCategory: LibraryCategory | null = view.kind === "vault" && view.tab !== "stories" ? view.tab : view.kind === "kit" ? "kits"
-    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" ? view.kind : null;
+    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" ? view.kind : null;
   const pageLead = libraryCategory ? null : lead;
   // opened a lorebook from a session (Prompt tab): a button goes straight back to it (Daniel: "me senti perdido")
   const backSession = loreBack ? sessions.find((x) => x.id === loreBack) : undefined;
@@ -1400,6 +1404,12 @@ export function App() {
   } else if (view.kind === "regex") {
     content = <RegexPage lead={pageLead} scripts={globalRegex} onChange={(next) => void saveGlobalRegex(next)}
       onImport={(files) => void importRegex(files)} onExport={() => void exportRegex()} />;
+  } else if (view.kind === "quick-replies") {
+    content = <QuickRepliesPage lead={pageLead} focus={{ setId: view.setId, replyId: view.replyId }}
+      onNotice={(kind, title, lines = []) => setNotice({ kind, title, lines })}
+      onExport={(fileName, text) => void saveExport({ fileName, mime: "application/json", bytes: new TextEncoder().encode(text) })
+        .then((where) => { if (where) setNotice({ kind: "ok", title: "Quick Replies exported", lines: [where] }); })
+        .catch((e: unknown) => setNotice({ kind: "error", title: "The export failed", lines: [errorText(e)] }))} />;
   } else if (view.kind === "trash") {
     content = <TrashPage lead={pageLead} items={trash} onRestore={(it) => void restore(it)} onDeleteForever={(it) => void deleteForever(it)} onEmpty={() => void emptyTrash()} />;
   } else if (view.kind === "trackers") {
@@ -1572,6 +1582,8 @@ export function App() {
     content = (
       <ChatView
             onOpenRegex={() => setView({ kind: "regex" })}
+            onOpenQuickReply={(setId, replyId) => setView({ kind: "quick-replies", setId, replyId })}
+            onError={(e) => setNotice({ kind: "error", title: "Quick Replies were not saved", lines: [errorText(e)] })}
             onRegexChanged={() => void svc.store.getApprovedRegex().then(setApprovedRegex)}
         key={active.id}
         svc={svc}
@@ -1750,7 +1762,7 @@ export function App() {
           onNewStory={() => setNewStoryOpen({ cardId: null })}
           onOpenCharacters={() => setView({ kind: "characters", id: null })}
           onOpenCardBrowser={() => setView({ kind: "card-browser" })}
-          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" ? view.kind : "kits")}
+          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "general" })}
           onOpenHome={() => setHomeOpen(true)}

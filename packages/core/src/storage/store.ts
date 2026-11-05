@@ -3,7 +3,7 @@
 // reported clearly instead of breaking the UI later. Data from older versions is
 // upgraded on read (schemas/legacy.ts), so no data migration is needed (D-008).
 import {
-  AgentConfig, AgentNote, AgentRun, Avatar, Branch, type BranchInput, Character, Folder, type FolderInput, type FolderKind, Kit, Narrator, Npc, Story, ConnectionProfile, GenerationRecord, Lorebook, LoreSettings, Preset, RegexScript, HistoryEntry, Message, MessageKind,
+  AgentConfig, AgentNote, AgentRun, Avatar, Branch, type BranchInput, Character, Folder, type FolderInput, type FolderKind, Kit, Narrator, Npc, Story, ConnectionProfile, GenerationRecord, Lorebook, LoreSettings, Preset, QuickReplyData, RegexScript, HistoryEntry, Message, MessageKind,
   MessageRevision, MessageVisibility, Persona, Session, SetupLayer, StateDelta, TrackerSchema, TrashItem, upgradeSession,
   type HistoryKind, type TrashKind,
   type AgentConfigInput, type AgentRunInput, type LorebookInput, type LoreTimers, type ConnectionProfileInput, type PresetInput, type CharacterInput, type MessageInput, type PersonaInput,
@@ -11,6 +11,7 @@ import {
 } from "@homunculus/schemas";
 import type { z } from "zod";
 import { chapterKey, type Chapter } from "../memory.ts";
+import { cleanQuickReplyData } from "../quick-replies.ts";
 import type { MessageTree, ResolvedState, StateRepository } from "../state.ts";
 import type { SqlDriver } from "./sql.ts";
 
@@ -310,6 +311,17 @@ export class SqlStore implements StateRepository, MessageTree {
     const all = await this.getApprovedRegex();
     for (const k of keys) all.add(k);
     await this.setAppSetting("regex.approved", [...all]);
+  }
+
+  /** Quick Reply sets and where they are on (D-090): one app setting, like SillyTavern keeps them. */
+  async getQuickReplies(): Promise<QuickReplyData> {
+    return cleanQuickReplyData(await this.getAppSetting("quickReplies"));
+  }
+
+  async setQuickReplies(data: QuickReplyData): Promise<QuickReplyData> {
+    const clean = QuickReplyData.parse(data);
+    await this.setAppSetting("quickReplies", clean);
+    return clean;
   }
 
   /** How lorebooks are read (one set for the app for now). */

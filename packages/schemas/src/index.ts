@@ -14,3 +14,4 @@ export * from "./records.ts";
 export * from "./legacy.ts";
 export * from "./regex.ts";
 export * from "./assistant.ts";
+export * from "./quick-replies.ts";

@@ -5,6 +5,14 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+### Quick Replies
+
+- **Quick Replies** like SillyTavern's: your saved texts (OOC instructions, author directions, things you always send) as buttons above the message box. `{{input}}` puts what you typed inside the text; a set can send at once or put the text in the box, before or after what you typed.
+- **Stack:** click several quick replies and they pile up in the box, one per line (SillyTavern replaces each time).
+- **Bar or one button** (Settings → Chat → Quick Replies): the bar of buttons, or a single button that opens a searchable list (Ctrl+/).
+- Sets can be on everywhere, in a story, for a character or in one chat (Prompt tab). ⋮ menus open other sets. Ctrl+click a button to edit it.
+- **Import and export SillyTavern's Quick Reply sets** (one set, several, or its settings.json); exported sets open in SillyTavern again.
+
 ### Pictures and layout
 
 - **Stories:** the story you played last sits on top with **Continue**; every story's cover stands (2:3) and fills its card.

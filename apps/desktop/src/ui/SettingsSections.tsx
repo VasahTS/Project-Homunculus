@@ -113,6 +113,12 @@ export function ChatSection() {
             options={[{ value: "hidden", label: "Hidden" }, { value: "folded", label: "Folded" }, { value: "open", label: "Open" }]} />
         </Row>
       </Group>
+      <Group icon="bolt" title="Quick Replies" help="Saved texts one click away (SillyTavern's Quick Reply). Make them in Library → Quick Replies; switch sets on in a chat's Prompt tab.">
+        <Row label="Show them as" help="A bar of buttons above the message box, or one button in the box that opens a list (Ctrl+/).">
+          <Segmented small label="Show quick replies as" value={p.quickReplies} onChange={(quickReplies) => set({ quickReplies })}
+            options={[{ value: "bar", label: "Bar", testId: "qr-style-bar" }, { value: "drawer", label: "One button", testId: "qr-style-drawer" }, { value: "off", label: "Off", testId: "qr-style-off" }]} />
+        </Row>
+      </Group>
       <Group icon="hourglass" title="While a reply arrives">
         <Row label="Smooth text" help="Words appear evenly instead of in bursts."><Switch label="Smooth text" checked={p.smoothText} onChange={(smoothText) => set({ smoothText })} /></Row>
         <Row label="Speed" help="Words per second, when Smooth text is on.">

@@ -947,3 +947,19 @@ Daniel (screenshots of SillyTavern and of the chat): "can you give the chat pict
 - Test: `e2e/ui-round-1104.e2e.ts` (7th case).
 
 Signed: **CLAUDE**.
+
+## D-090 — Quick Replies, text only, like SillyTavern's; two looks; stacking; ST import/export (2026-11-04)
+
+Daniel: "let's make the quick reply, the ST extension that was left out a while ago; research it first, it has to be faithful" → "it doesn't need ST's commands, I just want {{input}}, saving things I always send, OOC commands" · sets on Global / Story / Character / Chat · drafts first (canvas "Homunculus 2 — Quick Reply", A bar and B one button: "do both, they turned out good, an option in settings") · no "New Chat"/"Trigger" actions, no auto-execute · "add export/import" · "make sure {{input}} works" · "an extra feature: being able to insert several of these quick replies, because in the original ST they don't stack". This replaces BLUEPRINT §9's "❌ Quick Replies".
+- **What a click does** = SillyTavern `QuickReplySet.executeWithOptions` (pinned commit 06bde939): `{{input}}` (any case, every time) becomes the whole message box as it was before the click (ST `macros.js`: `$('#send_textarea').val()`); without **inject** the reply replaces the box (plus ST's trailing space); with inject and text in the box, the box text is kept and the reply goes after it, or **before** it, with a space; **Send it** sends the result (and empties the box), **Put it in the box** leaves it there. A text starting with "/" is just text: no STscript.
+- **Stack (ours, on by default):** in a "put it in the box" set, a click keeps what is in the box and adds the reply on its own line (after, or before with "before") instead of replacing it. A reply using `{{input}}` already holds the box text, so it replaces it as in ST.
+- **Data:** `packages/schemas/src/quick-replies.ts` (field map to ST in its header); everything in one app setting `quickReplies` (sets + links per place), like ST keeps it in its settings. Links: Global, Story (id), Character (id; every card in the cast), Chat (id); each with **Buttons** (ST `isVisible`). Order of the buttons: global, story, character, chat (ST: global, chat, character); a set on in two places shows once.
+- **⋮ menu** = ST `ContextMenu.build`: other sets opened from a button (right-click or ⋮; ⋮ shows only when the menu leads somewhere), loops skipped, a reply's own set lists only its hidden replies with an icon, `%%parent%%`, **chained** = this reply's text first; joined by a new line (ST joins with " | ", an STscript pipe).
+- **Looks** (Settings → Chat → Quick Replies): **Bar** (draft A: rows of buttons above the box, centered, like ST's `#qr--bar`), **One button** (draft B: a bolt in the box opens a searchable list, Ctrl+/; Enter in the search runs the first), **Off**. Ctrl+click a button opens it in the Library (ST).
+- **Library → Quick Replies:** sets | set options + replies (drag to reorder) | the reply (icon, label, tooltip, text, Try it with a sample box, menu sets with "Send this one first", Hidden, Show label). ST's Font Awesome icons are kept as written; common ones are drawn with our icons, others show the label.
+- **Files:** Import takes one exported set, a list, or SillyTavern's `settings.json` (`quickReplyPresets`), version 2 or the old v1 format (migrated like ST `index.js loadSets`); menus are linked by set name; names made unique. Export (one set, or **Export All** as a list) writes ST's `QuickReplySet.toJSON` shape, so it imports back into SillyTavern.
+- **Not done:** auto-execute and automation ids (they exist to run STscript by themselves; Daniel doesn't use them), app actions such as New Chat / Trigger, the popout window.
+- Code: `packages/core/src/quick-replies.ts`, `apps/desktop/src/quickReplies.ts`, `apps/desktop/src/ui/QuickReplies.tsx`. Tests: `packages/core/test/quick-replies.test.ts` (14), `e2e/quick-replies.e2e.ts` (3).
+
+Signed: **CLAUDE**.
+
