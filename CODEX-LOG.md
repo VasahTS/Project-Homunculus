@@ -1,5 +1,12 @@
 # Work log — CODEX
 
+## 0.3.2 Memory width follow-up (2026-11-05) — CODEX
+
+- Corrected the remaining Memory layout hierarchy missed by 0.3.1. Per-chat summary-model names could set an implicit minimum grid width larger than the inspector; the short-model fixture fit while the long-model fixture failed before the fix.
+- CSS now bounds the Memory grid hierarchy, permits text/labels to wrap, preserves compact model pills, and lets setting controls fit narrow panels. No component logic, generation, recall or storage changes.
+- Added e2e/memory-overflow.e2e.ts with seven cases and per-case screenshots. Passed typecheck, 726 unit tests (3 skipped), in-memory production build, 38 related Chromium scenarios and a seven-case repeat. Local evidence: dev-data/hotfix-0.3.2/.
+- Daniel clarified visual clipping only; 0.3.2 continues his authorized hotfix release. Preserve the unrelated local Cargo.lock edit. Signed **CODEX**.
+
 ## 0.3.1 inspector overflow hotfix (2026-11-05) — CODEX
 
 - Fixed the Prompt body's intrinsic grid sizing instead of masking wider content with the inspector's existing overflow rule. Long card labels wrap; previews ellipsize and editors remain accessible. The same grid constraint contains the Scene tab scroller.

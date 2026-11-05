@@ -1,5 +1,9 @@
 # CODEX tasks
 
+### 0.3.2 Memory width follow-up · Status: Done (publication authorized) — CODEX
+
+Daniel confirmed visual clipping only, depending on the chat. Corrected Memory's separate grid hierarchy with a failing-first short/long model comparison. Seven regressions cover inherited settings, four widths, chapter editing, Recall and Guide. Typecheck/build, 726 unit passes (3 skipped), 38 related Chromium cases and a seven-case repeat passed. Continues the authorized release hotfix; preserve the local Cargo.lock edit. Signed **CODEX**.
+
 ### 0.3.1 inspector overflow hotfix · Status: Done (publication authorized) — CODEX
 
 Daniel supplied a clipped Prompt-panel screenshot and requested a release hotfix. Fixed intrinsic grid overflow in styles.css, with a failing-first browser regression for long card fields, folded notes and inherited setup, plus Scene section scrolling. TypeScript/build, 726 unit tests (3 skipped) and 40 related Chromium scenarios passed; five new regressions were repeated with Observatory coverage. The pre-existing local Cargo.lock version edit is preserved and excluded. Signed **CODEX**.

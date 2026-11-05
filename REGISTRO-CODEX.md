@@ -1,5 +1,13 @@
 # CODEX change record
 
+## 0.3.2 Memory width follow-up (2026-11-05) — CODEX
+
+- Daniel reported Memory still clipped after the UI hotfix and clarified that this is a visual problem affecting only some chats. This continues the authorized release hotfix; no memory behavior redesign is requested.
+- Failing-first evidence in e2e/memory-overflow.e2e.ts: the short summary-model story fit, while a long model name widened Memory sections to 1,963 px inside a 364 px inspector. The Memory pane has its own nested grid hierarchy and was omitted from the earlier generic pane correction.
+- Changed only Memory layout rules in apps/desktop/src/styles.css, the new regression file, CHANGELOG 0.3.2 and signed records/task entry. Set zero-minimum tracks through the nested grids, shrink children, wrap long content, keep icons/chevrons visible, permit narrow setting rows to wrap and bound Guide columns. No JSX, core memory, prompt, schema, saved-data or workflow edits.
+- Validation: TypeScript, 726 unit passes (3 skipped), in-memory Vite production build, 38 related Chromium tests and a seven-regression repeat. Cases cover short/provider-style/extreme model names, per-story inheritance, four viewport widths, real manual chapter creation/editing and peek, all settings, Recall and Guide. Evidence stays local in dev-data/hotfix-0.3.2/; personal data and credentials were not used. The existing build import warning remains.
+- Preserve and exclude the pre-existing local apps/desktop/src-tauri/Cargo.lock package-version change. Publish via the existing workflow as 0.3.2 after normal gpt/main fast-forward promotion, with CODEX as commit author/committer. Signed **CODEX**.
+
 ## 0.3.1 inspector overflow hotfix (2026-11-05) — CODEX
 
 - Daniel requested fixing his clipped UI and publishing a hotfix. This authorizes the targeted bug fix, gpt-to-main promotion and existing Windows/Linux release workflow, superseding earlier branch/release restrictions for this task.

@@ -3343,7 +3343,16 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .collection-page .view-sheet > .vs-pic-read > .vs-pic.letter { height: 220px; font-size: 64px; }
 
 /* ---------------------------------------------------------------- Memory tab (D-084) */
-.mem-pane { display: grid; gap: 12px; padding: 6px 14px 24px; }
+.mem-pane { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 6px 14px 24px; overflow-wrap: anywhere; }
+/* CODEX: Memory's nested grids must fit the inspector even when this chat has a long model name. */
+.mem-pane :where(.mem-head, .mem-head-title, .mem-view, .mem-card, .mem-fold-body, .mem-list, .mem-peek, .mem-own, .mem-writer, .mem-writer-field, .mem-choices, .mem-choice-body, .mem-try-result, .mem-example-story) { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.mem-pane > *, .mem-pane :where(.mem-head, .mem-view, .mem-card, .mem-fold-body, .mem-list, .mem-writer, .mem-writer-field) > * { min-width: 0; }
+.mem-pane .mem-fold-head b { min-width: 0; overflow-wrap: anywhere; }
+.mem-pane .mem-fold-chev, .mem-pane .mem-head-icon { flex: none; }
+.mem-pane .mem-empty > span, .mem-pane .mem-choice-body { min-width: 0; overflow-wrap: anywhere; }
+.mem-pane .mem-setting { flex-wrap: wrap; }
+.mem-pane .mem-setting-value { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.mem-pane .mem-terms { grid-template-columns: max-content minmax(0, 1fr); }
 .mem-head { display: grid; gap: 10px; padding: 12px; border-radius: calc(10px * var(--round)); background: var(--fill); border: 1px solid var(--separator); }
 .mem-head.on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
 .mem-head-top { display: flex; align-items: center; gap: 10px; }

@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## 0.3.2 Memory width follow-up (2026-11-05) — CODEX
+
+- Daniel confirmed the remaining problem is visual clipping, occurring in some chats. Memory uses separate nested grids that the 0.3.1 pane fix did not cover.
+- Reproduced short-model chat fitting and long-model chat expanding Memory sections to 1,963 px inside a 364 px inspector. Constrained Memory's nested grids, labels, setting controls and Guide columns; no memory logic or data changes.
+- Added seven regressions covering three model-name lengths, inherited story settings, 1440/1000/620/390 px, chapter editing, collapsed/expanded settings, Recall and Guide. Passed 38 related browser cases, a seven-case repeat, typecheck, 726 unit tests (3 skipped) and production build.
+- Continues the authorized release hotfix as 0.3.2. Keep the pre-existing local Cargo.lock modification out of the commit. Signed **CODEX**.
+
 ## 0.3.1 inspector overflow hotfix (2026-11-05) — CODEX
 
 - Daniel reported clipped Prompt content and explicitly requested a release hotfix; main promotion and the existing Windows/Linux release workflow are authorized.

@@ -5,6 +5,14 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+## 0.3.2 — 2026-11-05
+
+<!-- Memory layout follow-up: CODEX. -->
+
+- Fixed the Memory tab being cut off in chats with long summary-model names, including settings inherited from a story.
+- Collapsed settings, expanded controls, chapter editors, Recall and Guide now stay within the inspector width. Long names remain compact and longer text wraps where needed.
+- This is a layout correction; chapter generation, recall selection and stored memory are unchanged.
+
 ## 0.3.1 — 2026-11-05
 
 <!-- Hotfix notes: CODEX. -->
