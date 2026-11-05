@@ -118,10 +118,10 @@ export function PersonaEditor({ persona, avatars, isDefault, justSaved = false, 
                   onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void cropImage(f).then((c) => { if (c) void onChangeAvatar(ownKey, c); }); }} />
                 <div className="default-row">
                   <Switch label="Default persona" checked={isDefault} onChange={(on) => void run(() => onSetDefault(on ? draft.id : null))} />
-                  <span className="label-row">Default persona <Help text="Used by every session that doesn't pick a persona of its own. Each session can pick another one in the story's toolbar." /></span>
+                  <span className="label-row">Default persona <Help text="Used when a chat has no persona selected." /></span>
                 </div>
               </>
-            ) : <p className="hint">{exists ? "Save to add an image for this version." : "Create the persona first to add an image."}</p>}
+            ) : <p className="hint">Save to add a picture.</p>}
           </div>
         </div>
 
@@ -136,7 +136,7 @@ export function PersonaEditor({ persona, avatars, isDefault, justSaved = false, 
 
         <div className="placement">
           <label className="inline-label">
-            <span className="label-row">Place in the prompt <Help text="Where the description goes. 'With the character' puts it in the first block, next to the card. 'Near the end' puts it a few messages before the end of the chat, so the AI weighs it more. 'Not sent' keeps it only for you. Same for all versions." /></span>
+            <span className="label-row">Place in the prompt <Help text="Placement applies to all versions. Near the end uses the depth below. Not sent excludes it from prompts." /></span>
             <select aria-label="Place in the prompt" value={place.position} onChange={(e) => setPlace({ position: e.target.value as Persona["placement"]["position"] })}>
               <option value="inPrompt">With the character</option>
               <option value="atDepth">Near the end of the chat</option>
@@ -150,7 +150,7 @@ export function PersonaEditor({ persona, avatars, isDefault, justSaved = false, 
                 onChange={(e) => setPlace({ depth: Math.max(0, Math.min(50, Number(e.target.value) || 0)) })} />
             </label>
             <label className="inline-label">
-              <span className="label-row">Sent as <Help text="Which kind of message carries it. 'System' works for most models." /></span>
+              <span className="label-row">Sent as <Help text="Message role for the description." /></span>
               <select aria-label="Sent as" value={place.role} onChange={(e) => setPlace({ role: e.target.value as Persona["placement"]["role"] })}>
                 <option value="system">System</option>
                 <option value="user">User</option>
@@ -161,11 +161,11 @@ export function PersonaEditor({ persona, avatars, isDefault, justSaved = false, 
         </div>
 
         <LorebookChips ids={draft.lorebookIds} books={lorebooks} onOpen={onOpenLorebook} onChange={(lorebookIds) => setDraft((d) => ({ ...d, lorebookIds }))}
-          help="Lorebooks that come with this persona: read in every session where you play as it (SillyTavern: the persona's lorebook)." />
+          help="Included in chats using this persona." />
 
         {exists && (
           <details className="advanced" onToggle={(e) => setHistoryOpen((e.target as HTMLDetailsElement).open)}>
-            <summary>History <Help text="Every time you save, the whole persona (with all its versions) is kept here. Open one to see what changed, and restore it if you want it back." /></summary>
+            <summary>History <Help text="Open a saved persona to compare or restore it. Includes all versions." /></summary>
             {historyOpen && <HistoryList entries={history ?? []} loading={history === null} fields={HISTORY_FIELDS} onRestore={(d) => void restore(d)} />}
           </details>
         )}

@@ -155,6 +155,7 @@ export function profileToConfig(
     profileId: profile.id,
     providerId: profile.providerId,
     model: profile.model,
+    streaming: profile.streaming,
     baseUrl: profile.baseUrl.trim() || undefined,
     apiKey: keyFor(profile),
     params,

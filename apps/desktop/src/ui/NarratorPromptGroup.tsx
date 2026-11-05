@@ -42,14 +42,14 @@ export function NarratorPromptGroup({ layer, above, onChange, level, disclosure 
   if (disclosure) {
     const label = value.position === "card" ? "Card" : value.position === "system" ? "System" : `In chat · ${value.depth} back`;
     return <details className="narrator-placement" data-testid="narrator-prompt">
-      <summary title="Choose where the AI reads the narrator's instructions">
+      <summary title="Narrator placement">
         <Icon name="chevron" size={12} /><span>Prompt placement</span>
         <span className="placement-value">{label}{value.position !== "inChat" && value.alsoInChat ? " + in chat" : ""}</span>
       </summary>
       <div className="group">{controls}</div>
     </details>;
   }
-  return <Group title="Narrator in the prompt" testId="narrator-prompt" help="Choose where the AI reads the narrator's instructions. Card placement preserves the existing preset behavior. These settings do not add messages to your saved conversation.">{controls}</Group>;
+  return <Group title="Narrator in the prompt" testId="narrator-prompt" help="Card uses the preset's character blocks.">{controls}</Group>;
 }
 
 /** A whole number saved when you leave the box or press Enter, so clearing it to type never saves 0 (D-046). */

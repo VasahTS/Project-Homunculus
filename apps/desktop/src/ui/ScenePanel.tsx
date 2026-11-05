@@ -340,7 +340,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
             {menu && <Popover onClose={() => setMenu(false)}><div className="popover-title">Trackers in this session</div>{switches}</Popover>}
           </span>
         )}
-        <Help text="What the trackers know at the message on screen: swipe or go back and it follows. Click a person to open everything about them right there (Show All opens everyone). Drag a person by ⋮⋮ (or focus ⋮⋮ and use the arrow keys) to change the order, or into the other group to move them in or out of the scene. Click any value to change it; your change wins over the tracker's at that message. Update Now runs the trackers on this message again." />
+        <Help text="Tracked values for the selected message. Click a value to edit it. Your edits override tracker values for that message." />
       </header>
 
       {error && <div className="error-bar inline" role="alert">{error}</div>}
@@ -349,7 +349,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
         <section className="q-empty">
           {/* UX review item 9 (D-079): an empty state with one clear action, the single switches under it */}
           <h3 className="q-empty-title">Follow this scene</h3>
-          <p className="pane-note">{trackers.length ? "Trackers keep who is here, where and when, and what each person wants, up to date after every reply." : "No trackers yet."}</p>
+          <p className="pane-note">{trackers.length ? "Trackers update scene details after each reply." : "No trackers yet."}</p>
           {trackers.length > 0 && onToggleAll && <Button variant="prominent" onClick={() => onToggleAll(trackers.map((t) => t.agent.id), true)} data-testid="scene-follow-all">Switch On All {trackers.length}</Button>}
           {trackers.length ? <details className="q-empty-pick"><summary>Or Pick Which Ones</summary><div className="q-group">{switches}</div></details> : <button className="link" onClick={onNewTracker}>Create One</button>}
         </section>

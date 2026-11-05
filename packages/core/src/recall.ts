@@ -205,6 +205,8 @@ export interface RecallInput {
   ignoreNames: string[];
   decide: Decide;
   deciderName: string;
+  /** Keep answers separate when the selected connection or model changes. CODEX. */
+  cacheScope?: string;
   cache: DecisionCache;
   signal?: AbortSignal | undefined;
   now?: () => number;
@@ -231,7 +233,7 @@ export async function smartRecall(r: RecallInput): Promise<RecallResult | undefi
   const threshold = r.threshold ?? 0.5;
   const count = { questions: 0, cached: 0 };
   const exchange = r.exchange.slice(-24_000);
-  const xhash = hashText(exchange);
+  const xhash = hashText(JSON.stringify([r.cacheScope ?? r.deciderName, exchange]));
   const state = `<latest_exchange>\n${exchange}\n</latest_exchange>`;
   const base = { mode: "smart" as const, decider: r.deciderName, chapters: level0.length, layers: layers.length };
   const fallback = (reason: string, asked = 0): RecallResult => ({
@@ -296,11 +298,10 @@ export async function smartRecall(r: RecallInput): Promise<RecallResult | undefi
   } finally { total.done(); }
 }
 
-// ---------------------------------------------------------------- the agents' chat model as the decider
+// ---------------------------------------------------------------- chat models as deciders
 
 /**
- * When no decision model is available: the same questions to an ordinary chat model, answered as JSON
- * probabilities in one request per batch. Slower and costlier than Jev, but works with any connection.
+ * Answers recall questions with a chat completion, returning probabilities as JSON.
  */
 export async function chatDecide(complete: (turns: Array<{ role: "system" | "user"; content: string }>, signal: AbortSignal) => Promise<string>,
   state: string, questions: DecisionQuestion[], signal: AbortSignal): Promise<Map<string, number>> {

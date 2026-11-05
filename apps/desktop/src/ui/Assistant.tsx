@@ -418,7 +418,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
           <div className="asst-col asst-hello">
             {/* D-077, like Flint: the start screen is a title and suggestions; the message box sits at the bottom, where it stays in a chat */}
             <h1>Assistant</h1>
-            <p className="asst-knows">Makes and fixes characters, lorebooks, Kits and narrators. Reads your library when it needs to · {library.length} items</p>
+            <p className="asst-knows">{library.length} library items available</p>
             <div className="asst-qs">
               {QUICK.map((q) => (
                 <button key={q.title} type="button" className="asst-q" onClick={() => { setText(q.prompt); if (q.title === "Build a Kit") setPicking(true); }}>
@@ -481,6 +481,7 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
         </div>
       )}
       <textarea rows={2} value={text} autoFocus={autoFocus} placeholder="What shall we make? A character, a Kit, a lorebook…" aria-label="Message to the Assistant"
+        title={sendKey === "enter" ? "Enter to send · Shift+Enter for a new line" : "Ctrl+Enter to send · Enter for a new line"}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (sendKey === "enter" || e.ctrlKey || e.metaKey)) { e.preventDefault(); onSend(); } if (e.key === "@" && !text.trim()) { e.preventDefault(); onPick(); } }}
         onPaste={(e) => { const fs = [...e.clipboardData.files]; if (fs.length) { e.preventDefault(); onDropFiles(fs); } }} />
@@ -488,7 +489,7 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
         <Pop title="Add" testId="assistant-plus" className="up-left" icon label={<Icon name="plus" size={16} />}>
           {(close) => <>
             <button type="button" className="asst-pop-item" data-testid="assistant-add-context" onClick={() => { close(); onPick(); }}>
-              <span className="asst-pop-emoji"><Icon name="book" size={14} /></span><span><b>Add Context…</b><small>Characters, lorebooks, narrators from your library (or type @)</small></span>
+              <span className="asst-pop-emoji"><Icon name="book" size={14} /></span><span><b>Add Context…</b><small>Add library items with @</small></span>
             </button>
             <button type="button" className="asst-pop-item" onClick={() => { close(); onFiles(); }} aria-label="Attach">
               <span className="asst-pop-emoji"><Icon name="paperclip" size={14} /></span><span><b>Attach a File…</b><small>.json, .jsonl, .md, .txt, PNG cards, pictures</small></span>
@@ -784,7 +785,6 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
           {used?.parts ? <div className="asst-bars">{Object.entries(used.parts).filter(([, n]) => n > 0).map(([k, n]) => (
             <div key={k} className="asst-bar"><span>{PART[k] ?? k}</span><i style={{ width: `${Math.max(2, Math.round((n / Math.max(1, Object.values(used.parts!).reduce((a, b) => a + b, 0))) * 100))}%` }} /><b>{fmtK(n)}</b></div>
           ))}</div> : <p className="hint">Send a message to see it.</p>}
-          {!ctx && <p className="hint">Pick the model with “Browse…” in the model menu to see how full the context is.</p>}
           <div className="asst-pop-h">This chat</div>
           <div className="asst-kv"><span>Replies</span><b>{replies.length}</b><span>Tokens</span><b>{spent.tokens ? fmtK(spent.tokens) : "not reported"}</b><span>Cost</span><b>{spent.cost ? `$${spent.cost.toFixed(3)}` : "not reported"}</b></div>
           <button type="button" className="asst-pop-foot" onClick={onCustomize}>Limits and Usage…</button>
@@ -914,7 +914,7 @@ function RequestView({ chat, messageId, settings, svc, onClose }: { chat: Assist
   const show = (c: RichTurn["content"]) => (typeof c === "string" ? c : c.map((p) => (p.type === "text" ? p.text : `[image ${p.mime}, ${Math.round(p.base64.length * 0.75 / 1024)} KB]`)).join("\n"));
   return (
     <Modal title="What the model received" onClose={onClose} className="modal-wide asst-request" testId="assistant-request">
-      <p className="hint">The request for this message, rebuilt from the chat: {turns.length} messages and {tools.length} tools (~{Math.round(JSON.stringify(turns).length / 3.6).toLocaleString()} tokens before the tools).</p>
+      <p className="hint">Reconstructed request · {turns.length} messages · {tools.length} tools · ~{Math.round(JSON.stringify(turns).length / 3.6).toLocaleString()} tokens before tools.</p>
       {turns.map((t, k) => (
         <details key={k} className="asst-req-turn" open={k === 0 || k === turns.length - 1}>
           <summary><b>{t.role}</b>{t.toolCalls?.length ? ` · calls ${t.toolCalls.map((c) => c.name).join(", ")}` : ""} <span className="hint">~{Math.round(show(t.content).length / 3.6)} tokens</span></summary>
@@ -1000,7 +1000,7 @@ function DraftCard({ kind, json, ready, results, onSave }: { kind: AssistantKind
       )}
       {ready && !data && <p className="asst-error">This draft is not valid JSON — ask for it again.</p>}
       {err && <p className="asst-error" role="alert">{err}</p>}
-      {saved && <p className="asst-draft-saved">✓ {revising ? "Applied" : "Saved"} — see the card below.</p>}
+      {saved && <p className="asst-draft-saved">✓ {revising ? "Applied" : "Saved"}</p>}
     </div>
   );
 }

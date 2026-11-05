@@ -140,7 +140,7 @@ function CropSheet({ file, startShape, onDone }: { file: File; startShape: CropS
           <input type="range" aria-label="Zoom" min={1} max={MAX_ZOOM} step={0.01} value={zoom} onChange={(e) => zoomTo(Number(e.target.value))} />
           <output>{Math.round(zoom * 100)}%</output>
         </label>
-        <p className="hint crop-hint">Drag the picture to move it; the wheel or the slider zooms.</p>
+        <p className="hint crop-hint">Drag to move. Use the wheel or slider to zoom.</p>
         {error && <div className="error-bar inline" role="alert">{error}</div>}
         <div className="crop-actions">
           <Button variant="plain" onClick={() => onDone(file)} data-testid="crop-whole">Use Whole Image</Button>

@@ -9,7 +9,7 @@ export function AboutSection({ u }: { u: Updates }) {
     <div className="settings-page" data-testid="about">
       <Group title="Homunculus">
         <Row label="Version"><span className="about-version">{u.current}</span></Row>
-        <Row label="Updates" help="The installed app asks GitHub for a newer version each time it opens. It never installs anything until you click Update & Restart (on Linux .deb: Download, then install the new .deb). Your chats, characters and keys are not touched by an update.">
+        <Row label="Updates" help="Checks GitHub on startup. Select Update & Restart to install. On Linux .deb, download and install the package. Your data stays in place.">
           <span className="about-update">
             <span className={`about-status${s.kind === "error" ? " danger-text" : ""}`} data-testid="update-status">{updateStatusText(u)}</span>
             {s.kind === "available"

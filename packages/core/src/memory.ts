@@ -72,7 +72,7 @@ export interface MemorySettings {
   summaryPrompt: string;
   summaryMaxTokens: number;
   mode: MemoryMode;
-  /** Smart recall: who answers the yes/no questions. "jev" = a decision model (nano-gpt's /decisions); "agents" = the agents' chat model. */
+  /** Smart recall source. "jev" is the legacy value for a custom connection/model; "agents" inherits the agents' model. CODEX. */
   decider: "jev" | "agents";
   /** The saved connection whose address and key the decision model uses (empty = the agents' connection). */
   deciderConnectionId: string;
@@ -87,7 +87,7 @@ export const MEMORY_DEFAULTS: MemorySettings = {
   on: false, auto: true, every: 20, keep: 10, closeBy: "messages", everyTokens: 8000,
   layers: true, layerSize: 10, layerMerge: 3,
   summaryConnectionId: "", summaryModel: "", summaryPrompt: DEFAULT_SUMMARY_PROMPT, summaryMaxTokens: 4096,
-  mode: "simple", decider: "jev", deciderConnectionId: "", deciderModel: "typesafe/jev-latest", recallChapters: 4, recallQuotes: 3,
+  mode: "simple", decider: "agents", deciderConnectionId: "", deciderModel: "", recallChapters: 4, recallQuotes: 3,
 };
 
 /** Highest level a merge may create (Summaryception's default of 5 layers). */

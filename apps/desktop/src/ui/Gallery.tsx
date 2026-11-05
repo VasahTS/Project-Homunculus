@@ -159,7 +159,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   const shown = filtered.filter((c) => !recent || (activity[c.id] ?? 0) > 0);
   return (
     <div className="page collection-page" data-region="collection">
-      <Toolbar lead={lead} title={title} subtitle="The people you write with. Their cards and conversations." center={tabs}
+      <Toolbar lead={lead} title={title} subtitle="Character cards and chats" center={tabs}
         trailing={<>
           <Button onClick={() => fileInput.current?.click()}><Icon name="import" size={14} /> Import</Button>
           <Help text={`Import characters from SillyTavern (or sites that use the same cards). ${importHelp} You can pick several files at once.`} />
@@ -190,7 +190,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
         </div>
         <aside className="gallery-sheet" data-region="sheet">
           <div className="collection-detail-label">Character details</div>
-          {sheet ?? <div className="empty-detail"><p>Pick a character to see it here.</p><p className="hint">Chat Now starts a 1:1 chat. Edit opens the full editor.</p></div>}
+          {sheet ?? <div className="empty-detail"><p>Pick a character to see it here.</p></div>}
         </aside>
       </div>
     </div>

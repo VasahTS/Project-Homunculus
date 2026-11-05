@@ -60,7 +60,7 @@ export function AssistantDetails({ chat, live, settings, modelName, modelFrom, o
         <div className="det-ctx-line"><b>{total ? `${estimated ? "~" : ""}${fmtK(total)}` : "—"}</b><span>{ctx ? `of ${fmtK(ctx)} (${pct}%)` : "used in the last request"}</span></div>
         <div className="det-meter"><i style={{ width: `${pct ?? Math.min(100, Math.round((total / 75_000) * 100))}%` }} className={pct !== null && pct > 80 ? "hot" : ""} /></div>
         {used?.parts && <div className="det-parts">{Object.entries(used.parts).filter(([, n]) => n > 0).map(([k, n]) => <div key={k}><span>{PART[k] ?? k}</span><b>{fmtK(n)}</b></div>)}</div>}
-        {!ctx && <p className="det-hint">Pick the model with Browse… (model menu) to know the context size.</p>}
+        {!ctx && <p className="det-hint">Use Browse to show the model’s context limit.</p>}
         {estimated && total > 0 && <p className="det-hint">Estimated: the service did not report the prompt size.</p>}
         <div className="det-row"><span>Compact by itself at 80%</span>{chat && <Switch label="Auto-compact" checked={chat.autoCompact} onChange={(autoCompact) => onChat({ ...chat, autoCompact })} />}</div>
         {chat?.compact
@@ -81,13 +81,13 @@ export function AssistantDetails({ chat, live, settings, modelName, modelFrom, o
           {preset.rules.filter((r) => r.text.trim()).map((r) => <div key={r.id} className={`det-line${r.on ? "" : " off"}`}><span className="det-line-t">Rule</span><span className="det-line-x">{r.text}</span>{r.on ? <Sent on={sent.has(r.id)} /> : <span className="det-sent">○ Off</span>}</div>)}
           {preset.notes.filter((n) => n.text.trim()).map((n) => <div key={n.id} className={`det-line${n.on ? "" : " off"}`}><span className="det-line-t">{n.title || "Note"}</span><span className="det-line-x">{n.text}</span>{n.on ? <Sent on={sent.has(n.id)} /> : <span className="det-sent">○ Off</span>}</div>)}
           <div className="det-item-h sub">Memory{!preset.memoryOn && " (off)"}</div>
-          {preset.memory.length === 0 && <p className="det-hint">Nothing remembered yet. Say “remember …” in a chat.</p>}
+          {preset.memory.length === 0 && <p className="det-hint">Say “remember …” to save a memory.</p>}
           {preset.memory.map((m) => <div key={m.id} className={`det-line${preset.memoryOn ? "" : " off"}`}><span className="det-line-x">{m.text}</span><small>{m.from ? `from “${m.from}”` : "added by you"}</small>{preset.memoryOn ? <Sent on={sent.has(m.id)} /> : <span className="det-sent">○ Off</span>}</div>)}
         </> : <div className="det-item"><div className="det-item-h">Preset</div><b>None</b><button className="link" onClick={() => onCustomize("presets")}>Presets</button></div>}
       </Section>
 
       <Section title={`Files${atts.length ? ` (${atts.length})` : ""}`} icon="paperclip" testId="det-files" open={atts.length > 0}>
-        {atts.length === 0 && <p className="det-hint">Nothing attached. Use @ Add context or the clip.</p>}
+        {atts.length === 0 && <p className="det-hint">Add context with @ or attach a file.</p>}
         {atts.map(({ a, gone }) => (
           <div key={a.id} className={`det-file${gone ? " off" : ""}`}>
             {a.type === "image" ? <img src={`data:${a.mime};base64,${a.base64}`} alt="" /> : <span className="det-file-ic"><Icon name={a.type === "item" ? "characters" : "file"} size={14} /></span>}
@@ -105,7 +105,7 @@ export function AssistantDetails({ chat, live, settings, modelName, modelFrom, o
               onChange={(on) => onSettings({ ...settings, toolsOff: on ? settings.toolsOff.filter((x) => x !== g.id) : [...settings.toolsOff, g.id] })} />
           </div>
         ))}
-        <p className="det-hint">Applies to every chat. Search the web is the default: Web in the message box changes it for one chat.</p>
+        <p className="det-hint">Set the default here. Use Web to override it for this chat.</p>
       </Section>
 
       <Section title="Activity" icon="clock" testId="det-activity" open={!!live || !!last?.steps.length}>

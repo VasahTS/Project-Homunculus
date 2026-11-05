@@ -56,7 +56,7 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
 
   return (
     <div className="page">
-      <Toolbar lead={lead} title="Agents" center={tabs} subtitle="Rules, rewrites, checks, choices and notes around each reply"
+      <Toolbar lead={lead} title="Agents" center={tabs} subtitle="Helpers for each reply"
         trailing={<>
           <Segmented small label="View" value={view} onChange={setView} options={[{ value: "table", label: "Table", testId: "agents-view-table" }, { value: "list", label: "List", testId: "agents-view-list" }]} />
           <Button onClick={onNew}><Icon name="plus" size={14} /> New Agent</Button>
@@ -117,7 +117,7 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
               {empty}
             </div>
           </>}
-          detail={detail ?? <EmptyDetail text="Pick an agent on the left, or make a new one. Switch agents on per story or chat in their setup, or from the ✦ button in a chat." />}
+          detail={detail ?? <EmptyDetail text="Select an agent to edit it. Enable agents in a story's setup or the chat's Agents panel." />}
         />
       )}
     </div>

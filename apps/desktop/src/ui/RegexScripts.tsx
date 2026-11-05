@@ -228,7 +228,7 @@ export function RegexPage({ lead, scripts, onChange, onImport, onExport, sample 
   const shown = q.trim() ? ordered.items.filter((s) => `${s.name}\n${s.find}`.toLowerCase().includes(q.trim().toLowerCase())) : ordered.items;
   return (
     <section className="rx-page" data-testid="regex-page">
-      <Toolbar lead={lead} title="Regex" subtitle="Find and replace that runs by itself, on every chat"
+      <Toolbar lead={lead} title="Regex" subtitle="Global find and replace"
         trailing={<>
           <Button small onClick={() => file.current?.click()} title="SillyTavern: one script, a list, or settings.json"><Icon name="import" size={13} /> Import</Button>
           {scripts.length > 0 && <Button small variant="plain" onClick={onExport}>Export for SillyTavern</Button>}
@@ -236,7 +236,7 @@ export function RegexPage({ lead, scripts, onChange, onImport, onExport, sample 
             onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; if (fs.length) onImport(fs); }} />
         </>} />
       <div className="rx-page-body">
-        <p className="hint">{ordered.mode === "original" ? "These run first, in this order; then the scripts of the chat's preset and character. Drag to change the order." : "Display order only. Select Execution order to change the order in which scripts run."}</p>
+        <p className="hint">{ordered.mode === "original" ? "Global scripts run before preset and character scripts. Drag to reorder." : "Sorting affects this list only. Use Execution order to reorder scripts."}</p>
         {scripts.length > 8 && (
           <label className="search-box"><Icon name="search" size={13} /><input aria-label="Search scripts" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} /></label>
         )}
@@ -271,7 +271,7 @@ export function RegexReview({ groups, sample, onAllow, onClose }: {
   const text = sample ?? "";
   return (
     <Modal title="New regex scripts" onClose={onClose} testId="regex-review" className="modal-small rx-review">
-      <p className="hint">They change text by themselves. They run only after you allow them; if one changes later, you are asked again.</p>
+      <p className="hint">Approve imported scripts before they run. Changes require approval again.</p>
       {groups.map((g) => (
         <section key={g.owner + g.ownerName} className="rx-review-group">
           <h3>{g.owner === "preset" ? "Preset" : "Character"} “{g.ownerName}”</h3>

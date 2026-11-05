@@ -78,6 +78,8 @@ export interface ConnectionConfig {
   model: string;
   baseUrl?: string;
   apiKey?: string;
+  /** False requests a complete response; omitted preserves streaming. CODEX. */
+  streaming?: boolean;
   params?: {
     temperature?: number; maxTokens?: number; topP?: number; reasoningEffort?: string;
     frequencyPenalty?: number; presencePenalty?: number; topK?: number; minP?: number; repetitionPenalty?: number;
@@ -123,7 +125,7 @@ export interface ProviderDefinition {
   /** The models the service offers, when it can tell (only address and key are used). */
   listModels?(connection: ConnectionConfig, signal?: AbortSignal): Promise<ModelInfo[]>;
   /**
-   * Yes/no questions to a decision model (TypeSafe's System One format, e.g. Jev on nano-gpt's /decisions; D-083).
+   * Yes/no questions to a decision model using TypeSafe's System One format.
    * Answers are the probability that each statement is true. Providers that cannot, leave it out.
    */
   decide?(req: DecisionRequest): Promise<DecisionAnswer>;

@@ -22,7 +22,7 @@ const TRIGGER_OPTIONS: Array<{ value: GenerationType; label: string }> = [
 
 const SAMPLER_FIELDS: Array<{ key: keyof Preset["params"]; label: string; help: string; min: number; max: number; whole?: boolean }> = [
   { key: "temperature", label: "Temperature", help: "How surprising the writing is.", min: 0, max: 2 },
-  { key: "topP", label: "Top P", help: "Only the most likely share of words (0.95 = top 95%).", min: 0, max: 1 },
+  { key: "topP", label: "Top P", help: "Limits choices to tokens whose probabilities add up to this value.", min: 0, max: 1 },
   { key: "maxTokens", label: "Max Length", help: "Longest reply, in tokens. Also the room kept for the reply in the context.", min: 1, max: 200000, whole: true },
   { key: "frequencyPenalty", label: "Frequency Penalty", help: "Above 0 = repeat words less.", min: -2, max: 2 },
   { key: "presencePenalty", label: "Presence Penalty", help: "Above 0 = bring up new things more.", min: -2, max: 2 },
@@ -125,7 +125,7 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
           <Modal title={b.name || b.id} onClose={() => setBigText(null)} className="modal-wide modal-text" testId="block-big"
             head={<span className="hint tabular">~{estimateTokens(b.content)} tokens</span>}>
             <textarea className="big-text" aria-label="Block text (big)" autoFocus value={b.content} onChange={(e) => setBlock(b.id, { content: e.target.value })} />
-            <p className="hint">Changes go into the block as you type. Save the preset when you are done. {MACRO_HELP}</p>
+            <p className="hint">Save the preset to keep these changes. <Help text={MACRO_HELP} /></p>
           </Modal>
         );
       })()}
@@ -135,13 +135,13 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
         <button className="btn btn-bordered btn-small" onClick={onClose}>Close</button>
       </div>
       <div className="editor-body settings-body">
-        <Group title="Preset" help="A preset is the recipe of the prompt: which blocks go to the AI, in which order, and the samplers it wants. Each session picks one (Prompt tab); the default is in Settings → Defaults.">
+        <Group title="Preset" help="Choose which prompt blocks the AI reads and in what order.">
           <Row label="Name"><input aria-label="Preset name" value={d.name} onChange={(e) => set({ name: e.target.value })} /></Row>
-          <Row label="Context Size" help="The most the prompt and the reply may take together, in tokens. When the chat gets longer, the oldest messages are left out (the Reply tab says how many). Empty = no limit. Use the model's context length or less.">
+          <Row label="Context Size" help="Prompt and reply token limit. Older messages may be omitted to fit. Blank uses no limit.">
             <input aria-label="Context size" className="num wide-num" inputMode="numeric" placeholder="No limit" value={d.contextSize ?? ""}
               onChange={(e) => { const n = parseInt(e.target.value, 10); set({ contextSize: Number.isFinite(n) && n > 0 ? n : undefined }); }} />
           </Row>
-          <Row label="Join System Messages" help="Sends system blocks that follow each other as ONE message. Some models follow a single system message better. (SillyTavern: 'Squash system messages'.)">
+          <Row label="Join System Messages" help="Combines consecutive system blocks into one message.">
             <Switch label="Join system messages" checked={d.squashSystem} onChange={(v) => set({ squashSystem: v })} />
           </Row>
           {exists && (
@@ -151,7 +151,7 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
           )}
         </Group>
 
-        <Group title="Blocks" help={`Top to bottom = the order the AI reads them. Switch a block off to leave it out. Blocks marked "filled by the app" get their text from the card, your persona, the chat, the trackers… ${MACRO_HELP}`}
+        <Group title="Blocks" help="Drag to reorder. Turn a block off to omit it. Automatic blocks use the card, chat and other sources."
           aside={<><span className="hint">about {total.toLocaleString("en-US")} tokens of own text</span>
             <button type="button" className="link quiet" data-testid="blocks-open-all" onClick={() => setOpenIds(openIds.length ? [] : d.blocks.map((b) => b.id))}>
               {openIds.length ? "Fold All" : "Open All"}
@@ -174,7 +174,7 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
                 <div className="block-body">
                   <label className="inline-label"><span>Name</span><input aria-label="Block name" value={b.name} onChange={(e) => setBlock(b.id, { name: e.target.value })} /></label>
                   {b.marker
-                    ? <p className="hint">Filled by the app with {MARKER_LABELS[b.marker]}. Nothing is sent when that is empty.</p>
+                    ? <p className="hint">Source · {MARKER_LABELS[b.marker]}. Omitted when empty.</p>
                     : <div className="inline-label grow">
                       <span className="label-row">Text <Help text={MACRO_HELP} />
                         <button type="button" className="link quiet block-big" onClick={() => setBigText(b.id)} title="Edit this text in a big window">Bigger ⤢</button></span>
@@ -189,7 +189,7 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
                       </label>
                     )}
                     {!b.marker && (
-                      <label className="inline-label"><span className="label-row">Place <Help text="'In the list' = where it is in this list. 'Inside the chat' = between the messages, N messages before the end (0 = after the last one): good for reminders the AI must not forget." /></span>
+                      <label className="inline-label"><span className="label-row">Place <Help text="In the chat uses a depth from the end. 0 places it after the last message." /></span>
                         <select aria-label="Block place" value={b.position} onChange={(e) => setBlock(b.id, { position: e.target.value as PresetBlock["position"] })}>
                           <option value="list">In the list</option><option value="depth">Inside the chat</option>
                         </select>
@@ -236,7 +236,7 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
           </div>
         </Group>
 
-        <Group title="Samplers" help="Optional. A value set here wins over the connection's for the story (agents keep their connection's). Empty = the connection's value.">
+        <Group title="Samplers" help="Overrides story sampling. Blank uses the connection value. Agents keep their own settings.">
           {SAMPLER_FIELDS.map((f) => (
             <Row key={f.key} label={f.label} help={f.help}>
               <input aria-label={`Preset ${f.label}`} className="num wide-num" inputMode="decimal" placeholder="Connection's" value={d.params[f.key] ?? ""}
@@ -246,13 +246,13 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
         </Group>
 
         <Group title={`Regex scripts${regexOf(d).length ? ` (${regexOf(d).length})` : ""}`} testId="preset-regex"
-          help="Find and replace that runs by itself while this preset is used, after the global scripts (Library → Regex). Scripts that came in a file run only after you allow them.">
+          help="Runs after global scripts. Imported scripts require approval.">
           <RegexList scripts={regexOf(d)} onChange={(next) => set({ regexScripts: next })} testId="preset-regex-list"
             waiting={regexWaiting} onAllow={onAllowRegex} emptyText="No scripts in this preset." />
         </Group>
 
         <details className="advanced">
-          <summary>Formats and Texts <Help text="How the app wraps what it fills in, and short texts SillyTavern adds in some places. {{description}}, {{personality}}, {{scenario}}, {{persona}}, {{mesExamples}} and {{worldInfo}} (or {0}) are the values." /></summary>
+          <summary>Formats and Texts <Help text="Wraps automatic content. Use the matching macro or {0} for the value." /></summary>
           {(["description", "personality", "scenario", "persona", "examples", "worldInfo"] as const).map((k) => (
             <label key={k}><span>{({ description: "Description", personality: "Personality", scenario: "Scenario", persona: "Persona", examples: "Example dialogue", worldInfo: "Lorebook entries" })[k]} format</span>
               <input aria-label={`${k} format`} value={d.formats[k]} onChange={(e) => set({ formats: { ...d.formats, [k]: e.target.value } })} />
@@ -267,12 +267,11 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
           <label><span className="label-row">Reply starts with <Help text="The AI's reply will begin with this text (prefill). Some models don't allow it. Empty = nothing." /></span>
             <input aria-label="Reply starts with" value={d.prompts.prefill} onChange={(e) => set({ prompts: { ...d.prompts, prefill: e.target.value } })} />
           </label>
-          <p className="hint">The "continue" and "impersonate" texts from SillyTavern are kept and will be used when those buttons arrive.</p>
         </details>
 
         {exists && (
           <details className="advanced" onToggle={(e) => setHistoryOpen((e.target as HTMLDetailsElement).open)}>
-            <summary>History <Help text="Every save of this preset is kept. Open one to see what changed, and restore it." /></summary>
+            <summary>History <Help text="Open a saved preset to compare or restore it." /></summary>
             {historyOpen && <HistoryList entries={history ?? []} loading={history === null} fields={HISTORY_FIELDS} onRestore={(x) => void save(Preset.parse({ ...(x as object), id: d.id }))} />}
           </details>
         )}

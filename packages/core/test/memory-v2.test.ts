@@ -130,7 +130,7 @@ describe("memory v2 in a chat", () => {
   // CODEX: The decision model is a separate provider call and must respect the message's visibility.
   it("omits manually hidden messages from the decision model's latest exchange", async () => {
     const w = await world(() => "ok");
-    await w.store.setDefaultSetup({ memory: { on: true, auto: false, mode: "smart", keep: 0 } });
+    await w.store.setDefaultSetup({ memory: { on: true, auto: false, mode: "smart", keep: 0, decider: "jev", deciderModel: "typesafe/jev-latest" } });
     const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
     await w.chat.turns.addOwnChapter(session.id, firstMessage!.id, "Opening", "They met.");
     const shown = await w.chat.send(session.id, firstMessage!.id, "Visible scene.", connection);
@@ -168,7 +168,7 @@ describe("memory v2 in a chat", () => {
       asked.push(req.questions.map((q) => q.id));
       return { answers: Object.fromEntries(req.questions.map((q) => [q.id, /Turn 1\./.test(q.instructions) ? 0.9 : 0.1])) };
     };
-    await w.store.setDefaultSetup({ memory: { on: true, every: 4, keep: 2, layers: false, mode: "smart", recallQuotes: 1 } });
+    await w.store.setDefaultSetup({ memory: { on: true, every: 4, keep: 2, layers: false, mode: "smart", recallQuotes: 1, decider: "jev", deciderModel: "typesafe/jev-latest" } });
     const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
     let at = firstMessage!.id;
     for (let i = 1; i <= 7; i++) at = (await w.chat.send(session.id, at, `Turn ${i}.`, connection)).reply.id;
@@ -183,7 +183,7 @@ describe("memory v2 in a chat", () => {
 
   it("smart mode without a decision model falls back to every summary and the reply still comes", async () => {
     const w = await world(summarizer);
-    await w.store.setDefaultSetup({ memory: { on: true, every: 4, keep: 2, mode: "smart" } });
+    await w.store.setDefaultSetup({ memory: { on: true, every: 4, keep: 2, mode: "smart", decider: "jev", deciderModel: "typesafe/jev-latest" } });
     const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
     let at = firstMessage!.id;
     for (let i = 1; i <= 4; i++) at = (await w.chat.send(session.id, at, `Turn ${i}.`, connection)).reply.id;

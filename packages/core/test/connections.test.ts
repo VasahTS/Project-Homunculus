@@ -9,6 +9,21 @@ const profile = (id: string, extra: Partial<ConnectionProfile> = {}) =>
   ConnectionProfile.parse({ id, name: id, providerId: "fake", model: `${id}-model`, ...extra });
 
 describe("connection profiles", () => {
+  // CODEX, 2026-11-05. Old profiles stream by default; explicit false survives storage and fallback conversion.
+  it("keeps streaming preferences per connection, including backups and old profiles", async () => {
+    const { store } = await world(() => "ok");
+    const old = profile("old");
+    expect(old.streaming).toBe(true);
+    await store.saveConnectionProfile({ ...old, streaming: false, fallbackId: "backup" });
+    await store.saveConnectionProfile(profile("backup"));
+    const saved = (await store.connections.get("old"))!;
+    const backup = (await store.connections.get("backup"))!;
+    expect(saved.streaming).toBe(false);
+    const config = profileToConfig(saved, new Map([[saved.id, saved], [backup.id, backup]]), () => "fixture-key");
+    expect(config.streaming).toBe(false);
+    expect(config.fallback?.streaming).toBe(true);
+  });
+
   it("become call settings with the key, and follow backups without looping", () => {
     const a = profile("a", { baseUrl: " https://x/v1 ", params: { temperature: 0.5, reasoningEffort: "low" }, fallbackId: "b", extraBody: { seed: 1 } });
     const b = profile("b", { fallbackId: "a" });

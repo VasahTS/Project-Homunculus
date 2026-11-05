@@ -43,17 +43,17 @@ type Tab = "character" | "greetings" | "prompt" | "lore" | "about" | "history";
 
 const HELP = {
   name: "What the character is called. {{char}} in prompts becomes this name. A version can use another name.",
-  description: "Who the character is: looks, background, important facts. This is the main thing the AI reads. Tip: wrap parts in tags like <name> … </name> (or start them with # headings) and they show up as sections you can jump to.",
-  personality: "How they think and behave, in a few lines. Optional — many people put this inside the description.",
-  scenario: "Where and how the story starts. Optional.",
-  exampleMessages: "Sample messages that show the AI how this character talks. SillyTavern format: blocks starting with <START>.",
-  systemPrompt: "If filled, replaces the default instruction at the top of the prompt for this character. Leave empty to use the default.",
-  postHistoryInstructions: "Sent after the conversation, right before the AI answers. Good for short reminders (e.g. 'keep replies short').",
-  creatorNotes: "Notes from the card's author for the reader. Not sent to the AI.",
+  description: "Character facts sent to the AI. Tags and # headings create sections in the outline.",
+  personality: "How they think and behave.",
+  scenario: "Where and how the story starts.",
+  exampleMessages: "Sample messages that establish the character's voice.",
+  systemPrompt: "Overrides the preset's main prompt when filled.",
+  postHistoryInstructions: "Instructions sent before each reply.",
+  creatorNotes: "For card readers. Excluded from prompts.",
   tags: "Labels to organize characters. Press Enter or a comma to add one. Not sent to the AI.",
-  regex: "Find and replace that runs by itself in chats with this character, after the global and the preset's scripts. Scripts that came with a card run only after you allow them. Exporting the card puts them back in.",
-  history: "Every time you save, the whole character (with all its versions) is kept here. Open one to see what changed, and restore it if you want it back. Pictures are not part of the history.",
-  lore: "Lorebooks that come with this character: read in every session with them (a session can switch one off in its Prompt tab). A card's embedded lorebook is linked here, and exporting the card puts it back in.",
+  regex: "Runs after global and preset scripts. Imported scripts require approval and are included in exports.",
+  history: "Open a saved character to compare or restore it. History includes all versions and excludes pictures.",
+  lore: "Included in chats with this character. Embedded lorebooks are linked here and preserved in exports.",
   meter: "About how many tokens this character adds to every reply (greetings are sent only when a chat starts). A token is roughly 3–4 letters.",
   layout: "How this editor is arranged: Sheet (everything on one page), Tabs (one part at a time) or Writer (one document with an outline). Same character, same fields; pick what you like. Remembered on this computer.",
 };
@@ -284,7 +284,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
           </button>
           {ownAvatar && <button type="button" className="btn btn-plain btn-small" onClick={() => void onChangeAvatar(ownKey, null)}>{variantId ? "Use the main image" : "Remove image"}</button>}
         </div>
-      ) : <p className="hint">{exists ? "Save to add an image for this version." : "Create the character first to add an image."}</p>)}
+      ) : <p className="hint">Save to add a picture.</p>)}
       {small && canPicture && ownAvatar && <button type="button" className="ce-pic-x" aria-label={variantId ? "Use the main image" : "Remove image"} onClick={() => void onChangeAvatar(ownKey, null)}>×</button>}
       {canPicture && <input ref={imageInput} type="file" accept="image/*" hidden data-testid="avatar-input"
         onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void cropImage(f).then((c) => { if (c) void onChangeAvatar(ownKey, c); }); }} />}
@@ -302,13 +302,13 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
 
   const cardKind = (
     <div className="card-kind" data-testid="card-kind">
-      <span className="label-row">In the Scene <Help text="The default for every story and chat with this card; each can change it in its cast (Story → Characters, or “Who is in this story” in a chat)." /></span>
+      <span className="label-row">In the Scene <Help text="Default for this card. Override in a story's or chat's cast." /></span>
       <Segmented small label="In the Scene" value={draft.tracked === false ? "no" : "yes"}
         options={[{ value: "yes", label: "Track as a Person" }, { value: "no", label: "Don't Track" }]}
         onChange={(k) => setDraft((d) => { const { tracked: _t, ...rest } = d; return k === "no" ? { ...rest, tracked: false } : rest; })} />
       <small className="hint card-kind-hint">{draft.tracked === false
-        ? "Sent whole to the AI, but the Scene does not list it as one person. If it holds several characters, each one is added by name as they appear."
-        : "Use “Don't track” for a card with several characters, a world or scenario card, or anyone you don't want in the Scene's cast. The card is still sent to the AI."}</small>
+        ? "Included in the prompt, outside the tracked cast. Named characters can appear separately."
+        : "Use “Don't Track” for world or multi-character cards."}</small>
     </div>
   );
 
@@ -331,7 +331,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
 
   const exportRow = exists && versionSaved && exporters.length > 0 ? (
     <div className="ce-field">
-      <span className="label-row muted">{variantId ? "Export this version" : "Export"} <Help text="Save this character as a SillyTavern card (one version per card: the one you are looking at). Fields Homunculus doesn't use (like an embedded lorebook) are kept, so nothing is lost. The file goes to your Downloads folder." /></span>
+      <span className="label-row muted">{variantId ? "Export this version" : "Export"} <Help text="Exports this version as a SillyTavern card to Downloads. Preserves imported fields." /></span>
       <div className="export-row">{exporters.map((x) => (
         <button key={x.id} type="button" className="btn btn-bordered btn-small" title={x.help} onClick={() => exportVersion(x.id)}>{x.name.replace(/^SillyTavern card \((.+)\)$/, "$1 card")}</button>
       ))}</div>
@@ -352,11 +352,11 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
 
   const description = (opts: { plain?: boolean; rows?: number; label?: boolean }) => (
     <div className="ce-field ce-desc">
-      {opts.label !== false && <div className="ce-lab"><FieldLabel label="Description" help={HELP.description} changed={v.isChanged("description")} onReset={() => v.reset("description")} /><span className="ce-sub">the main thing the AI reads</span><span className="ce-tok">{tokensText(desc)}</span></div>}
+      {opts.label !== false && <div className="ce-lab"><FieldLabel label="Description" help={HELP.description} changed={v.isChanged("description")} onReset={() => v.reset("description")} /><span className="ce-tok">{tokensText(desc)}</span></div>}
       {outlineChips}
       {opts.plain
         ? <AutoText className="ce-plain prose" aria-label="Description" value={desc} inputRef={(el) => { descBox.current = el; }} onChange={(e) => v.set("description", e.target.value)}
-            placeholder="Who they are: looks, background, how they talk. Wrap parts in <tags> … </tags> and they appear in the outline." />
+            placeholder="Who they are, their background and how they speak." />
         : <textarea className="ce-ta prose" rows={opts.rows ?? 14} aria-label="Description" value={desc} ref={descBox} onChange={(e) => v.set("description", e.target.value)}
             placeholder={"Who they are: looks, background, how they talk.\nTip: wrap parts in tags like <name> … </name> and they become sections you can jump to."} />}
     </div>
@@ -414,12 +414,12 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
             <section className="ce-sec" id={sid("description")}>{description({})}</section>
             <section className="ce-sec" id={sid("greetings")}>{greetingsEditor("list")}</section>
             <section className="ce-sec" id={sid("details")}>
-              <div className="ce-sec-head"><h3>Details</h3><p>Optional. Many people keep all of this inside the Description.</p></div>
+              <div className="ce-sec-head"><h3>Details</h3><p>Optional details.</p></div>
               <div className="ce-two">
                 <TextField v={v} k="personality" label="Personality" help={HELP.personality} rows={4} sub="optional" placeholder="How they think and behave, in a few lines." />
                 <TextField v={v} k="scenario" label="Scenario" help={HELP.scenario} rows={4} sub="optional" placeholder="Where and how the story starts." />
               </div>
-              <TextField v={v} k="exampleMessages" label="Example dialogue" help={HELP.exampleMessages} rows={4} mono sub="blocks start with <START>" placeholder={"<START>\n{{user}}: …\n{{char}}: …"} />
+              <TextField v={v} k="exampleMessages" label="Example dialogue" help={HELP.exampleMessages} rows={4} mono placeholder={"<START>\n{{user}}: …\n{{char}}: …"} />
             </section>
             <section className="ce-sec" id={sid("prompt")}>
               <div className="ce-sec-head"><h3>Prompt</h3><p>Extra instructions that travel with this character.</p></div>
@@ -460,8 +460,8 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
     if (tab === "prompt") pane = (
       <div className="ce-stack">
         {noteField}
-        <TextField v={v} k="exampleMessages" label="Example dialogue" help={HELP.exampleMessages} rows={6} mono sub="blocks start with <START>" placeholder={"<START>\n{{user}}: …\n{{char}}: …"} />
-        <TextField v={v} k="systemPrompt" label="Character system prompt" help={HELP.systemPrompt} rows={3} sub="replaces the preset's when filled" placeholder="Leave empty to use the preset's." />
+        <TextField v={v} k="exampleMessages" label="Example dialogue" help={HELP.exampleMessages} rows={6} mono placeholder={"<START>\n{{user}}: …\n{{char}}: …"} />
+        <TextField v={v} k="systemPrompt" label="Character system prompt" help={HELP.systemPrompt} rows={3} placeholder="Leave empty to use the preset's." />
         <TextField v={v} k="postHistoryInstructions" label="Post-history instructions" help={HELP.postHistoryInstructions} rows={3} placeholder="Sent right before the AI answers." />
       </div>
     );
@@ -538,10 +538,10 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
             <hr className="ce-rule" />
             <div id={sid("greetings")}>{greetingsEditor("inline")}</div>
             <hr className="ce-rule" />
-            <div id={sid("examples")}><TextField v={v} k="exampleMessages" label="Example dialogue" help={HELP.exampleMessages} rows={1} plain mono sub="blocks start with <START>" placeholder={"<START>\n{{user}}: …\n{{char}}: …"} /></div>
+            <div id={sid("examples")}><TextField v={v} k="exampleMessages" label="Example dialogue" help={HELP.exampleMessages} rows={1} plain mono placeholder={"<START>\n{{user}}: …\n{{char}}: …"} /></div>
             <div id={sid("note")}>{noteField}</div>
-            <div id={sid("system")}><TextField v={v} k="systemPrompt" label="Character system prompt" help={HELP.systemPrompt} rows={1} plain sub="replaces the preset's when filled" placeholder="Leave empty to use the preset's." /></div>
-            <div id={sid("post")}><TextField v={v} k="postHistoryInstructions" label="Post-history instructions" help={HELP.postHistoryInstructions} rows={1} plain sub="sent right before the AI answers" placeholder="Optional." /></div>
+            <div id={sid("system")}><TextField v={v} k="systemPrompt" label="Character system prompt" help={HELP.systemPrompt} rows={1} plain placeholder="Leave empty to use the preset's." /></div>
+            <div id={sid("post")}><TextField v={v} k="postHistoryInstructions" label="Post-history instructions" help={HELP.postHistoryInstructions} rows={1} plain placeholder="Optional." /></div>
             <div id={sid("notes")}><TextField v={v} k="creatorNotes" label="Creator notes" help={HELP.creatorNotes} rows={1} plain sub="not sent to the AI" placeholder="Notes for whoever reads the card." />{credit}</div>
           </div>
         </div>
@@ -600,8 +600,8 @@ function CharacterNoteField({ value, onChange, changed, onReset }: { value: Char
   return (
     <div className="char-note">
       <label className="char-note-text">
-        <FieldLabel label="Character's Note" help="Put into the chat in every reply with this character, a few messages from the end — good for things the AI forgets (how they talk, a secret, a rule). SillyTavern's Character's Note; imported and exported with the card." changed={changed} onReset={onReset} />
-        <textarea rows={3} aria-label="Character's Note" placeholder="(Text put into the chat at the depth and role on the right)" value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} />
+        <FieldLabel label="Character's Note" help="A repeated reminder for replies with this character. Included in card imports and exports." changed={changed} onReset={onReset} />
+        <textarea rows={3} aria-label="Character's Note" placeholder="A recurring instruction for this character" value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} />
       </label>
       <div className="char-note-side">
         <label><span className="hint">@ Depth</span><input type="number" min={0} max={999} aria-label="Character's Note depth" value={value.depth}

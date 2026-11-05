@@ -79,7 +79,7 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
           </div>
         </Sec>
 
-        <Sec title="Phase" help="When it acts, compared with the reply (v1 Pre / Post; Marinara Pipeline Phase).">
+        <Sec title="Phase">
           <div className="ae-phases" role="radiogroup" aria-label="Phase">
             {PHASES.map((p) => (
               <button key={p.id} type="button" role="radio" aria-checked={phase === p.id} disabled={runs !== "every" && p.id !== "after"}
@@ -98,7 +98,7 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
           </div>
         </Sec>
 
-        <Sec title="What it does" help="Results that don't fit the phase are greyed out.">
+        <Sec title="What it does" help="Available outputs depend on the phase.">
           <div className="ae-tiles" role="radiogroup" aria-label="What it does">
             {AGENT_KINDS.map((k) => {
               const ok = runs !== "every" ? !["inject", "intercept"].includes(k.output) || k.output === out : PHASES.find((p) => p.id === phase)!.kinds.includes(k.output);
@@ -110,33 +110,33 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
           </div>
         </Sec>
 
-        <Sec title="How it runs" help="v1 Execution: Companion (its own call) or Inline (inside the main reply).">
+        <Sec title="How it runs">
           <div className="ae-tiles" role="radiogroup" aria-label="How it runs">
             <button type="button" role="radio" aria-checked={d.runMode === "separate"} className={`ae-tile${d.runMode === "separate" ? " on" : ""}`}
-              onClick={() => set({ runMode: "separate", input: { ...input, messages: Math.max(4, input.messages) } })}><b>Its Own AI Call</b><span>A separate request; can use another model (v1 companion)</span></button>
+              onClick={() => set({ runMode: "separate", input: { ...input, messages: Math.max(4, input.messages) } })}><b>Its Own AI Call</b><span>Separate request, with an optional model override.</span></button>
             <button type="button" role="radio" aria-checked={d.runMode === "inline"} disabled={!inlineOk} className={`ae-tile${d.runMode === "inline" ? " on" : ""}`}
-              onClick={() => set({ runMode: "inline" })}><b>Inside the Main Reply</b><span>The story's AI writes it in a hidden block; no extra call (v1 inline)</span></button>
+              onClick={() => set({ runMode: "inline" })}><b>Inside the Main Reply</b><span>Written by the story model in the same reply.</span></button>
             <button type="button" role="radio" aria-checked={textMode} disabled={out !== "inject"} className={`ae-tile${textMode ? " on" : ""}`}
-              onClick={() => set({ runMode: "text", input: { ...input, messages: 0 } })}><b>No AI Call</b><span>Sends its own text as written; {"{{random::a::b}}"} picks one</span></button>
+              onClick={() => set({ runMode: "text", input: { ...input, messages: 0 } })}><b>No AI Call</b><span>Inserts text with expanded macros.</span></button>
           </div>
         </Sec>
 
         {d.runMode === "separate" && (
-          <Sec title="Context sources" help="Only what this agent needs: every source makes its request longer.">
+          <Sec title="Context sources" help="Each source adds to the request size.">
             <div className="ae-toggles">
-              <div className="ae-tg on"><b>Chat history</b><p>The latest messages of this branch, oldest first.</p>
+              <div className="ae-tg on"><b>Chat history</b><p>Recent messages from this branch.</p>
                 <div className="ae-extra"><NumberBox label="Messages it reads" value={input.messages} min={0} max={100} onCommit={(n) => inp({ messages: n })} /> messages · runs only from
                   <NumberBox label="Runs only from this many tokens" value={input.minTokens} min={0} max={1_000_000} onCommit={(n) => inp({ minTokens: n })} /> tokens</div></div>
               <Tg on={input.cards} onChange={(v) => inp({ cards: v })} title="The cast" text="Cards in the chat, the story's narrator and the NPC sheets." />
-              <Tg on={input.persona} onChange={(v) => inp({ persona: v })} title="Your persona" text="Who you play, as the AI sees it." />
-              <Tg on={input.lorebooks} onChange={(v) => inp({ lorebooks: v })} title="Active lorebook entries" text="The entries that went into the latest reply's prompt." />
-              <Tg on={input.chapters} onChange={(v) => inp({ chapters: v })} title="Chapter summaries" text="The chat's memory (Prompt → Memory) on this branch." />
-              <Tg on={input.authorsNote} onChange={(v) => inp({ authorsNote: v })} title="Author's Note" text="This chat's Author's Note text." />
+              <Tg on={input.persona} onChange={(v) => inp({ persona: v })} title="Your persona" text="Your identity in the story." />
+              <Tg on={input.lorebooks} onChange={(v) => inp({ lorebooks: v })} title="Active lorebook entries" text="Last reply's active lore entries." />
+              <Tg on={input.chapters} onChange={(v) => inp({ chapters: v })} title="Chapter summaries" text="Chapter summaries for this branch." />
+              <Tg on={input.authorsNote} onChange={(v) => inp({ authorsNote: v })} title="Author's Note" />
               <Tg on={input.state !== false} onChange={(v) => inp({ state: v })} title="Scene values" text="What the trackers hold right now." />
               <Tg on={input.scenario} onChange={(v) => inp({ scenario: v })} title="Scenario" text="The chat's scenario, else the story's." />
-              <Tg on={input.previousNotes > 0} onChange={(v) => inp({ previousNotes: v ? 3 : 0 })} title="Its previous notes" text="So it updates instead of starting over (v1 Include prior notes)."
+              <Tg on={input.previousNotes > 0} onChange={(v) => inp({ previousNotes: v ? 3 : 0 })} title="Its previous notes" text="Notes from earlier runs."
                 extra={input.previousNotes > 0 ? <>last <NumberBox label="How many previous notes" value={input.previousNotes} min={1} max={20} onCommit={(n) => inp({ previousNotes: n })} /></> : undefined} />
-              <div className={`ae-tg${input.readsAgents.length ? " on" : ""}`}><b>Other agents' results</b><p>They run first; this one reads what they answered.</p>
+              <div className={`ae-tg${input.readsAgents.length ? " on" : ""}`}><b>Other agents' results</b><p>Runs the selected agents first.</p>
                 <div className="ae-extra">
                   {input.readsAgents.map((id) => <span key={id} className="tag">{agents.find((x) => x.id === id)?.name ?? id} <button type="button" className="link quiet" aria-label="Stop reading it" onClick={() => inp({ readsAgents: input.readsAgents.filter((x) => x !== id) })}>×</button></span>)}
                   <select aria-label="Add an agent it reads" value="" onChange={(e) => { if (e.target.value) inp({ readsAgents: [...input.readsAgents, e.target.value] }); }}>
@@ -151,7 +151,7 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
         {d.runMode === "separate" && (
           <Sec title="Connection and budget">
             <div className="ae-two">
-              <label className="ae-fld"><span>Connection <Help text="“The story's agents connection” follows the story's setup (Setup → Agents connection), else the story's own. A story or chat can still pick another for this agent." /></span>
+              <label className="ae-fld"><span>Connection <Help text="Uses the story's agents connection unless overridden." /></span>
                 <select aria-label="Connection for this agent" value={d.connectionId ?? ""} onChange={(e) => set({ connectionId: e.target.value || undefined })}>
                   <option value="">The story's agents connection</option>
                   {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -176,7 +176,7 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
                 options={[{ value: "feed", label: "A feed of posts", pic: "view-feed" }, { value: "phone", label: "Phone messages", pic: "view-phone" }, { value: "sheet", label: "A stat sheet", pic: "view-sheet" }, { value: "cards", label: "Cards", pic: "view-cards" }]} />
             </div>}
             <div className="ae-toggles">
-              <Tg on={fb.on} onChange={(v) => set({ feedback: { on: v, notes: fb.notes } })} title="The story's AI reads it" text="Its latest notes go into the next replies (v1 Feed notes into future generations)."
+              <Tg on={fb.on} onChange={(v) => set({ feedback: { on: v, notes: fb.notes } })} title="The story's AI reads it" text="Includes recent notes in future replies."
                 extra={fb.on ? <>latest <NumberBox label="How many notes the story's AI reads" value={fb.notes} min={1} max={20} onCommit={(n) => set({ feedback: { on: true, notes: n } })} /> · <Where d={d} set={set} /></> : undefined} />
             </div>
           </>}
@@ -197,20 +197,20 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
             </div>
           </>}
           {out === "inject" && <div className="row-line wrap"><span>Goes</span><Where d={d} set={set} /></div>}
-          {out === "intercept" && <p className="hint">Your message is replaced by the rewritten one (the original is kept as a revision).</p>}
-          {out === "proposal" && <p className="hint">New facts go into this story's own version of its lorebook (the first one it uses; a story without one gets its own). The Library's book never changes.</p>}
+          {out === "intercept" && <p className="hint">Replaces your message and keeps the original as a revision.</p>}
+          {out === "proposal" && <p className="hint">Adds facts to this story's lorebook copy. Uses the first linked book, or creates one.</p>}
         </Sec>
 
         {!textMode && (
-          <Sec title="Variables" help="Fields its instructions use as {{name}}. A story or chat can change their values (Marinara's agent Defaults).">
+          <Sec title="Variables" help="Use {{name}} in instructions. Override values per story or chat.">
             <VariablesEditor vars={d.variables ?? []} onChange={(v) => set({ variables: v.length ? v : undefined })} />
           </Sec>
         )}
 
-        <Sec title="Instructions" help={textMode ? "The text that goes into the prompt." : "What the AI is told to do."}>
+        <Sec title="Instructions">
           <textarea rows={10} className="ae-prompt" aria-label="Agent instructions" value={d.prompt} onChange={(e) => set({ prompt: e.target.value })}
             placeholder={out === "inject" ? "e.g. Never write {{user}}'s actions." : "e.g. Point out contradictions with earlier messages."} />
-          <p className="hint">{"{{char}}"} and {"{{user}}"} become the names · {"{{random::a::b}}"} picks one · your variables as {"{{name}}"} · {"{{style}}"} is the picked version's text.{textMode ? "" : " The answer format is added by the app."}</p>
+          <p className="hint">Macros <Help text="{{char}} and {{user}} expand to names. {{random::a::b}} picks an option. {{name}} uses a variable; {{style}} uses the selected version." />{textMode ? "" : " The app adds the response format."}</p>
           {!textMode && <div className="row-line"><Switch label="Use as written" checked={!!d.rawPrompt} onChange={(v) => set({ rawPrompt: v || undefined })} /><span>Use as written: add no answer format</span><span className="hint">(v1 Use agent prompt as-is)</span></div>}
           <details className="ae-versions" open={!!d.styles?.length}>
             <summary>Versions {d.styles?.length ? `· ${d.styles.length} · default: ${(d.styles.find((x) => x.id === d.styleId) ?? d.styles[0])!.name}` : "· none"}</summary>
@@ -223,10 +223,10 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
             <div className="ae-tg"><b>Trigger words</b><p>Runs only if one is in the latest messages. One per line; /regex/ works.</p>
               <textarea rows={2} aria-label="Trigger words" value={d.conditions.keywords.join("\n")}
                 onChange={(e) => set({ conditions: { ...d.conditions, keywords: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) } })} /></div>
-            <div className="ae-tg"><b>Chance</b><p>Some replies only.</p>
+            <div className="ae-tg"><b>Chance</b><p>Percentage of eligible replies.</p>
               <div className="ae-extra"><NumberBox label="Chance in percent" value={d.conditions.probability} min={0} max={100} onCommit={(n) => set({ conditions: { ...d.conditions, probability: n } })} />%
                 {d.conditions.probability < 100 && <label className="check"><input type="checkbox" checked={d.randomness === "stable"} onChange={(e) => set({ randomness: e.target.checked ? "stable" : "perSwipe" })} />Same roll on every new version</label>}</div></div>
-            <div className="ae-tg"><b>On</b><p>Which generations.</p>
+            <div className="ae-tg"><b>On</b><p>Reply types.</p>
               <div className="ae-extra">{GEN_TYPES.map((g) => {
                 const all = d.conditions.generationTypes.length === 0;
                 const on = all || d.conditions.generationTypes.includes(g.value);
@@ -247,7 +247,7 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
             <span className="spacer" />
             <ConfirmButton label="Delete Agent" confirmLabel="Click Again to Delete" onConfirm={() => { void draft.remove(() => onDelete(d.id)).then((deleted) => { if (deleted) drafts.delete(d.id); }); }} />
           </div>
-          <p className="hint">Switch it on per story or chat in their setup, or from the ✦ button in a chat.</p>
+          <p className="hint">Enable in a story's setup or the chat's Agents panel.</p>
         </Sec>
       </div>
     </div>
@@ -270,12 +270,12 @@ function Sec({ title, help, children }: { title: string; help?: string; children
   );
 }
 
-function Tg({ on, onChange, title, text, extra }: { on: boolean; onChange: (v: boolean) => void; title: string; text: string; extra?: ReactNode }) {
+function Tg({ on, onChange, title, text, extra }: { on: boolean; onChange: (v: boolean) => void; title: string; text?: string; extra?: ReactNode }) {
   return (
     <div className={`ae-tg${on ? " on" : ""}`}>
       <b>{title}</b>
       <Switch label={title} checked={on} onChange={onChange} />
-      <p>{text}</p>
+      {text && <p>{text}</p>}
       {extra && <div className="ae-extra">{extra}</div>}
     </div>
   );
@@ -306,7 +306,7 @@ function VariablesEditor({ vars, onChange }: { vars: NonNullable<AgentConfig["va
   const keyOf = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^(\d)/, "v$1") || "value";
   return (
     <div className="ae-vars">
-      {vars.length === 0 && <p className="hint">None. Add one when part of the instructions should change per story, e.g. {"{{banned}}"} for banned words.</p>}
+      {vars.length === 0 && <p className="hint">Add variables for instructions that vary by story.</p>}
       {vars.map((v, i) => (
         <div key={i} className="ae-var">
           <span className="ae-var-name">
@@ -337,7 +337,7 @@ function StylesEditor({ styles, styleId, onChange }: { styles: NonNullable<Agent
   };
   return (
     <div className="ag-styles">
-      <p className="hint">Optional versions of the same agent, so you don't need copies of it. Each story or chat picks one (Choose agents window or the ✦ panel); the starred one is the default. The picked text replaces {"{{style}}"} in the instructions, or is added at their end.</p>
+      <p className="hint">Uses the starred version by default. Version text fills {"{{style}}"}, or goes at the end.</p>
       {styles.map((x, i) => (
         <div key={x.id} className="ag-style">
           <div className="row-line">

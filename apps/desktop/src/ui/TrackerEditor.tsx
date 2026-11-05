@@ -269,19 +269,19 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
                   Scene panel of the sessions where the tracker is on, and you can change any value there.
                 </p>
                 <label>
-                  <span className="label-row">Name <Help text="What this tracker is called in the Scene panel and in the prompt." /></span>
+                  <span className="label-row">Name</span>
                   <input value={draft.name} onChange={(e) => set({ name: e.target.value })} aria-label="Tracker name" />
                 </label>
                 <label>
-                  <span className="label-row">Description <Help text="A note for you: what this tracker is for. Shown by its '?' in the Scene panel." /></span>
+                  <span className="label-row">Description <Help text="Shown in Scene help." /></span>
                   <input value={draft.help} onChange={(e) => set({ help: e.target.value })} aria-label="Tracker description" />
                 </label>
                 <label>
-                  <span className="label-row">Instructions for the AI <Help text="What the AI is told before it updates the values. The list of fields and the answer format are added automatically from the field set. {{char}} and {{user}} work here." /></span>
+                  <span className="label-row">Instructions for the AI <Help text="The app adds fields and response format. Supports {{char}} and {{user}}." /></span>
                   <textarea rows={5} value={draft.prompt} onChange={(e) => set({ prompt: e.target.value })} aria-label="Instructions for the AI" />
                 </label>
                 <label className="narrow">
-                  <span className="label-row">Messages it reads <Help text="How many of the latest messages the AI sees when it updates the values (besides the new reply). More = better context, but more tokens." /></span>
+                  <span className="label-row">Messages it reads <Help text="Recent messages included alongside the new reply." /></span>
                   <input type="number" min={0} max={50} value={draft.messages} onChange={(e) => set({ messages: Number(e.target.value) || 0 })} aria-label="Messages it reads" />
                 </label>
               </div>
@@ -289,7 +289,7 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
           </section>
 
           <div className="set-bar">
-            <span className="label-row set-title">Field set <Help text="A tracker can have several field sets (e.g. one for fantasy, one for sci-fi). Each session picks one in the Scene panel; new sessions use the default. Values of fields with the same name carry over when a session switches sets." /></span>
+            <span className="label-row set-title">Field set <Help text="New chats use the default. Matching field names keep their values when switching sets." /></span>
             <select aria-label="Field set" value={current.id} onChange={(e) => { setSetId(e.target.value); setOpenKeys([]); }}>
               {draft.sets.map((s) => <option key={s.id} value={s.id}>{s.name || "(no name)"}{s.id === draft.defaultSetId ? " — default" : ""}</option>)}
             </select>
@@ -317,14 +317,14 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
               <input className="grow" aria-label="Field set description" placeholder="What this set is for (optional)" value={current.help} onChange={(e) => setCurrent({ help: e.target.value })} />
             </div>
             <div className="field-row">
-              <span className="label-row muted">Per-character values for <Help text="Who gets values in 'one per character' fields: only the characters of the session, also you, or anyone the story names (the tracker adds NPCs as they appear and never removes them)." /></span>
+              <span className="label-row muted">Per-character values for <Help text="Who receives per-character fields. Anyone named lets the tracker add NPCs as they appear." /></span>
               <select aria-label="Per-character values for" value={current.characters} onChange={(e) => setCurrent({ characters: e.target.value as SetDraft["characters"] })}>
                 {WHO.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
               </select>
             </div>
             {statusFields.length > 0 && (
               <div className="field-row">
-                <span className="label-row muted">Who is in the scene <Help text="Optional. Pick the per-character status field that says if a character is in the scene, and its 'in the scene' option. Characters with another value are sent to the AI by name only (plus the other fields of that section), and the panel lists them last." /></span>
+                <span className="label-row muted">Who is in the scene <Help text="Choose the status field and value for presence. Absent characters appear last and send only their name and that section's fields." /></span>
                 <select aria-label="Presence field" value={presenceField?.key ?? ""}
                   onChange={(e) => { const fld = statusFields.find((f) => f.key === e.target.value); setCurrent({ presence: fld ? { field: fld.key, value: fld.options[0] ?? "" } : undefined }); }}>
                   <option value="">— not used —</option>
@@ -340,7 +340,7 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
           </div>
 
           <div className="fields-head">
-            <h3 className="label-row grow">Groups and fields <Help text="Each field is one value the AI keeps up to date. Fields sit in groups; the order here is the order on the person's page and in the Scene panel. Drag a group or a field by its ⋮⋮ (or focus the ⋮⋮ and use the arrow keys). Click a field to open its settings; several can be open at once." /></h3>
+            <h3 className="label-row grow">Groups and fields <Help text="Field order matches the Scene panel. Drag a handle to reorder. Click a field to edit it." /></h3>
             <button type="button" className="link quiet" data-testid="fields-open-all"
               onClick={() => { if (openKeys.length) setOpenKeys([]); else { setFolded([]); setOpenKeys(ordered.map((f) => f.key)); } }}>
               {openKeys.length ? "Fold All" : "Open All"}
@@ -414,10 +414,10 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
         <aside className="te-preview" aria-label="Preview">
           <div className="te-preview-head">
             <span className="grow">{sample ? <>Preview · <b>{sample.sessionName}</b></> : "Preview"}</span>
-            <Help text="What the Scene panel will show with these fields, using the latest values of a session where this tracker is on. It follows your changes before you save. The field open on the left is highlighted." />
+            <Help text="Preview using a chat's latest values and your unsaved fields." />
           </div>
           {sample === undefined && <p className="pane-note">Loading…</p>}
-          {sample === null && <p className="pane-note">Switch this tracker on in a session and send a message: the preview then shows its real values here.</p>}
+          {sample === null && <p className="pane-note">Enable this tracker in a chat and send a message to preview its values.</p>}
           {sample && <TrackerPreview schema={previewSchema} values={sample.values} cast={sample.cast} avatars={avatars} focusKey={openKey} />}
         </aside>
       </div>
@@ -461,17 +461,17 @@ function FieldSettings({ f, n, groups, shows, onChange, onStep, onRemove }: {
       </div>
       {(f.type === "number" || f.type === "meter") && (
         <div className="field-row">
-          <span className="label-row muted">Lowest <Help text="The AI's values are kept at or above this. Empty = no limit (a bar uses 0)." /></span>
+          <span className="label-row muted">Lowest <Help text="Minimum allowed value. Blank uses no minimum, or 0 for bars." /></span>
           <input className="num" type="number" value={f.min ?? ""} aria-label={`${n} lowest`} placeholder={f.type === "meter" ? "0" : ""}
             onChange={(e) => onChange({ min: numOrUndef(e.target.value) })} />
-          <span className="label-row muted">Highest <Help text="The AI's values are kept at or below this. Empty = no limit (a bar uses 100)." /></span>
+          <span className="label-row muted">Highest <Help text="Maximum allowed value. Blank uses no maximum, or 100 for bars." /></span>
           <input className="num" type="number" value={f.max ?? ""} aria-label={`${n} highest`} placeholder={f.type === "meter" ? "100" : ""}
             onChange={(e) => onChange({ max: numOrUndef(e.target.value) })} />
         </div>
       )}
       {f.type === "status" && (
         <div className="field-row">
-          <span className="label-row muted">Options <Help text="The values this status can have, separated by commas. The AI must pick one of them." /></span>
+          <span className="label-row muted">Options <Help text="Comma-separated choices for this status." /></span>
           <input className="grow" value={f.options.join(",")} aria-label={`${n} options`} onChange={(e) => onChange({ options: e.target.value.split(",") })} />
         </div>
       )}
@@ -500,14 +500,14 @@ function FieldSettings({ f, n, groups, shows, onChange, onStep, onRemove }: {
         </select>
         {isIconName(f.icon) && <Icon name={f.icon} size={14} />}
       </div>
-      <div className="te-label">What the AI should write here — and when to leave it empty <Help text="Sent to the AI with this field, word for word. Say what goes here, a unit, what a high value means — and when NOT to fill it (e.g. 'Only for characters who use magic; leave it empty for everyone else'). Also shown by the field's '?' in the panel." /></div>
+      <div className="te-label">What the AI should write here — and when to leave it empty <Help text="Tracker instructions. Say what to record, the unit and when to leave it blank." /></div>
       <textarea rows={2} className="te-hint" placeholder={f.scope === "global" ? "e.g. In-world time, like 'dusk, day 3'." : "e.g. Only for characters who use magic. Leave it empty for anyone who doesn't."} value={f.help} aria-label={`${n} hint`} onChange={(e) => onChange({ help: e.target.value })} />
-      <div className="te-label">What it means in the story <Help text="Sent to the story's AI under the values, once (not per character), so a number like 'Stamina: 1' means something. Say what high and low values mean and what changes them, e.g. 'Spent by running and fighting; at 0 they collapse; rest brings it back.' Empty = nothing is sent." /></div>
+      <div className="te-label">What it means in the story <Help text="Story context. Explain what values mean and what changes them." /></div>
       <textarea rows={2} className="te-hint" placeholder="e.g. 0–10. Fighting and running spend it; at 0 they collapse. A night's rest brings it back to 10."
         value={f.note ?? ""} aria-label={`${n} story note`} onChange={(e) => onChange({ note: e.target.value || undefined })} />
       {f.type === "list" && (
         <div className="columns-box">
-          <span className="label-row muted">Columns <Help text="Leave empty for a list of short items. Add columns to make each item a row (e.g. Title, Status, Note)." /></span>
+          <span className="label-row muted">Columns <Help text="Blank uses a list. Add columns for a table." /></span>
           <FieldList fields={f.fields} onChange={(cols) => onChange({ fields: cols })} prefix={`${n} column`} column />
           <button className="link" onClick={() => onChange({ fields: [...f.fields, blankField()] })}>Add Column</button>
         </div>
@@ -515,15 +515,15 @@ function FieldSettings({ f, n, groups, shows, onChange, onStep, onRemove }: {
       <div className="field-row">
         <label className="check">
           <input type="checkbox" checked={f.required} onChange={(e) => onChange({ required: e.target.checked })} />
-          Always filled <Help text="On: the AI must fill it as soon as it applies (e.g. when a character appears) and never leaves it empty. Off: optional — the AI leaves it out when it doesn't apply (a character who doesn't use magic has no Mana), and the panel lists it under 'Not used'. Say when it doesn't apply in the field's note." />
+          Always filled <Help text="Required when the field applies. Describe exceptions in its tracker instructions." />
         </label>
         <label className="check">
           <input type="checkbox" checked={f.lockedForAgents} onChange={(e) => onChange({ lockedForAgents: e.target.checked })} />
-          Only I change it <Help text="The AI can read this value but never changes it. Only you edit it in the Scene panel." />
+          Only I change it <Help text="The tracker can read this value. Only you can edit it." />
         </label>
         <label className="check">
           <input type="checkbox" checked={f.toPrompt} onChange={(e) => onChange({ toPrompt: e.target.checked })} />
-          Send to the AI <Help text="The current value goes into the prompt of the story's replies (in a short 'Current scene' part), so the AI writes with it in mind." />
+          Send to the AI <Help text="Include this value in story reply prompts." />
         </label>
         <span className="spacer" />
         <button className="link" onClick={() => onStep(-1)} aria-label={`Move ${n} up`}>↑ Move Up</button>
@@ -569,24 +569,24 @@ function FieldList({ fields, onChange, prefix, column = false }: {
             </div>
             {(f.type === "number" || f.type === "meter") && (
               <div className="field-row">
-                <span className="label-row muted">Lowest <Help text="The AI's values are kept at or above this. Empty = no limit (a bar uses 0)." /></span>
+                <span className="label-row muted">Lowest <Help text="Minimum allowed value. Blank uses no minimum, or 0 for bars." /></span>
                 <input className="num" type="number" value={f.min ?? ""} aria-label={`${n} lowest`} placeholder={f.type === "meter" ? "0" : ""}
                   onChange={(e) => setField(i, { min: numOrUndef(e.target.value) })} />
-                <span className="label-row muted">Highest <Help text="The AI's values are kept at or below this. Empty = no limit (a bar uses 100)." /></span>
+                <span className="label-row muted">Highest <Help text="Maximum allowed value. Blank uses no maximum, or 100 for bars." /></span>
                 <input className="num" type="number" value={f.max ?? ""} aria-label={`${n} highest`} placeholder={f.type === "meter" ? "100" : ""}
                   onChange={(e) => setField(i, { max: numOrUndef(e.target.value) })} />
               </div>
             )}
             {f.type === "status" && (
               <div className="field-row">
-                <span className="label-row muted">Options <Help text="The values this status can have, separated by commas. The AI must pick one of them." /></span>
+                <span className="label-row muted">Options <Help text="Comma-separated choices for this status." /></span>
                 <input className="grow" value={f.options.join(",")} aria-label={`${n} options`}
                   onChange={(e) => setField(i, { options: e.target.value.split(",") })} />
               </div>
             )}
             {!column && (
               <div className="field-row">
-                <span className="label-row muted">Show as <Help text="How the Scene panel shows this value (the AI doesn't see this). Auto = by type. Top strip = the line at the top of the panel (date, place, weather; one value per tracker, not per character). Under the name = the small line under a character's name. Lead = plain text or chips at the top of the card. Pill = a rounded line with an icon (mood). Line = a compact icon + text row (where, doing). Tile = a small box, three per line (age, level). Block = a coloured label over the text (face, outfit). Note = italic, at the end." /></span>
+                <span className="label-row muted">Show as <Help text="Display in the Scene panel. Auto chooses by field type." /></span>
                 <select value={f.display ?? "auto"} aria-label={`${n} show as`} onChange={(e) => setField(i, { display: e.target.value === "auto" ? undefined : e.target.value as FieldDisplay })}>
                   {DISPLAYS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
                 </select>
@@ -596,18 +596,18 @@ function FieldList({ fields, onChange, prefix, column = false }: {
                   {FIELD_ICONS.map((x) => <option key={x} value={x}>{x}</option>)}
                 </select>
                 {isIconName(f.icon) && <Icon name={f.icon} size={14} />}
-                <span className="label-row muted">Color <Help text="Colour of the label in the panel. Empty = a colour made from the field's name." /></span>
+                <span className="label-row muted">Color <Help text="Blank picks a color from the field name." /></span>
                 <input type="color" aria-label={`${n} color`} value={f.color && /^#[0-9a-f]{6}$/i.test(f.color) ? f.color : "#9aa3ad"} onChange={(e) => setField(i, { color: e.target.value })} />
                 {f.color && <button className="link quiet" onClick={() => setField(i, { color: undefined })}>Clear</button>}
               </div>
             )}
             <div className="field-row">
               <input className="grow" placeholder="Hint for the AI (optional)" value={f.help} aria-label={`${n} hint`} onChange={(e) => setField(i, { help: e.target.value })} />
-              <Help text="Extra explanation the AI gets about this field, e.g. what a high value means or a unit to use. Also shown by the field's '?' in the panel." />
+              <Help text="Tracker instructions for this column, including units and meaning." />
             </div>
             {f.type === "list" && !column && (
               <div className="columns-box">
-                <span className="label-row muted">Columns <Help text="Leave empty for a list of short items. Add columns to make each item a row (e.g. Title, Status, Note)." /></span>
+                <span className="label-row muted">Columns <Help text="Blank uses a list. Add columns for a table." /></span>
                 <FieldList fields={f.fields} onChange={(cols) => setField(i, { fields: cols })} prefix={`${n} column`} column />
                 <button className="link" onClick={() => setField(i, { fields: [...f.fields, blankField()] })}>Add Column</button>
               </div>
@@ -617,15 +617,15 @@ function FieldList({ fields, onChange, prefix, column = false }: {
                 <>
                   <label className="check">
                     <input type="checkbox" checked={f.required} onChange={(e) => setField(i, { required: e.target.checked })} />
-                    Always filled <Help text="On: the AI must fill it as soon as it applies (e.g. when a character appears) and never leaves it empty. Off: optional — the AI leaves it out when it doesn't apply (a character who doesn't use magic has no Mana), and the panel lists it under 'Not used'. Say when it doesn't apply in the field's note." />
+                    Always filled <Help text="Required when the field applies. Describe exceptions in its tracker instructions." />
                   </label>
                   <label className="check">
                     <input type="checkbox" checked={f.lockedForAgents} onChange={(e) => setField(i, { lockedForAgents: e.target.checked })} />
-                    Only I change it <Help text="The AI can read this value but never changes it. Only you edit it in the Scene panel." />
+                    Only I change it <Help text="The tracker can read this value. Only you can edit it." />
                   </label>
                   <label className="check">
                     <input type="checkbox" checked={f.toPrompt} onChange={(e) => setField(i, { toPrompt: e.target.checked })} />
-                    Send to the AI <Help text="The current value goes into the prompt of the story's replies (in a short 'Current scene' part), so the AI writes with it in mind." />
+                    Send to the AI <Help text="Include this value in story reply prompts." />
                   </label>
                 </>
               )}

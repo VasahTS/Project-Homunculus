@@ -19,16 +19,16 @@ type ParamKey = "temperature" | "topP" | "maxTokens";
 type Params = ConnectionProfile["params"];
 
 export const SAMPLERS: Array<{ key: ParamKey; label: string; help: string; min: number; max: number; step: number; whole?: boolean }> = [
-  { key: "temperature", label: "Temperature", help: "How surprising the writing is. Lower = steadier and more predictable, higher = more varied (and more mistakes). Empty = the model's default.", min: 0, max: 2, step: 0.05 },
-  { key: "topP", label: "Top P", help: "Only words from the most likely share of choices are used (0.95 = the top 95%). Lower = safer word choices. Empty = the model's default.", min: 0, max: 1, step: 0.01 },
-  { key: "maxTokens", label: "Max Length", help: "The longest a reply can be, in tokens (about ¾ of a word each). Thinking models count their reasoning too, so leave room. Empty = the model's default.", min: 64, max: 32000, step: 64, whole: true },
+  { key: "temperature", label: "Temperature", help: "Lower values are steadier. Higher values add variety.", min: 0, max: 2, step: 0.05 },
+  { key: "topP", label: "Top P", help: "Limits choices to tokens whose probabilities add up to this value.", min: 0, max: 1, step: 0.01 },
+  { key: "maxTokens", label: "Max Length", help: "Reply token limit. Reasoning models may count thinking tokens too.", min: 64, max: 32000, step: 64, whole: true },
 ];
 
 export const EFFORTS: Array<{ value: ReasoningEffort; label: string }> = [
   { value: "none", label: "None (don't think)" }, { value: "minimal", label: "Minimal" }, { value: "low", label: "Low" },
   { value: "medium", label: "Medium" }, { value: "high", label: "High" }, { value: "xhigh", label: "Extra high" }, { value: "max", label: "Max" },
 ];
-export const EFFORT_HELP = "For thinking models: how long the model thinks before writing. More thinking is slower and costs more, but plans better. Default = the model decides. Models that don't think ignore it; some accept only some levels (OpenRouter and nano-gpt list them per model).";
+export const EFFORT_HELP = "More reasoning can increase latency and cost. Available levels depend on the model.";
 
 /** The samplers and reasoning effort of a connection profile, as rows. Changing one calls onChange with new params. */
 export function ParamRows({ params, onChange, allowedEfforts }: { params: Params; onChange: (p: Params) => void; allowedEfforts?: string[] }) {
@@ -107,21 +107,21 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
       {authorsNote}
       {inStory && (
         <>
-          <p className="follows-story" data-testid="follows-story">This chat follows <strong>{storyName}</strong>. Rows you change here count for this chat only.</p>
+          <p className="follows-story" data-testid="follows-story">Inherits <strong>{storyName}</strong>. Overrides apply to this chat.</p>
           <SetupFields mode="chat" layer={session.setup} above={storySetup} names={setupProps!.namesFor(storySetup)} director={director}
             presets={setupProps!.presets} profiles={setupProps!.profiles} personas={setupProps!.personas} trackers={setupProps!.trackers} agents={setupProps!.agents}
             onChange={(setup) => onChangeSession({ ...session, setup })} testId="chat-setup" />
         </>
       )}
-      {!inStory && <Group title="Connections" help="Which saved connection writes this story, and which one the agents and trackers use. Create and edit connections in Settings → Connections.">
-        <Row label="Story" help="Writes the replies. 'Default' follows the default connection in Settings.">
+      {!inStory && <Group title="Connections" help="Manage connections in Settings → Connections.">
+        <Row label="Story" help="Writes replies. Default follows Settings → Defaults.">
           <select aria-label="Story connection" value={session.setup.connectionId ?? INHERIT}
             onChange={(e) => (e.target.value === INHERIT ? setLayer({ modelOverride: "" }, ["connectionId"]) : setLayer({ connectionId: e.target.value, modelOverride: "" }, []))}>
             <option value={INHERIT}>Default ({defaultName})</option>
             {c.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Row>
-        <Row label="Agents & Trackers" help="Agents and trackers that don't have a connection of their own use this one. A cheaper or faster model here saves money. 'Default' follows Settings → Defaults.">
+        <Row label="Agents & Trackers" help="Fallback for agents and trackers without their own connection. Default follows Settings → Defaults.">
           <select aria-label="Agents connection" value={agentValue}
             onChange={(e) => {
               const v = e.target.value;
@@ -142,7 +142,7 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
         </Row>
       </Group>}
 
-      <Group title="Preset" help="The recipe of the prompt: which blocks the AI reads, in which order. Choose whether block edits apply only here or to the shared preset. Edit, import and export presets in Library → Presets."
+      <Group title="Preset" help="Choose whether block edits apply to this chat or the shared preset. Manage presets in Library → Presets."
         testId="prompt-preset">
         {!inStory && <Row label="Preset">
           <select aria-label="Session preset" value={session.setup.presetId ?? ""}
@@ -175,7 +175,7 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
       )}
 
       {story && (
-        <Group title={`Sampling — ${story.name}`} help={`How the AI picks its words. These settings belong to the connection "${story.name}", so they change it for every session that uses it. Leave a value empty to use the model's own default. Changes apply from the next reply.`}>
+        <Group title={`Sampling — ${story.name}`} help={`Changes apply wherever "${story.name}" is used, starting with the next reply. Blank uses the model's default.`}>
           <ParamRows params={story.params} onChange={(params) => void c.save({ ...story, params })} />
           {presetOverrides.length > 0 && preset && (
             <Row wide><span className="hint warn-text" data-testid="preset-overrides">The preset “{preset.name}” sets {presetOverrides.map(([k, v]) => `${k} ${v}`).join(", ")}, which win over these for the story.</span></Row>

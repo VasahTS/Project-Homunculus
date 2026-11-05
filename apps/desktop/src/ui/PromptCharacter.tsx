@@ -102,8 +102,8 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
       </div>
       <Collapse open={open}>
         <div className="group pc-fields">
-          {card.tracked === false && <p className="hint pc-note" data-testid="prompt-untracked-note">Sent whole, like any card. The Scene does not track it as one person; if it holds several characters, each one appears there by name.</p>}
-          <p className="hint pc-note">Edits go to {version ? `the “${version}” version` : "the main version"} of the card: every chat with that version sees them.</p>
+          {card.tracked === false && <p className="hint pc-note" data-testid="prompt-untracked-note">Included in the prompt, outside the tracked cast.</p>}
+          <p className="hint pc-note">Edits affect every chat using {version ? `the “${version}” version` : "the main version"}.</p>
           {FIELDS.map((f) => {
             const on = editing.includes(f.key);
             const v = draft[f.key];

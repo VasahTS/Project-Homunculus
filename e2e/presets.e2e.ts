@@ -84,7 +84,7 @@ test("blocks can be dragged into a new order, in the editor and in the Prompt ta
   await openSession(page);
   await openTab(page, "prompt");
   await page.getByTestId("prompt-preset").getByRole("button", { name: "Char Personality", exact: true }).click();
-  await expect(page.getByText("This marker is filled by the app.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Automatic content.", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Edit Preset", exact: true }).click();
   await expect(editor(page)).toBeVisible();
 });

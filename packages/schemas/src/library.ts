@@ -162,6 +162,8 @@ export const ConnectionProfile = z.object({
   /** Empty = the provider's default address (OpenRouter for the OpenAI-compatible provider). */
   baseUrl: z.string().default(""),
   model: z.string().default(""),
+  /** Off requests a complete response. Missing preserves streaming for older profiles. CODEX. */
+  streaming: z.boolean().default(true),
   /** Missing value = the model's own default. */
   params: z.object({
     temperature: z.number().min(0).max(2).optional(),

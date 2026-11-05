@@ -93,7 +93,7 @@ test("sorting regex display never changes execution order when editing a script"
   await expect(sort).toHaveValue("original"); await sort.selectOption("az");
   const rows = page.getByTestId("regex-script");
   await expect(rows.first()).toContainText("Alpha script");
-  await expect(page.getByTestId("regex-page")).toContainText("Display order only.");
+  await expect(page.getByTestId("regex-page")).toContainText("Sorting affects this list only.");
   await expect(page.getByRole("button", { name: /^Reorder / })).toHaveCount(0);
   await rows.first().getByRole("switch").click();
   const saved = await page.evaluate(async () => {

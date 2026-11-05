@@ -126,7 +126,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
 
   return (
     <div className="settings-page customize" data-testid="settings-customize-body">
-      <Group icon="masks" title="Look" help="Each look brings its colors, fonts and corners. It changes the whole app at once; nothing you wrote changes."
+      <Group icon="masks" title="Look" help="Colors, fonts and corners across the app."
         aside={<><Button small variant="bordered" onClick={() => file.current?.click()}>Import Look…</Button>
           <input ref={file} type="file" accept=".json,application/json" hidden aria-label="Look file" onChange={(e) => { void doImport(e.target.files?.[0]); e.target.value = ""; }} /></>}>
         <div className="look-grid" role="radiogroup" aria-label="Look">
@@ -142,12 +142,12 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
             <Button small variant="plain" onClick={(e) => { const from = undo.from; revealLook(() => void setActiveLook(from), { x: e.clientX, y: e.clientY }); setUndo(null); }}>Undo</Button>
           </div>
         )}
-        {safe && <p className="hint look-safe">This look's extra CSS is off until the app restarts (Ctrl+Shift+0 turns it back on).</p>}
+        {safe && <p className="hint look-safe">Extra CSS is off until restart. Ctrl+Shift+0 turns it back on.</p>}
       </Group>
 
-      <Group icon="sliders" title={`Tweaks for ${look.name}`} help="Kept for this look only. They never change the look itself."
+      <Group icon="sliders" title={`Tweaks for ${look.name}`} help="Saved per look."
         aside={<Button small variant="plain" onClick={() => void resetTweaks(look.id)} disabled={!Object.keys(tweaks).length}>Reset {look.name}</Button>}>
-        <Row label="Accent" help="The main button, the selection, links. Text on it turns black or white by itself.">
+        <Row label="Accent" help="Buttons, links and selections.">
           <span className="accent-swatches" role="radiogroup" aria-label="Accent">
             {palette.map((c) => (
               <button key={c} type="button" role="radio" aria-checked={accent === c} aria-label={c} title={c}
@@ -159,11 +159,11 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
             </label>
           </span>
         </Row>
-        <Row label="Icons" help="How the icons are drawn: plain lines, or alchemical objects (a flask for Home, an astrolabe for Settings…).">
+        <Row label="Icons">
           <Segmented small label="Icons" value={tweaks.icons ?? look.icons ?? "lines"} onChange={(icons) => void setTweaks(look.id, { icons })}
             options={(Object.keys(ICON_SET_NAMES) as IconSetId[]).map((value) => ({ value, label: ICON_SET_NAMES[value] }))} />
         </Row>
-        <Row label="Story font" help="The face of messages and story text.">
+        <Row label="Story font">
           <Segmented small label="Story font" value={tweaks.storyFont ?? "prose"} onChange={(storyFont) => void setTweaks(look.id, { storyFont })}
             options={[{ value: "prose", label: "Literata" }, { value: "ui", label: "Interface Font" }]} />
         </Row>
@@ -179,7 +179,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
       {/* Settings v2 (D-082): Send With went to General and the message rows to Chat; new reading/picture rows here */}
       <PicturesAndReadingGroup />
 
-      <Group icon="sparkle" title="Motion" help="Titles that rise, cascades, sliding tabs. Every look uses the same motion.">
+      <Group icon="sparkle" title="Motion" help="Applies to all looks.">
         <Row label="Animations">
           <Switch label="Animations" checked={st.motion.on} onChange={(on) => void setMotion({ on })} />
         </Row>
@@ -187,16 +187,16 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
           <Segmented small label="Motion speed" value={st.motion.speed} onChange={(speed: MotionSpeed) => void setMotion({ speed })}
             options={[{ value: "calm", label: "Calm" }, { value: "normal", label: "Normal" }, { value: "quick", label: "Quick" }]} />
         </Row>
-        <Row label="Follow the system's “reduce motion”" help="When Windows asks apps for less animation, everything here stops.">
+        <Row label="Follow the system's “reduce motion”" help="Uses your system animation preference.">
           <Switch label="Follow the system's reduce motion" checked={st.motion.followSystem} onChange={(followSystem) => void setMotion({ followSystem })} />
         </Row>
-        {motionOffBySystem && <p className="hint">Windows is asking for less animation, so motion is off now.</p>}
+        {motionOffBySystem && <p className="hint">Animations are off while system reduced motion is on.</p>}
       </Group>
 
       <Group icon="tool" title="Advanced">
         <details className="cz-adv" data-testid="edit-colors">
           <summary>Edit Colors</summary>
-          {builtin && <p className="hint">{look.name} is built in and stays as it is: your first change makes a copy, “{look.name} (edited)”, and switches to it.</p>}
+          {builtin && <p className="hint">Editing creates and selects “{look.name} (edited)”.</p>}
           {!builtin && (
             <label className="token-row">
               <span className="token-swatch" aria-hidden />
@@ -224,7 +224,7 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
           <summary>Extra CSS</summary>
           <textarea className="cz-css" aria-label="Extra CSS" spellCheck={false} value={css} onChange={(e) => setCss(e.target.value)} onBlur={() => void saveCss()}
             placeholder={'/* Reaches only the app\'s stable regions: app, sidebar, toolbar, story, message, composer, inspector, library, editor */\n[data-region="message"] { max-width: 680px; }'} />
-          <p className="hint">Saved with this look when you leave the box, and exported with it. If it breaks the screen, Ctrl+Shift+0 turns it off until the app restarts.</p>
+          <p className="hint">Saves on blur and exports with this look. Ctrl+Shift+0 disables it until restart.</p>
         </details>
       </Group>
     </div>

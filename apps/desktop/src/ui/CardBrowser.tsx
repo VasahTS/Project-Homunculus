@@ -412,9 +412,9 @@ export function CardBrowser(p: CardBrowserProps) {
 
   return (
     <div className="page collection-page card-browser" data-testid="card-browser" data-region="collection" onKeyDown={onKey}>
-      <Toolbar lead={p.lead} title="Card Browser" subtitle="Find characters on public sites and add them to Characters."
+      <Toolbar lead={p.lead} title="Card Browser" subtitle="Find public character cards."
         trailing={<>
-          <Help text="Searches go straight from this app to the selected site. All Sites sends the same search to each enabled site. Card text is shown as plain text and nothing from the sites runs in the app." />
+          <Help text="Searches contact the selected site. All Sites contacts each enabled site. Card content displays as plain text." />
           <SourcePicker sourceId={sourceId} name={sourceName} open={open === "source"} onToggle={() => setOpen(open === "source" ? null : "source")} onPick={switchSource} onClose={() => setOpen(null)} />
         </>} />
       <div className="collection-tools cb-tools" data-region="collection-tools">
@@ -462,7 +462,7 @@ export function CardBrowser(p: CardBrowserProps) {
           {askAdult && (
             <div className="cb-notice gallery-empty" data-testid="cb-adult" role="alertdialog" aria-label="DataCat is adult only">
               <p><strong>DataCat lists adult cards only.</strong></p>
-              <p className="hint">Its cards come from JanitorAI. Continue to browse it, or go back to {sourceName}.</p>
+              <p className="hint">Its cards come from JanitorAI.</p>
               <div className="cb-notice-actions">
                 <Button variant="prominent" onClick={() => { setPrefs((x) => ({ ...x, datacatOk: true })); switchSource("datacat", true); }}>Continue</Button>
                 <Button onClick={() => setAskAdult(false)}>Back</Button>
@@ -485,7 +485,7 @@ export function CardBrowser(p: CardBrowserProps) {
           {source && error && (error.desktop
             ? <div className="cb-notice gallery-empty" data-testid="cb-notice"><p>The Card Browser works in the desktop app.</p></div>
             : <div className="cb-notice gallery-empty" data-testid="cb-notice">
-                <p>{error.paused ? error.message : /answered|did not answer|failed|time/.test(error.message) ? `${source.name} did not answer. ${error.message}` : error.message}</p>
+                <p>{error.message}</p>
                 <div className="cb-notice-actions">
                   {error.paused
                     ? <><Button onClick={() => void openLink(source.site)}>Open {source.name}</Button>
@@ -518,7 +518,7 @@ export function CardBrowser(p: CardBrowserProps) {
             ? <CardSheet key={cardKey(chosen)} item={chosen} source={cardSource(chosen.source)} {...p} onImportDownloaded={() => fileInput.current?.click()} prefs={prefs} setPrefs={setPrefs} addedId={added.get(cardKey(chosen)) ?? null}
                 reading={reading} setReading={setReading} onCloseSheet={() => setSelected(null)}
                 onPrev={at > 0 ? () => stepCard(-1) : undefined} onNext={at >= 0 && at < items.length - 1 ? () => stepCard(1) : undefined} />
-            : <div className="empty-detail"><p>Pick a card to read it here.</p><p className="hint">Add to Characters saves it in your library, with its lorebook.</p></div>}
+            : <div className="empty-detail"><p>Select a card to preview it.</p></div>}
         </aside>
       </div>
     </div>

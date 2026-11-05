@@ -139,14 +139,14 @@ export const STARTER_AGENTS: AgentConfigInput[] = [
     prompt: "Never write {{user}}'s actions, words, thoughts or feelings. Only {{char}} and the other characters act and speak. When it is {{user}}'s turn to act, stop and leave room for them.",
   }),
   starter({
-    id: "starter-grounded-complication", name: "Grounded Complication", help: "Sometimes adds one small, realistic problem to the scene (40% of replies).",
+    id: "starter-grounded-complication", name: "Grounded Complication", help: "Adds a small, plausible complication.",
     triggers: before, output: "inject", runMode: "text", input: { messages: 0, lorebooks: false, cards: false, state: false, readsAgents: [] },
     injection: { position: "depth", depth: 1, role: "system" },
     conditions: { keywords: [], probability: 40, generationTypes: [], roles: [], minMessages: 0, state: [] },
     prompt: "In this reply, add one realistic complication: {{random::something breaks or goes missing::someone arrives at the wrong moment::the weather turns::a small misunderstanding::a cost or a delay appears}}. Keep it grounded and do not derail the plot.",
   }),
   starter({
-    id: "starter-prose-polisher", name: "Prose Polisher", help: "Rewrites each reply to remove repeated phrases and stock wording. An example; it will be redone later.",
+    id: "starter-prose-polisher", name: "Prose Polisher", help: "Cuts repetition and stock phrases.",
     triggers: after, output: "rewrite", runMode: "separate", input: { messages: 0, lorebooks: false, cards: false, state: false, readsAgents: [] },
     prompt: "You are a careful line editor. Rewrite the reply so it keeps every event, every line of dialogue and the same length, but removes repeated phrases, stock similes and closing lines that explain the scene. Keep {{char}}'s voice.",
   }),
@@ -157,50 +157,66 @@ export const STARTER_AGENTS: AgentConfigInput[] = [
     prompt: "Check whether the reply writes {{user}}'s actions, words or decisions. It passes when only {{char}} and the other characters act. When it fails, say in one short sentence what it decided for {{user}}.",
   }),
   starter({
-    id: "starter-cyoa-choices", name: "CYOA Choices", help: "Offers a few options for what you could do next, as buttons.",
+    id: "starter-cyoa-choices", name: "CYOA Choices", help: "Suggests next actions.",
     triggers: after, output: "choices", runMode: "separate", input: { messages: 4, lorebooks: false, cards: true, state: false, readsAgents: [] },
     prompt: "Offer 3 or 4 options for what {{user}} could do next. Each under 12 words, in the second person, clearly different from each other, and possible in the scene.",
   }),
   starter({
-    id: "starter-continuity", name: "Continuity", help: "Points out contradictions with earlier messages, as a small note under the reply.",
+    id: "starter-continuity", name: "Continuity", help: "Points out contradictions with earlier messages.",
     triggers: after, output: "note", runMode: "separate", input: { messages: 12, lorebooks: false, cards: true, state: true, readsAgents: [] },
     display: { note: "message" },
     prompt: "You check continuity. Compare the reply with the earlier messages and the cards. List contradictions (names, places, times, objects, what someone knows) in one or two short sentences each. If there are none, answer exactly: Nothing to note.",
   }),
   starter({
-    id: "starter-actor-interview", name: "Actor Interview", help: "Only when you ask: the character steps outside the story and talks about the latest scene.",
+    id: "starter-actor-interview", name: "Actor Interview", help: "The character comments on the latest scene, outside the story.",
     triggers: [{ on: "manual" }], output: "note", runMode: "separate", input: { messages: 6, lorebooks: false, cards: true, state: false, readsAgents: [] },
     display: { note: "menu" },
     prompt: "Step outside the story. As the actor who plays {{char}}, talk briefly about the latest scene: what {{char}} felt, what they hid, and what they want next. Three to five sentences, first person.",
   }),
   starter({
-    id: "starter-lorebook-keeper", name: "Lorebook Keeper", help: "Every 4 messages, writes new facts the story established into the story's own version of its lorebook. The Library's book is never changed.",
+    id: "starter-lorebook-keeper", name: "Lorebook Keeper", help: "Adds established facts to this story's lorebook copy.",
     triggers: [{ on: "everyN", n: 4 }], output: "proposal", runMode: "separate", proposal: { target: "lorebook" },
     input: { messages: 8, lorebooks: true, cards: true, state: false, readsAgents: [], persona: false, scenario: false },
     prompt: "You keep the story's lorebook. From the latest messages, note lasting facts the story established (places, factions, abilities, people's histories, rules of the world) that the lorebook does not have yet. Skip passing details and anything only implied. Write each as a short entry with keywords that would bring it up.",
   }),
   starter({
-    id: "starter-class-chat", name: "Group Chat", help: "A feed of people reacting to the latest scene. Pick who posts: classmates, redditors, 4chan, fans…",
+    id: "starter-class-chat", name: "Group Chat", help: "People react to the latest scene. Choose a posting style.",
     triggers: [{ on: "turn", phase: "after" }], output: "note", runMode: "separate", display: { note: "view", view: "feed" },
     input: { messages: 4, lorebooks: false, cards: true, state: false, readsAgents: [], persona: false, scenario: false },
     prompt: "Write a feed of posts reacting to the latest scene. Who posts and how: {{style}}\nShort posts, each in its own voice, reacting to what just happened. Never speak for {{user}}.",
     styles: GROUP_CHAT_STYLES, styleId: "classmates",
   }),
   starter({
-    id: "starter-expand-my-action", name: "Expand My Action", help: "Turns a short message of yours into a fuller action before the AI reads it. Off by default; try it.",
+    id: "starter-expand-my-action", name: "Expand My Action", help: "Expands your message before the AI reads it.",
     triggers: before, output: "intercept", runMode: "separate", input: { messages: 2, lorebooks: false, cards: false, state: false, readsAgents: [] },
     prompt: "Rewrite {{user}}'s message as a short, vivid paragraph in the same person and tense. Keep exactly what they do and say; add no new decisions or dialogue.",
   }),
 ];
 
 
-/** Installs the starter agents once. One the user deleted is not brought back; one that exists is not overwritten. */
+// Update only unchanged starter descriptions, preserving user edits. CODEX, 2026-11-05.
+const LEGACY_STARTER_HELP: Record<string, string> = {
+  "starter-grounded-complication": "Sometimes adds one small, realistic problem to the scene (40% of replies).",
+  "starter-prose-polisher": "Rewrites each reply to remove repeated phrases and stock wording. An example; it will be redone later.",
+  "starter-cyoa-choices": "Offers a few options for what you could do next, as buttons.",
+  "starter-continuity": "Points out contradictions with earlier messages, as a small note under the reply.",
+  "starter-actor-interview": "Only when you ask: the character steps outside the story and talks about the latest scene.",
+  "starter-lorebook-keeper": "Every 4 messages, writes new facts the story established into the story's own version of its lorebook. The Library's book is never changed.",
+  "starter-class-chat": "A feed of people reacting to the latest scene. Pick who posts: classmates, redditors, 4chan, fans…",
+  "starter-expand-my-action": "Turns a short message of yours into a fuller action before the AI reads it. Off by default; try it."
+};
+
+/** Installs missing starters and refreshes unchanged descriptions. Deleted starters stay deleted. */
 export async function installStarterAgents(store: SqlStore): Promise<void> {
   const installed = new Set((await store.getAppSetting<string[]>(STARTER_KEY)) ?? []);
   let changed = false;
   for (const a of STARTER_AGENTS) {
+    const existing = await store.agentConfigs.get(a.id);
+    if (existing?.source.kind === "builtin" && existing.source.from === "starter" && existing.help === LEGACY_STARTER_HELP[a.id]) {
+      await store.saveAgentConfig({ ...existing, help: a.help });
+    }
     if (installed.has(a.id)) continue;
-    if (!(await store.agentConfigs.get(a.id))) await store.saveAgentConfig(a);
+    if (!existing) await store.saveAgentConfig(a);
     installed.add(a.id);
     changed = true;
   }

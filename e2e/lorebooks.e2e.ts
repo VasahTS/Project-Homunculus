@@ -238,7 +238,7 @@ test("Global Lorebooks: a strip on top of Library → Lorebooks, read in every s
   await page.goto("/");
   await importRealm(page);
   const globals = page.getByTestId("lore-globals");
-  await expect(globals).toContainText("None yet");
+  await expect(globals).toContainText("None selected.");
   await globals.getByLabel("Add a lorebook").selectOption({ label: "Vaelthar" });
   await expect(globals.getByRole("button", { name: "Vaelthar", exact: true })).toBeVisible();
   await expect(page.getByTestId("lorebook-list")).toContainText("Global (every session)");
@@ -254,7 +254,7 @@ test("Global Lorebooks: a strip on top of Library → Lorebooks, read in every s
   // × takes it off
   await openLorebooks(page);
   await page.getByTestId("lore-globals").getByRole("button", { name: "Remove Vaelthar" }).click();
-  await expect(page.getByTestId("lore-globals")).toContainText("None yet");
+  await expect(page.getByTestId("lore-globals")).toContainText("None selected.");
 });
 
 test("opened from a session, the lorebook page has a button straight back to that session", async ({ page }) => {

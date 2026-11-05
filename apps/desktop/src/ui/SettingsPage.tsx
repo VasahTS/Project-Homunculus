@@ -61,7 +61,7 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
   return (
     <SettingsLook.Provider value={true}>
     <section className="library-workspace settings-workspace settings-look" data-region="library-workspace">
-      <Toolbar lead={lead} title="Settings" subtitle="How the app behaves, how it looks, and where your things are kept"
+      <Toolbar lead={lead} title="Settings"
         trailing={<label className="search-box toolbar-search settings-search"><Icon name="search" size={13} />
           <input aria-label="Search settings" placeholder="Search settings" value={q} onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }} data-testid="settings-search" /></label>} />
@@ -107,7 +107,7 @@ function SettingsSearch({ q, sections, onOpen }: { q: string; sections: Array<{ 
   return (
     <div className="settings-search-results" ref={box} data-testid="settings-search-results">
       {connections && (
-        <div className="settings-page"><section className="group-section annotated"><div className="group-intro"><span className="group-icon" aria-hidden><Icon name="plug" size={17} /></span><h2 className="group-title">Connections</h2><p className="group-help">Addresses, API keys, models, sampling and limits live in each saved connection.</p></div>
+        <div className="settings-page"><section className="group-section annotated"><div className="group-intro"><span className="group-icon" aria-hidden><Icon name="plug" size={17} /></span><h2 className="group-title">Connections</h2></div>
           <div className="group"><div className="row"><span className="row-label"><span className="row-name">Open Connections</span></span><span className="row-value"><Button small variant="bordered" onClick={() => onOpen("connections")}>Open</Button></span></div></div></section></div>
       )}
       {sections.map(({ tab, node }) => (
@@ -191,7 +191,7 @@ function ConnectionsSection({ c, providers, test, listModels, notify }: {
               onDuplicate={(p) => setDraftNew(ConnectionProfile.parse({ ...p, id: crypto.randomUUID(), name: `${p.name} (copy)` }))}
               onDeleted={(n) => { setSelected(c.defaultId); notify("Connection deleted", n ? [`${n} session(s) that used it now use the default connection.`] : []); }}
               onCancel={() => setDraftNew(null)} />
-          : <div className="empty-detail"><p>Pick a connection on the left, or create a new one.</p></div>}
+          : <div className="empty-detail"><p>Select or create a connection.</p></div>}
       </div>
     </div>
   );
@@ -284,34 +284,34 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
         {isNew && <Button small onClick={() => navigate(onCancel)}>Cancel</Button>}
       </div>
       <div className="editor-body settings-body">
-        <Group title="Connection" help="Where the AI lives: the service, its address, your key and the model.">
-          <Row label="Name" help="Any name you like, to recognize it in lists (e.g. 'GLM thinking' or 'Cheap trackers').">
+        <Group title="Connection">
+          <Row label="Name">
             <input aria-label="Connection name" value={d.name} onChange={(e) => { setNameTouched(true); set({ name: e.target.value }); }} />
           </Row>
-          <Row label="AI" help="Which kind of service. 'OpenAI-compatible' covers OpenRouter, nano-gpt, OpenAI and most local servers. 'Offline test AI' needs no key but only repeats scripted lines.">
+          <Row label="AI" help="OpenAI-compatible supports OpenRouter, nano-gpt and local servers. Offline test AI uses scripted replies.">
             <select aria-label="AI provider" value={d.providerId} onChange={(e) => set({ providerId: e.target.value })}>
               {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </Row>
           {keyed && <>
-            <Row label="Address" help="Leave empty for OpenRouter. For another OpenAI-compatible service, paste its API address (it usually ends in /v1), e.g. https://nano-gpt.com/api/v1.">
+            <Row label="Address" help="Blank uses OpenRouter. For other services, enter the API address.">
               <input aria-label="Address" value={d.baseUrl} placeholder="https://openrouter.ai/api/v1"
                 onChange={(e) => set({ baseUrl: e.target.value })} onBlur={() => void c.loadKey(d)} />
             </Row>
-            <Row label="API Key" help="Your secret key from the service. It is stored in the Windows Credential Manager, never in files. Connections with the same address share the same key.">
+            <Row label="API Key" help="Connections with the same address share a key. Keys stay in your system credential store.">
               <input aria-label="API key" type="password" value={c.keyOf(d)} placeholder="sk-…"
                 onChange={(e) => c.typeKey(d, e.target.value)} onBlur={() => { if (status.kind === "unsaved") void c.saveKey(d); }} />
             </Row>
             <Row wide>
               <span className="hint key-status" data-testid="key-status">
-                {status.kind === "saved" && <>✓ Key saved {c.persistentKeys ? "in Windows Credential Manager (never in files)" : "for this preview only"}. </>}
-                {status.kind === "unsaved" && <>Key not saved yet — it saves when you click outside the box. </>}
+                {status.kind === "saved" && <>✓ Key saved {c.persistentKeys ? "in the system credential store" : "for this preview only"}. </>}
+                {status.kind === "unsaved" && <>Key not saved yet. Leave the field to save. </>}
                 {status.kind === "empty" && <>No key saved for this address. </>}
                 {status.kind === "error" && <>Could not use the secure key storage: {status.message}. </>}
                 {status.kind === "saved" && <button className="link" onClick={() => void c.forgetKey(d)}>Forget Key</button>}
               </span>
             </Row>
-            <Row label="Model" help="The model's ID exactly as your service lists it, e.g. 'z-ai/glm-5.3:thinking'. 'Browse' asks the service for its list, so you can search and pick instead of typing.">
+            <Row label="Model" help="Enter the provider's model ID or select Browse.">
               <span className="model-field">
                 <input aria-label="Model" value={d.model} placeholder="e.g. deepseek/deepseek-chat" onChange={(e) => set({ model: e.target.value })} />
                 <Button small onClick={() => setPicking((v) => !v)} aria-expanded={picking}>Browse</Button>
@@ -326,23 +326,26 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
             )}
             {info && !picking && <Row wide><span className="hint" data-testid="model-info">{info.name ? `${info.name}: ` : ""}{modelMeta(info) || "no details from the service"}</span></Row>}
           </>}
+          {keyed && <Row label="Streaming" help="Off requests the full response at once.">
+            <Switch label="Streaming" checked={d.streaming} onChange={(streaming) => set({ streaming })} />
+          </Row>}
           <Row wide><span className="hint">{providers.find((p) => p.id === d.providerId)?.help}</span></Row>
         </Group>
 
-        <Group title="Sampling and Thinking" help="How the AI picks its words and how long it thinks. Empty = the model's own default. These belong to this connection: every session and agent that uses it gets them.">
+        <Group title="Sampling and Thinking" help="Applies wherever this connection is used. Blank uses the model's default.">
           <ParamRows params={d.params} onChange={(params) => set({ params })} allowedEfforts={info?.efforts} />
         </Group>
 
-        <Group title="Limits and Backup" help="Agents and trackers run at the same time. Limits keep a service from refusing calls for being too many too fast.">
-          <Row label="Calls at Once" help="At most this many calls to this connection at the same time. Empty = 4.">
+        <Group title="Limits and Backup">
+          <Row label="Calls at Once" help="Default · 4 simultaneous calls.">
             <input aria-label="Calls at once" className="num" inputMode="numeric" placeholder="4" value={d.limits.maxConcurrent ?? ""}
               onChange={(e) => { const n = parseInt(e.target.value, 10); set({ limits: { ...d.limits, maxConcurrent: Number.isFinite(n) ? Math.max(1, Math.min(32, n)) : undefined } }); }} />
           </Row>
-          <Row label="Wait Between Calls" help="At least this many seconds between the start of two calls. Empty = no wait.">
+          <Row label="Wait Between Calls" help="Seconds between call starts. Blank allows no delay.">
             <input aria-label="Wait between calls" className="num" inputMode="decimal" placeholder="0" value={d.limits.minIntervalMs === undefined ? "" : d.limits.minIntervalMs / 1000}
               onChange={(e) => { const n = Number(e.target.value.replace(",", ".")); set({ limits: { ...d.limits, minIntervalMs: e.target.value.trim() && Number.isFinite(n) ? Math.round(Math.max(0, Math.min(600, n)) * 1000) : undefined } }); }} />
           </Row>
-          <Row label="Backup Connection" help="If this connection fails before writing anything (service down, wrong key…), this one is tried instead. Once text has started, the error is shown.">
+          <Row label="Backup Connection" help="Used if this connection fails before producing text.">
             <select aria-label="Backup connection" value={d.fallbackId ?? ""} onChange={(e) => set({ fallbackId: e.target.value || null })}>
               <option value="">None</option>
               {others.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -351,7 +354,7 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
         </Group>
 
         <details className="advanced">
-          <summary>Advanced <Help text="For options the app has no control for yet: extra fields sent in every request, as JSON. Example for OpenRouter: { &quot;provider&quot;: { &quot;order&quot;: [&quot;z-ai&quot;] } }. The app's own fields (model, messages, stream) can't be changed here." /></summary>
+          <summary>Advanced <Help text="Adds JSON fields to every request. The app controls model, messages and stream." /></summary>
           <label>
             <span className="label-row">Extra request fields (JSON)</span>
             <textarea aria-label="Extra request fields" rows={4} value={extra} placeholder='{ "provider": { "order": ["z-ai"] } }'
@@ -376,7 +379,7 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
           {!isNew && (
             <span className="default-row">
               <Switch label="Default connection" checked={isDefault} disabled={isDefault} onChange={(on) => { if (on) void c.setDefault({ connectionId: d.id }); }} />
-              <span className="label-row">Default <Help text="Used by every session that doesn't pick its own. To change the default, switch it on for another connection." /></span>
+              <span className="label-row">Default <Help text="Used when a chat has no connection selected. Select another connection to change the default." /></span>
             </span>
           )}
           {!isNew && !isDefault && <ConfirmButton label="Delete Connection" confirmLabel="Click Again to Delete"
@@ -405,30 +408,29 @@ function DefaultsSection({ c, trackers, presets, defaultPresetId, personas, defa
   // per-tracker choice folded under them; the default Author's Note last
   return (
     <div className="settings-page">
-      <p className="pane-note">What every new chat and story uses unless it picks something else.</p>
-      <Group title="New chats and stories" help="What a new chat or story starts with. Each one can pick something else later.">
-        <Row label="Preset" help="The recipe of the prompt for every session that doesn't pick its own (Prompt tab). Edit presets in Library → Presets.">
+      <Group title="New chats and stories">
+        <Row label="Preset" help="Edit in Library → Presets. Override in the chat's Prompt tab.">
           <select aria-label="Default preset" value={defaultPresetId} onChange={(e) => void onSetDefaultSetup({ presetId: e.target.value })}>
             {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Row>
-        <Row label="You Play As" help="The default persona (your name and description in the story). Each session can pick another one in the story's toolbar.">
+        <Row label="You Play As" help="Your default persona. Change it in each chat's toolbar.">
           <select aria-label="Default persona" value={defaultPersonaId ?? ""} onChange={(e) => void onSetDefaultPersona(e.target.value || null)}>
             <option value="">No persona (“User”)</option>
             {personas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Row>
-        <Row label="Trackers on New Versions" help="When you ask for a new version of a reply (swipe), trackers run again for it. Off = they wait until you continue from that version, which saves tokens.">
+        <Row label="Trackers on New Versions" help="Runs trackers on each new reply version. Off updates only when you continue from that version.">
           <Switch label="Trackers on new versions" checked={defaultSetup.trackersOnSwipe ?? true} onChange={(on) => void onSetDefaultSetup({ trackersOnSwipe: on })} />
         </Row>
       </Group>
-      <Group title="Connections" help="Which saved connections are used by default. Each session can pick others in the Prompt tab.">
+      <Group title="Connections" help="Override in the chat's Prompt tab.">
         <Row label="Story" help="Writes the replies.">
           <select aria-label="Default story connection" value={c.defaultId ?? ""} onChange={(e) => void c.setDefault({ connectionId: e.target.value || null })}>
             {options}
           </select>
         </Row>
-        <Row label="Agents & Trackers" help="Used by agents and trackers that don't have their own. A cheaper or faster model here saves money; the story keeps its own model.">
+        <Row label="Agents & Trackers" help="Fallback for agents and trackers without their own connection.">
           <select aria-label="Default agents connection" value={c.defaultAgentId ?? ""} onChange={(e) => void c.setDefault({ agentConnectionId: e.target.value || null })}>
             <option value="">Same as the story</option>
             {options}
@@ -439,7 +441,7 @@ function DefaultsSection({ c, trackers, presets, defaultPresetId, personas, defa
       {trackers.length > 0 && (
         <details className="cz-adv defaults-more" data-testid="defaults-per-tracker">
           <summary>A Connection for One Tracker</summary>
-          <p className="hint">For example a smarter model for the plot and a cheap one for the clock. Empty = the agents' connection.</p>
+          <p className="hint">Blank uses the agents' connection.</p>
           <Group>
           {trackers.map((t) => (
             <Row key={t.agent.id} label={t.agent.name}>

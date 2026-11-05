@@ -70,8 +70,8 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
     return () => { cancelled = true; };
   }, [svc, session, messageId, refreshKey]);
 
-  if (!messageId || !r) return <div className="pane" data-testid="reply-pane"><p className="pane-note">Pick a reply's details in the story to see what went into it.</p></div>;
-  if (!r.record) return <div className="pane" data-testid="reply-pane"><p className="pane-note">This message wasn’t written by the AI in this app (a greeting, your own message or an imported one), so there is nothing to show.</p></div>;
+  if (!messageId || !r) return <div className="pane" data-testid="reply-pane"><p className="pane-note">Select a reply's details to inspect it.</p></div>;
+  if (!r.record) return <div className="pane" data-testid="reply-pane"><p className="pane-note">No generation details for this message.</p></div>;
 
   const rec = r.record;
   const groups = new Map<string, { label: string; category: SourceCategory; tokens: number }>();
@@ -98,7 +98,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
       </section>
 
       <Group title="What changed" testId="reply-changes" aside={changeCount ? <span className="tabular">{changeCount} value{changeCount === 1 ? "" : "s"}</span> : undefined}
-        help="What the trackers (or you) changed in the scene with this reply. On the first reply everything is new, so it is folded by character: open one to see its values.">
+        help="Changes from this reply. Expand a character to see its first recorded values.">
         {changes.length === 0 && <Row wide><span className="hint">Nothing in the scene changed with this reply.</span></Row>}
         {changes.map((t) => (
           <div key={t.tracker} className="chg-tracker">
@@ -144,7 +144,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
       </Group>
 
       <Group title="What was sent" aside={<span data-testid="sent-total">{rec.tokensIn ? `${total.toLocaleString()} tokens` : `about ${fmtTokens(total)} tokens`}</span>}
-        help="Everything the AI read to write this reply, by where it came from. Counts are estimates unless the AI service reported them.">
+        help="Prompt sources. Token counts are estimated unless reported by the provider.">
         <Row wide>
           <span className="stack-bar" aria-hidden>
             {parts.map((g) => <span key={g.label} style={{ flexGrow: Math.max(g.tokens, 1), background: categoryColor(g.category) }} />)}
@@ -162,7 +162,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
           </ul>
         </Row>
         {rec.budget && (
-          <Row label="Context" help="How much of the preset's context size this prompt used (estimated), the room kept for the reply, and how many older messages were left out to fit.">
+          <Row label="Context" help="Estimated prompt usage, reply allowance and omitted messages.">
             <span className="tabular" data-testid="reply-budget">
               {fmtTokens(rec.budget.used)}{rec.budget.limit ? ` of ${fmtTokens(rec.budget.limit)}` : ""}{rec.budget.reserved ? ` (+${fmtTokens(rec.budget.reserved)} for the reply)` : ""}
               {rec.budget.droppedMessages ? ` · ${rec.budget.droppedMessages} older message(s) left out` : ""}
@@ -181,7 +181,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
           onClose={() => setPromptOpen(false)} />
       )}
 
-      <Group title="Settings used" help="The settings of THIS reply, which may differ from the current ones.">
+      <Group title="Settings used" help="Settings at the time of this reply.">
         {rec.connectionId && <Row label="Connection"><span data-testid="reply-connection">{connection.byId.get(rec.connectionId)?.name ?? "(deleted connection)"}</span></Row>}
         <Row label="AI"><span>{providers.find((p) => p.id === rec.providerId)?.name ?? rec.providerId}</span></Row>
         {rec.providerId !== "offline-test" && <Row label="Model"><span>{rec.model}</span></Row>}
@@ -260,7 +260,7 @@ export function MemoryReceipt({ m }: { m: NonNullable<GenerationRecord["memory"]
     : `${m.sent} summar${m.sent === 1 ? "y" : "ies"}`;
   return (
     <Group title={smart ? "Memory · smart" : "Memory"} testId="reply-memory" aside={<span data-testid="reply-memory-aside">{aside}</span>}
-      help={smart ? "Before this reply, a decision model chose which chapters bear on it, and which of their messages to quote word for word. The last chapter and merged summaries always go." : "Every chapter summary went in place of the messages it covers."}>
+      help={smart ? "Selected chapters and quotes. Includes the newest chapter and merged summaries." : "Chapter summaries replaced their covered messages."}>
       <Row label="Stood in for" help="Older messages the summaries replaced in this prompt."><span className="tabular">{m.covered} message{m.covered === 1 ? "" : "s"}</span></Row>
       {smart && m.fallback && <Row wide><span className="hint warn-text" data-testid="reply-memory-fallback">Every summary went instead: {m.fallback}</span></Row>}
       {smart && !m.fallback && <>

@@ -1480,7 +1480,7 @@ export function App() {
           selected={st?.id === last.x.id} onSelect={() => select(last.x.id)} onContinue={() => openChat(last.rows[0]!.session.id)} />
       );
       newButton = <Button onClick={() => setNewStoryOpen({ cardId: null })}><Icon name="plus" size={14} /> New Story</Button>;
-      emptyText = open ? "This folder is empty. Drag stories onto it." : "No stories yet. A story has a narrator, people and how it starts; each Play is a new session.";
+      emptyText = open ? "This folder is empty. Drag stories onto it." : "Create your first story.";
     } else if (tab === "kits") {
       const k = kits.find((x) => x.id === view.id);
       items = kits.map((x) => ({ id: x.id, name: x.name, avatar: storyAvatar(x) }));

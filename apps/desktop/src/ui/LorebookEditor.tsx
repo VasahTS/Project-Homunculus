@@ -32,9 +32,9 @@ export const PLACES: Array<{ value: LorePosition; label: string; short: string; 
  */
 export type PlaceKind = "character" | "chat" | "examples" | "note" | "outlet";
 export const PLACE_KINDS: Array<{ kind: PlaceKind; name: string; label: string; help: string; before: LorePosition; after?: LorePosition }> = [
-  { kind: "character", name: "Character", label: "Around the character", help: "Before or after the character’s description (preset blocks “World Info (before)” and “(after)”).", before: "before", after: "after" },
+  { kind: "character", name: "Character", label: "Around the character", help: "Uses the preset's World Info blocks.", before: "before", after: "after" },
   { kind: "chat", name: "In the chat", label: "In the chat", help: "Some messages before the end (0 = after the last one), as System, User or AI.", before: "atDepth" },
-  { kind: "examples", name: "Examples", label: "Around the examples", help: "Before or after the example dialogue. Write it as an example: “{{char}}: …”.", before: "emTop", after: "emBottom" },
+  { kind: "examples", name: "Examples", label: "Around the examples", help: "Write as example dialogue, such as “{{char}}: …”.", before: "emTop", after: "emBottom" },
   { kind: "note", name: "Author’s Note", label: "Around the Author’s Note", help: "Just before or after the Author’s Note (for now: 4 messages back, as System).", before: "anTop", after: "anBottom" },
   { kind: "outlet", name: "Outlet", label: "Outlet (by name)", help: "Only where a block or entry asks for it with {{outlet::name}}.", before: "outlet" },
 ];
@@ -249,7 +249,7 @@ export function LorebookEditor(p: LorebookEditorProps) {
         <div className="lore-head">
           <input className="lore-name" aria-label="Lorebook name" value={d.name} placeholder="Name of the lorebook…" readOnly={p.versionMode} onChange={(e) => set({ name: e.target.value })} />
           <div className="lore-used" data-testid="lore-used">
-            {usedBy.length ? <>Used by {usedBy.slice(0, 3).map((u) => <span key={u} className="tag">{u}</span>)}{usedBy.length > 3 && <span className="tag" title={usedBy.slice(3).join(", ")}>+{usedBy.length - 3} more</span>}</> : <><span className="hint">Not used yet.</span><Help text="Add it to Global Lorebooks (top of this page) to read it in every chat, link it to a character or persona (in their editor), or add it to one session (inspector → Prompt tab)." /></>}
+            {usedBy.length ? <>Used by {usedBy.slice(0, 3).map((u) => <span key={u} className="tag">{u}</span>)}{usedBy.length > 3 && <span className="tag" title={usedBy.slice(3).join(", ")}>+{usedBy.length - 3} more</span>}</> : <><span className="hint">Not used yet.</span><Help text="Use globally, link to a character or persona, or add in a chat's Prompt tab." /></>}
           </div>
           {p.folder && <div className="lore-folder">{p.folder}</div>}
         </div>
@@ -299,7 +299,7 @@ export function LorebookEditor(p: LorebookEditorProps) {
           {shown.length === 0 && (
             <div className="lore-empty">
               {d.entries.length === 0
-                ? <><p>No entries yet.</p><p className="hint">An entry is a piece of lore that goes into the prompt when one of its keywords shows up in the chat.</p><Button variant="prominent" small onClick={addEntry}>New Entry</Button></>
+                ? <><p>Add your first entry.</p><Button variant="prominent" small onClick={addEntry}>New Entry</Button></>
                 : <p className="hint">No entry matches.</p>}
             </div>
           )}
@@ -357,23 +357,23 @@ function EntryBody({ e, set, fields, moreOpen, onMore, onDuplicate, onDelete }: 
   return (
     <div className="lore-body">
       <section className="lore-sec">
-        <div className="lore-lbl"><b>Title</b><Help text="Only for you, in this list (SillyTavern: “memo” / comment). The AI never sees it." /></div>
+        <div className="lore-lbl"><b>Title</b><Help text="Editor label only." /></div>
         <input aria-label="Entry title" value={e.title} placeholder={e.keys[0] ?? "Title"} onChange={(x) => set({ title: x.target.value })} />
       </section>
       <section className="lore-sec">
-        <div className="lore-lbl"><b>Text</b><Help text="What goes into the prompt. Macros like {{char}} and {{user}} work here; {{outlet::name}} pulls in an outlet." /><span className="spacer" /><span className="hint tabular">{estimateTokens(e.content) - 4} tokens</span></div>
+        <div className="lore-lbl"><b>Text</b><Help text="Text included in the prompt. Supports {{char}}, {{user}} and {{outlet::name}}." /><span className="spacer" /><span className="hint tabular">{estimateTokens(e.content) - 4} tokens</span></div>
         <textarea className="lore-prose" aria-label="Entry text" rows={Math.min(14, Math.max(4, Math.ceil(e.content.length / 70) + 1))} value={e.content} onChange={(x) => set({ content: x.target.value })} />
       </section>
 
       <section className="lore-sec">
-        <div className="lore-lbl"><b>Keywords</b><Help text="The entry goes in when one of these shows up in the last messages (how many: Settings → Lorebooks, or “Messages to read” below). A keyword written as /pattern/flags is a regular expression." /></div>
+        <div className="lore-lbl"><b>Keywords</b><Help text="Matches recent messages. Use /pattern/flags for regex. Reading depth is set below or in Settings → Lorebooks." /></div>
         <KeyInput label="Keywords" keys={e.keys} onChange={(keys) => set({ keys })} placeholder="Type a keyword or /regex/, then Enter…" />
         <div className="lore-logic">
           <span>Also needs</span>
           <select aria-label="How the extra keywords count" value={e.logic} onChange={(x) => set({ logic: x.target.value as LoreEntry["logic"] })}>
             {LOGIC.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
           </select>
-          <Help text="Optional extra keywords checked after a main keyword matched. “and any of these”: at least one must be there too. “and all of these”: every one. “but not all of these”: at least one missing. “and none of these”: none of them may be there." />
+          <Help text="Checked after a primary keyword matches." />
         </div>
         <KeyInput label="Extra keywords" keys={e.secondaryKeys} onChange={(secondaryKeys) => set({ secondaryKeys })} placeholder="Optional…" />
         <label className="lore-inline"><Switch label="Always on" checked={e.constant} onChange={(constant) => set({ constant })} /> Always on (no keyword needed)</label>
@@ -393,7 +393,7 @@ function EntryBody({ e, set, fields, moreOpen, onMore, onDuplicate, onDelete }: 
         </>}
         {e.position === "outlet" && <label className="lore-mini"><span>Name</span><input aria-label="Outlet name" value={e.outletName} placeholder="e.g. secrets…" onChange={(x) => set({ outletName: x.target.value })} /></label>}
         <label className="lore-mini"><span>Order</span><NumberField label="Order" value={e.order} min={-100000} max={100000} onCommit={(v) => set({ order: v ?? 100 })} /></label>
-        <Help text="Order: higher numbers go later in the prompt (closer to the chat) and are kept first when the lorebook budget is full." />
+        <Help text="Higher order goes later in the prompt and takes priority when over budget." />
       </section>
 
       <section className="lore-sec">
@@ -405,7 +405,7 @@ function EntryBody({ e, set, fields, moreOpen, onMore, onDuplicate, onDelete }: 
       </section>
 
       <section className="lore-sec">
-        <div className="lore-lbl"><b>Only when the world state…</b><Help text="Homunculus only (SillyTavern ignores it). The entry also needs your trackers' values to match: e.g. Scene: World → Location contains “mill”. Checked for every way an entry goes in (keywords, always on, stays)." /></div>
+        <div className="lore-lbl"><b>Only when the world state…</b><Help text="Requires a tracker match for every trigger. Homunculus only; SillyTavern ignores this condition." /></div>
         <Conditions e={e} set={set} fields={fields} />
       </section>
 
@@ -718,7 +718,7 @@ function TryPane({ state, sessions, onOpen, entries }: { state: TryState; sessio
     <aside className="lore-try" aria-label="Try it" data-testid="lore-try">
       <div className="lore-try-head">
         <b>Try It</b>
-        <Help text="Runs this lorebook (also unsaved changes) on the newest messages of a session, as the next reply would: same reading settings, character, persona, world state and timers. Nothing is sent or saved." />
+        <Help text="Preview matches using this chat and your unsaved edits. Results stay in this preview." />
         <span className="spacer" />
         {state.busy && <span className="hint">checking…</span>}
       </div>

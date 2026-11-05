@@ -196,7 +196,7 @@ export function KitSheet({ kit, narratorName, npcNames, cardNames, avatar, onIma
         <span className="spacer" />
         <ConfirmButton label="Move to Trash" confirmLabel="Click Again" className="btn btn-plain btn-small danger-text" onConfirm={onTrash} />
       </div>
-      <p className="hint">Start a Story makes a new story with a copy of all this. Changing the Kit later does not change the stories started from it.</p>
+      <p className="hint">New stories use a copy of this setup.</p>
       {kit.description.trim() && <SheetSection title="About" prose>{kit.description}</SheetSection>}
       {kit.scenario.trim() && <SheetSection title="Scenario" prose>{kit.scenario}</SheetSection>}
       {(npcNames.length > 0 || cardNames.length > 0) && <SheetSection title="People">{[...cardNames, ...npcNames].join(", ")}</SheetSection>}
@@ -277,7 +277,7 @@ export function NarratorForm({ value, onChange, starts = [] }: { value: Narrator
         <button type="button" className="link" onClick={() => { const id = newBlockId(); setBlocks([...blocks, { id, name: "New block", on: true, text: "" }]); setOpen(id); }}>+ Add a Block</button></div>
       {blocks.length === 0 && (
         <div className="nf-blank">
-          <p className="hint">A blank narrator. Write a block, or start from one of these (it copies their blocks and style; change anything after):</p>
+          <p className="hint">Write a block or copy a starter narrator.</p>
           <div className="row-line wrap">{starts.filter((s) => narratorBlocks(s).length).map((s) => (
             <button key={s.id} type="button" className="fchip" title={s.about} onClick={() => onChange({ ...value, blocks: narratorBlocks(s).map((b) => ({ ...b })), instructions: blocksText(narratorBlocks(s)), style: { ...s.style }, modes: [...s.modes], about: value.about || s.about })}>{s.name}</button>))}</div>
         </div>
@@ -307,10 +307,10 @@ export function NarratorForm({ value, onChange, starts = [] }: { value: Narrator
 
       <div className="row-line">
         <Switch checked={value.mayAddNpcs} onChange={(v) => set("mayAddNpcs", v)} label="May bring in new people" />
-        <span className="label-row">May bring in new people <Help text="On: the narrator may invent new named people when the story needs them. Off: only the people of the story." /></span>
+        <span className="label-row">May bring in new people <Help text="Allows the narrator to invent named characters." /></span>
       </div>
       <label>
-        <span className="field-label label-row">Reminder before each reply <Help text="A short reminder sent right before each reply (like a card's post-history instructions), e.g. 'Keep replies under 300 words.'" /></span>
+        <span className="field-label label-row">Reminder before each reply <Help text="Sent before each reply. For example, 'Keep replies under 300 words.'" /></span>
         <textarea rows={2} aria-label="Turn instruction" value={value.turnInstruction} onChange={(e) => set("turnInstruction", e.target.value)} />
       </label>
     </div>
@@ -356,7 +356,7 @@ export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTr
         <aside className="ne-preview" aria-label="What the AI gets">
           <b>What the AI gets</b>
           <pre className="ne-aigets" data-testid="narrator-preview">{narratorText(draft)}</pre>
-          <p className="hint">Sent where a character's description goes. The story's mode adds one line of its own (who writes you).</p>
+          <p className="hint">Sent in the preset's character blocks. The story's play mode adds its own instruction.</p>
         </aside>
       </div>
     </div>
@@ -424,13 +424,13 @@ export function NpcEditor({ npc, fieldSets, stories, alsoIn, avatar, onImage, on
       <label><span className="field-label">Name</span><input aria-label="NPC name" value={draft.name} onChange={(e) => change({ name: e.target.value })} placeholder="e.g. Sister Maelle" /></label>
       <div className="form-grid">
         <label>
-          <span className="field-label label-row">Sheet <Help text="Which fields this NPC has: a field set of Scene: Characters (Standard, Fantasy, Sci-fi…). Fields under “Now” (mood, where they are) are the trackers' job while playing, so they are not here." /></span>
+          <span className="field-label label-row">Sheet <Help text="Choose a field set. Live scene values stay with the trackers." /></span>
           <select aria-label="Sheet" value={set?.id ?? ""} onChange={(e) => change({ schemaId: e.target.value })}>
             {fieldSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         </label>
         <label>
-          <span className="field-label label-row">Kept in <Help text="A story keeps its own NPCs together; a loose NPC can be added to any story or chat. The same NPC can be used in several places." /></span>
+          <span className="field-label label-row">Kept in <Help text="Choose a story folder or keep it unfiled. NPCs can be reused." /></span>
           <select aria-label="Kept in" value={draft.storyId ?? ""} onChange={(e) => change({ storyId: e.target.value || null })}>
             <option value="">Loose (no story)</option>
             {stories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -520,11 +520,11 @@ export function Modal({ title, onClose, children, testId, className = "modal-sma
 }
 
 const MODES: Array<{ role: UserRole; title: string; text: string; icon: ReactNode }> = [
-  { role: "player", title: "Narrated adventure", text: "A narrator tells the story and voices every other person. You play your own character.",
+  { role: "player", title: "Narrated adventure", text: "You write your character. The AI writes everyone else.",
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M6 4h9l3 3v13H6z" /><path d="M9 10h6M9 13h6M9 16h4" /></svg> },
-  { role: "coauthor", title: "Write it together", text: "You give directions and the AI writes everyone, your character too.",
+  { role: "coauthor", title: "Write it together", text: "You guide the story. The AI can write your character.",
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z" /><path d="M14 6l3 3" /></svg> },
-  { role: "director", title: "Director mode", text: "You are not in the story. The AI plays every character equally; you steer, let them act or just watch.",
+  { role: "director", title: "Director mode", text: "Direct a cast played by the AI.",
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="4" y="5" width="16" height="12" rx="2" /><path d="M9 21h6M12 17v4" /></svg> },
 ];
 const ROLE_CHIP: Record<UserRole, string> = { player: "You: Player", coauthor: "You: Co-author", director: "You: Director" };
@@ -550,7 +550,7 @@ export function NewStorySheet({ characters, avatars, lorebooks, setup, initialCa
     <Modal title="New story" onClose={onClose} testId="new-story" className="modal-wide"
       head={<label className="new-story-name"><span className="setup-title">Name</span>
         <input aria-label="Story name" value={name} placeholder={card ? card.name : "e.g. High Fantasy Party"} onChange={(e) => setName(e.target.value)} autoFocus /></label>}>
-      <p className="hint new-story-sub">A story is the mold: every chat you open from it starts with this setup. Everything can be changed later on the story's page.</p>
+      <p className="hint new-story-sub">New chats start with this setup.</p>
       <div className="new-story-body">
         <div className="story-col">
           <SetupSection title="How do you want to play?">
@@ -568,7 +568,7 @@ export function NewStorySheet({ characters, avatars, lorebooks, setup, initialCa
           <SetupSection title="Start from">
             <label className={`setup-row choice-row${from === "card" ? " on" : ""}${characters.length ? "" : " disabled"}`}>
               <input type="radio" name="start-from" checked={from === "card"} disabled={!characters.length} onChange={() => setFrom("card")} aria-label="One of your cards" />
-              <span className="setup-k grow"><span>One of your cards</span><small>For cards that are really a narrator or a whole world. The card is not changed.</small></span>
+              <span className="setup-k grow"><span>One of your cards</span><small>Use this card as the narrator.</small></span>
               {characters.length > 0 && (
                 <select className="pick-select" aria-label="Card to turn into a story" value={cardId} onChange={(e) => { setCardId(e.target.value); setFrom("card"); }}>
                   {characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -585,19 +585,14 @@ export function NewStorySheet({ characters, avatars, lorebooks, setup, initialCa
             )}
             <label className={`setup-row choice-row${from === "empty" ? " on" : ""}`}>
               <input type="radio" name="start-from" checked={from === "empty"} onChange={() => setFrom("empty")} aria-label="An empty story" />
-              <span className="setup-k grow"><span>An empty story</span><small>The Simple Narrator from the Library; you write how it starts.</small></span>
+              <span className="setup-k grow"><span>An empty story</span><small>Uses the Simple Narrator. You write the opening.</small></span>
             </label>
-            <div className="setup-row choice-row disabled" aria-disabled="true">
-              <input type="radio" name="start-from" disabled aria-label="Describe an idea to the Assistant" />
-              <span className="setup-k grow"><span>Describe an idea to the Assistant</span><small>It writes the narrator, the NPCs and the opening for you to keep or discard.</small></span>
-              <span className="tag">Later</span>
-            </div>
           </SetupSection>
         </div>
         <div className="story-col">
           <SetupFields mode="story" layer={layer} onChange={setLayer} names={setup.namesFor(undefined)} director={role === "director"}
             presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers} agents={setup.agents}
-            title="This story's setup" aside="every chat of this story starts with this"
+            title="This story's setup"
             trackersAside="fill the Scene panel after each reply" agentsAside="helpers that run with each reply" testId="new-story-setup" />
           <p className="hint">Rows marked “Default” follow Settings → Defaults until you pick something else.</p>
         </div>
@@ -609,7 +604,6 @@ export function NewStorySheet({ characters, avatars, lorebooks, setup, initialCa
           <span>{greetings ? <><span className="ok">✓</span> Opening · {greetings}</> : <><span className="muted">○</span> Opening (optional)</>}</span>
           <span>{hasConnection ? <><span className="ok">✓</span> Connection</> : <><span className="muted">○</span> Connection (Settings)</>}</span>
           <span>{trackersOn ? <><span className="ok">✓</span> {trackersOn} tracker{trackersOn === 1 ? "" : "s"}</> : <><span className="muted">○</span> Trackers (optional)</>}</span>
-          <span className="hint">Create Story opens its page</span>
         </span>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="prominent" onClick={create} data-testid="create-story">Create Story</Button>
@@ -662,9 +656,9 @@ export function SaveNpcSheet({ draft, fieldSets, story, folders, onSave, onClose
   );
   return (
     <Modal title={`Save ${draft.name} to the Library`} onClose={onClose} testId="save-npc" className="modal-chat">
-      <p className="hint">Keeps what the Scene knows about them as an NPC sheet, to use in other stories and chats.</p>
+      <p className="hint">Save this person's details for other stories and chats.</p>
       <label className="stack"><span className="setup-title">Name</span><input aria-label="NPC name" value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <label className="stack"><span className="setup-title label-row">Sheet <Help text="Which fields the NPC keeps (a field set of Scene: Characters). Fields under “Now” (mood, where they are) stay with the trackers." /></span>
+      <label className="stack"><span className="setup-title label-row">Sheet <Help text="Choose a field set. Live scene values stay with the trackers." /></span>
         <select aria-label="Sheet" value={schemaId} onChange={(e) => setSchemaId(e.target.value)}>{fieldSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
       </label>
       <p className="hint">{filled.length ? `Comes with: ${filled.map((f) => f.label).join(", ")}.` : "No values to bring for this sheet yet; you can fill it in the Library."}</p>
@@ -677,7 +671,7 @@ export function SaveNpcSheet({ draft, fieldSets, story, folders, onSave, onClose
           : <div className="setup-row"><Icon name="folder" size={15} /><input autoFocus aria-label="New folder name" placeholder="Folder name" value={naming}
               onChange={(e) => { setNaming(e.target.value); setWhere("new"); }} /></div>}
       </SetupSection>
-      <label className="row-line"><Switch checked={keep} onChange={setKeep} label="Keep in this chat" /><span className="label-row">Use the saved NPC in this chat <Help text="On: this chat uses the Library NPC from now on (its sheet is sent with each reply). Off: only a copy goes to the Library." /></span></label>
+      <label className="row-line"><Switch checked={keep} onChange={setKeep} label="Keep in this chat" /><span className="label-row">Use the saved NPC in this chat <Help text="Use this saved NPC in future replies here." /></span></label>
       <div className="modal-foot">
         <span className="grow" />
         <Button onClick={onClose}>Cancel</Button>

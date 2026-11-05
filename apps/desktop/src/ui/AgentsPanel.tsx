@@ -164,7 +164,7 @@ export function AgentsPanel({ svc, agents, trackers, session, storySetup, latest
       {m.open && m.pos && (
         <div className="agp" role="dialog" aria-label="Agents in this chat" style={{ top: m.pos.top, left: overStory(m.pos.left) }} data-testid="agents-menu">
           <div className="agp-head">
-            <span className="agp-title"><b>Agents in this chat</b><small>{storySetup ? "Your story's agents + this chat's changes · changes only affect this chat" : "Changes only affect this chat"}</small></span>
+            <span className="agp-title"><b>Agents in this chat</b><small>{storySetup ? "Inherits story agents. Overrides apply here." : "Changes only affect this chat"}</small></span>
             <IconButton label="Close" onClick={() => m.setOpen(false)}><Icon name="close" size={14} /></IconButton>
           </div>
           <label className="agp-search search-box"><Icon name="search" size={13} /><input aria-label="Search agents" placeholder="Search agents and trackers" value={q} onChange={(e) => setQ(e.target.value)} /></label>
@@ -210,7 +210,7 @@ export function RunSheet({ svc, item, run, session, messageId, connection, onClo
       {!run && tab !== "compare" && <p className="hint">It has not run on this reply.</p>}
       {run && tab === "reasoning" && (run.reasoning
         ? <pre className="run-mono" data-testid="run-reasoning">{run.reasoning}</pre>
-        : <p className="hint">The model sent no reasoning for this run. Models that think (with “thinking” on in the connection) send it.</p>)}
+        : <p className="hint">No reasoning returned.</p>)}
       {run && tab === "read" && (run.prompt?.length
         ? <div className="run-prompt">{run.prompt.map((p, i) => <div key={i}><span className="run-role">{p.role}</span><pre className="run-mono">{p.content}</pre></div>)}</div>
         : <p className="hint">{run.error ? "It failed before calling the AI." : "No AI call: this agent adds its own text."}</p>)}
@@ -237,7 +237,7 @@ function Compare({ svc, agentId, session, messageId, connection }: { svc: AppSer
   };
   return (
     <div className="run-compare" data-testid="run-compare">
-      <p className="hint">Runs this agent again on the same reply, with the same input, on the models you pick. Nothing is saved or changed.</p>
+      <p className="hint">Compare models on the same input. Results stay in this preview.</p>
       <div className="row-line wrap">
         {connection.profiles.map((p) => (
           <label key={p.id} className="check"><input type="checkbox" checked={picked.includes(p.id)}

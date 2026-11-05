@@ -48,6 +48,55 @@ test("API key: saved when leaving the box, kept per address, and can be forgotte
   await expect(page.getByPlaceholder("sk-…")).toHaveValue("");
 });
 
+// CODEX, 2026-11-05. The saved switch reaches both Test Connection and a normal chat.
+test("Streaming can be disabled per connection, persists, and reads complete JSON replies", async ({ page }) => {
+  const requests: Array<{ stream: boolean }> = [];
+  await page.route("https://complete.example/v1/chat/completions", async (route) => {
+    const body = route.request().postDataJSON();
+    requests.push(body);
+    if (body.stream) {
+      await route.fulfill({ contentType: "text/event-stream", body: sse("OK") });
+    } else {
+      await route.fulfill({ json: { choices: [{ message: { content: "OK", reasoning_content: "Complete response reasoning." }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 50, completion_tokens: 12, completion_tokens_details: { reasoning_tokens: 5 } } } });
+    }
+  });
+  await page.goto("/");
+  await openSettings(page);
+  await page.getByRole("button", { name: "New Connection" }).click();
+  const conn = editor(page);
+  await conn.getByLabel("Connection name").fill("Complete replies");
+  await conn.getByLabel("Address", { exact: true }).fill("https://complete.example/v1");
+  await conn.getByLabel("Model", { exact: true }).fill("fixture/model");
+  const streaming = conn.getByRole("switch", { name: "Streaming", exact: true });
+  await expect(streaming).toHaveAttribute("aria-checked", "true");
+  await streaming.click();
+  await conn.screenshot({ path: test.info().outputPath("streaming-off.png") });
+  await conn.getByRole("button", { name: "Test Connection" }).click();
+  await expect(page.getByTestId("test-result")).toContainText("Works. It answered “OK”");
+  expect(requests[0]?.stream).toBe(false);
+  await conn.getByRole("button", { name: "Create Connection" }).click();
+  await expect(page.getByTestId("connection-list")).toContainText("Complete replies");
+
+  await openSession(page);
+  await openTab(page, "prompt");
+  await page.getByLabel("Story connection").selectOption({ label: "Complete replies" });
+  await send(page, "Answer in one complete response.");
+  await expect(page.getByTestId("message").last()).toContainText("OK");
+  await expect(page.getByTestId("message").last().getByTestId("reasoning")).toBeVisible();
+  expect(requests.at(-1)?.stream).toBe(false);
+
+  await openSettings(page);
+  await page.getByTestId("connection-list").getByRole("button", { name: /Complete replies/ }).click();
+  await expect(streaming).toHaveAttribute("aria-checked", "false");
+  await streaming.click();
+  await conn.getByRole("button", { name: "Save", exact: true }).click();
+  const before = requests.length;
+  await conn.getByRole("button", { name: "Test Connection" }).click();
+  await expect.poll(() => requests.length).toBe(before + 1);
+  expect(requests.at(-1)?.stream).toBe(true);
+});
+
 test("a session picks its own connection; the reply says which one wrote it", async ({ page }) => {
   await page.goto("/");
   await openSettings(page);

@@ -729,7 +729,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             {drawFrom > 0 && (
               <li className="show-earlier" data-testid="show-earlier">
                 <button type="button" className="link" onClick={() => showEarlier(false)}>Show {Math.min(drawFrom, Math.max(10, prefs.messagesToShow))} earlier messages</button>
-                <span className="hint">{drawFrom} not drawn</span>
+                <span className="hint">{drawFrom} earlier</span>
                 <button type="button" className="link quiet" onClick={() => showEarlier(true)}>Show all</button>
               </li>
             )}
@@ -778,7 +778,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                       onSaveText={(t) => void saveText(m, t)} onWriteAgain={() => regenerate(m)} />}
                     {m.meta.incomplete === true && <span className="warn"> · incomplete</span>}
                     {typeof m.meta.beforeRegex === "string" && !isEditing && (
-                      <button type="button" className="link rx-undo" title="Regex scripts changed this message when it was saved. Put the original text back."
+                      <button type="button" className="link rx-undo" title="Restore the text from before regex changes."
                         onClick={() => void svc.chat.undoRegex(m.id).then(() => showBranch(headId ?? null))} data-testid="regex-undo">&nbsp;· changed by regex · Original</button>
                     )}
                     {hidden && <span className="hidden-tag" data-testid="hidden-tag"> · hidden from the AI</span>}
@@ -799,7 +799,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                         onChange={(e) => setEditing({ id: m.id, text: e.target.value })}
                         onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void saveEdit(); }} />
                       <span className="row-line end">
-                        <span className="hint grow">The old text is kept as a revision. Ctrl+Enter saves.</span>
+                        <span className="hint grow">Ctrl+Enter saves a revision.</span>
                         <Button small onClick={() => setEditing(null)}>Cancel</Button>
                         <Button small variant="prominent" onClick={() => void saveEdit()} data-testid="save-edit">Save</Button>
                       </span>
@@ -840,7 +840,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                         <IconButton className="act" label="Get a Reply" onClick={() => regenerate(m)}><Icon name="refresh" size={15} /></IconButton>
                       )}
                       {!busy && (
-                        <IconButton className="act" label="Branch from here" title="Branch from here: a new branch that ends at this message, and you go to it"
+                        <IconButton className="act" label="Branch from here" title="Starts a branch at this message."
                           onClick={() => void branchFrom(m.id)}><Icon name="branch" size={15} /></IconButton>
                       )}
                       <IconButton className={`act${hidden ? " on" : ""}`} label={hidden ? "Show to the AI" : "Hide from the AI"} aria-pressed={hidden} disabled={busy}
@@ -903,7 +903,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           {qrStyle === "bar" && <QuickReplyBar host={qrHost} />}
           <div className="composer-box">
             {qrStyle === "drawer" && <QuickReplyDrawer host={qrHost} />}
-            <textarea ref={boxRef} value={input} rows={1} aria-label="Your message" title={sendKey === "enter" ? "Enter sends · Shift+Enter makes a new line · Empty Enter continues" : "Ctrl+Enter sends or continues · Enter makes a new line"}
+            <textarea ref={boxRef} value={input} rows={1} aria-label="Your message"
               placeholder="Type a message"
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (sendKey === "enter" || e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } }} />
@@ -914,7 +914,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           </div>
           {/* UX review item 4 (D-078): the same shape as the Assistant's box — the model under the box opens Quick Connection;
               samplers stay a quiet link to the Prompt tab */}
-          <div className="composer-meta"><span className="composer-hint">{sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to {input.trim() ? "send" : "continue"} · Shift+Enter for a new line</span>
+          <div className="composer-meta"><span className="composer-hint">{sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to {input.trim() ? "send" : "continue"} · {sendKey === "enter" ? "Shift+Enter" : "Enter"} for a new line</span>
             <span className="grow" />
             {(params.temperature !== undefined || params.reasoningEffort) && (
               <button type="button" className="link quiet" onClick={() => { setTab("prompt"); if (!inspectorOpen) onToggleInspector(); }} title="Sampling: open the Prompt tab">
@@ -977,7 +977,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
 function MemoryLink({ session, storySetup, onOpen }: { session: Session; storySetup?: SetupLayer | undefined; onOpen: () => void }) {
   const on = session.setup.memory?.on ?? storySetup?.memory?.on ?? false;
   return (
-    <Group title="Memory" testId="memory-link" help="Chapter summaries of older messages. Everything about memory is in its own tab.">
+    <Group title="Memory" testId="memory-link">
       <Row label={on ? "On" : "Off"}><button type="button" className="link" onClick={onOpen} data-testid="open-memory-tab">Open the Memory Tab ›</button></Row>
     </Group>
   );
@@ -1034,7 +1034,7 @@ function ChatMenu({ onRename, onExportMarkdown, onDelete }: { onRename: () => vo
         <div className="look-menu chat-menu-pop" role="menu">
           <button type="button" role="menuitem" onClick={() => { setOpen(false); onRename(); }}>Rename</button>
           <button type="button" role="menuitem" disabled={!onExportMarkdown} onClick={() => { setOpen(false); onExportMarkdown?.(); }}>Export as Markdown</button>
-          <button type="button" role="menuitem" className="danger" title="The chat goes to Library → Trash; you can restore it." onClick={() => { setOpen(false); onDelete(); }}>Move to Trash</button>
+          <button type="button" role="menuitem" className="danger" title="Move this chat to Trash." onClick={() => { setOpen(false); onDelete(); }}>Move to Trash</button>
         </div>
       )}
     </span>

@@ -120,7 +120,7 @@ export function HomePage(p: HomeProps) {
       <div className="home-continue" data-testid="home-continue">
         <Slot name={name} avatar={st ? storyCover(st) : portrait(last, c)} className="home-cover" />
         <div className="home-continue-text">
-          <span className="home-kicker">Continue where you left off</span>
+          <span className="home-kicker">Last chat</span>
           <span className="home-continue-title">{name}</span>
           {p.lastLines[last.id] && <span className="home-line">“{p.lastLines[last.id]}”</span>}
           <div className="home-continue-actions">
@@ -161,7 +161,7 @@ export function HomePage(p: HomeProps) {
           <button type="button" className="plate-head" onClick={p.onCharacters}>
             <h2 id="home-played">Played last</h2><span className="plate-no">Pl. II, Characters</span>
           </button>
-          {played.length === 0 && <p className="home-empty">The characters you chat with show up here. Find one in Characters or the Card Browser.</p>}
+          {played.length === 0 && <p className="home-empty">No recent characters.</p>}
           <ul className="home-list">
             {played.map(({ c, s }) => (
               <li key={c.id}>
@@ -199,7 +199,7 @@ export function HomePage(p: HomeProps) {
             <div className="plate-head plate-head-static">
               <h2 id="home-assistant">Assistant</h2><span className="plate-no">Pl. IV</span>
             </div>
-            <p className="home-assistant-line">Builds characters, lorebooks and trackers with you.</p>
+            <p className="home-assistant-line">Create and edit library items.</p>
             <form className="home-ask" onSubmit={(e) => { e.preventDefault(); p.onAsk(ask.trim()); }}>
               <input aria-label="Ask the Assistant" placeholder="Make a tracker for money and quests…" value={ask} onChange={(e) => setAsk(e.target.value)} data-testid="home-ask" />
               <button type="submit" className="home-cta">Open in Assistant</button>

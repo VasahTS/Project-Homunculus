@@ -86,7 +86,7 @@ export function WhoPicker({ session, characters, personas, defaultPersonaId, ava
                     {c.variants.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                   </select>
                 ) : <span className="hint">one version (add more in Characters)</span>}
-                <span className="cast-track" title="Off: sent whole to the AI, but the Scene does not list it as one person. For a card with several characters (each is added by name), a world card, or anyone you don't want in the cast.">Scene
+                <span className="cast-track" title="Off keeps the card in the prompt and out of the tracked cast.">Scene
                   <Switch label={`Track ${c.name} in the Scene`} checked={isTracked(m, c)} onChange={(v) => setTracked(c, v)} /></span>
               </div>
             );

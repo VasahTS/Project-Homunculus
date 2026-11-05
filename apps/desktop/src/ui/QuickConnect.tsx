@@ -69,7 +69,7 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
       trigger={(open, toggle) => (
         <button type="button" className={`asst-model-btn qc-under${open ? " on" : ""}`} aria-expanded={open} data-testid="quick-connect"
           aria-label={current ? `Quick Connection: ${current.name}${current.model ? ` (${current.model})` : ""}` : "Quick Connection: switch connection and model"}
-          title="Switch the connection or the model" onClick={toggle}>
+          title="Connection and model" onClick={toggle}>
           {current ? (current.providerId === "offline-test" ? current.name : (currentModel || current.name).split("/").pop()) : "No connection"}
         </button>
       )} />
@@ -239,7 +239,7 @@ export function QuickConnectMenu({ svc, c, listModels, target, onManage, trigger
                       {p.id === current?.id && <Icon name="check" size={14} label="In use in this chat" />}
                     </button>
                   ))}
-                  {!profiles.length && <p className="hint">No saved connections yet. Make one in Settings → Connections.</p>}
+                  {!profiles.length && <p className="hint">No saved connections. Add one in Settings → Connections.</p>}
                 </div>
               </div>
               <div className="qc-col" aria-label="Models">

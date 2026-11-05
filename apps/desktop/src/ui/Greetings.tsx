@@ -94,7 +94,7 @@ export function Greetings({ value, onChange, look, name, avatarSrc, changed, onR
         <div className="ce-msg-who">{name || "Character"}{list.length > 1 && <small>greeting {k + 1} of {list.length}</small>}</div>
         <div className="prose ce-msg-text">{(list[k] ?? "").trim()
           ? <MessageText text={(list[k] ?? "").replace(/\{\{char\}\}/gi, name || "{{char}}")} />
-          : <p className="hint">Empty greeting: write how the chat opens.</p>}</div>
+          : <p className="hint">Write an opening message.</p>}</div>
       </div>
     </div>
   );

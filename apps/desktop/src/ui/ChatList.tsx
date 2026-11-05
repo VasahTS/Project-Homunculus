@@ -127,7 +127,7 @@ export function ChatList({ chats, search, onOpen, onRename, onExport, onTrash, o
         {matches && matches.length === 0 && <p className="hint cl-empty">No chat has “{q.trim()}”.</p>}
       </div>
       <div className="cl-foot">
-        {matches ? <span className="hint">{matches.length} of {chats.length} chats match “{q.trim()}” · click one to open it at that message</span>
+        {matches ? <span className="hint">{matches.length} of {chats.length} chats match “{q.trim()}”</span>
           : chats.length > initial ? <button type="button" className="link" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${chats.length} chats`}</button> : <span />}
         {onNew && <button type="button" className="link" onClick={onNew}>+ New Chat</button>}
       </div>

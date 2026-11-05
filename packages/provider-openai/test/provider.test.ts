@@ -22,6 +22,47 @@ const req = { connection: { providerId: "openai-compatible", model: "test/model"
 async function collect(it: AsyncIterable<StreamChunk>) { let s = ""; for await (const p of it) if (typeof p === "string") s += p; return s; }
 
 describe("OpenAI-compatible provider", () => {
+  // CODEX, 2026-11-05. Full responses retain the same data as SSE and honor the saved setting.
+  it("reads a non-streamed response with text, reasoning, tools, finish reason and usage", async () => {
+    let sent: Record<string, unknown> | undefined;
+    const chunks: StreamChunk[] = [];
+    const fetchFn = async (_url: string, init: RequestInit) => {
+      sent = JSON.parse(String(init.body));
+      return Response.json({ choices: [{ message: {
+        content: "Complete reply.", reasoning_content: "Considered the scene.",
+        tool_calls: [{ id: "tool-1", type: "function", function: { name: "find", arguments: '{"query":"mill"}' } }],
+      }, finish_reason: "tool_calls" }], usage: {
+        prompt_tokens: 80, completion_tokens: 20, completion_tokens_details: { reasoning_tokens: 8 }, cost: 0.001,
+      } });
+    };
+    for await (const c of streamChat({ ...req, connection: { ...req.connection, streaming: false, extraBody: { stream: true } } }, fetchFn)) chunks.push(c);
+    expect(sent?.stream).toBe(false);
+    expect(chunks).toEqual([
+      { reasoning: "Considered the scene." }, "Complete reply.",
+      { toolCalls: [{ id: "tool-1", name: "find", arguments: '{"query":"mill"}' }] },
+      { finish: "tool_calls" }, { usage: { tokensIn: 80, tokensOut: 20, tokensReasoning: 8, cost: 0.001 } },
+    ]);
+  });
+
+  it("allows Jev on a non-streamed chat-completions endpoint", async () => {
+    let sent: Record<string, unknown> | undefined;
+    const text = await collect(streamChat({ ...req, connection: { ...req.connection, model: "typesafe/jev-latest", streaming: false } }, async (_url, init) => {
+      sent = JSON.parse(String(init.body));
+      return Response.json({ choices: [{ message: { content: '{"relevant":0.9}' }, finish_reason: "stop" }] });
+    }));
+    expect(sent).toMatchObject({ model: "typesafe/jev-latest", stream: false });
+    expect(text).toBe('{"relevant":0.9}');
+  });
+
+  it.each([
+    ['{"error":{"message":"Model unavailable"}}', /Model unavailable/],
+    ["invalid json", /invalid JSON/],
+    ['{"choices":[]}', /unexpected shape/],
+  ] as const)("reports an unusable non-streamed response %s", async (body, error) => {
+    await expect(collect(streamChat({ ...req, connection: { ...req.connection, streaming: false } }, async () => new Response(body))))
+      .rejects.toThrow(error);
+  });
+
   it("streams the reply, ignoring keep-alive comments, and stops at [DONE]", async () => {
     let sent: { url: string; body: any; auth: string } | undefined;
     const fetchFn = async (url: string, init: RequestInit) => {
@@ -181,6 +222,6 @@ describe("decision models (/decisions)", () => {
 
   it("explains a service without decision models", async () => {
     const fetchFn = async () => new Response("not found", { status: 404 });
-    await expect(decide({ connection: { providerId: "x", model: "m", baseUrl: "https://example.com/v1" }, state: "", questions: [] }, fetchFn)).rejects.toThrow(/no decision models/);
+    await expect(decide({ connection: { providerId: "x", model: "m", baseUrl: "https://example.com/v1" }, state: "", questions: [] }, fetchFn)).rejects.toThrow(/does not expose \/decisions/);
   });
 });

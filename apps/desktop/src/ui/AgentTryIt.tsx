@@ -169,11 +169,11 @@ export function AgentTryIt({ draft,svc,sessions,stories,characters,connection,de
        </select></label>
       </div>
       {message&&<details key={message.id} className="selected-message"><summary><span className="message-snippet">{message.content.replace(/\s+/g," ")}</span><span className="show-message">View message</span></summary>
-       <div className="message-text">{message.content}</div><p className="hint">This message defines the history path. Your chat stays where it is.</p></details>}
+       <div className="message-text">{message.content}</div><p className="hint">Uses this message's history path.</p></details>}
       <div className="connection-grid"><label><span>Connection</span><select aria-label="Connection" value={connectionId} disabled={busy||loading||textMode} onChange={(e)=>setConnectionId(e.target.value)}>
        <option value="">Agent's connection</option>{connection.profiles.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}
       </select></label><div className="connection-meta"><span>{textMode?"Text mode · no model":profile?.model||profile?.name||"Uses the agent's resolved connection"}</span>
-       <small>{textMode?"No AI call. Expands this agent's text.":"A model request may incur cost."}</small></div></div>
+       <small>{textMode?"Expands macros locally.":"A model request may incur cost."}</small></div></div>
      </section>
      <div className="try-action"><button type="button" className="btn btn-prominent" data-testid="agent-try-run"
       disabled={busy||loading||!!problem||!session||(!message&&!contextError)} onClick={()=>void run()}>
@@ -208,7 +208,7 @@ export function AgentTryIt({ draft,svc,sessions,stories,characters,connection,de
 
 function PreviewInput({preview}:{preview:Preview}) {
  if(preview.result.prompt?.length)return <>{preview.result.prompt.map((part,i)=><section key={i}><h3 className="read-title">{part.role==="system"?"System instruction":part.role==="user"?"User context":part.role}</h3><div className="read-text">{part.content||"(empty)"}</div></section>)}</>;
- return <><h3 className="read-title">Agent text</h3><div className="read-text">{preview.agent.prompt}</div><p className="hint">No model request was sent. Macros use the selected message and chat context; the expanded text is in Result.</p></>;
+ return <><h3 className="read-title">Agent text</h3><div className="read-text">{preview.agent.prompt}</div><p className="hint">Expanded text is in Result.</p></>;
 }
 function PreviewOutput({agent,output}:{agent:AgentConfig;output:unknown}) {
  const label=agent.runMode==="text"?"Text after macro expansion":agent.output==="proposal"?"Proposed change · preview only":agent.output==="choices"?"Suggested choices · preview only":agent.output==="rewrite"?"Rewritten reply · preview only":agent.output==="check"?"Check result · preview only":"Agent result · preview only";

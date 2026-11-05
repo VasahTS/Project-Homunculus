@@ -521,25 +521,31 @@ export class TurnPipeline {
     };
   }
 
-  /** The decider of smart recall: a decision model (Jev) through a connection's address and key, or the agents' chat model. */
-  private deciderFor(setup: ResolvedSetup, main: ConnectionConfig, connections: Record<string, ConnectionConfig> | undefined): { decide: Decide; name: string } {
+  /** Recall uses the selected model's protocol and connection. CODEX, 2026-11-05. */
+  private deciderFor(setup: ResolvedSetup, main: ConnectionConfig, connections: Record<string, ConnectionConfig> | undefined): { decide: Decide; name: string; cacheScope: string } {
     const s = setup.memory;
     const byId = (id: string | null | undefined) => (id ? connections?.[id] ?? this.options.connectionById?.(id) : undefined);
     const agents = byId(setup.agentConnectionId) ?? main;
-    // a decision model picked as the agents' model (or as "Through"'s own model) still goes through /decisions (D-085)
-    if (s.decider === "jev" || isDecisionModel(agents.model)) {
-      const base = byId(s.deciderConnectionId) ?? agents;
+    // "jev" is the legacy stored value for the custom connection/model choice.
+    const custom = s.decider === "jev";
+    const base = custom ? byId(s.deciderConnectionId) ?? agents : agents;
+    if (custom && s.deciderConnectionId && !byId(s.deciderConnectionId)) {
+      throw new Error("The recall connection is no longer available. Choose another connection in Memory → Recall.");
+    }
+    const conn: ConnectionConfig = { ...base, model: custom ? s.deciderModel.trim() || base.model : base.model };
+    const cacheScope = JSON.stringify([custom ? s.deciderConnectionId : setup.agentConnectionId, conn.providerId, conn.baseUrl, conn.model, conn.params, conn.streaming !== false]);
+    // Non-streamed connections can expose decision models through chat completions. CODEX.
+    if (isDecisionModel(conn.model) && conn.streaming !== false) {
       const { fallback: _no, ...rest } = base;
-      const conn: ConnectionConfig = { ...rest, model: s.decider === "jev" ? s.deciderModel.trim() || "typesafe/jev-latest" : agents.model };
       const provider = this.core.providers.get(conn.providerId);
-      if (!provider?.decide) throw new Error(`"${provider?.name ?? conn.providerId}" cannot ask decision models. Choose "The agents' model" to decide.`);
-      return { name: conn.model, decide: async (state, questions, signal) =>
-        new Map(Object.entries((await provider.decide!({ connection: conn, state, questions, signal })).answers)) };
+      if (!provider?.decide) throw new Error(`"${provider?.name ?? conn.providerId}" cannot ask decision models. Choose a chat model for recall.`);
+      return { name: conn.model, cacheScope, decide: async (state, questions, signal) =>
+        new Map(Object.entries((await provider.decide!({ connection: { ...rest, model: conn.model }, state, questions, signal })).answers)) };
     }
     return {
-      name: agents.model,
+      name: conn.model, cacheScope,
       decide: (state, questions, signal) => chatDecide(async (turns, sig) =>
-        (await this.core.connections.complete(agents, turns, { signal: sig, maxTokens: 2000 })).text, state, questions, signal),
+        (await this.core.connections.complete(conn, turns, { signal: sig, maxTokens: 2000 })).text, state, questions, signal),
     };
   }
 
@@ -553,7 +559,7 @@ export class TurnPipeline {
     const lastUser = [...visible].reverse().find((m) => m.speaker.kind === "user");
     const lastAi = lastUser ? [...visible.slice(0, visible.indexOf(lastUser))].reverse().find((m) => m.speaker.kind !== "user") : visible.at(-1);
     const exchange = [lastAi, lastUser].filter((m): m is Message => !!m).map((m) => `[${names.bySpeaker(m)}]: ${m.content}`).join("\n\n");
-    let decider: { decide: Decide; name: string };
+    let decider: { decide: Decide; name: string; cacheScope?: string };
     try { decider = this.deciderFor(setup, main, connections); }
     catch (e) {
       // no decider: the plain summaries go, and the receipt says why
@@ -564,7 +570,7 @@ export class TurnPipeline {
     try {
       return await smartRecall({
         history, chapters, settings: setup.memory, exchange, nameOf: names.bySpeaker, ignoreNames: [names.char, names.user],
-        decide: decider.decide, deciderName: decider.name, cache: this.decisions, signal, now: this.now,
+        decide: decider.decide, deciderName: decider.name, cacheScope: decider.cacheScope, cache: this.decisions, signal, now: this.now,
       });
     } finally {
       await this.core.events.emit("memory.status", { sessionId: session.id, branchId, text: null });

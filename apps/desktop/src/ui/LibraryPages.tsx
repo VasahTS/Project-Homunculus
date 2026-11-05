@@ -105,7 +105,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
             {shown.length === 0 && <li className="side-empty">{characters.length ? "No character matches." : "No characters yet. Create or import one."}</li>}
           </ul>
         </>}
-        detail={detail ?? <EmptyDetail text="Pick a character on the left, or create or import one." />}
+        detail={detail ?? <EmptyDetail text="Select a character to edit it." />}
         collapsed={collapsed} onExpand={() => setCollapsed(false)}
       />
     </div>
@@ -145,7 +145,7 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
             {shown.length === 0 && <li className="side-empty">{trackers.length ? "No tracker matches." : "No trackers yet."}</li>}
           </ul>
         </>}
-        detail={detail ?? <EmptyDetail text="Pick a tracker on the left, or create a new one. Switch trackers on per session in the inspector's Scene tab." />}
+        detail={detail ?? <EmptyDetail text="Select a tracker to edit it. Enable trackers in the chat's Scene tab." />}
       />
     </div>
   );
@@ -198,7 +198,7 @@ export function PersonasPage({ lead, tabs, personas, avatars, defaultId, selecte
             {shown.length === 0 && <li className="side-empty">{personas.length ? "No persona matches." : "No personas yet. Without one, you are called “User”."}</li>}
           </ul>
         </>}
-        detail={detail ?? <EmptyDetail text="Pick a persona on the left, or create or import one. The default persona is used by every session that doesn't pick its own." />}
+        detail={detail ?? <EmptyDetail text="Select a persona to edit it." />}
       />
     </div>
   );
@@ -224,7 +224,7 @@ export function PresetsPage({ lead, tabs, presets, defaultId, selectedId, import
   const shown = ordered.items.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="page">
-      <Toolbar lead={lead} title="Presets" center={tabs} subtitle="The recipe of the prompt"
+      <Toolbar lead={lead} title="Presets" center={tabs} subtitle="Prompt blocks and sampling"
         trailing={<>
           <Button onClick={() => fileInput.current?.click()}><Icon name="import" size={14} /> Import</Button>
           <Help text={`Import presets from SillyTavern. ${importHelp} You can pick several files at once.`} />
@@ -250,7 +250,7 @@ export function PresetsPage({ lead, tabs, presets, defaultId, selectedId, import
             {shown.length === 0 && <li className="side-empty">{presets.length ? "No preset matches." : "No presets yet."}</li>}
           </ul>
         </>}
-        detail={detail ?? <EmptyDetail text="Pick a preset on the left, or create or import one. Each session picks its preset in the inspector's Prompt tab." />}
+        detail={detail ?? <EmptyDetail text="Select a preset to edit it." />}
       />
     </div>
   );
@@ -297,9 +297,9 @@ export function LorebooksPage({ lead, tabs, books, usedBy, selectedId, importHel
       <section className="lore-globals" aria-label="Global lorebooks" data-testid="lore-globals">
         <span className="lore-globals-title">
           <strong>Global Lorebooks</strong>
-          <Help text="Read in every session and chat, like SillyTavern’s “Active World(s) for all chats”. A session can still switch one off in its Prompt tab." />
+          <Help text="Applies to all chats. Override in a chat's Prompt tab." />
         </span>
-        <LorebookChips bare ids={globalIds} books={books} onChange={onSetGlobal} onOpen={onSelect} help="" emptyText="None yet. Add one to read it in every chat." addLabel="+ Add a Global Lorebook" />
+        <LorebookChips bare ids={globalIds} books={books} onChange={onSetGlobal} onOpen={onSelect} help="" emptyText="None selected." addLabel="+ Add a Global Lorebook" />
       </section>
       <MasterDetail
         list={<>
@@ -317,10 +317,10 @@ export function LorebooksPage({ lead, tabs, books, usedBy, selectedId, importHel
                 </button>
               </li>
             ))}
-            {shown.length === 0 && <li className="side-empty">{searching ? "No lorebook matches." : books.length ? "Nothing here yet. Drag lorebooks onto a folder, or pick its Folder in the editor." : "No lorebooks yet. Import one from SillyTavern or create one."}</li>}
+            {shown.length === 0 && <li className="side-empty">{searching ? "No lorebook matches." : books.length ? "Nothing here yet. Drag lorebooks onto a folder, or pick its Folder in the editor." : "Create or import your first lorebook."}</li>}
           </ul>
         </>}
-        detail={detail ?? <EmptyDetail text="Pick a lorebook on the left, or create or import one. A lorebook holds pieces of lore that go into the prompt when their keywords show up in the chat." />}
+        detail={detail ?? <EmptyDetail text="Select a lorebook to edit it." />}
       />
     </div>
   );
@@ -342,7 +342,7 @@ export function TrashPage({ lead, tabs, items, onRestore, onDeleteForever, onEmp
     <div className="page">
       <Toolbar lead={lead} title="Trash" center={tabs} subtitle={items.length ? `${items.length} item(s)` : "Empty"}
         trailing={<>
-          <Help text="Things you delete come here first, so nothing is lost by accident. Restore puts them back as they were. Delete Forever can't be undone." />
+          <Help text="Restore items from Trash. Delete Forever is permanent." />
           {items.length > 0 && <ConfirmButton label="Empty Trash" confirmLabel="Click Again to Empty" onConfirm={onEmpty} />}
         </>} />
       <div className="trash-page">

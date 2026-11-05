@@ -29,7 +29,7 @@ test("memory chapters stay independent across branches with the same history", a
   const messages = page.getByTestId("message");
   const markers = page.getByTestId("memory-covered-tag");
   await expect(markers).toHaveCount(0);
-  await expect(memory.getByTestId("memory-next")).toContainText("Write Chapter Now covers #1–#4");
+  await expect(memory.getByTestId("memory-next")).toContainText("Next chapter covers #1–#4");
   await memory.getByTestId("memory-write-now").click();
   await expect(memory.getByTestId("memory-chapter")).toHaveCount(1);
   await expect(memory.getByTestId("memory-stats")).toContainText("4 originals replaced");
@@ -95,7 +95,7 @@ test("memory saves a dedicated summary model, budget and prompt for the chat", a
   await memory.getByTestId("memory-fold-placement").getByRole("button").click();
   await expect(memory.getByTestId("memory-fold-placement")).toContainText("system message");
   await memory.getByTestId("memory-peek").click();
-  await expect(memory.getByTestId("memory-peek-text")).toContainText("start of the preset’s Chat History block");
+  await expect(memory.getByTestId("memory-peek-text")).toContainText("Memory text");
   await expect(memory.getByTestId("memory-peek-text")).toContainText("Offline chapter");
   await writer.getByRole("button", { name: "Reset Prompt" }).click();
   await expect(instructions).toHaveValue(/You summarize part of an ongoing roleplay/);

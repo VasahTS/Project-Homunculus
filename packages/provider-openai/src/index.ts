@@ -6,6 +6,20 @@ export const OPENROUTER_URL = "https://openrouter.ai/api/v1";
 
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
+// Full responses and SSE packets use the same message fields. CODEX, 2026-11-05.
+type ResponseMessage = {
+  content?: string | null;
+  refusal?: string;
+  reasoning?: string;
+  reasoning_content?: string;
+  tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }>;
+};
+type ChatResponse = {
+  choices?: Array<{ delta?: ResponseMessage; message?: ResponseMessage; finish_reason?: string | null }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number; completion_tokens_details?: { reasoning_tokens?: number } };
+  error?: { message?: string };
+};
+
 /** Reads a Server-Sent Events body and yields each `data:` payload. */
 export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = body.getReader();
@@ -33,10 +47,6 @@ export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator
 
 export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): AsyncGenerator<StreamChunk> {
   const { connection } = req;
-  // decision models (Jev…) only answer through /decisions and refuse streaming: say so plainly (D-085)
-  if (/(^|\/)(jev-|jev$)|^liquid\/d1|pplx-decider|(^|\/)clef(-|$)/i.test(connection.model.trim())) {
-    throw new Error(`"${connection.model}" is a decision model: it only answers Memory's yes/no questions and cannot write replies. Use it in Memory → Recall → Decide with Jev, and keep a chat model on this connection.`);
-  }
   const base = (connection.baseUrl ?? OPENROUTER_URL).replace(/\/+$/, "");
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (connection.apiKey) headers.Authorization = `Bearer ${connection.apiKey}`;
@@ -44,7 +54,7 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
   const body: Record<string, unknown> = {
     model: connection.model,
     messages: req.rich ? req.rich.map(toOpenAiMessage) : req.messages,
-    stream: true,
+    stream: connection.streaming !== false,
   };
   if (req.tools?.length) {
     body.tools = req.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
@@ -79,6 +89,18 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
     throw new Error(`The AI service answered ${res.status}: ${text.slice(0, 300) || res.statusText}`);
   }
 
+  let packets: AsyncIterable<string> | string[];
+  if (connection.streaming === false) {
+    const json = await res.json().catch(() => { throw new Error("The AI service returned invalid JSON."); }) as ChatResponse | null;
+    const message = json?.choices?.[0]?.message;
+    if (!json || (!json.error && (!message || typeof message !== "object" || Array.isArray(message)))) {
+      throw new Error("The AI service's full response has an unexpected shape.");
+    }
+    packets = [JSON.stringify(json)];
+  } else {
+    packets = readSse(res.body);
+  }
+
   // tool calls arrive in pieces (by index): name first, then the arguments' JSON a few characters at a time
   const calls: Array<{ id: string; name: string; arguments: string }> = [];
   const flushCalls = function* (): Generator<StreamChunk> {
@@ -86,24 +108,17 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
     calls.length = 0;
     if (done.length) yield { toolCalls: done };
   };
-  for await (const data of readSse(res.body)) {
+  for await (const data of packets) {
     if (data === "[DONE]") { yield* flushCalls(); return; }
-    let json: {
-      choices?: Array<{
-        delta?: { content?: string; reasoning?: string; reasoning_content?: string;
-          tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> };
-        finish_reason?: string | null;
-      }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number; completion_tokens_details?: { reasoning_tokens?: number } };
-      error?: { message?: string };
-    };
+    let json: ChatResponse;
     try { json = JSON.parse(data); } catch { continue; }
     if (json.error) throw new Error(`The AI service reported an error: ${json.error.message ?? "unknown"}`);
-    const delta = json.choices?.[0]?.delta;
+    const delta = json.choices?.[0]?.delta ?? json.choices?.[0]?.message;
     // thinking models: OpenRouter sends `reasoning`, DeepSeek/GLM-style servers `reasoning_content`
     const thought = delta?.reasoning ?? delta?.reasoning_content;
     if (thought) yield { reasoning: thought };
-    if (delta?.content) yield delta.content;
+    const content = delta?.content ?? delta?.refusal;
+    if (content) yield content;
     for (const tc of delta?.tool_calls ?? []) {
       const i = tc.index ?? calls.length;
       const c = (calls[i] ??= { id: "", name: "", arguments: "" });
@@ -190,9 +205,8 @@ export async function listModels(connection: ConnectionConfig, fetchFn: FetchLik
 }
 
 /**
- * Yes/no questions to a decision model (D-083): TypeSafe's System One format, as nano-gpt serves it at
- * `POST <address>/decisions` (models typesafe/jev-latest, typesafe/jev-1.13…). Each question is a `noul`; the answer
- * is the probability that it is true. Only input tokens are billed. Docs: docs.nano-gpt.com, "jev-decisions".
+ * Yes/no questions in TypeSafe's System One format at `POST <address>/decisions`.
+ * Each question is a `noul`; the answer is the probability that it is true. CODEX, 2026-11-05.
  */
 export async function decide(req: DecisionRequest, fetchFn: FetchLike): Promise<DecisionAnswer> {
   const { connection } = req;
@@ -217,7 +231,7 @@ export async function decide(req: DecisionRequest, fetchFn: FetchLike): Promise<
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(res.status === 404
-      ? `${base} has no decision models (/decisions answered 404). Use a nano-gpt address such as https://nano-gpt.com/api/v1.`
+      ? `${base} does not expose /decisions (404). Choose a chat model or an endpoint that supports this model.`
       : `The decision model answered ${res.status}: ${text.slice(0, 300) || res.statusText}`);
   }
   const json = await res.json().catch(() => null) as { answers?: Record<string, { noul?: unknown }>; usage?: { input_tokens?: number; cost?: number; estimated_cost?: number } } | null;

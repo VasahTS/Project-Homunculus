@@ -23,9 +23,7 @@ export function noteSummary(n: ResolvedAuthorsNote): string {
   return `${when} · ${where} · ${AS[n.role]}`;
 }
 
-const HELP = "A note the AI reads with the story, like SillyTavern's Author's Note: a standing direction (tone, pacing, a secret it must keep). "
-  + "It goes into the prompt every N of your messages, N messages before the end of the chat (or with the main prompt). "
-  + "{{char}} and {{user}} work. Lorebook entries placed \"around the Author's Note\" go with it.";
+const HELP = "A recurring instruction for the story AI. Supports {{char}} and {{user}}. Lorebook entries placed around the Author’s Note follow its position.";
 
 const readOpen = (key: string) => { try { return localStorage.getItem(key) !== "0"; } catch { return true; } };
 const writeOpen = (key: string, open: boolean) => { try { localStorage.setItem(key, open ? "1" : "0"); } catch { /* storage may be blocked */ } };

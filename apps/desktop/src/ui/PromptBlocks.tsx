@@ -134,7 +134,7 @@ export function PromptBlocks({ preset, layer, above, level, onChange, onSavePres
               {b.marker ? <span className="tag marker">auto</span> : <span className="hint tabular">{b.content.trim() ? `${estimateTokens(b.content)} tok` : "empty"}</span>}
               <Switch label={`${b.name || b.id} on`} checked={b.enabled} disabled={busy} onChange={(enabled) => void flush().then((ok) => { if (ok) void patch(b.id, { enabled }); })} />
             </div>
-            {editing === b.id && (b.marker ? <p className="hint">This marker is filled by the app. Its switch and order can still be changed.</p> :
+            {editing === b.id && (b.marker ? <p className="hint">Automatic content. You can change its position and enabled state.</p> :
               <div className="stack inline-prompt-editor" onBlur={(e) => { if (!root.current?.contains(e.relatedTarget)) void flush(); }}>
                 <textarea aria-label={`Text of ${b.name || b.id}`} rows={6} value={text} onChange={(e) => editText(b.id, e.target.value, keepText)} />
                 {(b.id === "main" || b.id === "jailbreak") && <label className="check">

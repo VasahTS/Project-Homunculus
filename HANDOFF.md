@@ -1,5 +1,34 @@
 # HANDOFF — Homunculus 2
 
+## Publish all local gpt changes (2026-11-05) — CODEX
+
+- Daniel authorized committing and pushing every local change to gpt, superseding the local-only status below.
+- Preserved the seven upstream Claude commits through 9256913 and advanced the local parent without changing the staged files. The new commit contains concise UI copy, configurable recall, per-connection streaming, tests and the existing lockfile metadata edit.
+- Validation remains the completed TypeScript/build, 726 unit passes (3 skipped), 301 earlier browser scenarios and 37 focused browser cases after recall/streaming changes. No application source changed during publication.
+- Graphify refreshed successfully (3,892 nodes; source unchanged). Publish only to origin/gpt with CODEX author/committer; no release or other branch update. Signed **CODEX**.
+
+## Streaming per connection (2026-11-05) — CODEX
+
+- Settings → Connections now has a Streaming switch. Off sends `stream: false` and reads a complete JSON response; older profiles keep streaming enabled.
+- Preserves text, reasoning, tool calls, finish reason and usage. Test Connection and every caller using the saved profile inherit the setting.
+- Jev recall can use non-streamed chat completions. Changing streaming mode invalidates recall answers cached under the previous mode.
+- Passed TypeScript, an in-memory production build, 726 unit tests (3 skipped) and 37 Chromium tests, plus a focused repeat with visual inspection. Simulated providers only; native Tauri and live Jev were not exercised.
+- Local, uncommitted and unpublished. Graphify refreshed successfully. Signed **CODEX**.
+
+## Recall connection and model (2026-11-05) — CODEX
+
+- Memory → Recall now defaults to the agents’ model and offers Custom model with any saved connection, optional model override and Browse models. Existing stored jev choices remain readable.
+- Routes chat models through chat completions and dedicated decision models through their endpoint, using the selected connection’s address and key. Removed nano-gpt-only wording.
+- Namespaced recall answers by connection/model and made Test Recall wait for pending settings saves. Reproduced both the ordinary-model rejection and stale-model request before fixing them.
+- Passed TypeScript, an in-memory production build, 719 unit tests (3 skipped) and 34 Chromium tests with simulated providers. Graphify refreshed successfully. Local, uncommitted and unpublished. Signed **CODEX**.
+
+## Concise interface copy (2026-11-05) — CODEX
+
+- Applied Daniel’s copy audit across Settings, Memory, trackers, agents, Assistant, Library, stories and card browsing. Removed repeated help and the two disabled roadmap choices.
+- Existing starter agents receive shorter descriptions only when their built-in source and original text still match. Custom fields and deleted starters are preserved.
+- Verified TypeScript, an in-memory production build, 715 unit tests (3 skipped), and all 301 Chromium scenarios across the full run and focused reruns. Updated old-copy assertions and checked six demo screenshots. Graphify refreshed successfully, with a partial-parse warning for store.ts.
+- Local, uncommitted and unpublished. Browser checks used demo data and simulated services. Native Tauri and live providers were not exercised. Signed **CODEX**.
+
 ## The opening, draft C "Typewriter" (2026-11-04) — CLAUDE — D-091
 
 - Daniel picked draft C on the canvas ("Abertura do Homunculus"): HOMUNCULUS typed with typewriter sounds, a strike, "ars narrandi", then the name glides into Home's title and the spire into the Assistant plate. A click or any key skips it. Settings → General → **Skip the opening**, **Opening sound**. Sound is soft (measured, D-091).

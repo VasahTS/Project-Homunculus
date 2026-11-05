@@ -35,7 +35,7 @@ test("a failed install says nothing changed and offers Try Again", async ({ page
   const bar = page.getByTestId("update-bar");
   await bar.getByRole("button", { name: "Update & Restart" }).click();
   await expect(bar).toContainText("Could not install Homunculus 9.9.9");
-  await expect(bar).toContainText("nothing was changed");
+  await expect(bar).toContainText("You can keep using this version.");
   await bar.getByRole("button", { name: "Try Again" }).click();
   await expect(bar).toContainText("Homunculus 9.9.9 is ready");
 });

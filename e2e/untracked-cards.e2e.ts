@@ -22,7 +22,7 @@ test("Characters: 'Don't Track' is the card's default; the chat can change it; t
   await editCharacter(page, "Lyra");
   const kind = page.getByTestId("card-kind");
   await expect(kind.getByRole("radio", { name: "Track as a Person" })).toHaveAttribute("aria-checked", "true");
-  await expect(kind).toContainText("a card with several characters");
+  await expect(kind).toContainText("world or multi-character cards");
   await kind.getByRole("radio", { name: "Don't Track" }).click();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("✓ Saved")).toBeVisible();
@@ -33,7 +33,7 @@ test("Characters: 'Don't Track' is the card's default; the chat can change it; t
   await openTab(page, "prompt");
   const pc = page.getByTestId("prompt-character");
   await expect(pc).toContainText("Not tracked in the Scene");
-  await expect(pc.getByTestId("prompt-untracked-note")).toContainText("Sent whole");
+  await expect(pc.getByTestId("prompt-untracked-note")).toContainText("Included in the prompt");
   await expect(pc.getByRole("button", { name: /^Description/ })).toContainText("→ Char Description");
 
   await openTab(page, "scene");
@@ -58,7 +58,7 @@ test("Story → Characters: 'Track in Scene' per card, clearly explained", async
   await newStory(page, "Tea Shop");
   await addCardToStory(page, "Lyra");
   const people = page.getByTestId("story-people");
-  await expect(people).toContainText("a card with several characters, a world card");
+  await expect(people).toContainText("world or multi-character cards");
   const row = page.getByTestId("story-card-row").filter({ hasText: "Lyra" });
   const sw = row.getByRole("switch", { name: "Track Lyra in the Scene" });
   await expect(sw).toHaveAttribute("aria-checked", "true");

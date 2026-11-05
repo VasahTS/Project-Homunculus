@@ -257,7 +257,7 @@ export function SessionQuickReplies({ chatId, storyId, storyName, cast, onOpenLi
       <div className="group-head"><span className="label-row">Quick Replies</span>
         <span className="group-aside"><button type="button" className="link quiet" onClick={onOpenLibrary}>Edit sets</button></span></div>
       {data.sets.length === 0 ? (
-        <div className="group"><div className="row row-wide"><span className="hint">No sets yet. Make them or import them from SillyTavern in Library → Quick Replies.</span></div></div>
+        <div className="group"><div className="row row-wide"><span className="hint">Manage sets in Library → Quick Replies.</span></div></div>
       ) : places.map((p) => {
         const links = linksAt(data, p.scope, p.id).filter((l) => name(l.setId));
         const free = data.sets.filter((s) => !links.some((l) => l.setId === s.id));
@@ -331,7 +331,7 @@ export function QuickRepliesPage({ lead, focus, onExport, onNotice }: {
 
   return (
     <section className="qr-page" data-testid="quick-replies-page">
-      <Toolbar lead={lead} title="Quick Replies" subtitle="Saved texts one click away, above the message box"
+      <Toolbar lead={lead} title="Quick Replies" subtitle="Saved messages and snippets"
         trailing={<>
           <Button small onClick={() => file.current?.click()} title="SillyTavern: one exported set, several, or settings.json" data-testid="qr-import"><Icon name="import" size={13} /> Import</Button>
           {data.sets.length > 0 && <Button small variant="plain" data-testid="qr-export-all" title="Every set, as a list SillyTavern can import"
@@ -348,7 +348,7 @@ export function QuickRepliesPage({ lead, focus, onExport, onNotice }: {
               <span>{s.name}</span><span className="hint">{s.replies.length}{data.global.some((l) => l.setId === s.id) ? " · global" : ""}</span>
             </button>
           ))}
-          {data.sets.length === 0 && <p className="hint">No sets yet. Make one, or import yours from SillyTavern (Extensions → Quick Reply → Export, or its settings.json).</p>}
+          {data.sets.length === 0 && <p className="hint">Create or import your first set.</p>}
           <span className="grow" />
           <Button small data-testid="qr-new-set" onClick={() => { const s = newSet(data.sets); save({ ...data, sets: [...data.sets, s] }); setSetId(s.id); setReplyId(s.replies[0]!.id); }}><Icon name="plus" size={12} /> New Set</Button>
         </nav>
@@ -377,7 +377,7 @@ export function QuickRepliesPage({ lead, focus, onExport, onNotice }: {
               <div className="qr-opt"><span className="qr-lbl">The reply goes</span>
                 <Segmented small label="The reply goes" value={set.before ? "before" : "after"} onChange={(v) => putSet({ ...set, before: v === "before" })}
                   options={[{ value: "after", label: "After your text" }, { value: "before", label: "Before it" }]} /></div>
-              {!set.send && <label className="qr-opt"><span className="qr-lbl">Stack <span className="hint">— each click adds a line instead of replacing the box</span></span>
+              {!set.send && <label className="qr-opt"><span className="qr-lbl">Stack <span className="hint">· append on each click</span></span>
                 <Switch label="Stack in the box" checked={set.stack} onChange={(stack) => putSet({ ...set, stack })} /></label>}
               <div className="qr-opt"><span className="qr-lbl">Color</span>
                 <span className="qr-color">
@@ -408,7 +408,7 @@ export function QuickRepliesPage({ lead, focus, onExport, onNotice }: {
             onDuplicate={() => { const c = { ...reply, id: crypto.randomUUID(), label: `${reply.label} copy` }; const i = set.replies.indexOf(reply); putSet({ ...set, replies: [...set.replies.slice(0, i + 1), c, ...set.replies.slice(i + 1)] }); setReplyId(c.id); }}
             onDelete={() => { putSet({ ...set, replies: set.replies.filter((x) => x.id !== reply.id) }); setReplyId(null); }} />
             : <div className="qr-edit"><p className="hint">No replies in this set. Add one.</p></div>}
-        </> : <div className="qr-edit"><p className="hint">Make a set or import one.</p></div>}
+        </> : <div className="qr-edit"><p className="hint">Select a set to edit it.</p></div>}
       </div>
     </section>
   );
@@ -438,7 +438,7 @@ function ReplyEditor({ reply: r, set, sets, onChange, onDuplicate, onDelete }: {
       </div>
       <label className="qr-field qr-grow"><span className="qr-lbl">Text</span>
         <textarea className="qr-text" value={r.message} spellCheck={false} onChange={(e) => put({ message: e.target.value })} data-testid="qr-message" /></label>
-      <p className="hint qr-help"><code>{"{{input}}"}</code> = what is in the message box when you click · <code>{"{{char}}"}</code>, <code>{"{{user}}"}</code> and the other macros work as in a message · Ctrl+click a button in the chat to edit it here</p>
+      <p className="hint qr-help"><code>{"{{input}}"}</code> inserts the current draft. Supports message macros. Ctrl+click a chat button to edit it.</p>
 
       <div className="qr-try">
         <span className="qr-lbl">Try it</span>
@@ -447,7 +447,7 @@ function ReplyEditor({ reply: r, set, sets, onChange, onDuplicate, onDelete }: {
       </div>
 
       <div className="qr-menu-edit">
-        <span className="qr-lbl">Menu <span className="hint">(⋮ and right-click) — other sets, opened from this button</span></span>
+        <span className="qr-lbl">Menu <span className="hint">· open other sets from this reply</span></span>
         {r.menu.map((l, i) => (
           <div key={l.setId} className="qr-menu-link">
             <select aria-label="Set in the menu" value={l.setId} onChange={(e) => put({ menu: r.menu.map((x, j) => (j === i ? { ...x, setId: e.target.value } : x)) })}>

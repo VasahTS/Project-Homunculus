@@ -59,7 +59,7 @@ export function UpdateBar({ u }: { u: Updates }) {
           <span className="update-mark" aria-hidden><Icon name="alert" size={14} /></span>
           <span className="update-text">
             <strong>Could not install Homunculus {s.version}</strong>
-            <span className="update-sub">{s.message} — nothing was changed; this version keeps working.</span>
+            <span className="update-sub">{s.message}. You can keep using this version.</span>
           </span>
           <span className="update-actions">
             <Button small variant="plain" onClick={u.dismiss}>Later</Button>

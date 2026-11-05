@@ -137,7 +137,7 @@ export function HistoryList({ entries, fields, onRestore, loading }: {
   entries: HistoryEntry[]; fields: HistoryField[]; onRestore: (data: unknown) => void; loading?: boolean;
 }): ReactNode {
   if (loading) return <p className="hint">Loading…</p>;
-  if (entries.length === 0) return <p className="hint">No saved versions yet. Every time you save, the version is kept here.</p>;
+  if (entries.length === 0) return <p className="hint">No saved versions yet.</p>;
   return (
     <ol className="history-list" data-testid="history">
       {entries.map((e, i) => {

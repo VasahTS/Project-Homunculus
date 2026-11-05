@@ -72,7 +72,7 @@ export function SessionLorebooks({ session, all, load, onChangeSession, onOpen }
   };
   return (
     <Group title="Lorebooks" testId="session-lorebooks"
-      help="The lorebooks this session reads: the Default ones, the character's and your persona's, and any you add here. Switching one off only affects this session. Edit them in Library → Lorebooks; how they are read is in Settings → Lorebooks.">
+      help="Inherited and added lorebooks. Switch a book off for this chat only.">
       {rows === null && <Row wide><span className="hint">Loading…</span></Row>}
       {rows?.length === 0 && <Row wide><span className="hint">No lorebooks in this session.</span></Row>}
       {rows?.map((r) => (
@@ -104,7 +104,7 @@ export function ReplyLorebooks({ lore }: { lore: NonNullable<GenerationRecord["l
   const used = lore.activated.reduce((n, a) => n + a.tokens, 0);
   return (
     <Group title="Lorebooks" testId="reply-lore" aside={<span className="tabular">{lore.activated.length} entr{lore.activated.length === 1 ? "y" : "ies"} · {used} tok</span>}
-      help="Which lorebook entries went into this reply's prompt and why, and the ones that matched but stayed out.">
+      help="Matched, included and skipped entries.">
       {lore.activated.length === 0 && <Row wide><span className="hint">No lorebook entry went in.</span></Row>}
       {lore.activated.map((a) => (
         <div key={`${a.bookId}.${a.entryId}`} className="lore-try-item lore-reply-item">
@@ -145,7 +145,7 @@ export function LoreSettingsSection({ settings, onSave, books, defaultSetup, onS
   const everyIds = defaultSetup.lorebooks && defaultSetup.lorebooks.mode !== "keep" ? defaultSetup.lorebooks.add : [];
   return (
     <div className="settings-page lore-settings" data-testid="lore-settings">
-      <Group title="Global Lorebooks" help="Read in every session and chat (SillyTavern: “Active World(s) for all chats”). A session can still switch one off in its Prompt tab. You can also switch “Global” on in the lorebook itself (Library → Lorebooks).">
+      <Group title="Global Lorebooks" help="Applies to all chats. Override in a chat's Prompt tab.">
         <Row wide><LorebookChips bare ids={everyIds} books={books} help="Pick the books every session reads."
           onChange={(ids) => void onSetDefaultSetup({ lorebooks: { mode: "add", add: ids, remove: defaultSetup.lorebooks?.remove ?? [] } })} /></Row>
       </Group>
@@ -172,7 +172,6 @@ export function LoreSettingsSection({ settings, onSave, books, defaultSetup, onS
         </Row>
         {sw("useGroupScoring", "Groups pick by most keywords", "In a group, the entries with the most keyword hits win. Otherwise a weighted roll picks one.")}
       </Group>
-      <p className="hint">Same settings and defaults as SillyTavern's World Info, so its lorebooks behave the same here.</p>
       <div><Button small onClick={() => put(LoreSettings.parse({}))}>Restore SillyTavern's Defaults</Button></div>
     </div>
   );

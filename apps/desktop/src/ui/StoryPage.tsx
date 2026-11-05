@@ -24,9 +24,9 @@ import { ChatList, type ChatSearch } from "./ChatList.tsx";
 import type { ChatExportFormat } from "@homunculus/core";
 
 export const ROLE_HELP: Record<UserRole, string> = {
-  player: "You play your own character; the narrator voices everyone else.",
-  coauthor: "You give directions and the AI writes everyone, your character too.",
-  director: "You are not in the story. The AI plays every character equally; you steer, let them act or just watch.",
+  player: "You write your character. The AI writes everyone else.",
+  coauthor: "You guide the story. The AI can write your character.",
+  director: "Direct a cast played by the AI.",
 };
 
 /** One chat of the story, as its card shows it. */
@@ -217,9 +217,9 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               <div className="popover more-pop" role="menu">
                 <button type="button" role="menuitem" className="menu-item" onClick={() => { setMore(false); setRenaming(true); }}>Rename</button>
                 {!isKit && onSaveAsKit && <button type="button" role="menuitem" className="menu-item" onClick={() => { setMore(false); flush(); onSaveAsKit(draft); }}
-                  title="Keep this story's start (narrator, people, scenario, openings, setup) in the Library, to start new stories from it">Save as Kit</button>}
+                  title="Save this setup as a reusable Kit.">Save as Kit</button>}
                 <button type="button" role="menuitem" className="menu-item danger-text" onClick={() => { setMore(false); flush(); onTrash(draft); }}
-                  title={isKit ? "The Kit goes to the Trash (Library → Trash); stories started from it are not touched." : "The story and its chats go to the Trash (Library → Trash); you can restore them."}>Move to Trash</button>
+                  title={isKit ? "Move this Kit to Trash." : "Move this story and its chats to Trash."}>Move to Trash</button>
               </div>
             )}
           </span>
@@ -251,7 +251,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
 
         <div className="story-cols">
           <div className="story-col">
-            <SetupSection title="Cast" aside="who is in this story" testId="story-people">
+            <SetupSection title="Cast" testId="story-people">
               <div data-testid="story-narrator">
                 <div className="setup-row">
                   {cover ? <img className="cast-pic" src={avatarUrl(cover)} alt="" /> : <span className="cast-pic letter" aria-hidden>{narratorName.slice(0, 1).toUpperCase()}</span>}
@@ -260,7 +260,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                 </div>
                 {narratorOpen && (
                   <div className="setup-row column">
-                    <label className="row-line"><span className="field-label label-row">Who tells it <Help text="The narrator is not a character: it describes the scene and voices everyone else. Keep narrators in the Library to reuse them, use one of your cards, or write one just for this story." /></span>
+                    <label className="row-line"><span className="field-label label-row">Who tells it <Help text="The narrator describes the scene and voices the cast." /></span>
                       <select aria-label="Narrator" value={narratorValue} onChange={(e) => pickNarrator(e.target.value)}>
                         <optgroup label="Library">{narrators.map((n) => <option key={n.id} value={`vault:${n.id}`}>{n.name}</option>)}</optgroup>
                         <optgroup label="A card tells it">{characters.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name}</option>)}</optgroup>
@@ -270,12 +270,12 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                     {pickers && <button type="button" className="link align-start" onClick={() => pickers.narrator(vaultNarrator?.id ?? null, (id) => pickNarrator(`vault:${id}`))}>Browse the Library's Narrators…</button>}
                     {vaultNarrator && <p className="hint">{vaultNarrator.about.trim() || `${vaultNarrator.instructions.slice(0, 180)}${vaultNarrator.instructions.length > 180 ? "…" : ""}`} <button className="link" onClick={() => onOpenNarrator(vaultNarrator.id)}>Edit in the Library</button></p>}
                     {narratorCard && narratorCard.variants.length > 0 && (
-                      <label className="row-line"><span className="field-label label-row">Version <Help text="Which version of the card tells this story. Main = the card as imported." /></span>
+                      <label className="row-line"><span className="field-label label-row">Version <Help text="Card version used as the narrator." /></span>
                         <VersionSelect c={narratorCard} value={narratorVariant} label="Narrator card version"
                           onChange={(v) => change({ narrator: { kind: "card", characterId: narratorCard.id, variantId: v } })} />
                       </label>
                     )}
-                    {narratorCard && <p className="hint">The card {narratorCard.name} is sent as it is (its system prompt, description and lorebooks).</p>}
+                    {narratorCard && <p className="hint">Uses {narratorCard.name}'s instructions and lorebooks.</p>}
                     {draft.narrator.kind === "own" && (
                       <>
                         <NarratorForm value={draft.narrator.narrator} starts={narrators} onChange={(n) => change({ narrator: { kind: "own", narrator: n } })} />
@@ -291,7 +291,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               </div>
 
               <div className="setup-row">
-                <span className="setup-k grow"><span>NPCs</span>{inStory.length === 0 && <small>None yet. The narrator can bring people in as the story goes.</small>}</span>
+                <span className="setup-k grow"><span>NPCs</span>{inStory.length === 0 && <small>No saved NPCs.</small>}</span>
                 <button type="button" className="link" onClick={() => void newNpc()}>+ New NPC</button>
                 {pickers ? (
                   <button type="button" className="link" onClick={() => pickers.npc(draft.npcIds, (id) => change({ npcIds: [...draft.npcIds, id] }))}>+ From the Library</button>
@@ -322,7 +322,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               })}
 
               <div className="setup-row">
-                <span className="setup-k grow"><span>Characters</span><small>{cards.length === 0 ? "Full cards from your Library, sent as they are. " : ""}Turn off “Track in Scene” for a card with several characters, a world card, or anyone you don't want in the Scene's cast; it is still sent to the AI.</small></span>
+                <span className="setup-k grow"><span>Characters</span><small>Turn off “Track in Scene” for world or multi-character cards. They stay in the prompt.</small></span>
                 {pickers ? (
                   <button type="button" className="link" onClick={() => pickers.card([...draft.cast.map((m) => m.characterId ?? ""), narratorCard?.id ?? ""].filter(Boolean),
                     (id) => change({ cast: [...draft.cast, { characterId: id, variantId: null, role: "character", presence: "in_scene", muted: false, joinedAtMessageId: null }] }))}>+ Add a Card</button>
@@ -340,7 +340,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                   <div key={c.id} className="setup-row sub" data-testid="story-card-row">
                     <AvatarDot name={c.name} avatar={pic} size={26} />
                     <span className="setup-k grow"><span>{effectiveCharacter(c, m.variantId).name}</span><small>{[version ? `Card · ${version.label} version` : "Card, joins as it is", isTracked(m, c) ? "" : "not tracked in the Scene"].filter(Boolean).join(" · ")}</small></span>
-                    <span className="cast-track" title="Off: sent whole to the AI, but the Scene does not list it as one person (its people are added by name). The card's own choice is the default.">Track in Scene
+                    <span className="cast-track" title="Off keeps the card in the prompt and out of the tracked cast.">Track in Scene
                       <Switch label={`Track ${c.name} in the Scene`} checked={isTracked(m, c)}
                         onChange={(v) => change({ cast: draft.cast.map((x) => { if (x.characterId !== c.id) return x; const { tracked: _t, ...rest } = x; return v === (c.tracked ?? true) ? rest : { ...rest, tracked: v }; }) })} /></span>
                     {c.variants.length > 0 && (
@@ -355,14 +355,14 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
 
             <SetupSection title="How it starts" aside="for new chats" testId="story-start">
               <div className="setup-row column">
-                <span className="setup-k"><span>Scenario</span><small>Sent with every reply, in every chat.</small></span>
+                <span className="setup-k"><span>Scenario</span><small>Sent with each reply.</small></span>
                 <textarea className="prose-input" rows={2} aria-label="Scenario" value={draft.scenario}
                   placeholder="e.g. A high-fantasy world. The party meets at a tavern in Greywater, the night the bells stop ringing."
                   onChange={(e) => change({ scenario: e.target.value })} />
               </div>
               <div className="setup-row column">
                 <span className="opening-head">
-                  <span className="setup-k grow"><span>Openings</span><small>New Chat asks which one to start with. Chats already started keep theirs.</small></span>
+                  <span className="setup-k grow"><span>Openings</span><small>New Chat lets you pick an opening.</small></span>
                   <span className="opening-tabs" role="tablist" aria-label="Openings">
                     {openings.map((_, i) => (
                       <button key={i} type="button" role="tab" aria-selected={i === tab} className={`opening-tab${i === tab ? " on" : ""}`} onClick={() => setOpeningTab(i)}>{i + 1}</button>
@@ -388,7 +388,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
 
             {/* the chats: last on the page, in the page's column (Daniel: "in the corner, following the page's layout") */}
             {!isKit && (
-              <SetupSection title="Chats" aside="each one is its own adventure from this story" testId="story-chats">
+              <SetupSection title="Chats" testId="story-chats">
                 <ChatList testId="story-chat-list" initial={3} empty="No chats yet. Start one: it takes this story's setup."
                   chats={(chats ?? []).map((c) => ({
                     session: c.session, lastLine: c.lastLine, messages: c.messages, when: c.when,
@@ -437,8 +437,8 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                   onChange={(ids) => change({ setup: { ...draft.setup, lorebooks: { mode: "add", add: ids, remove: [] } } })} emptyText="None." addLabel="+ Add a Lorebook" />
               </div>
             </SetupSection>
-            <p className="hint">{isKit ? "A story started from this Kit gets a copy of all this; changing the Kit later does not change it."
-              : "Changes here reach every chat that did not change the same thing, from its next reply."}</p>
+            <p className="hint">{isKit ? "New stories use a copy of this setup."
+              : "Applies from the next reply in chats that inherit these settings."}</p>
           </div>
         </div>
 
@@ -478,7 +478,6 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
   });
   return (
     <Modal title={`New chat in ${story.name}`} onClose={onClose} testId="new-chat-sheet" className="modal-chat">
-      <p className="hint">A new adventure from the same story. Your other chats are not touched.</p>
       <label className="stack"><span className="setup-title">Name</span><input aria-label="Chat name" value={name} onChange={(e) => setName(e.target.value)} /></label>
       <SetupSection title="Start with">
         {usable.map(({ o, i }) => {
@@ -493,7 +492,7 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
         })}
         <label className={`setup-row choice-row${pick === "own" ? " on" : ""}`}>
           <input type="radio" name="opening" checked={pick === "own"} onChange={() => setPick("own")} aria-label="Write my own" />
-          <span className="setup-k grow"><span>Write my own</span><small>Type the first message of this chat only.</small></span>
+          <span className="setup-k grow"><span>Write my own</span><small>First message for this chat.</small></span>
         </label>
         {pick === "own" && (
           <div className="setup-row column"><textarea className="prose-input" rows={3} aria-label="First message" value={own} onChange={(e) => setOwn(e.target.value)} placeholder="The narrator's first message (optional)" /></div>
@@ -511,7 +510,7 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
           presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers} agents={setup.agents} testId="new-chat-setup" />
       )}
       <div className="modal-foot">
-        <span className="hint grow">{pick === "own" ? "Only your message starts this chat." : "The other openings become swipes of the first message."}</span>
+        <span className="hint grow">{pick === "own" ? "" : "Other openings become versions of the first message."}</span>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="prominent" onClick={start} data-testid="start-chat">Start Chat</Button>
       </div>
