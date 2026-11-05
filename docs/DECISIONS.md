@@ -963,3 +963,14 @@ Daniel: "let's make the quick reply, the ST extension that was left out a while 
 
 Signed: **CLAUDE**.
 
+
+## D-091 — The opening: draft C "Typewriter", landing on Home; skippable, soft sound (2026-11-04)
+
+Daniel: "I was thinking of making an opening for the app" → canvas drafts A (Retort), B (Plate), A+B, C (Typewriter) → "work only on C, it is easier and nicer to follow" · "end it on the official Home" · keyboard sounds, a smoother hand-off to Home, smoother typing · the subtitle "Where your worlds come true" was "too cringe" → **"ars narrandi"** · "make sure the app opens maximized, keep the sound light, not too low and not too loud so it doesn't startle; add an option in the menu to auto-skip the intro".
+- **What plays** (`ui/Opening.tsx`, about 3.8 s): a caret; HOMUNCULUS typed in the interface face, each letter settling in (fade, 5 px rise, a 2 px blur clearing) at ~72 ms with a slight unevenness, the bell; a flash and a low strike turn it into the display face over the spire; "ars narrandi" typed softly and held to be read; then each piece goes **where it lives on Home**: the name glides and shrinks onto the hero plate's title (same face, so only its size changes), the spire shrinks onto the Assistant plate's picture with the same crop (object-fit cover at 30 %), and the plates arrive with the app's own cascade (CASCADE). The real title and picture take over when the copies land. When the app opens somewhere else (Open at), the opening fades out instead. Positions are measured at the moment of the hand-off, so a window that maximizes meanwhile is fine.
+- **Skipping:** a click or any key skips it at once, and that key does nothing else (Ctrl+H, Esc…). Settings → General → **Skip the opening** (go straight to the app) and **Opening sound**. The opening starts before the settings are read from the database, so a copy is kept in the window's storage (`homunculus.opening`: play / silent / skip), written only from saved settings. It never plays with motion off (Customize), nor in click tests unless the test asks.
+- **Sound** (`openingSound.ts`, Web Audio, no files): typewriter keys, the bell, the strike, a breath of air for the glide, a soft landing. Measured offline: the strike peaks at about −15 dBFS (the reply chime at the default volume is −14), keys about −24, soft keys about −35.
+- **Window:** it opens maximized (D-087, `"maximized": true` in tauri.conf.json, used by the window built in lib.rs). Not verified on Windows: whether WebView2 lets the sound play before the first click. If it is silent there, the fix is the WebView2 flag `--autoplay-policy=no-user-gesture-required` (for every window that shares the data folder).
+- Tests: `e2e/opening.e2e.ts` (4), `apps/desktop/test/prefs.test.ts`.
+
+Signed: **CLAUDE**.

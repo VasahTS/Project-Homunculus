@@ -47,6 +47,12 @@ export function GeneralSection() {
             <option value="home">Home</option><option value="last">Last chat</option><option value="stories">Stories</option><option value="characters">Characters</option><option value="card-browser">Card Browser</option>
           </select>
         </Row>
+        <Row label="Skip the opening" help="Go straight to the app when it starts. Otherwise a click or any key skips it.">
+          <Switch label="Skip the opening" checked={p.skipOpening} onChange={(skipOpening) => set({ skipOpening })} />
+        </Row>
+        <Row label="Opening sound" help="The typewriter and its bell, played softly.">
+          <Switch label="Opening sound" checked={p.openingSound && !p.skipOpening} disabled={p.skipOpening} onChange={(openingSound) => set({ openingSound })} />
+        </Row>
         <Row label="Send messages with" help="For the chat and the Assistant. The other key makes a new line.">
           <Segmented small label="Send Messages With" value={sendKey} onChange={setSendKey}
             options={[{ value: "enter", label: "Enter" }, { value: "ctrl-enter", label: "Ctrl+Enter" }]} />

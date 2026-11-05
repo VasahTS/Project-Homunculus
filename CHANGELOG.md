@@ -5,6 +5,10 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+### Opening
+
+- **A short opening when the app starts:** the name typed on a typewriter, a strike, then it settles into Home. A click or any key skips it; **Settings → General → Skip the opening** turns it off, and **Opening sound** keeps it silent.
+
 ### Quick Replies
 
 - **Quick Replies** like SillyTavern's: your saved texts (OOC instructions, author directions, things you always send) as buttons above the message box. `{{input}}` puts what you typed inside the text; a set can send at once or put the text in the box, before or after what you typed.

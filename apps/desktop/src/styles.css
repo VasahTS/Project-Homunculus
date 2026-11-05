@@ -3645,3 +3645,24 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .qr-set-col .qr-reply-open { overflow: hidden; }
 .qr-set-col .sortable { flex: none; min-width: 0; max-width: 100%; }
 .qr-set-col .sortable-item { min-width: 0; max-width: 100%; overflow: hidden; }
+
+/* ---- The opening (D-091, draft C "Typewriter"): typed name, a strike, then the pieces glide to where they live on Home.
+   Colors and faces come from the look, so it matches whichever look is on. */
+.opening { position: fixed; inset: 0; z-index: 10000; overflow: hidden; cursor: pointer; color: var(--label); user-select: none; }
+.opening-dark { position: absolute; inset: 0; background: var(--window); }
+.opening-spire { position: absolute; inset: 0; overflow: hidden; opacity: 0; }
+.opening-spire img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; filter: brightness(.55); }
+.opening-type { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.opening-typed { font-family: var(--font-ui); font-weight: 300; font-size: clamp(26px, 4.6vw, 104px); letter-spacing: .42em; margin-right: -.42em; white-space: nowrap; }
+.opening-caret { display: inline-block; width: .5em; height: 1em; background: var(--label); vertical-align: -.12em; margin-left: .1em; font-size: clamp(26px, 4.6vw, 104px); }
+.opening-typed .opening-caret { margin-left: 0; margin-right: .42em; }
+.opening-ch { display: inline-block; white-space: pre; opacity: 0; }
+.opening-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.2vh; }
+.opening-word { margin: 0; width: fit-content; transform-origin: 0 0; opacity: 0; font-family: var(--font-display); font-weight: var(--display-weight); font-stretch: var(--display-stretch);
+  font-style: italic; text-transform: uppercase; font-size: clamp(64px, 13vw, 300px); line-height: .82; letter-spacing: -.02em; white-space: nowrap; }
+.opening-line { min-height: 1.2em; font-family: var(--font-display); font-style: italic; font-size: clamp(18px, 2.8vw, 64px); line-height: 1.2; letter-spacing: .02em;
+  text-shadow: 0 0 18px var(--window), 0 0 36px var(--window); }
+.opening-flash { position: absolute; inset: 0; background: var(--label); opacity: 0; mix-blend-mode: difference; pointer-events: none; }
+.opening-skip { position: absolute; right: 24px; bottom: 18px; font-size: 12px; color: var(--label-3); letter-spacing: .05em; opacity: 0;
+  animation: opening-skip 2.4s 0.5s ease both; }
+@keyframes opening-skip { 0%, 100% { opacity: 0; } 15%, 85% { opacity: 1; } }

@@ -20,6 +20,10 @@ describe("app preferences", () => {
     expect(DEFAULT_PREFS).toMatchObject({ replyNotice: true, replySound: "off", systemNotify: false, showTime: true, showNumber: true, showTokens: true,
       swipeArrows: true, thinking: "folded", smoothText: false, followReply: true, autoContinue: false, avatarShape: "hidden", autoBackup: "off", emptyTrashDays: 0 });
   });
+  it("the opening plays, with sound, unless Settings says otherwise (D-091)", () => {
+    expect(DEFAULT_PREFS).toMatchObject({ skipOpening: false, openingSound: true });
+    expect(cleanPrefs({ skipOpening: "yes", openingSound: false })).toMatchObject({ skipOpening: false, openingSound: false });
+  });
 });
 
 describe("smooth text", () => {

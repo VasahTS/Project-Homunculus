@@ -58,6 +58,9 @@ export interface AppPrefs {
   emptyTrashDays: number;
   /** Home was offered once as where the app opens (D-086); a setting saved before Home exists has no such key. */
   homeOffered: boolean;
+  /** The opening (D-091): the typewriter title when the app starts. Skipped = straight to the app. */
+  skipOpening: boolean;
+  openingSound: boolean;
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
@@ -65,7 +68,7 @@ export const DEFAULT_PREFS: AppPrefs = {
   showTime: true, showNumber: true, showTokens: true, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
   smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50, quickReplies: "bar",
   lineSpacing: 1.72, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
-  autoBackup: "off", keepBackups: 10, emptyTrashDays: 0, homeOffered: true,
+  autoBackup: "off", keepBackups: 10, emptyTrashDays: 0, homeOffered: true, skipOpening: false, openingSound: true,
 };
 
 const KEY = "app.prefs";
@@ -85,6 +88,23 @@ function apply(p: AppPrefs = prefs) {
   root.dataset.avatars = p.avatarShape;
   root.dataset.avatarSize = p.avatarSize;
   root.dataset.swipeArrows = p.swipeArrows ? "on" : "off";
+}
+
+/** The opening plays before the settings are read from the database, so it reads a copy kept in the window's storage
+ *  (D-091). Written only from saved settings (never from the defaults at startup); click tests leave it alone. */
+function keepOpeningCopy(p: AppPrefs) {
+  if (automated) return;
+  try { localStorage.setItem(OPENING_KEY, p.skipOpening ? "skip" : p.openingSound ? "play" : "silent"); } catch { /* private window */ }
+}
+
+export const OPENING_KEY = "homunculus.opening";
+export type OpeningMode = "play" | "silent" | "skip";
+/** How the opening runs at this start: the copy in the window's storage; a new install plays it, click tests skip it. */
+export function openingMode(): OpeningMode {
+  let saved: string | null = null;
+  try { saved = localStorage.getItem(OPENING_KEY); } catch { /* private window */ }
+  if (saved === "play" || saved === "silent" || saved === "skip") return saved;
+  return automated ? "skip" : "play";
 }
 
 /** Only known keys with the right type survive (an old or hand-edited setting can't break the app). */
@@ -119,6 +139,7 @@ export async function loadPrefs(s: Store): Promise<AppPrefs> {
     await s.setAppSetting(KEY, prefs).catch(() => {});
   }
   apply(prefs);
+  keepOpeningCopy(prefs);
   listeners.forEach((f) => f());
   return prefs;
 }
@@ -126,6 +147,7 @@ export async function loadPrefs(s: Store): Promise<AppPrefs> {
 export async function setPrefs(patch: Partial<AppPrefs>): Promise<void> {
   prefs = cleanPrefs({ ...prefs, ...patch });
   apply(prefs);
+  keepOpeningCopy(prefs);
   listeners.forEach((f) => f());
   await store?.setAppSetting(KEY, prefs);
 }

@@ -3,11 +3,13 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { NavigationProvider } from "./ui/ux.tsx";
 import { App } from "./App.tsx";
+import { Opening } from "./ui/Opening.tsx";
 import "./theme/tokens.css";
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <NavigationProvider><App /></NavigationProvider>
+    <Opening />
   </StrictMode>,
 );

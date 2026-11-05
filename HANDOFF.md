@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## The opening, draft C "Typewriter" (2026-11-04) — CLAUDE — D-091
+
+- Daniel picked draft C on the canvas ("Abertura do Homunculus"): HOMUNCULUS typed with typewriter sounds, a strike, "ars narrandi", then the name glides into Home's title and the spire into the Assistant plate. A click or any key skips it. Settings → General → **Skip the opening**, **Opening sound**. Sound is soft (measured, D-091).
+- **To try:** close and open the app. Settings → General to skip it or mute it.
+- Not checked on Windows: whether WebView2 plays the sound before the first click (see D-091 for the fix if it is silent).
+- Checks: typecheck; 714 unit; Vite build; click tests `opening` (4), `home`, `settings-v2`, `navigation`, `chat`, `customize`, `boot-error`, `ui-round-1104`, `dialogue-color` — 43 passed. Pushed to `gpt` (Daniel asked) and written to his `Homunculus-gpt` folder.
+
 ## Message box grows; "Type a message" (2026-11-04) — CLAUDE
 
 - Daniel: the box did not grow with the text, and the placeholder was misaligned. The chat's box now starts at one line (centered with its buttons) and grows with the text up to half the window, then scrolls (like SillyTavern's #send_textarea). Placeholder "Type a message". Checks: typecheck, 713 unit, 45 click tests (chat, quick-replies, library, branches, settings-v2, presets, cards).
