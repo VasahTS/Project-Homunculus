@@ -4,7 +4,7 @@
 // the spire shrinks into the Assistant plate, and the plates arrive one by one with the app's own cascade. When the app
 // opens somewhere else, the opening fades out instead. A click or any key skips it; Settings → General can skip it always
 // or play it without sound. It never plays with motion off, nor in click tests unless a test asks. CLAUDE, 2026-11-04.
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import spire from "../assets/home/spire.png";
 import { openingSound, type OpeningSound } from "../openingSound.ts";
 import { openingMode } from "../prefs.ts";
@@ -34,8 +34,28 @@ function startMode(): "play" | "silent" | null {
   return m;
 }
 
+/** Decided when this file loads, before the app's own code runs. */
+const START = typeof window !== "undefined" ? startMode() : null;
+/** Skips the running opening (set by the component; null when none runs). */
+let skipNow: (() => void) | null = null;
+/** True until the opening has ended (played through or skipped). */
+let up = START !== null;
+// A key skips the opening and does nothing else (Ctrl+H, Esc… must not reach the app). Listening from here, before the
+// app adds its own shortcuts, so this listener runs first and can stop the key for every other one.
+if (START) {
+  const onKey = (e: KeyboardEvent) => {
+    if (!up) { window.removeEventListener("keydown", onKey, true); return; }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    // a modifier alone waits for its key (Ctrl+H skips on the H, so the H can't reach the app afterwards)
+    if (e.key === "Control" || e.key === "Shift" || e.key === "Alt" || e.key === "Meta") return;
+    skipNow?.();
+  };
+  window.addEventListener("keydown", onKey, true);
+}
+
 export function Opening() {
-  const [mode] = useState(startMode);
+  const [mode] = useState(() => START);
   const [done, setDone] = useState(mode === null);
   const root = useRef<HTMLDivElement>(null);
   const finish = useRef<() => void>(() => {});
@@ -60,6 +80,8 @@ export function Opening() {
     const end = (skipped: boolean) => {
       if (ended) return;
       ended = true;
+      skipNow = null;
+      up = false;
       timers.forEach(clearTimeout);
       // skipped: everything goes back to how the app draws it (the real title and spire show at once)
       if (skipped) { anims.forEach((a) => a.cancel()); sound?.hush(); }
@@ -67,6 +89,21 @@ export function Opening() {
       setDone(true);
     };
     finish.current = () => end(true);
+    skipNow = finish.current;
+
+    // starts once the faces are in and the window is on screen (it is born hidden and appears when the page has loaded,
+    // D-091), so the first letters are never typed unseen or in a fallback face; never waits more than a moment
+    const ready = (): Promise<void> => {
+      const fonts = Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((r) => setTimeout(r, 800))]);
+      const visible = document.visibilityState === "visible" ? Promise.resolve() : new Promise<void>((r) => {
+        const go = () => { if (document.visibilityState === "visible") { document.removeEventListener("visibilitychange", go); r(); } };
+        document.addEventListener("visibilitychange", go);
+        setTimeout(() => { document.removeEventListener("visibilitychange", go); r(); }, 3000);
+      });
+      return Promise.all([fonts, visible]).then(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
+    };
+    const run = () => {
+      if (ended) return;
 
     // the letters are laid out from the start (nothing reflows), and each one settles in on its beat
     const letters = (box: HTMLElement, text: string) => {
@@ -82,7 +119,9 @@ export function Opening() {
     // 1. the cursor, then HOMUNCULUS typed at a steady pace with a hair of human unevenness, and the bell
     A(caret, [{ opacity: 1 }, { opacity: 0 }], { duration: 420, iterations: Infinity, easing: "steps(1, end)", direction: "alternate" });
     let t = 360;
-    letters(typed, NAME.toUpperCase()).forEach((ch, i) => {
+    const keys = letters(typed, NAME.toUpperCase());
+    typed.prepend(caret); // the caret waits where the first letter will land, not after the whole (still hidden) word
+    keys.forEach((ch, i) => {
       const ms = t;
       t += 72 + ((i * 37) % 9) - 4;
       A(ch, [{ opacity: 0, transform: "translateY(5px)", filter: "blur(2px)" }, { opacity: 1, transform: "none", filter: "blur(0px)" }], { delay: ms, duration: 150 });
@@ -149,16 +188,12 @@ export function Opening() {
       at(TRIP, () => end(false));
     });
 
+    };
+    void ready().then(run);
+
     return () => { ended = true; timers.forEach(clearTimeout); anims.forEach((a) => a.cancel()); sound?.hush(); };
   }, [mode]);
 
-  // a click or any key skips it; the key does nothing else (Ctrl+H, Esc… wait for the app)
-  useEffect(() => {
-    if (done) return;
-    const skip = (e: Event) => { e.preventDefault(); e.stopPropagation(); finish.current(); };
-    window.addEventListener("keydown", skip, true);
-    return () => window.removeEventListener("keydown", skip, true);
-  }, [done]);
 
   if (done) return null;
   return (

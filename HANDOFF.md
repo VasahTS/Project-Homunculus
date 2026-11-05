@@ -5,6 +5,7 @@
 - Daniel picked draft C on the canvas ("Abertura do Homunculus"): HOMUNCULUS typed with typewriter sounds, a strike, "ars narrandi", then the name glides into Home's title and the spire into the Assistant plate. A click or any key skips it. Settings → General → **Skip the opening**, **Opening sound**. Sound is soft (measured, D-091).
 - **To try:** close and open the app. Settings → General to skip it or mute it.
 - Not checked on Windows: whether WebView2 plays the sound before the first click (see D-091 for the fix if it is silent).
+- Fix after Daniel's video: the window no longer appears small and white, maximizes and stays blank; it is hidden until the page has loaded, then shows maximized (dark from the first frame). Checked on Linux under a virtual screen; to be confirmed on Windows.
 - Checks: typecheck; 714 unit; Vite build; click tests `opening` (4), `home`, `settings-v2`, `navigation`, `chat`, `customize`, `boot-error`, `ui-round-1104`, `dialogue-color` — 43 passed. Pushed to `gpt` (Daniel asked) and written to his `Homunculus-gpt` folder.
 
 ## Message box grows; "Type a message" (2026-11-04) — CLAUDE

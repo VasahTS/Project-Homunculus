@@ -657,11 +657,30 @@ pub fn run() {
                 .find(|w| w.label == "main")
                 .cloned()
                 .ok_or("tauri.conf.json has no \"main\" window")?;
-            let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+            // D-091: the window is born hidden (tauri.conf.json "visible": false, dark background) and appears once,
+            // already maximized, when its page has loaded. Before, Windows showed a small white window that then
+            // maximized and stayed blank while the page loaded (Daniel's video, 11/04).
+            let shown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let on_load = shown.clone();
+            let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+                .on_page_load(move |w, p| {
+                    if matches!(p.event(), tauri::webview::PageLoadEvent::Finished)
+                        && !on_load.swap(true, std::sync::atomic::Ordering::SeqCst)
+                    {
+                        reveal(&w);
+                    }
+                });
             if place.portable {
                 window = window.data_directory(place.dir.join(WINDOW_DIR));
             }
-            window.build()?;
+            let main = window.build()?;
+            // never stay invisible: if the page never says it loaded, show the window anyway after a few seconds
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(6));
+                if !shown.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                    reveal(&main);
+                }
+            });
 
             app.manage(place);
             Ok(())
@@ -689,6 +708,13 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Homunculus");
+}
+
+/// Shows the main window maximized and focused (D-091).
+fn reveal<R: tauri::Runtime>(w: &tauri::WebviewWindow<R>) {
+    let _ = w.maximize();
+    let _ = w.show();
+    let _ = w.set_focus();
 }
 
 #[cfg(test)]
