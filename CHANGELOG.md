@@ -5,6 +5,14 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+## 0.3.1 — 2026-11-05
+
+<!-- Hotfix notes: CODEX. -->
+
+- Fixed the Prompt panel cutting off character fields, the Author's Note and inherited setup controls when imported text or names were long.
+- Long field labels wrap within the inspector; previews remain compact and fields can still be opened and edited normally.
+- Scene section tabs scroll within their own row, keeping world values and tracker status controls inside the panel.
+
 ## 0.3.0 — 2026-11-05
 
 Home and the Observatory look, character browsing across six catalogs, Quick Replies, expanded chapter memory, and more control over connections and background agents.

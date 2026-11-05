@@ -1,5 +1,12 @@
 # Work log — CODEX
 
+## 0.3.1 inspector overflow hotfix (2026-11-05) — CODEX
+
+- Fixed the Prompt body's intrinsic grid sizing instead of masking wider content with the inspector's existing overflow rule. Long card labels wrap; previews ellipsize and editors remain accessible. The same grid constraint contains the Scene tab scroller.
+- Added e2e/inspector-overflow.e2e.ts: imported fields, folded note, inherited setup and field editing at 1440/1000/620/390 px, plus real offline tracker updates and section navigation. The Prompt case failed on unmodified 0.3.0 before the CSS fix.
+- Passed TypeScript, 726 unit tests (3 skipped), production build and 40 related browser cases; five regressions repeated with Observatory coverage. Unit tests required normal filesystem access after sandbox cache/temp errors; the unchanged suite then passed.
+- Daniel authorized the 0.3.1 release and main promotion. Preserve the existing Cargo.lock local version edit without including it. Signed **CODEX**.
+
 ## Prepare and publish 0.3.0 (2026-11-05) — CODEX
 
 - Daniel authorized gpt → main and the Windows/Linux release, overriding prior task-local publication restrictions.

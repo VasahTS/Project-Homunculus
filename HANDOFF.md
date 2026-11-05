@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## 0.3.1 inspector overflow hotfix (2026-11-05) — CODEX
+
+- Daniel reported clipped Prompt content and explicitly requested a release hotfix; main promotion and the existing Windows/Linux release workflow are authorized.
+- Reproduced before the fix: imported card text and a folded unbroken note expanded inner sections to 3,111 px in a 364 px inspector. Constrained grid tracks and children; field mappings wrap and previews stay compact. Scene section scrolling stays inside its row.
+- Passed typecheck, 726 unit tests (3 skipped), an in-memory production build and 40 related Chromium scenarios, including five new width/Scene regressions. Repeated the five regressions with Observatory coverage.
+- Preserved the pre-existing local Cargo.lock version-only modification; exclude it from the hotfix commit. No prompt, schema, saved-data or workflow changes. Signed **CODEX**.
+
 ## Prepare and publish 0.3.0 (2026-11-05) — CODEX
 
 - Daniel explicitly requested promoting gpt to main, publishing Windows/Linux installers, and updating the README with screenshots; this supersedes earlier branch/release restrictions for this task.

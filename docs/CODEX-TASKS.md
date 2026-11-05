@@ -1,5 +1,9 @@
 # CODEX tasks
 
+### 0.3.1 inspector overflow hotfix · Status: Done (publication authorized) — CODEX
+
+Daniel supplied a clipped Prompt-panel screenshot and requested a release hotfix. Fixed intrinsic grid overflow in styles.css, with a failing-first browser regression for long card fields, folded notes and inherited setup, plus Scene section scrolling. TypeScript/build, 726 unit tests (3 skipped) and 40 related Chromium scenarios passed; five new regressions were repeated with Observatory coverage. The pre-existing local Cargo.lock version edit is preserved and excluded. Signed **CODEX**.
+
 ### Markdown export from the open chat · Status: Done (publication authorized) — CODEX
 
 Daniel requested a Markdown download to test chat outputs. **⋯ → Export as Markdown** saves the selected branch using the existing exporter.

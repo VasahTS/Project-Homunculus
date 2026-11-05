@@ -1,5 +1,13 @@
 # CODEX change record
 
+## 0.3.1 inspector overflow hotfix (2026-11-05) — CODEX
+
+- Daniel requested fixing his clipped UI and publishing a hotfix. This authorizes the targeted bug fix, gpt-to-main promotion and existing Windows/Linux release workflow, superseding earlier branch/release restrictions for this task.
+- Changed apps/desktop/src/styles.css to give panes and inspector groups zero-minimum content tracks, allow their direct children to shrink, wrap long character field labels/mappings, constrain character title tracks and bound the folded note's preview. No prompt assembly, persistence, schema, wording, or workflow changes.
+- New failing-first regression: e2e/inspector-overflow.e2e.ts reproduced 3,111 px Prompt sections inside a 364 px body with fictional imported fields and a long folded note. Four viewport checks cover 1440/1000/620/390 px, inherited setup, editing and an Observatory rerun; the fifth checks world values and tracker status after scrolling populated Scene section tabs. Browser evidence is local in dev-data/hotfix-0.3.1/; no personal app data or credentials were read.
+- Passed typecheck, an in-memory Vite build, 726 unit tests (3 skipped), 40 related Chromium tests and a repeat of the five new regressions with Observatory. The unit suite's initial cache/temp access errors were environmental; normal filesystem execution passed without source changes. The existing build import warning remains.
+- Preserved the pre-existing, unattributed apps/desktop/src-tauri/Cargo.lock change from package version 0.2.0 to 0.3.0 and excluded it from staging. Version changes and signed installers are produced by the existing release workflow. Signed **CODEX**.
+
 ## Prepare and publish 0.3.0 (2026-11-05) — CODEX
 
 - Daniel explicitly authorized pushing gpt to main, creating Windows/Linux installers, and publishing current screenshots in the README. This is the task-specific exception to earlier branch/release restrictions.

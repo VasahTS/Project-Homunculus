@@ -197,7 +197,16 @@ input[type="checkbox"] { accent-color: var(--accent); }
    widest field (a long preset name in a select…) no longer pushes it, and the scrollbar's place is kept on all tabs */
 .inspector-body { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 .inspector-body > *, .inspector-body select, .inspector-body input, .inspector-body textarea { min-width: 0; max-width: 100%; }
-.pane { display: grid; gap: 16px; align-content: start; padding: 8px 14px 16px; }
+.pane { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-content: start; padding: 8px 14px 16px; }
+/* CODEX: Shrink the content tracks, not just the inspector shell; imported text must not widen a tab's body. */
+.inspector-body .group-section { grid-template-columns: minmax(0, 1fr); }
+.inspector-body .pane > *, .inspector-body .group-section > * { min-width: 0; }
+.inspector-body .pc-field-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.inspector-body .pc-field.on .pc-field-head { grid-template-columns: minmax(0, 1fr) auto; }
+.inspector-body .pc-label, .inspector-body .pc-to { white-space: normal; overflow-wrap: anywhere; }
+.inspector-body .pc-title { grid-template-columns: minmax(0, 1fr); }
+.inspector-body .pc-title strong { overflow-wrap: anywhere; }
+.inspector-body .an-first { min-width: 0; max-width: 100%; }
 .pane-note { margin: 0; padding: 0 4px; color: var(--label-2); font-size: var(--size-small); }
 .sampler { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 8px; align-items: center; }
 .sampler input[type="range"] { width: 100%; }
