@@ -2,7 +2,7 @@
 
 ## Chat pictures: ring, number and tokens under the picture, chat size in the bar (2026-11-04) — CLAUDE — D-089
 
-- With chat pictures on, #number · reply tokens · reasoning tokens sit under the picture; a faint ring around it; the bar shows "~N tokens · M msg" for the branch on screen. Pushed to `gpt`.
+- With chat pictures on, #number · reply tokens · reasoning tokens sit under the picture; a faint ring around it; the bar shows "~N / limit tokens · M msg": the next reply's whole prompt (like Preview Prompt, nothing sent) against the preset's context. Pushed to `gpt`.
 - To try: Settings → Appearance → Avatars in the chat → Portrait; open a chat with a thinking model.
 - Checks: typecheck; 699 unit; click tests `ui-round-1104` (7), `message-metadata`, `stories`, `chat`, `settings-v2` — 31 passed.
 

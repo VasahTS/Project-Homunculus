@@ -3288,7 +3288,8 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 :root[data-avatars="portrait"] .msg-side > .chat-avatar { height: calc(var(--chat-avatar, 72px) * 1.5); border-radius: calc(6px * var(--round)); }
 /* the chat's size beside "with …" in the bar */
 .chat-size { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; padding: 2px 8px; border-radius: var(--radius-pill, 999px); background: var(--fill); color: var(--label-2); font: 400 12px var(--font-figures); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; }
-.chat-size-count { color: var(--label-3); }
+.chat-size-count, .chat-size-limit { color: var(--label-3); }
+.chat-size.near-full { color: var(--warn); }
 
 /* ---- Card reading view (D-082): the card full window; picture left, every field whole on the right. CLAUDE, 2026-11-03 */
 .card-reader { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--window); color: var(--label); outline: none; animation: cr-in .18s var(--ease-out, ease-out); }

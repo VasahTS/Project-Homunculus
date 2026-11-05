@@ -123,7 +123,10 @@ test("with pictures on, the number and tokens sit under the picture; the bar sho
   await expect(msg.getByTestId("message-number")).toHaveText("#1");
   await expect(msg.getByTestId("message-text-tokens")).toHaveText(/^~?\d[\d,.]*t$/);
   await expect(msg.locator("[data-testid=message-metadata]")).toHaveCount(1);
-  await expect(page.getByTestId("chat-size")).toHaveText(/~\d[\d.]*k? tokens · 1 msg/);
+  // the whole next prompt (preset, card, persona…), more than the one message's text
+  await expect(page.getByTestId("chat-size")).toHaveText(/~\d[\d.]*k?( \/ \d[\d.]*k?)? tokens · 1 msg/);
+  const used = Number((await page.getByTestId("chat-size").textContent())!.match(/~([\d.]+)(k?)/)!.slice(1).reduce((n, k) => k ? String(Number(n) * 1000) : n));
+  expect(used).toBeGreaterThan(60);
   const ring = await msg.locator(".chat-avatar").evaluate((el) => getComputedStyle(el).boxShadow);
   expect(ring).not.toBe("none");
 });

@@ -15,7 +15,7 @@ import { AgentsPanel } from "./AgentsPanel.tsx";
 import { MemoryPane } from "./MemoryPane.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
-import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, estimateTokens, isTracked } from "@homunculus/core";
+import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, isTracked } from "@homunculus/core";
 import { WhoPicker } from "./WhoPicker.tsx";
 import type { AppServices } from "../core-instance.ts";
 import { turns, useTurn, type LiveTurn, type StreamTo } from "../turns.ts";
@@ -665,7 +665,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             )}
             <WhoPicker session={session} characters={characters} personas={personas} defaultPersonaId={defaultPersonaId}
               avatars={avatars} onChange={onChangeSession} story={storyInfo} npcs={npcs} />
-            {visible.length > 0 && <ChatSize messages={visible} />}
+            {visible.length > 0 && <ChatSize messages={visible.length}
+              refreshKey={`${session.id}|${headId ?? ""}|${currentId ?? ""}|${busy ? 1 : 0}|${JSON.stringify(session.setup)}|${sceneKey}`}
+              load={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, branchId: currentId }); }} />}
           </>}
           trailing={<>
             {onToggleAgent && onOpenAgent && (
@@ -1010,16 +1012,36 @@ function ChatMenu({ onRename, onExportMarkdown, onDelete }: { onRename: () => vo
   );
 }
 
-/** How big the chat is so far (Daniel, 11/04: "to know more easily how big the current chat is getting"): the messages
- *  of the branch on screen, text only, estimated like the rest of the app (D-089). */
-function ChatSize({ messages }: { messages: Array<{ content: string; reasoning?: string }> }) {
-  const text = messages.reduce((n, m) => n + estimateTokens(m.content), 0);
-  const thinking = messages.reduce((n, m) => n + (m.reasoning ? estimateTokens(m.reasoning) : 0), 0);
+/** How big the next reply's prompt is (D-089, Daniel 11/04: "the whole context used, with everything active: preset,
+ *  lorebooks, persona, agents, trackers…"): built like Preview Prompt — nothing is sent, no AI is called — and shown
+ *  against the preset's context size. Rebuilt after each reply and when the chat's setup changes. */
+function ChatSize({ messages, load, refreshKey }: { messages: number; refreshKey: string;
+  load: () => Promise<{ budget: { limit?: number; used: number; droppedMessages: number }; notes: string[] }> }) {
+  const [size, setSize] = useState<{ used: number; limit?: number; dropped: number; notes: string[] } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  useEffect(() => {
+    let live = true;
+    const t = setTimeout(() => {
+      loadRef.current().then((p) => { if (live) { setFailed(false); setSize({ used: p.budget.used, ...(p.budget.limit ? { limit: p.budget.limit } : {}), dropped: p.budget.droppedMessages, notes: p.notes }); } })
+        .catch(() => { if (live) setFailed(true); });
+    }, 350);
+    return () => { live = false; clearTimeout(t); };
+  }, [refreshKey]);
   const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1).replace(/\.0$/, "")}k` : String(n));
+  if (!size) return failed ? null : <span className="chat-size" data-testid="chat-size" aria-busy="true">… tokens</span>;
+  const full = size.limit ? size.used / size.limit : 0;
+  const title = [
+    `The next reply's prompt: about ${size.used.toLocaleString()} tokens${size.limit ? ` of the preset's ${size.limit.toLocaleString()}-token context` : ""}.`,
+    "It counts everything that goes in: the preset, the character or narrator, your persona, the lorebook entries that fire, memory, the trackers' state, agents' notes and the chat history.",
+    size.dropped ? `${size.dropped} of the oldest messages are left out to fit.` : "",
+    ...size.notes.filter((n) => n.startsWith("Not in this preview")),
+    "Agents and trackers that run as their own calls use their own context, not this one. Prompt → Preview Prompt shows every part.",
+  ].filter(Boolean).join("\n");
   return (
-    <span className="chat-size" data-testid="chat-size"
-      title={`About ${text.toLocaleString()} tokens in the ${messages.length} messages of this branch (text only, estimated)${thinking ? `; the reasoning adds about ${thinking.toLocaleString()}, which is not sent back` : ""}. The prompt also carries the card, lore, preset and memory: the Reply tab shows the real total of a reply.`}>
-      ~{short(text)} tokens <span className="chat-size-count">· {messages.length} msg</span>
+    <span className={`chat-size${full >= 0.9 ? " near-full" : ""}`} data-testid="chat-size" title={title}>
+      ~{short(size.used)}{size.limit ? <span className="chat-size-limit"> / {short(size.limit)}</span> : null} tokens <span className="chat-size-count">· {messages} msg</span>
     </span>
   );
 }
