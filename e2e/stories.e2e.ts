@@ -1,7 +1,8 @@
 // Click tests of slice 4 (D-029): Stories, the Vault (narrators, NPCs), the Library's card gallery.
 // Author: CLAUDE, 2026-10-29.
 import { expect, test, type Page } from "@playwright/test";
-import { openLibrary, openTab, send, addCardToStory } from "./ui.ts";
+import { solidPng } from "@homunculus/st-cards";
+import { openLibrary, openSession, openTab, send, addCardToStory } from "./ui.ts";
 
 const vault = async (page: Page, tab: "Stories" | "Narrators" | "NPCs") => {
   await openLibrary(page, tab);
@@ -31,6 +32,67 @@ async function previewPrompt(page: Page) {
   await page.getByRole("button", { name: "Preview Prompt" }).click();
   return page.getByTestId("prompt-preview");
 }
+
+// CODEX: The chat uses the same cover as the story tile, including its inherited cover.
+test("narration shows the story name and its cover from Stories", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings" }).last().click();
+  await page.getByRole("tab", { name: "Appearance" }).click();
+  await page.getByRole("radiogroup", { name: "Avatars in the chat" }).getByRole("radio", { name: "Square" }).click();
+
+  await openLibrary(page, "Narrators");
+  await page.getByTestId("vault-narrators").getByRole("button", { name: "Simple Narrator" }).click();
+  await page.getByTestId("narrator-image-input").setInputFiles({
+    name: "narrator.png", mimeType: "image/png", buffer: Buffer.from(solidPng(2, 2, [180, 40, 60])),
+  });
+  await page.getByTestId("crop-apply").click(); // D-088: the crop sheet opens for every picture picked
+  await expect(page.getByTestId("narrator-image").locator("img")).toBeVisible();
+
+  const name = "Painted Story";
+  await newStory(page, name, /Narrated adventure/);
+  await page.getByLabel("Opening 1").fill("The lantern is lit.");
+  await startChat(page);
+  const opening = page.getByTestId("message").first();
+  await expect(opening.locator(".who")).toContainText(name);
+  await openLibrary(page, "Stories");
+  const cover = page.getByTestId("vault-stories").getByRole("button", { name, exact: true }).locator("img");
+  await expect(cover).toBeVisible();
+  const inheritedSrc = (await cover.getAttribute("src"))!;
+  await openSession(page);
+  await expect(opening.locator("img.chat-avatar")).toHaveAttribute("src", inheritedSrc);
+
+  await page.getByTestId("story-page-button").click();
+  const image = page.getByTestId("story-image");
+  await page.getByTestId("story-image-input").setInputFiles({
+    name: "story.png", mimeType: "image/png", buffer: Buffer.from(solidPng(2, 2, [20, 70, 180])),
+  });
+  await page.getByTestId("crop-apply").click(); // D-088: the crop sheet opens for every picture picked
+  await expect(image.getByRole("button", { name: "Remove" })).toBeVisible();
+  const storySrc = (await image.locator("img").getAttribute("src"))!;
+  expect(storySrc).not.toBe(inheritedSrc);
+  await page.getByTestId("continue-story").click();
+  await expect(opening.locator("img.chat-avatar")).toHaveAttribute("src", storySrc);
+
+  await page.evaluate(async () => {
+    const svc = await (await import("/src/core-instance.ts" as string)).servicesReady;
+    svc.core.connections.stream = async function* () {
+      yield { reasoning: "The lantern flickers." };
+      await new Promise<void>((resolve) => window.addEventListener("finish-story-reply", () => resolve(), { once: true }));
+      yield "A door opens.";
+    };
+  });
+  await page.getByPlaceholder(/Write your message/).fill("I look at the lantern.");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const live = page.getByTestId("streaming");
+  await expect(live.getByTestId("reasoning-live")).toBeVisible();
+  await expect(live.locator(".who")).toContainText(name);
+  await expect(live.locator("img.chat-avatar")).toHaveAttribute("src", storySrc);
+  await page.evaluate(() => window.dispatchEvent(new Event("finish-story-reply")));
+  const reply = page.getByTestId("message").last();
+  await expect(reply).toContainText("A door opens.");
+  await expect(reply.locator(".who")).toContainText(name);
+  await expect(reply.locator("img.chat-avatar")).toHaveAttribute("src", storySrc);
+});
 
 test("a narrated story: Simple Narrator, an NPC made in the story, how it starts, Play", async ({ page }) => {
   await page.goto("/");

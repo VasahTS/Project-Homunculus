@@ -277,7 +277,7 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
 
   const others = c.profiles.filter((p) => p.id !== d.id);
   return (
-    <div className="editor" aria-label="Connection editor">
+    <div className="editor conn-editor" aria-label="Connection editor">
       <div className="session-bar">
         <h2 className="editor-title">{isNew ? "New Connection" : d.name || "Connection"}</h2>
         <span className="spacer" />

@@ -27,8 +27,10 @@ export const ROLE_LABEL: Record<UserRole, string> = { player: "You play a charac
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // ------------------------------------------------------------------------------------------------ the Vault page
-export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, onSearch, cards, sheet, emptyText, folders, title = "Library", activity = {}, wide = false, prefs, onPrefs, folderHits = [], onOpenFolder }: {
+export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, onSearch, cards, sheet, emptyText, folders, title = "Library", activity = {}, wide = false, prefs, onPrefs, folderHits = [], onOpenFolder, hero }: {
   title?: string; activity?: Record<string, number>;
+  /** Stories: the last story played, big, above the shelf (draft V3, D-088). Hidden while searching. */
+  hero?: ReactNode;
   /** A narrow list beside a wide editor (narrators, D-059): everything to edit and compare without scrolling the page. */
   wide?: boolean;
   lead: ReactNode; tab: VaultTab; selectedId: string | null; onSelect: (id: string) => void;
@@ -63,6 +65,7 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
       {isStories && <CollectionTools sort={<SortSelect kind="stories" />} label="stories" query={search} onQuery={onSearch} recent={recent} onRecent={setRecent} prefs={prefs} onPrefs={onPrefs} />}
       <div className={`gallery-layout${wide ? " wide-sheet" : ""}`}>
         <div className={`gallery-grid${portrait}`}>
+          {isStories && !search.trim() && hero}
           {!search.trim() && folders}
           {search.trim() && onOpenFolder && <FolderHits hits={folderHits} onOpen={onOpenFolder} />}
           <div className="gallery-cards" data-testid={`vault-${tab}`} ref={cardsRef}>
@@ -77,6 +80,32 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
         {(isStories || selectedId) && <aside className="gallery-sheet" data-region="sheet">{isStories && <div className="collection-detail-label">Story details</div>}{sheet}</aside>}
       </div>
     </div>
+  );
+}
+
+// ------------------------------------------------------------------------------------------------ the last story played
+/** Draft V3 (Daniel, 11/04): the last story played, its cover standing (2:3, the shape the chat uses too) beside its
+ *  premise and Continue, above the shelf of the others. CLAUDE, 2026-11-04 (D-088). */
+export function StoryHero({ story, avatar, line, latestTitle, selected, onSelect, onContinue }: {
+  story: Story; avatar?: Avatar | undefined; line: string; latestTitle?: string | undefined; selected: boolean;
+  onSelect: () => void; onContinue: () => void;
+}) {
+  const premise = (story.description.trim() || story.scenario.trim()).replace(/\s+/g, " ");
+  return (
+    <section className={`story-hero-row${selected ? " on" : ""}`} data-testid="story-hero" aria-label={`Continue ${story.name}`}>
+      <button type="button" className="shr-cover" onClick={onSelect} aria-label={`Show ${story.name}`}>
+        <StoryMark name={story.name} avatar={avatar} fill />
+      </button>
+      <div className="shr-text">
+        <span className="shr-kicker">Continue where you left off</span>
+        <h2 className="shr-name">{story.name}</h2>
+        {premise && <p className="shr-premise">{premise}</p>}
+        <div className="shr-actions">
+          <Button variant="prominent" onClick={onContinue} data-testid="story-hero-continue"><Icon name="play" size={13} /> Continue{latestTitle ? ` “${latestTitle}”` : ""}</Button>
+          <span className="shr-meta">{ROLE_LABEL[story.userRole]} · {line}</span>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -439,7 +468,7 @@ export function NpcEditor({ npc, fieldSets, stories, alsoIn, avatar, onImage, on
 export const storyCard = (st: Story, narratorName: string, sessions: number, avatar?: Avatar) => ({
   id: st.id, name: st.name, by: `Told by ${narratorName}`, summary: (st.description.trim() || st.scenario.trim()).slice(0, 220) || "No premise yet",
   tags: [ROLE_LABEL[st.userRole]], size: sessions ? `${sessions} session${sessions === 1 ? "" : "s"}` : "new",
-  picture: <StoryMark name={st.name} avatar={avatar} size={64} />,
+  picture: <StoryMark name={st.name} avatar={avatar} fill />,
 });
 
 /** Which group a narrator is listed under (D-059): the one mode it is written for, else "Any mode". */

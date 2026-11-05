@@ -16,6 +16,7 @@ import { UpdateBar } from "./ui/UpdateBar.tsx";
 import { useUpdates } from "./updates.ts";
 import { SettingsPage, type SettingsTab } from "./ui/SettingsPage.tsx";
 import { imageFileToPngAvatar, readFileBytes, saveExport } from "./files.ts";
+import { CropHost } from "./ui/ImageCropper.tsx";
 import { cardPngForSite, importCharacterFile, importFromSite, picturePng } from "./importCharacters.ts";
 import { CardBrowser } from "./ui/CardBrowser.tsx";
 import { desktopCardSites } from "./cardSites.ts";
@@ -33,7 +34,7 @@ import { lastLineOf, Sidebar, type LibraryArea, type Place } from "./ui/Sidebar.
 import { HomePage } from "./ui/HomePage.tsx";
 import { setDraftValue } from "./ui/ux.tsx";
 import { CharacterGallery, CharacterSheet, type VaultTab } from "./ui/Gallery.tsx";
-import { KitSheet, SaveNpcSheet, type NpcDraft, type SaveNpcChoice, NarratorEditor, NewStorySheet, NpcEditor, narratorCard, npcCard, StorySheet, storyCard, VaultPage, type FieldSetOption, type NewStoryChoice } from "./ui/Vault.tsx";
+import { KitSheet, SaveNpcSheet, type NpcDraft, type SaveNpcChoice, NarratorEditor, NewStorySheet, NpcEditor, narratorCard, npcCard, StoryHero, StorySheet, storyCard, VaultPage, type FieldSetOption, type NewStoryChoice } from "./ui/Vault.tsx";
 import { changesIn, StoryPage, type NewChatChoice, type StoryChat } from "./ui/StoryPage.tsx";
 import type { SetupNames, StorySetupProps } from "./ui/SetupFields.tsx";
 import { TrackerEditor } from "./ui/TrackerEditor.tsx";
@@ -1445,6 +1446,7 @@ export function App() {
       return { ...c, dragId: c.id, ...((searching || everything) && where ? { by: `${where}${c.by ? ` · ${c.by}` : ""}` } : {}) };
     };
     let cards; let sheet; let newButton; let emptyText; let items: FolderItem[]; let extra: React.ReactNode = null; let currentName: string | undefined;
+    let hero: React.ReactNode = null;
     if (tab === "stories") {
       const st = stories.find((x) => x.id === view.id) ?? (!view.id ? shown(stories)[0] : undefined);
       items = stories.map((x) => ({ id: x.id, name: x.name, avatar: storyAvatar(x) }));
@@ -1461,6 +1463,12 @@ export function App() {
             onOpen={openChat} onRename={(id, t) => void renameChat(id, t)} onExport={(id, f) => void exportSession(id, f)} onTrash={(id) => void trashChat(id)}
             empty={`No chats in ${st.name} yet.`} />} />
       ) : null;
+      // draft V3 (D-088): the story played last, big above the shelf
+      const last = stories.map((x) => ({ x, rows: storyChatRows(x.id) })).filter((r) => r.rows.length > 0).sort((a, b) => b.rows[0]!.when - a.rows[0]!.when)[0];
+      if (last) hero = (
+        <StoryHero story={last.x} avatar={storyAvatar(last.x)} line={chatsLine(last.rows)} latestTitle={last.rows[0]!.session.title}
+          selected={st?.id === last.x.id} onSelect={() => select(last.x.id)} onContinue={() => openChat(last.rows[0]!.session.id)} />
+      );
       newButton = <Button onClick={() => setNewStoryOpen({ cardId: null })}><Icon name="plus" size={14} /> New Story</Button>;
       emptyText = open ? "This folder is empty. Drag stories onto it." : "No stories yet. A story has a narrator, people and how it starts; each Play is a new session.";
     } else if (tab === "kits") {
@@ -1523,7 +1531,7 @@ export function App() {
         newButton={newButton} search={vaultQuery} onSearch={setVaultQuery} cards={cards} emptyText={emptyText}
         folders={everything ? undefined : folderView(fkind, page, tab === "stories" ? "stories" : tab === "kits" ? "kits" : tab === "narrators" ? "narrators" : "NPCs", items, extra, currentName)}
         prefs={prefs} onPrefs={setPrefs(page)} folderHits={folderHits(fkind, vaultQuery)} onOpenFolder={openFound(page, () => setVaultQuery(""))}
-        sheet={sheet ?? <div className="empty-detail"><p>Pick one to see it here.</p></div>} wide={tab === "narrators" && !!view.id} /* D-079 (UX item 8): the portrait grid until a narrator is open; then the narrow list beside its editor */ />
+        hero={hero} sheet={sheet ?? <div className="empty-detail"><p>Pick one to see it here.</p></div>} wide={tab === "narrators" && !!view.id} /* D-079 (UX item 8): the portrait grid until a narrator is open; then the narrow list beside its editor */ />
     );
   } else if (view.kind === "kit") {
     const k = kits.find((x) => x.id === view.id);
@@ -1585,7 +1593,7 @@ export function App() {
         providers={svc.core.providers.all()}
         trackers={trackers}
         lead={chatLead}
-        story={story ? { name: story.name, narrator: narratorOf(story), role: story.userRole } : undefined}
+        story={story ? { name: story.name, avatar: storyAvatar(story), narrator: narratorOf(story), role: story.userRole } : undefined}
         storySetup={story?.setup}
         setupProps={setupProps}
         onOpenStory={story ? () => setView({ kind: "story", id: story.id }) : undefined}
@@ -1673,6 +1681,7 @@ export function App() {
         return <SaveNpcSheet draft={savingNpc.draft} fieldSets={fieldSets} story={st ? { id: st.id, name: st.name } : undefined} folders={folderRows("npc")}
           onSave={(c) => void saveNpcToVault(savingNpc.sessionId, c)} onClose={() => setSavingNpc(null)} />;
       })()}
+      <CropHost />
       {paletteOpen && <CommandPalette searchMessages={searchMessages} items={paletteItems()} groupOrder={PALETTE_GROUPS} onClose={() => setPaletteOpen(false)} />}
       {picker && <Picker title={picker.title} kinds={picker.kinds} {...(picker.initial ? { initial: picker.initial } : {})} onClose={() => setPicker(null)} />}
       {newStoryOpen && <NewStorySheet characters={characters} avatars={avatars} lorebooks={lorebooks} setup={setupProps} initialCardId={newStoryOpen.cardId}

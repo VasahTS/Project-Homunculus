@@ -1,5 +1,11 @@
 # Work log — CODEX
 
+## Story name and picture in chat (2026-11-04) — CODEX
+
+Reproduced the generic Narrator header. Openings and replies now display the story's name and picture, with the story's initial as the fallback. The Chromium regression covers separate narrator and story pictures, an existing opening, and a streamed and saved reply. Typecheck, 699 unit tests (3 skipped), and 18 Chromium tests passed. Local and unpublished. Signed **CODEX**.
+
+Daniel showed a cover in Stories and an initial in the chat. The chat now uses the collection's cover resolver, including inherited covers. Confirmed the missing inherited cover before the fix and verified matching collection and chat images, plus priority for an uploaded story cover. Typecheck, 699 unit tests (3 skipped), and 7 Chromium Stories tests passed. Local and unpublished. Signed **CODEX**.
+
 ## Card Browser search and portrait loading (2026-11-04) — CODEX
 
 Reproduced a portrait queue blocking a new search and a superseded All Sites query making a follow-up request. Discarded obsolete queued pictures, prioritized the preview, shared active downloads, stopped stale follow-up requests, and reused native HTTP connections. Typecheck, Vite build, 699 unit tests (3 skipped), 28 Rust tests, and 22 Chromium cases with synthetic catalogs passed. Signed **CODEX**.

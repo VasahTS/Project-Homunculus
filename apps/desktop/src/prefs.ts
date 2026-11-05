@@ -9,7 +9,7 @@ const automated = typeof navigator !== "undefined" && navigator.webdriver === tr
 export type ReplySound = "off" | "chime" | "soft-click" | "bell" | "drop" | "arpeggio" | "low-gong" | "pop" | "custom";
 export type ChatWidth = "narrow" | "medium" | "wide" | "full";
 export type Thinking = "hidden" | "folded" | "open";
-export type AvatarShape = "round" | "square" | "hidden";
+export type AvatarShape = "round" | "square" | "portrait" | "hidden";
 export type AvatarSize = "small" | "medium" | "large";
 export type CardSize = "s" | "m" | "l";
 export type AutoBackup = "off" | "daily" | "weekly";

@@ -145,7 +145,7 @@ export function PicturesAndReadingGroup() {
       </Row>
       <Row label="Avatars in the chat" help="A picture of who is speaking, beside each message.">
         <Segmented small label="Avatars in the chat" value={p.avatarShape} onChange={(avatarShape) => set({ avatarShape })}
-          options={[{ value: "hidden", label: "Hidden" }, { value: "round", label: "Round" }, { value: "square", label: "Square" }]} />
+          options={[{ value: "hidden", label: "Hidden" }, { value: "round", label: "Round" }, { value: "square", label: "Square" }, { value: "portrait", label: "Portrait" }]} />
       </Row>
       <Row label="Avatar size">
         <Segmented small label="Avatar size" value={p.avatarSize} onChange={(avatarSize) => set({ avatarSize })}

@@ -55,18 +55,21 @@ test("NPCs, narrators and stories can have a picture", async ({ page }) => {
   await npc.getByLabel("NPC name").fill("Old Tom");
   await npc.getByRole("button", { name: "Save" }).click();
   await npc.getByTestId("npc-image-input").setInputFiles({ name: "tom.png", mimeType: "image/png", buffer: PNG });
+  await page.getByTestId("crop-apply").click(); // D-088: the crop sheet opens for every picture picked
   await expect(npc.getByTestId("npc-image").locator("img")).toHaveCount(1);
   await expect(page.locator(".gallery-card, [data-testid=vault-npcs] button").filter({ hasText: "Old Tom" }).locator("img").first()).toBeVisible();
 
   await openLibrary(page, "Narrators");
   await page.getByTestId("vault-narrators").getByRole("button", { name: "Simple Narrator" }).click();
   await page.getByTestId("narrator-image-input").setInputFiles({ name: "n.png", mimeType: "image/png", buffer: PNG });
+  await page.getByTestId("crop-apply").click(); // D-088: the crop sheet opens for every picture picked
   await expect(page.getByTestId("narrator-image").locator("img")).toHaveCount(1);
 
   await newStory(page, "Painted Story");
   // the story shows its narrator's picture until it has its own
   await expect(page.getByTestId("story-image").locator("img")).toHaveCount(1);
   await page.getByTestId("story-image-input").setInputFiles({ name: "s.png", mimeType: "image/png", buffer: PNG });
+  await page.getByTestId("crop-apply").click(); // D-088: the crop sheet opens for every picture picked
   await expect(page.getByTestId("story-image").getByRole("button", { name: "Remove" })).toBeVisible();
   await openLibrary(page, "Stories");
   await expect(page.getByTestId("vault-stories").locator("img")).toHaveCount(1);

@@ -1,5 +1,17 @@
 # HANDOFF — Homunculus 2
 
+## UI round 11/04: Stories V3, crop sheet, colors per look, inspector, Connections, chat avatars (2026-11-04) — CLAUDE — D-088
+
+Daniel asked for these in this session, in his local `Homunculus-gpt` folder, then asked Claude to push them to `gpt` (commit includes CODEX's local "story name and picture in chat" change that was not committed yet). Claude merges `gpt` into `dev` when asked. Not included: Daniel's local `package-lock.json` change (only `"peer": true` lines dropped by a different npm).
+- Stories: last-played story on top (draft V3), covers 2:3 filling the card. Crop/zoom sheet for every picture picked. Dialogue/narration colors kept per look (old global ones cleared once). Inspector width steady across tabs. Connections editor re-laid. Chat avatars: Portrait shape, bigger sizes.
+- **To try:** Stories; pick a picture for a story or character; Settings → Chat → Dialogue color in Observatory, then switch looks; Scene ↔ Prompt; Settings → Connections; Settings → Appearance → Avatars in the chat → Portrait, Large.
+- Checks: typecheck; 699 unit; click tests `ui-round-1104` (6), `cards`, `round2`, `customize`, `dialogue-color`, `stories`, `connections`, `settings-v2` — 42 passed.
+
+## Story name and picture in chat (2026-11-04) — CODEX
+
+- Story openings and narration use the story's name and its cover from Stories, including while a reply streams. An uploaded story cover takes priority over an inherited cover. A story with neither uses its initial when chat avatars are enabled.
+- The initial fix passed 18 Chromium tests. The cover follow-up passed all 7 Stories tests, typecheck, and 699 unit tests (3 skipped) with synthetic data. Local and unpublished. Signed **CODEX**.
+
 ## Card Browser loading after All Sites (2026-11-04) — CODEX
 
 - A new search drops obsolete queued portraits and stops follow-up requests from the old search. Opening a card gets its own picture slot, and grid and preview share an active download when they use the same URL.

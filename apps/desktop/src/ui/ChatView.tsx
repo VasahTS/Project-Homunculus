@@ -54,8 +54,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   providers: ProviderDefinition[];
   /** Leading toolbar item from the shell (the sidebar toggle). */
   lead: ReactNode;
-  /** The story this session belongs to (slice 4): its name and who tells it. */
-  story?: { name: string; narrator: string; role?: UserRole } | undefined;
+  /** The story this session belongs to, with its cover and narrator details. */
+  story?: { name: string; avatar?: Avatar | undefined; narrator: string; role?: UserRole } | undefined;
   /** The story's setup layer: what this chat inherits (D-031). Undefined for a 1:1 chat. */
   storySetup?: SetupLayer | undefined;
   /** For the Prompt tab of a story chat (the same setup block as the story's page). */
@@ -524,7 +524,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const speakerName = (m: Message) =>
     m.speaker.kind === "user" ? (persona?.name ?? "You")
       : m.speaker.kind === "character" ? charAsCast(m.speaker.characterId)?.name ?? "Character"
-        : m.speaker.kind === "narrator" ? "Narrator" : "System";
+        : m.speaker.kind === "narrator" ? storyInfo?.name ?? "Narrator" : "System";
 
   const commitTitle = () => {
     setEditingTitle(false);
@@ -713,6 +713,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               const isLast = m === last;
               const isLastAi = m === lastAi && isLast;
               const user = m.speaker.kind === "user";
+              const name = speakerName(m);
+              const avatar = m.speaker.kind === "narrator" ? storyInfo?.avatar
+                : m.speaker.kind === "character" ? avatars[m.speaker.characterId]
+                  : user && persona ? avatars[persona.id] : undefined;
               const hidden = m.visibility.ai === "none";
               const summaryChapter = summarized?.get(m.id);
               const fork = branches.forks.get(m.id);
@@ -736,10 +740,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     if (dir === 1 && vIndex === versions.length - 1) { if (m.parentId !== null) regenerate(m); }
                     else if (dir === -1 ? vIndex > 0 : vIndex < versions.length - 1) void switchSibling(m, dir);
                   } : undefined}>
-                  {prefs.avatarShape !== "hidden" && <CardPicture className="chat-avatar" name={speakerName(m)}
-                    avatar={m.speaker.kind === "character" ? avatars[m.speaker.characterId] : m.speaker.kind === "user" && persona ? avatars[persona.id] : undefined} />}
+                  {prefs.avatarShape !== "hidden" && <CardPicture className="chat-avatar" name={name} avatar={avatar} />}
                   <div className="msg-body">
-                  <div className="who">{speakerName(m)} {prefs.showTime && <MessageTime at={m.createdAt} />}
+                  <div className="who">{name} {prefs.showTime && <MessageTime at={m.createdAt} />}
                     {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} current={m.content} canWriteAgain={isLastAi && m.parentId !== null && !busy}
                       onSaveText={(t) => void saveText(m, t)} onWriteAgain={() => regenerate(m)} />}
                     {m.meta.incomplete === true && <span className="warn"> · incomplete</span>}
@@ -838,8 +841,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               </li>
             )}
             {pending && (
-              <li className="msg character streaming fresh" data-testid="streaming">
-                <div className="who">{leadChar?.name ?? "…"} {!pending.text && !pending.reasoning && memStatus?.startsWith("Recalling") ? <span className="hint" data-testid="memory-recalling">{memStatus}</span> : pending.reasoning && !pending.text ? "is thinking…" : "is writing…"}</div>
+              <li className={`msg ${storyInfo ? "narrator" : "character"} streaming fresh`} data-testid="streaming">
+                {storyInfo && prefs.avatarShape !== "hidden" && <CardPicture className="chat-avatar" name={storyInfo.name} avatar={storyInfo.avatar} />}
+                <div className="who">{storyInfo?.name ?? leadChar?.name ?? "…"} {!pending.text && !pending.reasoning && memStatus?.startsWith("Recalling") ? <span className="hint" data-testid="memory-recalling">{memStatus}</span> : pending.reasoning && !pending.text ? "is thinking…" : "is writing…"}</div>
                 {pending.reasoning && prefs.thinking !== "hidden" && (
                   <details className="reasoning" data-testid="reasoning-live" open={prefs.thinking === "open" || undefined}>
                     <summary>Reasoning</summary>

@@ -5,6 +5,7 @@ import { useRef } from "react";
 import type { Avatar } from "@homunculus/schemas";
 import { avatarUrl } from "../files.ts";
 import { Icon } from "./kit.tsx";
+import { cropImage } from "./ImageCropper.tsx";
 
 export function ImagePicker({ name, avatar, own = !!avatar, onChange, shape = "round", size = 64, testId }: {
   name: string;
@@ -33,7 +34,7 @@ export function ImagePicker({ name, avatar, own = !!avatar, onChange, shape = "r
       </button>
       {avatar && own && <button type="button" className="link quiet ip-remove" onClick={() => onChange(null)}>Remove</button>}
       <input ref={input} type="file" accept="image/*" hidden data-testid={testId ? `${testId}-input` : undefined}
-        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onChange(f); }} />
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void cropImage(f).then((c) => { if (c) onChange(c); }); }} />
     </span>
   );
 }

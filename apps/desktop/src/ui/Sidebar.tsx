@@ -224,11 +224,14 @@ export function AvatarDot({ name, avatar, size = 28 }: { name: string; avatar?: 
 }
 
 /** A story's small square mark: the narrator card's picture, else its first letter on a tint. */
-export function StoryMark({ name, avatar, size = 28 }: { name: string; avatar?: Avatar; size?: number }) {
-  const style = { width: size, height: size, fontSize: Math.round(size * 0.45) };
+export function StoryMark({ name, avatar, size = 28, fill = false }: { name: string; avatar?: Avatar | undefined; size?: number;
+  /** Takes the size of its place (a collection card's cover) instead of a fixed square (D-088). */
+  fill?: boolean }) {
+  const style = fill ? undefined : { width: size, height: size, fontSize: Math.round(size * 0.45) };
+  const cls = fill ? " fill" : "";
   return avatar
-    ? <img className="story-mark" src={avatarUrl(avatar)} alt="" style={style} />
-    : <span className="story-mark letter" aria-hidden style={style}>{(name || "?").slice(0, 1).toUpperCase()}</span>;
+    ? <img className={`story-mark${cls}`} src={avatarUrl(avatar)} alt="" style={style} />
+    : <span className={`story-mark letter${cls}`} aria-hidden style={style}>{(name || "?").slice(0, 1).toUpperCase()}</span>;
 }
 
 /** The newest line of a message, made short and plain for a list (markdown asterisks and quotes removed). */

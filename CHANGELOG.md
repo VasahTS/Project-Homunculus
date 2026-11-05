@@ -5,6 +5,14 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+### Pictures and layout
+
+- **Stories:** the story you played last sits on top with **Continue**; every story's cover stands (2:3) and fills its card.
+- **Crop and zoom** any picture you pick (characters, personas, stories, narrators, NPCs): Portrait, Square or its own shape; or **Use Whole Image**.
+- **Dialogue and narration colors are per look:** a color you pick stays with that look; the others keep their own.
+- **Chat avatars:** a new **Portrait** shape and bigger sizes.
+- The inspector keeps the same width on every tab; **Connections** is easier to read.
+
 ### Memory
 
 - Memory has its **own tab** beside Scene, Prompt and Reply: what it is doing right now, the chapters with their message numbers, **Write It Myself**, settings with live examples, **Try it** for Smart recall, and a Guide.

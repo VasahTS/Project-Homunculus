@@ -191,9 +191,12 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .composer-meta { width: min(760px, 100%); display: flex; gap: 14px; font-size: var(--size-small); }
 
 /* ───────────── inspector (functional layer) */
-.inspector { flex: 0 0 var(--inspector-w); min-height: 0; display: flex; flex-direction: column; margin-left: var(--gap-float); }
+.inspector { flex: 0 0 var(--inspector-w); width: var(--inspector-w); min-width: 0; max-width: var(--inspector-w); min-height: 0; display: flex; flex-direction: column; margin-left: var(--gap-float); }
 .inspector-tabs { padding: 12px 14px 6px; }
-.inspector-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+/* D-088: the panel keeps one width on every tab (Daniel, 11/04: "Scene → Prompt makes the window wider"): a tab's
+   widest field (a long preset name in a select…) no longer pushes it, and the scrollbar's place is kept on all tabs */
+.inspector-body { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.inspector-body > *, .inspector-body select, .inspector-body input, .inspector-body textarea { min-width: 0; max-width: 100%; }
 .pane { display: grid; gap: 16px; align-content: start; padding: 8px 14px 16px; }
 .pane-note { margin: 0; padding: 0 4px; color: var(--label-2); font-size: var(--size-small); }
 .sampler { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 8px; align-items: center; }
@@ -3263,15 +3266,20 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .spoiler-gate { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 0; border-top: 1px solid var(--glass-edge, var(--separator)); color: var(--label-2); }
 /* Settings → Chat / Appearance (D-082): swipe arrows can be hidden; avatars beside messages (off by default) */
 :root[data-swipe-arrows="off"] .msg .swipes { display: none; }
-:root:is([data-avatars="round"], [data-avatars="square"]) .msg { display: grid; grid-template-columns: var(--chat-avatar, 36px) minmax(0, 1fr); column-gap: 12px; align-items: start; }
-:root:is([data-avatars="round"], [data-avatars="square"]) .msg > * { grid-column: 2; }
-:root:is([data-avatars="round"], [data-avatars="square"]) .msg > .chat-avatar { grid-column: 1; grid-row: 1 / span 6; }
-:root[data-avatar-size="small"] { --chat-avatar: 28px; }
-:root[data-avatar-size="medium"] { --chat-avatar: 36px; }
-:root[data-avatar-size="large"] { --chat-avatar: 52px; }
+:root:is([data-avatars="round"], [data-avatars="square"], [data-avatars="portrait"]) .msg { display: grid; grid-template-columns: var(--chat-avatar, 36px) minmax(0, 1fr); column-gap: 14px; align-items: start; }
+:root:is([data-avatars="round"], [data-avatars="square"], [data-avatars="portrait"]) .msg > * { grid-column: 2; }
+:root:is([data-avatars="round"], [data-avatars="square"], [data-avatars="portrait"]) .msg > .chat-avatar { grid-column: 1; grid-row: 1 / span 6; }
+/* D-088: bigger pictures (Daniel, 11/04: "even on Large the picture is tiny"); Portrait = the card's own 2:3 shape */
+:root[data-avatar-size="small"] { --chat-avatar: 36px; }
+:root[data-avatar-size="medium"] { --chat-avatar: 52px; }
+:root[data-avatar-size="large"] { --chat-avatar: 76px; }
+:root[data-avatars="portrait"][data-avatar-size="small"] { --chat-avatar: 44px; }
+:root[data-avatars="portrait"][data-avatar-size="medium"] { --chat-avatar: 72px; }
+:root[data-avatars="portrait"][data-avatar-size="large"] { --chat-avatar: 112px; }
 .msg > .chat-avatar { width: var(--chat-avatar, 36px); height: var(--chat-avatar, 36px); font-size: calc(var(--chat-avatar, 36px) * .42); object-fit: cover; object-position: top; }
 :root[data-avatars="round"] .msg > .chat-avatar { border-radius: 50%; }
 :root[data-avatars="square"] .msg > .chat-avatar { border-radius: calc(6px * var(--round)); }
+:root[data-avatars="portrait"] .msg > .chat-avatar { height: calc(var(--chat-avatar, 72px) * 1.5); border-radius: calc(6px * var(--round)); }
 
 /* ---- Card reading view (D-082): the card full window; picture left, every field whole on the right. CLAUDE, 2026-11-03 */
 .card-reader { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--window); color: var(--label); outline: none; animation: cr-in .18s var(--ease-out, ease-out); }
@@ -3482,3 +3490,60 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 /* D-087: the wordmark sizes to its plate, so a wide face (Mono's Archivo) never runs under the plate number */
 .plate-hero { container-type: inline-size; }
 .plate-hero .home-wordmark { font-size: clamp(48px, 10cqw, 150px); max-width: calc(100% - 96px); }
+
+/* ---- Stories (D-088, draft V3): covers stand (2:3) and fill their card; the story played last, big above the shelf.
+   Daniel, 11/04: "the small square picture doesn't fit" and "vertical would be better, the chat uses the same pictures". */
+.gallery-card > .story-mark.fill { width: 100%; height: auto; aspect-ratio: 2 / 3; border-radius: 0; object-fit: cover; object-position: center top; }
+.gallery-card > .story-mark.fill.letter { display: flex; align-items: center; justify-content: center; }
+.story-hero-row { grid-column: 1 / -1; display: grid; grid-template-columns: clamp(120px, 16vw, 176px) minmax(0, 1fr); gap: 22px; align-items: end;
+  padding: 0 0 22px; margin-bottom: 4px; border-bottom: 1px solid var(--glass-edge, var(--separator)); }
+.shr-cover { padding: 0; border: 0; background: transparent; cursor: pointer; border-radius: calc(8px * var(--round)); overflow: hidden; display: block;
+  box-shadow: inset 0 0 0 1px var(--separator); transition: transform var(--dur-fast, .15s) var(--ease-out, ease-out); }
+.shr-cover:hover { transform: translateY(-2px); }
+.story-hero-row.on .shr-cover { box-shadow: 0 0 0 2px var(--accent); }
+.shr-cover > .story-mark.fill { display: flex; align-items: center; justify-content: center; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover; object-position: center top; border-radius: 0; font-family: var(--font-prose); font-size: 52px; background: var(--letter-bg, var(--fill-selected)); color: var(--label); }
+.shr-text { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-bottom: 4px; }
+.shr-kicker { color: var(--label-3); font-size: var(--size-small); letter-spacing: .02em; }
+.shr-name { margin: 0; font-family: var(--font-display, var(--font-prose)); font-weight: var(--display-weight, 400); font-size: clamp(24px, 2.6vw, 34px); line-height: 1.15; color: var(--label); overflow-wrap: anywhere; }
+.shr-premise { margin: 0 0 8px; max-width: 62ch; color: var(--label-2); font-family: var(--font-prose); font-size: 14px; line-height: 1.6;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.shr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.shr-meta { color: var(--label-3); font-size: var(--size-small); }
+@media (prefers-reduced-motion: reduce) { .shr-cover { transition: none; } .shr-cover:hover { transform: none; } }
+
+/* ---- Connection editor (D-088; Daniel, 11/04: "Connections is a total mess"): beside the list there is no room for a
+   side title, so each group's title sits above its card, the card takes the editor's width, and every control gets the
+   same column, so the explanations read as normal lines instead of a narrow strip. */
+.settings-look .conn-editor .editor-body { max-width: 920px; }
+.settings-look .conn-editor .group-section.annotated { flex-direction: column; flex-wrap: nowrap; gap: 12px; padding: 22px 0; }
+.settings-look .conn-editor .group-intro { flex: none; max-width: 62ch; }
+.settings-look .conn-editor .annotated > .group { flex: none; width: 100%; }
+.settings-look .conn-editor .annotated .row { grid-template-columns: minmax(0, 1fr) minmax(220px, 340px); align-items: center; }
+.settings-look .conn-editor .annotated .row-wide { grid-template-columns: minmax(0, 1fr); }
+.settings-look .conn-editor .annotated .row-value { min-width: 0; }
+.settings-look .conn-editor .annotated .row-value > select,
+.settings-look .conn-editor .annotated .row-value > input:not([type="range"]):not(.num):not(.wide-num),
+.settings-look .conn-editor .annotated .row-value > .model-field { width: 100%; min-width: 0; max-width: none; }
+.settings-look .conn-editor .annotated .row-value > select { text-overflow: ellipsis; }
+.settings-look .conn-editor .annotated .row-help { max-width: 60ch; }
+@media (max-width: 900px) { .settings-look .conn-editor .annotated .row { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Crop sheet (D-088): every picture you pick can be moved, zoomed and cut to Portrait, Square or its own shape. */
+.crop-scrim { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--scrim, rgba(0,0,0,.72)); animation: crop-in .16s var(--ease-out, ease-out); }
+@keyframes crop-in { from { opacity: 0; } to { opacity: 1; } }
+.crop-sheet { display: flex; flex-direction: column; gap: 14px; width: min(520px, 100%); max-height: 100%; overflow: auto; padding: 18px 20px 20px; border-radius: var(--radius-group, 12px); background: var(--pop, var(--surface)); box-shadow: var(--shadow-pop); color: var(--label); outline: none; }
+.crop-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.crop-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.crop-stage { display: flex; align-items: center; justify-content: center; min-height: 240px; padding: 8px; border-radius: calc(8px * var(--round)); background: color-mix(in srgb, var(--window) 70%, black); }
+.crop-frame { position: relative; flex: none; overflow: hidden; cursor: grab; touch-action: none; user-select: none; box-shadow: 0 0 0 1px var(--label-3); transition: width .2s var(--ease-out, ease-out), height .2s var(--ease-out, ease-out); }
+.crop-frame:active { cursor: grabbing; }
+.crop-frame img { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; transform-origin: 0 0; }
+.crop-grid { position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background: linear-gradient(to right, transparent calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% + .5px), transparent calc(66.66% + .5px)),
+    linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% + .5px), transparent calc(66.66% + .5px)); }
+.crop-zoom { display: flex; align-items: center; gap: 12px; color: var(--label-2); font-size: var(--size-small); }
+.crop-zoom input { flex: 1; }
+.crop-zoom output { width: 44px; text-align: right; font-family: var(--font-figures); }
+.crop-hint { margin: -6px 0 0; }
+.crop-actions { display: flex; align-items: center; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .crop-scrim { animation: none; } .crop-frame { transition: none; } }

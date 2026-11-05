@@ -6,17 +6,13 @@ const KEY = "messages.look";
 let look: MessageLook = DEFAULT_LOOK;
 const listeners = new Set<() => void>();
 
-// the user's colors live in --dialogue-user / --narration-user, over the look's --dialogue / --narration (D-075, D-076):
-// clearing one ("Theme's") falls back to the look's again
-let mine: string[] = [];
-function apply(l: MessageLook = look) {
+// D-088: the user's dialogue / narration colors are kept per look (theme/appearance.ts LookTweaks), so changing one no
+// longer changes every look. The old global colors (dialogueColor / narrationColor, D-075) are dropped once on load.
+function apply(_l: MessageLook = look) {
+  if (typeof document === "undefined") return;
   const root = document.documentElement.style;
-  const want: Array<[string, string]> = [["--dialogue-user", l.dialogueColor], ["--narration-user", l.narrationColor]];
-  for (const [name, value] of want) {
-    if (value) root.setProperty(name, value);
-    else if (mine.includes(name)) root.removeProperty(name);
-  }
-  mine = want.filter(([, v]) => !!v).map(([n]) => n);
+  root.removeProperty("--dialogue-user");
+  root.removeProperty("--narration-user");
 }
 
 interface Store { getAppSetting<T>(key: string): Promise<T | undefined>; setAppSetting(key: string, value: unknown): Promise<void> }
@@ -28,6 +24,10 @@ export async function loadMessageLook(s: Store): Promise<void> {
   store = s;
   const saved = await s.getAppSetting<Partial<MessageLook>>(KEY).catch(() => undefined);
   look = { ...DEFAULT_LOOK, ...(saved ?? {}) };
+  if (look.dialogueColor || look.narrationColor) {
+    look = { ...look, dialogueColor: "", narrationColor: "" };
+    await s.setAppSetting(KEY, look).catch(() => {});
+  }
   apply(look);
   listeners.forEach((f) => f());
 }

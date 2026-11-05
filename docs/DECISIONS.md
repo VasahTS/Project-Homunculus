@@ -924,3 +924,16 @@ Daniel, after pulling D-086 on Windows (screenshot: Home in Mono — Archivo, li
 
 Signed: **CLAUDE**.
 
+
+## D-088 — UI round of 11/04: Stories (draft V3), crop sheet, dialogue colors per look, steady inspector, Connections, portrait chat avatars (2026-11-04)
+
+Daniel, looking at Stories: "this small square picture doesn't fit" → after the landscape drafts: "if you use the same default pictures they're still vertical in the chat and will get cut — wouldn't vertical be better?" → picked **V3** ("V3 isn't bad"). In the same message: the chat picture is square and tiny even on Large; Scene → Prompt makes the inspector wider and shifts the layout; dialogue color doesn't follow the looks ("if you change it, it's different for ALL themes"); Connections is "a total mess"; "add the option to crop the image, zoom etc. when you pick an image for some place".
+- **Stories (V3):** the story with the newest chat sits on top — standing 2:3 cover, premise, **Continue “chat”**, how you play · chats · date — above the shelf. Story covers fill their card at 2:3 (`StoryMark fill`; before, a fixed 64 px square inside a portrait card). Hidden while searching.
+- **Crop sheet** (`ui/ImageCropper.tsx`, `cropImage(file)` + `<CropHost />`): every picture picked (characters, personas, stories, Kits, narrators, NPCs) opens it. Portrait 2:3 (default), Square or Original; drag to move, wheel/slider/+/− to zoom, Enter crops, Esc cancels; **Use Whole Image** keeps the file as it was. Output PNG, longest side at most 2048 px.
+- **Dialogue / narration colors are per look:** they are `LookTweaks.dialogue` / `.narration` (like the accent), folded into the look's `--dialogue` / `--narration`. The old global `messages.look.dialogueColor/narrationColor` (D-075) are cleared once on load — they were what painted every look the same; pick again in the look you want. The color box shows the look's own color.
+- **Inspector:** one width on every tab (`min-width: 0`, `max-width`, `scrollbar-gutter: stable`); a wide select no longer pushes it.
+- **Connections editor:** group titles above their cards, the card at the editor's width, every control in the same 220–340 px column, explanations as normal lines.
+- **Chat avatars:** new **Portrait** shape (2:3) and bigger sizes (round/square 36/52/76 px; portrait 44/72/112 px wide).
+- Tests: `e2e/ui-round-1104.e2e.ts` (6); the picture tests in `cards` / `round2` click **Crop**.
+
+Signed: **CLAUDE**.

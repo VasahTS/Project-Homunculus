@@ -4,6 +4,7 @@ import { useUnsavedChanges, useGuardedNavigation } from "./ux.tsx";
 // 2026-11-01 (D-070): three layouts the user picks (Sheet · Tabs · Writer, remembered), a greetings editor (alternates
 // included), the Description's <sections>, token counts, Save and Chat Now always in sight (Ctrl+S).
 import { LorebookChips } from "./LorePanels.tsx";
+import { cropImage } from "./ImageCropper.tsx";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { characterNoteOf, estimateTokens, regexScriptsOf as regexOf } from "@homunculus/core";
 import type { RegexScript } from "@homunculus/schemas";
@@ -286,7 +287,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
       ) : <p className="hint">{exists ? "Save to add an image for this version." : "Create the character first to add an image."}</p>)}
       {small && canPicture && ownAvatar && <button type="button" className="ce-pic-x" aria-label={variantId ? "Use the main image" : "Remove image"} onClick={() => void onChangeAvatar(ownKey, null)}>×</button>}
       {canPicture && <input ref={imageInput} type="file" accept="image/*" hidden data-testid="avatar-input"
-        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onChangeAvatar(ownKey, f); }} />}
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void cropImage(f).then((c) => { if (c) void onChangeAvatar(ownKey, c); }); }} />}
     </div>
   );
 

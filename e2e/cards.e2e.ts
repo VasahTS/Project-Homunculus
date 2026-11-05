@@ -74,6 +74,7 @@ test("change and remove a character's image", async ({ page }) => {
   await editCharacter(page);
   await expect(page.locator(".avatar-big.placeholder")).toBeVisible();
   await page.getByTestId("avatar-input").setInputFiles({ name: "face.png", mimeType: "image/png", buffer: Buffer.from(solidPng(10, 10, [0, 120, 200])) });
+  await page.getByTestId("crop-apply").click(); // D-088: the crop sheet opens for every picture picked
   await expect(page.locator("img.avatar-big")).toBeVisible();
   await page.getByRole("button", { name: "Remove image" }).click();
   await expect(page.locator(".avatar-big.placeholder")).toBeVisible();

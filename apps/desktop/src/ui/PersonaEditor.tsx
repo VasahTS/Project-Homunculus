@@ -2,6 +2,7 @@ import { useUnsavedChanges } from "./ux.tsx";
 // Homunculus 2 — create / edit a persona (who YOU are in the story), its versions and history.
 // Author: CLAUDE, 2026-10-28 (slice 1, BLUEPRINT §2.1 and §2.5).
 import { LorebookChips } from "./LorePanels.tsx";
+import { cropImage } from "./ImageCropper.tsx";
 import { useEffect, useRef, useState } from "react";
 import { Persona, type Avatar, type HistoryEntry, type Lorebook } from "@homunculus/schemas";
 import { variantAvatarId } from "@homunculus/core";
@@ -114,7 +115,7 @@ export function PersonaEditor({ persona, avatars, isDefault, justSaved = false, 
                 </button>
                 {ownAvatar && <button className="link" onClick={() => void onChangeAvatar(ownKey, null)}>{variantId ? "Use the main image" : "Remove image"}</button>}
                 <input ref={imageInput} type="file" accept="image/*" hidden data-testid="persona-avatar-input"
-                  onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onChangeAvatar(ownKey, f); }} />
+                  onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void cropImage(f).then((c) => { if (c) void onChangeAvatar(ownKey, c); }); }} />
                 <div className="default-row">
                   <Switch label="Default persona" checked={isDefault} onChange={(on) => void run(() => onSetDefault(on ? draft.id : null))} />
                   <span className="label-row">Default persona <Help text="Used by every session that doesn't pick a persona of its own. Each session can pick another one in the story's toolbar." /></span>

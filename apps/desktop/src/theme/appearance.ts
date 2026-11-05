@@ -11,7 +11,9 @@ import { isIconSet, setIconSet, type IconSetId } from "./iconSets.ts";
 
 export type MotionSpeed = "calm" | "normal" | "quick";
 export interface MotionPrefs { on: boolean; speed: MotionSpeed; followSystem: boolean }
-export interface LookTweaks { accent?: string; storyFont?: "prose" | "ui"; storySize?: number; /** D-086 */ icons?: IconSetId }
+export interface LookTweaks { accent?: string; storyFont?: "prose" | "ui"; storySize?: number; /** D-086 */ icons?: IconSetId;
+  /** The user's dialogue / narration colors for this look only (D-088: they were one color for every look). */
+  dialogue?: string; narration?: string }
 export interface AppearanceState {
   activeId: string;
   tweaks: Record<string, LookTweaks>;
@@ -66,6 +68,8 @@ export function resolvedLook(s: AppearanceState = state): AppearanceProfile {
   }
   if (t.storyFont === "ui") tokens["font-prose"] = "var(--font-ui)";
   if (t.storySize) tokens["size-prose"] = `${t.storySize}px`;
+  if (t.dialogue) tokens.dialogue = t.dialogue;
+  if (t.narration) tokens.narration = t.narration;
   const icons = t.icons ?? look.icons;
   return { ...look, tokens, css: safeMode ? "" : look.css, ...(icons ? { icons } : {}) };
 }
