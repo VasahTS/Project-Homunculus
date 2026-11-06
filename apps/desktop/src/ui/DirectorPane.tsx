@@ -3,6 +3,7 @@
 // window), D (notes, kept when expired), F (setup) and G (a note's weight). Everything a Director says or does is
 // data the user can edit: job, writer line, how notes are proposed, the weights and their instructions, what it sees.
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
 import type { Session } from "@homunculus/schemas";
 import {
   cleanProfile, DEFAULT_DIRECTOR, directorProfiles, directorState, noteLeft, noteStatus, profileFor, saveDirectorProfiles, saveDirectorState,
@@ -14,7 +15,7 @@ import { Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { MessageText } from "./MessageText.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 
-type View = "chat" | "notes" | "setup";
+type View = "chat" | "notes";
 const newId = () => crypto.randomUUID();
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "weight";
 const LASTS = [1, 2, 3, 5, 10, 20] as const;
@@ -28,6 +29,7 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
   const [profiles, setProfiles] = useState<DirectorProfile[]>([DEFAULT_DIRECTOR]);
   const [state, setState] = useState<DirectorState>({ profileId: "", notes: [], chat: [] });
   const [view, setView] = useState<View>("chat");
+  const [setupOpen, setSetupOpen] = useState(false);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     const [p, s] = await Promise.all([directorProfiles(svc.store), directorState(svc.store, session.id)]);
@@ -57,16 +59,18 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
         <Segmented small label="Director view" value={view} onChange={setView} options={[
           { value: "chat", label: "Chat", testId: "director-view-chat" },
           { value: "notes", label: `Notes${active.length ? ` ${active.length}` : ""}`, testId: "director-view-notes" },
-          { value: "setup", label: "Setup", testId: "director-view-setup" },
         ]} />
+        <IconButton label="Director setup" onClick={() => setSetupOpen(true)} data-testid="director-setup-open"><Icon name="gear" size={14} /></IconButton>
         {onPop && <IconButton label={popped ? "Dock in the inspector" : "Pop out"} onClick={onPop} data-testid="director-pop"><Icon name={popped ? "inspector" : "send"} size={14} /></IconButton>}
       </div>
       {error && <p className="hint director-error" role="alert">{error}</p>}
       {view === "chat" && <ChatView svc={svc} session={session} headId={headId} branchId={branchId} connection={connection} profile={profile}
         state={state} change={change} onError={setError} onNotes={() => setView("notes")} />}
       {view === "notes" && <NotesView profile={profile} notes={state.notes} change={change} />}
-      {view === "setup" && <SetupView svc={svc} connection={connection} profiles={profiles} profile={profile} onSave={saveProfiles}
-        onPick={(id) => void change((s) => ({ ...s, profileId: id }))} />}
+      {setupOpen && <SetupSheet onClose={() => setSetupOpen(false)} title={profile.name}>
+        <SetupView svc={svc} connection={connection} profiles={profiles} profile={profile} onSave={saveProfiles}
+          onPick={(id) => void change((s) => ({ ...s, profileId: id }))} />
+      </SetupSheet>}
     </div>
   );
 }
@@ -284,6 +288,7 @@ function SetupView({ svc, connection, profiles, profile, onSave, onPick }: {
   const listModels = cfg && svc.core.providers.get(cfg.providerId)?.listModels;
   return (
     <div className="director-setup" data-testid="director-setup">
+      <div className="director-setup-col">
       <section className="mem-card">
         <h3>Director</h3>
         <Field label="Name"><Text label="Director name" value={profile.name} onCommit={(name) => set({ name: name || "Director" })} /></Field>
@@ -321,6 +326,8 @@ function SetupView({ svc, connection, profiles, profile, onSave, onPick }: {
         <Area label="How it proposes notes" value={profile.noteFormat} reset={DEFAULT_DIRECTOR.noteFormat} onCommit={(noteFormat) => set({ noteFormat })} />
       </section>
 
+      </div>
+      <div className="director-setup-col">
       <section className="mem-card">
         <h3>Note weights</h3>
         <p className="mem-text hint">Each note picks one. The instruction goes above its notes in the story's prompt.</p>
@@ -373,6 +380,7 @@ function SetupView({ svc, connection, profiles, profile, onSave, onPick }: {
         </Field>
         <p className="mem-text hint">Its own notes and their status always go along.</p>
       </section>
+      </div>
     </div>
   );
 }
@@ -408,34 +416,82 @@ function Area({ label, value, reset, onCommit }: { label: string; value: string;
   );
 }
 
-// ---------------------------------------------------------------- the popped-out window
+// ---------------------------------------------------------------- setup sheet and the popped-out window
 
-/** The Director in its own window over the chat: drag it by its top; Dock puts it back in the inspector. */
+/** The Director's setup in its own panel over the app (not squeezed into the chat window). Esc closes it. */
+function SetupSheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [onClose]);
+  return createPortal(
+    <div className="director-sheet-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <section className="director-sheet" role="dialog" aria-modal="true" aria-label="Director setup" data-testid="director-sheet">
+        <header className="director-sheet-head"><h2>Director setup</h2><span className="hint">{title}</span>
+          <IconButton label="Close the setup" onClick={onClose}><Icon name="close" size={14} /></IconButton></header>
+        <div className="director-sheet-body">{children}</div>
+      </section>
+    </div>, document.body);
+}
+
+type Box = { x: number; y: number; w: number; h: number };
+type Edge = "e" | "s" | "w" | "se" | "sw";
+const MIN_W = 360, MIN_H = 320, GAP = 12;
+const fit = (b: Box): Box => {
+  const w = Math.min(Math.max(MIN_W, b.w), window.innerWidth - GAP * 2);
+  const h = Math.min(Math.max(MIN_H, b.h), window.innerHeight - GAP * 2);
+  return { w, h, x: Math.min(Math.max(GAP, b.x), window.innerWidth - w - GAP), y: Math.min(Math.max(GAP, b.y), window.innerHeight - h - GAP) };
+};
+
+/**
+ * The Director in its own window over the chat: drag it by its top, resize it from its edges and corners, maximize it
+ * (button or double-click on the top). Size, place and maximized are remembered. Dock puts it back in the inspector.
+ */
 export function DirectorWindow({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
-    try { const s = JSON.parse(localStorage.getItem("director.window") ?? ""); if (typeof s?.x === "number") return s; } catch { /* ignore */ }
-    return { x: Math.max(16, window.innerWidth - 560 - 400), y: 90 }; // left of the inspector, over the chat
+  const [box, setBox] = useState<Box>(() => {
+    try { const s = JSON.parse(localStorage.getItem("director.window") ?? ""); if (typeof s?.x === "number" && typeof s?.w === "number") return fit(s); } catch { /* ignore */ }
+    return fit({ x: window.innerWidth - 520 - 400, y: 90, w: 520, h: Math.min(760, window.innerHeight * 0.76) }); // left of the inspector
   });
-  const drag = useRef<{ dx: number; dy: number } | null>(null);
-  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest("button, select, input")) return;
-    drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
+  const [max, setMax] = useState(() => { try { return localStorage.getItem("director.window.max") === "1"; } catch { return false; } });
+  const act = useRef<{ edge: Edge | "move"; sx: number; sy: number; start: Box } | null>(null);
+  const latest = useRef(box);
+  latest.current = box;
+  useEffect(() => { const r = () => setBox((b) => fit(b)); window.addEventListener("resize", r); return () => window.removeEventListener("resize", r); }, []);
+  const save = (b: Box, m: boolean) => { try { localStorage.setItem("director.window", JSON.stringify(b)); localStorage.setItem("director.window.max", m ? "1" : "0"); } catch { /* ignore */ } };
+  const toggleMax = () => setMax((m) => { save(latest.current, !m); return !m; });
+  const begin = (edge: Edge | "move") => (e: ReactPointerEvent<HTMLElement>) => {
+    if (edge === "move" && ((e.target as HTMLElement).closest("button, select, input") || max)) return;
+    if (max) return;
+    e.preventDefault();
+    act.current = { edge, sx: e.clientX, sy: e.clientY, start: latest.current };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
-  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drag.current) return;
-    const x = Math.min(window.innerWidth - 120, Math.max(0, e.clientX - drag.current.dx));
-    const y = Math.min(window.innerHeight - 60, Math.max(0, e.clientY - drag.current.dy));
-    setPos({ x, y });
+  const during = (e: ReactPointerEvent<HTMLElement>) => {
+    const a = act.current;
+    if (!a) return;
+    const dx = e.clientX - a.sx, dy = e.clientY - a.sy, s = a.start;
+    if (a.edge === "move") { setBox(fit({ ...s, x: s.x + dx, y: s.y + dy })); return; }
+    let { x, w, h } = s;
+    if (a.edge.includes("e")) w = s.w + dx;
+    if (a.edge.includes("w")) { w = Math.max(MIN_W, s.w - dx); x = s.x + s.w - w; }
+    if (a.edge.includes("s")) h = s.h + dy;
+    setBox(fit({ x, y: s.y, w, h }));
   };
-  const up = () => { if (!drag.current) return; drag.current = null; try { localStorage.setItem("director.window", JSON.stringify(pos)); } catch { /* ignore */ } };
+  const end = () => { if (!act.current) return; act.current = null; save(latest.current, max); };
+  const style = max ? { left: GAP, top: GAP, width: `calc(100vw - ${GAP * 2}px)`, height: `calc(100vh - ${GAP * 2}px)` } : { left: box.x, top: box.y, width: box.w, height: box.h };
   return (
-    <div className="director-window glass" style={{ left: pos.x, top: pos.y }} role="dialog" aria-label="Director" data-testid="director-window">
-      <div className="director-window-bar" onPointerDown={down} onPointerMove={move} onPointerUp={up}>
+    <div className={`director-window glass${max ? " maximized" : ""}`} style={style} role="dialog" aria-label="Director" data-testid="director-window">
+      <div className="director-window-bar" onPointerDown={begin("move")} onPointerMove={during} onPointerUp={end} onDoubleClick={(e) => { if (!(e.target as HTMLElement).closest("button")) toggleMax(); }}>
         <Icon name="grip" size={13} /><span>Director</span>
+        <IconButton label={max ? "Restore the size" : "Maximize"} onClick={toggleMax} data-testid="director-max"><Icon name={max ? "restore" : "maximize"} size={13} /></IconButton>
         <IconButton label="Close the Director" onClick={onClose}><Icon name="close" size={13} /></IconButton>
       </div>
       {children}
+      {!max && (["e", "s", "w", "se", "sw"] as const).map((edge) => (
+        <span key={edge} className={`director-resize ${edge}`} aria-hidden data-testid={`director-resize-${edge}`}
+          onPointerDown={begin(edge)} onPointerMove={during} onPointerUp={end} />
+      ))}
     </div>
   );
 }

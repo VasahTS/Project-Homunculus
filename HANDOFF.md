@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## Director window resizable, maximize, Setup in its own panel (2026-11-06) — CLAUDE — D-092
+
+- Daniel: make the popped-out Director expandable (size, maximize) and give Setup a separate panel. The window resizes from its edges/corners, maximizes (button or double-click on its top), remembers size/place/state; ⚙ opens "Director setup" as a wide two-column panel (Esc closes). A `.glass` width transition was freezing the resize under reduced motion; the window has no transitions now.
+- **To try:** Director → pop out → drag the bottom-right corner; ⬜ maximize; ⚙ Setup.
+- Checks: typecheck; 732 unit; click tests `director` (2), `chat`, `inspector-overflow` — 18 passed. Written to Daniel's `Homunculus-gpt` folder (no push from this session).
+
 ## The Director, first version (2026-11-06) — CLAUDE — D-092
 
 - Daniel's OOC idea (canvas "Homunculus 2 — Director"): inspector tab **Director** (chat · Notes · Setup), pops out into a draggable window. Notes by weight (Whisper / Steer / Turn, all editable data), per chat, counted per reply/swipe/regeneration, kept when expired. Setup: connection and model, job, writer line, how it proposes notes, weights, what it sees, where notes go.
