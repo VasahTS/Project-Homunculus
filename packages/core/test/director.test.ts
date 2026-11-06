@@ -37,12 +37,12 @@ describe("the Director", () => {
     expect(cleanProfile(null).weights.length).toBe(3);
   });
 
-  it("each reply counts once; an expired note stays, with the replies it went with", () => {
+  it("each turn counts once; an expired note stays, with the replies it went with", () => {
     let notes = [note({ id: "a", text: "x", lasts: 2 }), note({ id: "b", text: "y" })];
-    notes = countNotes(notes, "r1");
-    notes = countNotes(notes, "r1"); // the same reply never counts twice
-    notes = countNotes(notes, "r2");
-    notes = countNotes(notes, "r3");
+    notes = countNotes(notes, "r1", "p1");
+    notes = countNotes(notes, "r1", "p1"); // the same reply never counts twice
+    notes = countNotes(notes, "r2", "p2");
+    notes = countNotes(notes, "r3", "p3");
     expect(notes[0]).toMatchObject({ sent: ["r1", "r2"] });
     expect(noteStatus(notes[0]!)).toBe("expired");
     expect(notes[1]!.sent).toEqual(["r1", "r2", "r3"]);
@@ -58,7 +58,7 @@ describe("the Director", () => {
     expect(splitProposals(text, DEFAULT_DIRECTOR).map((p) => p.kind)).toEqual(["text", "note", "text", "note", "note"]);
   });
 
-  it("the story's AI gets active notes after the chat, and every reply and swipe uses them once", async () => {
+  it("the story's AI gets active notes after the chat; a swipe gets them again without spending a turn", async () => {
     const w = await world(() => "She lowers the bow.");
     const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
     await saveDirectorState(w.store, session.id, { profileId: "", chat: [], notes: [note({ id: "n1", text: "Lyra stays guarded.", lasts: 2 })] });
@@ -68,10 +68,28 @@ describe("the Director", () => {
     expect(parts.find((p) => p.source === "agent:director")?.content).toContain("- Lyra stays guarded.");
     expect(parts.at(-1)?.source).toBe("agent:director"); // depth 0 = after the last message
     const swipe = await w.chat.generate(session.id, userMessage.id, connection);
-    const s = await directorState(w.store, session.id);
+    let s = await directorState(w.store, session.id);
     expect(s.notes[0]).toMatchObject({ sent: [reply.id, swipe.id] });
-    expect(noteStatus(s.notes[0]!)).toBe("expired");
-    // expired: the next reply goes without it
+    expect(noteLeft(s.notes[0]!)).toBe("1 of 2 left"); // one turn, two versions
+    const next = await w.chat.send(session.id, swipe.id, "And?", connection); // the second turn
+    s = await directorState(w.store, session.id);
+    const at = new Set((await w.store.pathTo(next.reply.id)).map((m) => m.id));
+    expect(noteStatus(s.notes[0]!, at)).toBe("expired");
+    // spent, but a swipe of that last turn still gets it…
+    const again = await w.chat.generate(session.id, next.userMessage.id, connection);
+    expect((await w.store.getGenerationRecord(again.id))!.prompt.some((p) => p.source === "agent:director")).toBe(true);
+    // …and a new turn goes without it
+    const third = await w.chat.send(session.id, again.id, "Then?", connection);
+    expect((await w.store.getGenerationRecord(third.reply.id))!.prompt.some((p) => p.source === "agent:director")).toBe(false);
+  });
+
+  it("with Swipes use up notes, every reply, swipe and regeneration spends one", async () => {
+    const w = await world(() => "She lowers the bow.");
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    await saveDirectorProfiles(w.store, [cleanProfile({ id: "d", swipesSpend: true })]);
+    await saveDirectorState(w.store, session.id, { profileId: "d", chat: [], notes: [note({ id: "n1", text: "Guarded.", lasts: 2 })] });
+    const { userMessage } = await w.chat.send(session.id, firstMessage!.id, "Hello.", connection);
+    await w.chat.generate(session.id, userMessage.id, connection);
     const third = await w.chat.generate(session.id, userMessage.id, connection);
     expect((await w.store.getGenerationRecord(third.id))!.prompt.some((p) => p.source === "agent:director")).toBe(false);
   });
@@ -184,12 +202,12 @@ describe("the Director changes the story, with Undo", () => {
 });
 
 describe("the Director follows branches and swipes", () => {
-  it("counts a note along the path on screen: swipes of a turn count, other branches do not", async () => {
+  it("counts a note along the path on screen, by turn: swipes of a turn share it, other branches do not", async () => {
     const w = await world(() => "She waits.");
     const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
     await saveDirectorState(w.store, session.id, { profileId: "", chat: [], notes: [note({ id: "n", text: "Rain.", lasts: 3 })] });
     const a = await w.chat.send(session.id, firstMessage!.id, "One.", connection);   // uses 1 (path: first → One → reply)
-    const a2 = await w.chat.generate(session.id, a.userMessage.id, connection);    // a swipe of the same turn: uses 2
+    const a2 = await w.chat.generate(session.id, a.userMessage.id, connection);    // a swipe of the same turn: still 1 turn
     // another branch from the first message: its first reply sees no earlier uses
     const b = await w.chat.send(session.id, firstMessage!.id, "Other.", connection);
     const s = await directorState(w.store, session.id);
@@ -197,7 +215,7 @@ describe("the Director follows branches and swipes", () => {
     expect(n.sent).toEqual([a.reply.id, a2.id, b.reply.id]);
     const along = async (id: string) => new Set((await w.store.pathTo(id)).map((m) => m.id));
     expect(noteStatus(n, await along(a2.id))).toBe("active");
-    expect(noteLeft(n, await along(a2.id))).toBe("1 of 3 left");
+    expect(noteLeft(n, await along(a2.id))).toBe("2 of 3 left");
     expect(noteLeft(n, await along(b.reply.id))).toBe("2 of 3 left");
   });
 

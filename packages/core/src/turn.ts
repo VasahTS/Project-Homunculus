@@ -864,17 +864,19 @@ export class TurnPipeline {
   // ---------------------------------------------------------------- the Director (D-092)
 
   /** The Director's notes active at this point of the story (`at` = the path up to the message being answered). */
-  private async directorInjection(session: Session, at: ReadonlySet<string>): Promise<PromptInjection | undefined> {
+  private async directorInjection(session: Session, at: ReadonlySet<string>, parentId: string | null): Promise<PromptInjection | undefined> {
     const state = await directorState(this.store, session.id);
     if (!state.notes.length) return undefined;
     const profile = await directorForSession(this.store, session, state);
-    const text = directorNotesText(profile, state.notes, at);
+    const text = directorNotesText(profile, state.notes, at, parentId);
     return text ? { agentId: "director", text, position: "depth", depth: profile.depth, role: profile.role } : undefined;
   }
 
   private async useDirectorNotes(sessionId: string, replyId: string, parentId: string | null, at: ReadonlySet<string>): Promise<void> {
     const state = await directorState(this.store, sessionId);
-    await saveDirectorState(this.store, sessionId, { ...state, notes: countNotes(state.notes, replyId, parentId, at) });
+    const session = await this.store.getSession(sessionId);
+    const perReply = session ? (await directorForSession(this.store, session, state)).swipesSpend : false;
+    await saveDirectorState(this.store, sessionId, { ...state, notes: countNotes(state.notes, replyId, parentId, at, perReply) });
     void this.core.events.emit("director.changed", { sessionId });
   }
 
@@ -1407,7 +1409,7 @@ export class TurnPipeline {
     // memory (D-054, D-083): summaries stand in for the messages they cover, just before what is left of the chat
     const { memory, receipt, note } = await this.memoryFor(a.session.id, a.setup.memory, a.history, a.recall, a.branchId);
     // the Director's active notes (D-092), after the chat by default
-    const director = await this.directorInjection(a.session, new Set(a.history.map((m) => m.id))).catch(() => undefined);
+    const director = await this.directorInjection(a.session, new Set(a.history.map((m) => m.id)), a.parentId).catch(() => undefined);
     const withDirector = director ? [...a.injections, director] : a.injections;
     const injections = memory.text ? [...withDirector, { agentId: "memory", text: memory.text, position: "depth" as const, depth: 100_000, role: "system" as const }] : withDirector;
     const built = buildPrompt({

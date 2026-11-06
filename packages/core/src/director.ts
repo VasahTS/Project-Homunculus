@@ -75,6 +75,8 @@ export interface DirectorProfile {
   autoQuestion: string;
   /** Buttons above its message box. */
   quick: string[];
+  /** Swipes and regenerations spend a note's use too (off: a note lasts N turns of the story). */
+  swipesSpend: boolean;
 }
 
 export interface DirectorNote {
@@ -162,6 +164,23 @@ export function noteUses(n: DirectorNote, at?: DirectorPoint): string[] {
   return n.sent.filter((r) => onPath(n.sentFrom?.[r], at));
 }
 
+/**
+ * How counting goes (Daniel, 11/06: "a note's turns are spent even when you swipe"): by default a note lasts N turns
+ * of the story — a swipe or a regeneration of a turn gets the note again without spending another use. With
+ * `perReply`, every reply, swipe and regeneration spends one.
+ */
+export interface CountRule { perReply?: boolean | undefined; /** The message the next reply answers: a turn already counted keeps the note. */ parentId?: string | null | undefined }
+
+/** The turns (or, with perReply, the replies) on this path that spent the note. */
+export function noteSpent(n: DirectorNote, at?: DirectorPoint, rule: CountRule = {}): number {
+  const uses = noteUses(n, at);
+  if (rule.perReply) return uses.length;
+  return new Set(uses.map((r) => (n.sentFrom && r in n.sentFrom ? `p:${n.sentFrom[r]}` : `r:${r}`))).size;
+}
+
+const turnCounted = (n: DirectorNote, at: DirectorPoint | undefined, parentId: string | null | undefined) =>
+  parentId !== undefined && noteUses(n, at).some((r) => n.sentFrom?.[r] === parentId);
+
 export const DIRECTOR_JOB = `You are the Director of this story, not its writer. You talk with {{user}} out of character about how the story is going: pacing, where it is heading, whether characters act like themselves, and which prompt, card or lorebook entry causes what.
 Answer plainly and briefly. Quote the story only to point at something.
 When {{user}} wants the story to change, propose a note instead of changing it yourself.`;
@@ -206,7 +225,7 @@ export const DEFAULT_DIRECTOR: DirectorProfile = {
   job: DIRECTOR_JOB, writerLine: DIRECTOR_WRITER_LINE, noteFormat: DIRECTOR_NOTE_FORMAT, notesHeader: DIRECTOR_NOTES_HEADER,
   weights: DIRECTOR_WEIGHTS, defaultWeightId: "whisper", sees: DIRECTOR_SEES, depth: 0, role: "system",
   may: DIRECTOR_MAY, changeFormat: DIRECTOR_CHANGE_FORMAT, checkReplies: false, checkPrompt: DIRECTOR_CHECK_PROMPT,
-  autoEvery: 0, autoQuestion: DIRECTOR_AUTO_QUESTION, quick: DIRECTOR_QUICK,
+  autoEvery: 0, autoQuestion: DIRECTOR_AUTO_QUESTION, quick: DIRECTOR_QUICK, swipesSpend: false,
 };
 
 const PROFILES_KEY = "director.profiles";
@@ -248,6 +267,7 @@ export function cleanProfile(raw: unknown): DirectorProfile {
     may, changeFormat: str(r.changeFormat, d.changeFormat), checkReplies: r.checkReplies === true, checkPrompt: str(r.checkPrompt, d.checkPrompt),
     autoEvery: num(r.autoEvery, 0, 0, 999), autoQuestion: str(r.autoQuestion, d.autoQuestion),
     quick: Array.isArray(r.quick) ? r.quick.filter((q): q is string => typeof q === "string" && !!q.trim()) : d.quick,
+    swipesSpend: r.swipesSpend === true,
   };
 }
 
@@ -305,22 +325,25 @@ export async function directorForSession(store: SqlStore, session: { id: string;
   return profileFor(profiles, s, links, session.storyId);
 }
 
-export function noteStatus(n: DirectorNote, at?: DirectorPoint): NoteStatus {
+export function noteStatus(n: DirectorNote, at?: DirectorPoint, rule: CountRule = {}): NoteStatus {
   if (n.off) return "off";
   if (!seenAt(n, at)) return "elsewhere";
-  return n.lasts !== null && noteUses(n, at).length >= n.lasts ? "expired" : "active";
+  if (n.lasts === null || noteSpent(n, at, rule) < n.lasts) return "active";
+  // a swipe or regeneration of a turn that already had the note gets it again (unless every reply counts)
+  return !rule.perReply && turnCounted(n, at, rule.parentId) ? "active" : "expired";
 }
 
 /** "2 of 3 left", "Always", "Used 3 of 3" — along this path. */
-export function noteLeft(n: DirectorNote, at?: DirectorPoint): string {
+export function noteLeft(n: DirectorNote, at?: DirectorPoint, rule: CountRule = {}): string {
   if (n.lasts === null) return "Always";
-  const left = Math.max(0, n.lasts - noteUses(n, at).length);
+  const left = Math.max(0, n.lasts - noteSpent(n, at, rule));
   return left ? `${left} of ${n.lasts} left` : `Used ${n.lasts} of ${n.lasts}`;
 }
 
 /** The text that goes to the story's AI, or "" when no note is active. Grouped by weight, in the profile's order. */
-export function directorNotesText(profile: DirectorProfile, notes: DirectorNote[], at?: DirectorPoint): string {
-  const active = notes.filter((n) => noteStatus(n, at) === "active" && n.text.trim());
+export function directorNotesText(profile: DirectorProfile, notes: DirectorNote[], at?: DirectorPoint, parentId?: string | null): string {
+  const rule: CountRule = { perReply: profile.swipesSpend, parentId };
+  const active = notes.filter((n) => noteStatus(n, at, rule) === "active" && n.text.trim());
   if (!active.length) return "";
   const known = new Set(profile.weights.map((w) => w.id));
   const groups: string[] = [];
@@ -339,8 +362,8 @@ export function directorNotesText(profile: DirectorProfile, notes: DirectorNote[
  * Every reply that went out with the notes counts once for each note active at its point (swipes and regenerations
  * too). `parentId` is the message it answered, `at` the path up to it.
  */
-export function countNotes(notes: DirectorNote[], replyId: string, parentId: string | null = null, at?: DirectorPoint): DirectorNote[] {
-  return notes.map((n) => (noteStatus(n, at) === "active" && !n.sent.includes(replyId)
+export function countNotes(notes: DirectorNote[], replyId: string, parentId: string | null = null, at?: DirectorPoint, perReply = false): DirectorNote[] {
+  return notes.map((n) => (noteStatus(n, at, { perReply, parentId }) === "active" && !n.sent.includes(replyId)
     ? { ...n, sent: [...n.sent, replyId], sentFrom: { ...(n.sentFrom ?? {}), [replyId]: parentId } } : n));
 }
 
@@ -441,9 +464,10 @@ export function notesForDirector(profile: DirectorProfile, notes: DirectorNote[]
   const here = notes.filter((n) => seenAt(n, at));
   if (!here.length) return "No notes yet.";
   const name = (id: string) => profile.weights.find((w) => w.id === id)?.name ?? id;
-  return here.map((n) => `- [${noteStatus(n, at)} · ${name(n.weightId)} · ${noteLeft(n, at)}] ${n.text}`).join("\n");
+  const rule: CountRule = { perReply: profile.swipesSpend };
+  return here.map((n) => `- [${noteStatus(n, at, rule)} · ${name(n.weightId)} · ${noteLeft(n, at, rule)}] ${n.text}`).join("\n");
 }
 
 export function weightsList(profile: DirectorProfile): string {
-  return profile.weights.map((w) => `- ${w.id} (${w.name}): ${w.instruction}${w.lasts === null ? " Default: always." : ` Default: ${w.lasts} replies.`}`).join("\n");
+  return profile.weights.map((w) => `- ${w.id} (${w.name}): ${w.instruction}${w.lasts === null ? " Default: always." : ` Default: ${w.lasts} ${profile.swipesSpend ? "replies" : "turns"}.`}`).join("\n");
 }

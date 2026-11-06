@@ -1,6 +1,8 @@
 # HANDOFF — Homunculus 2
 
-## Director notes, roomier (2026-11-06) — CLAUDE — D-092
+## Director notes count by turn, roomier note cards (2026-11-06) — CLAUDE — D-092
+
+- Daniel: "the notes' turns are spent even when you swipe". Now a note lasts N turns: swipes/regenerations of a turn get it again for free; Setup → "Swipes use up notes" for the old behavior.
 
 - Daniel's screenshot: notes were cramped (two-line boxes with scrollbars). Note cards now: weight and length on top with "N of M left" on the right, text that grows with it, "How the story treats it" folded (own instruction inside), Turn off / Use again / Delete at the bottom. "New note" opens the form. All Director text boxes grow with their text.
 - Checks: typecheck; 740 unit; `e2e/director.e2e.ts` (6). Pushed to `dev`.

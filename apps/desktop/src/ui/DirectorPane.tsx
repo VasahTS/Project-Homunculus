@@ -69,7 +69,7 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
     void svc.core.events.emit("director.changed", { sessionId: session.id });
   };
   const saveProfiles = async (list: DirectorProfile[]) => { setProfiles(list); await saveDirectorProfiles(svc.store, list); };
-  const active = state.notes.filter((n) => noteStatus(n, at) === "active");
+  const active = state.notes.filter((n) => noteStatus(n, at, { perReply: profile.swipesSpend }) === "active");
 
   return (
     <div className={`director${popped ? " popped" : ""}`} data-testid="director">
@@ -126,7 +126,7 @@ function ChatView({ svc, session, headId, branchId, connection, profile, state, 
     el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * 0.4))}px`;
   }, [input]);
   useEffect(() => { if (prefill) { setInput(prefill.text); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(prefill.text.length, prefill.text.length); }); } }, [prefill]);
-  const active = state.notes.filter((n) => noteStatus(n, at) === "active");
+  const active = state.notes.filter((n) => noteStatus(n, at, { perReply: profile.swipesSpend }) === "active");
   const ctx = { sessionId: session.id, branchId, headId };
 
   const ask = async (asked?: string, history?: DirectorTurn[]) => {
@@ -209,7 +209,7 @@ function ChatView({ svc, session, headId, branchId, connection, profile, state, 
     <div className="director-chat">
       {active.length > 0 && (
         <button type="button" className="director-active" onClick={onNotes} data-testid="director-active">
-          {active.map((n) => <span key={n.id} className="director-chip"><WeightMark profile={profile} id={n.weightId} /> {n.text}<small>{noteLeft(n, at)}{lastCheck(n) === "ignored" ? " · ignored last time" : ""}</small></span>)}
+          {active.map((n) => <span key={n.id} className="director-chip"><WeightMark profile={profile} id={n.weightId} /> {n.text}<small>{noteLeft(n, at, { perReply: profile.swipesSpend })}{lastCheck(n) === "ignored" ? " · ignored last time" : ""}</small></span>)}
         </button>
       )}
       <div className="director-log" ref={list}>
@@ -378,8 +378,8 @@ function NotesView({ profile, notes, change, draft, at, anchor }: {
   useEffect(() => { if (draft) { setText(draft.text); setWriting(true); } }, [draft]);
   const [weightId, setWeightId] = useState(profile.defaultWeightId);
   const [lasts, setLasts] = useState<number | null>(profile.weights.find((w) => w.id === profile.defaultWeightId)?.lasts ?? null);
-  const count = (s: NoteStatus) => notes.filter((n) => noteStatus(n, at) === s).length;
-  const shown = notes.filter((n) => noteStatus(n, at) === tab).slice().reverse();
+  const count = (s: NoteStatus) => notes.filter((n) => noteStatus(n, at, { perReply: profile.swipesSpend }) === s).length;
+  const shown = notes.filter((n) => noteStatus(n, at, { perReply: profile.swipesSpend }) === tab).slice().reverse();
   const edit = (id: string, patch: Partial<DirectorNote>) => void change((s) => ({ ...s, notes: s.notes.map((n) => (n.id === id ? { ...n, ...patch } : n)) }));
   const add = () => {
     if (!text.trim()) return;
@@ -410,13 +410,13 @@ function NotesView({ profile, notes, change, draft, at, anchor }: {
       {!shown.length && <p className="hint director-empty">{tab === "active" ? "No active notes. Add one from the Director's answers, or write one." : tab === "expired" ? "No expired notes yet." : tab === "elsewhere" ? "None." : "No notes switched off."}</p>}
       {shown.map((n) => <NoteCard key={n.id} profile={profile} n={n} at={at} anchor={anchor} onChange={(patch) => edit(n.id, patch)}
         onDelete={() => void change((s) => ({ ...s, notes: s.notes.filter((x) => x.id !== n.id) }))} />)}
-      <p className="hint director-notes-foot">Each reply, swipe or regeneration uses a note once, counted on the branch on screen. Expired notes stay, so you can see what was sent.</p>
+      <p className="hint director-notes-foot">{profile.swipesSpend ? "Each reply, swipe or regeneration uses a note once" : "Each turn of the story uses a note once; swiping or regenerating a turn gets it again without using more"}, counted on the branch on screen. Expired notes stay, so you can see what was sent.</p>
     </div>
   );
 }
 
 function NoteCard({ profile, n, at, anchor, onChange, onDelete }: { profile: DirectorProfile; n: DirectorNote; at: DirectorPoint; anchor: string | null; onChange: (p: Partial<DirectorNote>) => void; onDelete: () => void }) {
-  const status = noteStatus(n, at);
+  const status = noteStatus(n, at, { perReply: profile.swipesSpend });
   const uses = noteUses(n, at).length;
   const [text, setText] = useState(n.text);
   const [own, setOwn] = useState(n.instruction ?? "");
@@ -425,7 +425,7 @@ function NoteCard({ profile, n, at, anchor, onChange, onDelete }: { profile: Dir
   useEffect(() => setOwn(n.instruction ?? ""), [n.instruction]);
   const weight = profile.weights.find((w) => w.id === n.weightId);
   const hasOwn = n.instruction !== undefined;
-  const state = status === "off" ? "Off" : status === "elsewhere" ? "On another branch" : noteLeft(n, at);
+  const state = status === "off" ? "Off" : status === "elsewhere" ? "On another branch" : noteLeft(n, at, { perReply: profile.swipesSpend });
   return (
     <article className={`director-note ${status} w-${slug(n.weightId)}`} data-testid="director-note">
       <header className="director-note-head">
@@ -501,8 +501,8 @@ function LastsPicker({ value, onChange }: { value: number | null; onChange: (v: 
   const known = value === null || (LASTS as readonly number[]).includes(value);
   return (
     <select className="pick-select" aria-label="Lasts" value={value === null ? "always" : String(value)} onChange={(e) => onChange(e.target.value === "always" ? null : Number(e.target.value))}>
-      {LASTS.map((n) => <option key={n} value={n}>For {n} {n === 1 ? "reply" : "replies"}</option>)}
-      {!known && <option value={value!}>For {value} replies</option>}
+      {LASTS.map((n) => <option key={n} value={n}>For {n} {n === 1 ? "turn" : "turns"}</option>)}
+      {!known && <option value={value!}>For {value} turns</option>}
       <option value="always">Always</option>
     </select>
   );
@@ -590,6 +590,9 @@ function SetupView({ svc, connection, profiles, profile, onSave, onPick }: {
         </div>
         <h3>Above the notes</h3>
         <Area label="Above the notes" value={profile.notesHeader} reset={DEFAULT_DIRECTOR.notesHeader} onCommit={(notesHeader) => set({ notesHeader })} />
+        <Field label="Swipes use up notes" help="Off: a note lasts N turns of the story; a swipe or regeneration of a turn gets it again for free. On: every reply, swipe and regeneration spends one.">
+          <Switch label="Swipes use up notes" checked={profile.swipesSpend} onChange={(swipesSpend) => set({ swipesSpend })} />
+        </Field>
         <Field label="Where in the prompt" help="Messages before the end of the chat. 0 = after the last one.">
           <Num label="Notes depth" value={profile.depth} min={0} max={999} onCommit={(depth) => set({ depth })} />
         </Field>
