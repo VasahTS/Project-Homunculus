@@ -47,7 +47,7 @@ export async function openSession(page: Page, index = 0) {
 }
 
 /** Opens a tab of the inspector beside the story. */
-export async function openTab(page: Page, tab: "scene" | "prompt" | "memory" | "reply") {
+export async function openTab(page: Page, tab: "scene" | "prompt" | "memory" | "director" | "reply") {
   await page.getByTestId(`tab-${tab}`).click();
 }
 

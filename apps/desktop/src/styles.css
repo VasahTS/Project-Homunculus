@@ -3684,3 +3684,52 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .opening-skip { position: absolute; right: 24px; bottom: 18px; font-size: 12px; color: var(--label-3); letter-spacing: .05em; opacity: 0;
   animation: opening-skip 2.4s 0.5s ease both; }
 @keyframes opening-skip { 0%, 100% { opacity: 0; } 15%, 85% { opacity: 1; } }
+
+/* ---------------------------------------------------------------- the Director (D-092), CLAUDE 2026-11-06 */
+.director { display: grid; gap: 10px; min-width: 0; }
+.director-head { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.director-head .pick-select { flex: 1 1 110px; min-width: 0; }
+.director-error { color: var(--danger); margin: 0; }
+.director-empty { margin: 0; padding: 12px; border: 1px dashed var(--separator); border-radius: calc(10px * var(--round)); line-height: 1.5; }
+.director-chat { display: grid; gap: 10px; min-width: 0; }
+.director-active { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; min-width: 0; }
+.director-chip { display: inline-flex; align-items: baseline; gap: 5px; max-width: 100%; padding: 3px 8px; border: 1px solid var(--separator);
+  border-radius: 99px; font-size: 12px; color: var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.director-chip small { color: var(--label-2); font-size: 11px; }
+.director-log { display: grid; gap: 12px; align-content: start; max-height: 52vh; overflow-y: auto; overscroll-behavior: contain; min-width: 0; }
+.director.popped .director-log { max-height: none; }
+.director-q { justify-self: end; max-width: 88%; padding: 8px 10px; border-radius: calc(10px * var(--round)); background: var(--fill); font-size: 13px; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.director-a { display: grid; gap: 6px; font-size: 13px; line-height: 1.55; min-width: 0; overflow-wrap: anywhere; }
+.director-who, .director-label { color: var(--label-2); font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase; }
+.director-text p { margin: 0 0 6px; }
+.director-proposal, .director-note, .director-new, .director-weight { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--separator);
+  border-radius: calc(9px * var(--round)); min-width: 0; }
+.director-proposal.w-turn, .director-note.w-turn { border-color: color-mix(in srgb, var(--danger) 55%, var(--separator)); }
+.director-proposal.w-steer, .director-note.w-steer { border-color: color-mix(in srgb, var(--warn) 45%, var(--separator)); }
+.director-proposal-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.director-proposal-row .pick-select { min-height: 26px; font-size: 12px; }
+.director-proposal-row input { min-width: 0; flex: 1 1 100px; }
+.director-added { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); font-size: 12px; margin-left: auto; }
+.director-mark { color: var(--label-2); }
+.director-mark.w-steer { color: var(--warn); }
+.director-mark.w-turn { color: var(--danger); }
+.director-box { display: grid; gap: 6px; }
+.director-box textarea, .director-note textarea, .director-new textarea, .director-area textarea { width: 100%; box-sizing: border-box; resize: vertical; font-size: 13px; line-height: 1.5; }
+.director-box-row { display: flex; align-items: center; gap: 6px; }
+.director-box-row .hint { flex: 1; font-size: 11.5px; }
+.director-notes, .director-setup { display: grid; gap: 10px; min-width: 0; }
+.director-notes > .hint { margin: 0; font-size: 12px; line-height: 1.5; }
+.director-note.expired, .director-note.off { opacity: 0.72; }
+.director-own { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--label-2); }
+.director-instr { margin: 0; font-size: 12px; line-height: 1.5; }
+.director-area { display: grid; gap: 4px; }
+.director-area .link { justify-self: start; font-size: 11.5px; }
+.director-setup .mem-setting-value input:not(.num) { width: 150px; }
+.director-away { margin: 0; }
+.director-window { position: fixed; z-index: 60; width: min(520px, calc(100vw - 24px)); height: min(76vh, 760px); display: flex; flex-direction: column;
+  background: var(--pop); border: 1px solid var(--separator); border-radius: calc(12px * var(--round)); box-shadow: var(--shadow-pop); overflow: hidden; }
+.director-window-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--separator); cursor: grab;
+  color: var(--label-2); font-size: 12px; user-select: none; touch-action: none; }
+.director-window-bar span { flex: 1; color: var(--label); font-weight: 600; }
+.director-window > .director { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; align-content: start; }

@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## The Director, first version (2026-11-06) — CLAUDE — D-092
+
+- Daniel's OOC idea (canvas "Homunculus 2 — Director"): inspector tab **Director** (chat · Notes · Setup), pops out into a draggable window. Notes by weight (Whisper / Steer / Turn, all editable data), per chat, counted per reply/swipe/regeneration, kept when expired. Setup: connection and model, job, writer line, how it proposes notes, weights, what it sees, where notes go.
+- **To try:** open a chat → Director tab → ask "the story is heading to a fight, how do we keep it calm?" → Add the proposed note → send messages and watch "N of M left"; Reply → Prompt shows the notes at the end (source `agent:director`). Setup → change a weight's instruction or add one.
+- Not built yet (in the drafts): changing trackers/lore with approval, the optional check of replies against notes, "Ask the Director" on messages, Director memory, a Library page.
+- Checks: typecheck; 732 unit (3 skipped); click tests `director` (2), `chat`, `memory`, `memory-v2`, `memory-overflow`, `inspector-overflow`, `navigation`, `trackers`, `prompt-control` — 57 passed. Push to GitHub was not available from this session: the files were written to Daniel's `Homunculus-gpt` folder; commit them there.
+
 ## 0.3.2 Memory width follow-up (2026-11-05) — CODEX
 
 - Daniel confirmed the remaining problem is visual clipping, occurring in some chats. Memory uses separate nested grids that the 0.3.1 pane fix did not cover.

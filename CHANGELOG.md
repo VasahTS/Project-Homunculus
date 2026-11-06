@@ -5,6 +5,8 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+- **Director** (new tab in the inspector, can pop out into its own window): talk about your story out of character — where it is going, a character acting off, which part of your preset causes something. It reads what the story's AI reads (you choose what), never writes the story, and proposes **notes** for the story: Whisper (quiet), Steer (gradual) or Turn (now), each for N replies or always. Swipes and regenerations count; expired notes stay listed. Everything is editable in its Setup, including the weights and their instructions.
+
 ## 0.3.2 — 2026-11-05
 
 <!-- Memory layout follow-up: CODEX. -->

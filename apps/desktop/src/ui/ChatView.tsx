@@ -13,6 +13,7 @@ import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, P
 import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
 import { MemoryPane } from "./MemoryPane.tsx";
+import { DirectorPane, DirectorWindow } from "./DirectorPane.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
 import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, isTracked } from "@homunculus/core";
@@ -159,6 +160,14 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const liveText = useSmoothText(pending?.text ?? "", prefs.smoothText && !!pending, prefs.smoothSpeed);
   const [sceneKey, setSceneKey] = useState(0);
   const [tab, setTab] = useState<InspectorTab>("scene");
+  // the Director (D-092) can leave the inspector for its own window; remembered across chats
+  const [directorOut, setDirectorOut] = useState(() => { try { return localStorage.getItem("director.out") === "1"; } catch { return false; } });
+  const [directorShown, setDirectorShown] = useState(true);
+  const popDirector = (out: boolean) => {
+    setDirectorOut(out); setDirectorShown(true);
+    try { localStorage.setItem("director.out", out ? "1" : "0"); } catch { /* storage may be blocked */ }
+    if (!out) { setTab("director"); if (!inspectorOpen) onToggleInspector(); }
+  };
   /** The reply shown in the Reply tab (null = the latest one). */
   const [replyFor, setReplyFor] = useState<string | null>(null);
 
@@ -965,9 +974,18 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             preview={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, userText: input, branchId: currentId }); }} />}
           memory={<MemoryPane key={`${session.id}:${currentId ?? ""}`} svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession}
             refreshKey={sceneKey} lastReplyId={lastAi?.id ?? null} draft={input} />}
+          director={directorOut
+            ? <div className="director-away mem-card"><p className="mem-text">The Director is in its own window.</p>
+              <div className="mem-actions"><Button small onClick={() => setDirectorShown(true)}>Show it</Button><Button small onClick={() => popDirector(false)} data-testid="director-dock">Dock here</Button></div></div>
+            : <DirectorPane svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} onPop={() => popDirector(true)} />}
           reply={<ReplyPane providers={providers} svc={svc} session={session} storySetup={storySetup} messageId={replyFor ?? lastAi?.id ?? null} trackers={trackers} connection={connection}
             refreshKey={sceneKey} busy={busy} running={manual && manual.messageId === (replyFor ?? lastAi?.id) ? manual.agentId : null} onRun={runAgentsOn} />}
         />
+      )}
+      {directorOut && directorShown && headId !== undefined && (
+        <DirectorWindow onClose={() => setDirectorShown(false)}>
+          <DirectorPane svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} popped onPop={() => popDirector(false)} />
+        </DirectorWindow>
       )}
     </div>
   );

@@ -108,6 +108,13 @@ export const offlineAiModule: HomunculusModule = {
         if (lastTurn.startsWith("Messages to summarize:\n\n") || lastTurn.startsWith("The chapter before (for continuity, do not repeat it):\n")) {
           yield "Title: Offline chapter\n\nThe offline test AI summarized these messages."; return;
         }
+        // the Director (D-092): talks about the story and proposes a note in the shape its setup asks for
+        if ((req.messages[0]?.content ?? "").includes("<story_prompt>")) {
+          const weight = /^- (\w[\w-]*) \(/m.exec(req.messages[0]!.content)?.[1] ?? "whisper";
+          const answer = `Offline test AI here: I read the story's prompt, but I can't really judge it. Here is a note you could try:\n\n<note weight="${weight}" lasts="3">Keep the scene calm for a while.</note>`;
+          for (const word of answer.split(/(?<= )/)) { if (req.signal?.aborted) return; await new Promise((r) => setTimeout(r, 15)); yield word; }
+          return;
+        }
         // memory layers (D-083)
         if (/Merge consecutive chapter summaries/.test(req.messages[0]?.content ?? "")) { yield "Title: Offline merged chapters\n\nThe offline test AI merged these summaries."; return; }
         const last = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";

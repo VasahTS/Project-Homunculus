@@ -50,6 +50,8 @@ export interface CoreEvents extends Record<string, unknown> {
   "memory.status": { sessionId: string; branchId?: string | null | undefined; text: string | null };
   /** CODEX: A saved change to the chapters a chat can use. Null means the legacy session-wide list. */
   "memory.chaptersChanged": { sessionId: string; branchId: string | null };
+  /** The Director's notes or chat of a session changed (D-092). */
+  "director.changed": { sessionId: string };
 }
 
 export interface ModuleManifest {
