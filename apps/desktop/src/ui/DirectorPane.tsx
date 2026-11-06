@@ -374,7 +374,8 @@ function NotesView({ profile, notes, change, draft, at, anchor }: {
 }) {
   const [tab, setTab] = useState<NoteStatus>("active");
   const [text, setText] = useState(draft?.text ?? "");
-  useEffect(() => { if (draft) setText(draft.text); }, [draft]);
+  const [writing, setWriting] = useState(!!draft);
+  useEffect(() => { if (draft) { setText(draft.text); setWriting(true); } }, [draft]);
   const [weightId, setWeightId] = useState(profile.defaultWeightId);
   const [lasts, setLasts] = useState<number | null>(profile.weights.find((w) => w.id === profile.defaultWeightId)?.lasts ?? null);
   const count = (s: NoteStatus) => notes.filter((n) => noteStatus(n, at) === s).length;
@@ -383,27 +384,33 @@ function NotesView({ profile, notes, change, draft, at, anchor }: {
   const add = () => {
     if (!text.trim()) return;
     void change((s) => ({ ...s, notes: [...s.notes, { id: newId(), text: text.trim(), weightId, lasts, sent: [], createdAt: Date.now(), anchor }] }));
-    setText(""); setTab("active");
+    setText(""); setTab("active"); setWriting(false);
   };
   return (
     <div className="director-notes">
-      <Segmented small label="Notes" value={tab} onChange={setTab} options={[
-        { value: "active", label: `Active ${count("active")}` }, { value: "expired", label: `Expired ${count("expired")}` }, { value: "off", label: `Off ${count("off")}` },
-        ...(count("elsewhere") ? [{ value: "elsewhere" as const, label: `Other branches ${count("elsewhere")}` }] : []),
-      ]} />
-      <p className="hint">A reply, a swipe and a regeneration each use a note once, counted along the branch on screen. Expired notes stay here, so you can see what was sent. A note made on another branch applies only there.</p>
-      {!shown.length && <p className="hint director-empty">{tab === "active" ? "No active notes." : tab === "expired" ? "No expired notes yet." : tab === "elsewhere" ? "None." : "No notes switched off."}</p>}
+      <div className="director-notes-head">
+        <Segmented small label="Notes" value={tab} onChange={setTab} options={[
+          { value: "active", label: `Active ${count("active")}` }, { value: "expired", label: `Expired ${count("expired")}` }, { value: "off", label: `Off ${count("off")}` },
+          ...(count("elsewhere") ? [{ value: "elsewhere" as const, label: `Other branches ${count("elsewhere")}` }] : []),
+        ]} />
+        {!writing && <Button small onClick={() => setWriting(true)} data-testid="director-write"><Icon name="plus" size={12} /> New note</Button>}
+      </div>
+      {writing && (
+        <div className="director-new">
+          <AutoArea label="New note" value={text} placeholder="What the story should do" onChange={setText} minRows={2} autoFocus testId="director-new-note" />
+          <div className="director-proposal-row">
+            <WeightPicker profile={profile} value={weightId} onChange={(w) => { setWeightId(w); setLasts(profile.weights.find((x) => x.id === w)?.lasts ?? lasts); }} />
+            <LastsPicker value={lasts} onChange={setLasts} />
+            <span className="spacer" />
+            <Button small onClick={() => { setWriting(false); setText(""); }}>Cancel</Button>
+            <Button small variant="prominent" disabled={!text.trim()} onClick={add} data-testid="director-new-add">Add</Button>
+          </div>
+        </div>
+      )}
+      {!shown.length && <p className="hint director-empty">{tab === "active" ? "No active notes. Add one from the Director's answers, or write one." : tab === "expired" ? "No expired notes yet." : tab === "elsewhere" ? "None." : "No notes switched off."}</p>}
       {shown.map((n) => <NoteCard key={n.id} profile={profile} n={n} at={at} anchor={anchor} onChange={(patch) => edit(n.id, patch)}
         onDelete={() => void change((s) => ({ ...s, notes: s.notes.filter((x) => x.id !== n.id) }))} />)}
-      <div className="director-new">
-        <span className="director-label">Write a note yourself</span>
-        <textarea rows={2} aria-label="New note" value={text} placeholder="What the story should do" onChange={(e) => setText(e.target.value)} data-testid="director-new-note" />
-        <div className="director-proposal-row">
-          <WeightPicker profile={profile} value={weightId} onChange={(w) => { setWeightId(w); setLasts(profile.weights.find((x) => x.id === w)?.lasts ?? lasts); }} />
-          <LastsPicker value={lasts} onChange={setLasts} />
-          <Button small variant="prominent" disabled={!text.trim()} onClick={add} data-testid="director-new-add">Add</Button>
-        </div>
-      </div>
+      <p className="hint director-notes-foot">Each reply, swipe or regeneration uses a note once, counted on the branch on screen. Expired notes stay, so you can see what was sent.</p>
     </div>
   );
 }
@@ -413,35 +420,60 @@ function NoteCard({ profile, n, at, anchor, onChange, onDelete }: { profile: Dir
   const uses = noteUses(n, at).length;
   const [text, setText] = useState(n.text);
   const [own, setOwn] = useState(n.instruction ?? "");
+  const [howOpen, setHowOpen] = useState(n.instruction !== undefined);
   useEffect(() => setText(n.text), [n.text]);
   useEffect(() => setOwn(n.instruction ?? ""), [n.instruction]);
   const weight = profile.weights.find((w) => w.id === n.weightId);
   const hasOwn = n.instruction !== undefined;
+  const state = status === "off" ? "Off" : status === "elsewhere" ? "On another branch" : noteLeft(n, at);
   return (
-    <div className={`director-note ${status} w-${slug(n.weightId)}`} data-testid="director-note">
-      <textarea rows={2} aria-label="Note" value={text} onChange={(e) => setText(e.target.value)}
-        onBlur={() => { if (text.trim() && text.trim() !== n.text) onChange({ text: text.trim() }); }} />
-      <div className="director-proposal-row">
+    <article className={`director-note ${status} w-${slug(n.weightId)}`} data-testid="director-note">
+      <header className="director-note-head">
+        <WeightMark profile={profile} id={n.weightId} />
         <WeightPicker profile={profile} value={n.weightId} onChange={(weightId) => onChange({ weightId })} />
         <LastsPicker value={n.lasts} onChange={(lasts) => onChange({ lasts })} />
-        <span className="hint">{status === "off" ? "Off" : status === "elsewhere" ? "Made on another branch" : noteLeft(n, at)}{uses ? ` · sent with ${uses} ${uses === 1 ? "reply" : "replies"} here` : ""}{checkSummary(n)}</span>
-      </div>
-      <label className="director-own">
-        <Switch label="Its own instruction" checked={hasOwn} onChange={(on) => onChange({ instruction: on ? (weight?.instruction ?? "") : undefined })} />
-        <span>Its own instruction</span>
-      </label>
-      {hasOwn
-        ? <textarea rows={2} aria-label="Its own instruction" value={own} onChange={(e) => setOwn(e.target.value)} onBlur={() => { if (own !== n.instruction) onChange({ instruction: own }); }} />
-        : <p className="hint director-instr">{weight ? `${weight.name}: ${weight.instruction}` : "This weight no longer exists; the note goes without an instruction."}</p>}
-      <div className="director-proposal-row">
-        {status === "active" && <Button small onClick={() => onChange({ off: true })}>Turn off</Button>}
-        {status === "off" && <Button small onClick={() => onChange({ off: false })}>Turn on</Button>}
-        {status === "expired" && <Button small onClick={() => onChange({ sent: n.sent.filter((r) => !noteUses(n, at).includes(r)), anchor })}>Use again</Button>}
-        {status === "elsewhere" && <Button small onClick={() => onChange({ anchor })}>Move to this branch</Button>}
-        <Button small onClick={onDelete}>Delete</Button>
-      </div>
-    </div>
+        <span className={`director-note-state ${status}`}>{state}</span>
+      </header>
+      <AutoArea label="Note" value={text} onChange={setText} onBlur={() => { if (text.trim() && text.trim() !== n.text) onChange({ text: text.trim() }); else setText(n.text); }} flat />
+      <button type="button" className="director-how" aria-expanded={howOpen} onClick={() => setHowOpen((v) => !v)}>
+        <Icon name="chevron" size={11} /> {hasOwn ? "Its own instruction" : `How the story treats it: ${weight?.name ?? "no weight"}`}
+      </button>
+      {howOpen && (
+        <div className="director-how-body">
+          {hasOwn
+            ? <AutoArea label="Its own instruction" value={own} onChange={setOwn} onBlur={() => { if (own !== n.instruction) onChange({ instruction: own }); }} />
+            : <p className="director-instr">{weight ? weight.instruction : "This weight no longer exists; the note goes without an instruction."}</p>}
+          <button type="button" className="link quiet" onClick={() => onChange({ instruction: hasOwn ? undefined : (weight?.instruction ?? "") })} data-testid="director-own">
+            {hasOwn ? `Use ${weight?.name ?? "the weight"}'s instruction` : "Write its own instruction"}
+          </button>
+        </div>
+      )}
+      <footer className="director-note-foot">
+        <span className="hint">{uses ? `Sent with ${uses} ${uses === 1 ? "reply" : "replies"} here` : "Not sent yet"}{checkSummary(n)}</span>
+        <span className="spacer" />
+        {status === "active" && <button type="button" className="link quiet" onClick={() => onChange({ off: true })}>Turn off</button>}
+        {status === "off" && <button type="button" className="link quiet" onClick={() => onChange({ off: false })}>Turn on</button>}
+        {status === "expired" && <button type="button" className="link quiet" onClick={() => onChange({ sent: n.sent.filter((r) => !noteUses(n, at).includes(r)), anchor })}>Use again</button>}
+        {status === "elsewhere" && <button type="button" className="link quiet" onClick={() => onChange({ anchor })}>Move to this branch</button>}
+        <IconButton label="Delete the note" onClick={onDelete}><Icon name="trash" size={12} /></IconButton>
+      </footer>
+    </article>
   );
+}
+
+/** A text box that grows with its text (from `minRows` lines up to half the window, then it scrolls). */
+function AutoArea({ label, value, onChange, onBlur, placeholder, minRows = 1, autoFocus = false, flat = false, testId }: {
+  label: string; value: string; onChange: (v: string) => void; onBlur?: () => void; placeholder?: string; minRows?: number; autoFocus?: boolean; flat?: boolean; testId?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * 0.5))}px`;
+  }, [value]);
+  return <textarea ref={ref} rows={minRows} aria-label={label} value={value} placeholder={placeholder} autoFocus={autoFocus}
+    className={`director-auto${flat ? " flat" : ""}`} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} data-testid={testId} />;
 }
 
 function checkSummary(n: DirectorNote): string {
@@ -648,8 +680,7 @@ function Area({ label, value, reset, onCommit }: { label: string; value: string;
   useEffect(() => setText(value), [value]);
   return (
     <div className="director-area">
-      <textarea rows={Math.min(10, Math.max(2, text.split("\n").length + 1))} aria-label={label} value={text} onChange={(e) => setText(e.target.value)}
-        onBlur={() => { if (text !== value) onCommit(text); }} />
+      <AutoArea label={label} value={text} onChange={setText} minRows={2} onBlur={() => { if (text !== value) onCommit(text); }} />
       {reset !== undefined && text !== reset && <button type="button" className="link quiet" onClick={() => { setText(reset); onCommit(reset); }}>Reset to the starter text</button>}
     </div>
   );

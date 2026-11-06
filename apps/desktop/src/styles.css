@@ -3804,3 +3804,31 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .directors-detail .director-setup { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); align-items: start; gap: 16px; }
 .directors-stories { display: grid; gap: 6px; }
 .directors-detail .mem-setting-value input:not(.num) { width: 220px; }
+
+/* Notes, roomier (Daniel, 11/06: "the notes are too cramped as well") */
+.director-notes { gap: 12px; }
+.director-notes-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.director-notes-head .btn, .director-notes-head button:last-child { margin-left: auto; }
+.director-notes-foot { margin: 4px 0 0; font-size: 11.5px; line-height: 1.5; }
+.director-note { gap: 8px; padding: 12px; }
+.director-note-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.director-note-head .pick-select { min-height: 26px; font-size: 12px; max-width: 130px; }
+.director-note-state { margin-left: auto; font-size: 11.5px; color: var(--label-2); white-space: nowrap; }
+.director-note-state.active { color: var(--ok); }
+.director-auto { width: 100%; box-sizing: border-box; resize: none; overflow-y: auto; font-family: var(--font-prose); font-size: 14px; line-height: 1.55;
+  overflow-wrap: anywhere; word-break: break-word; }
+.director-auto.flat { padding: 4px 6px; margin: 0 -6px; width: calc(100% + 12px); background: transparent; border-color: transparent; box-shadow: none; }
+.director-auto.flat:hover { background: var(--fill); }
+.director-auto.flat:focus { background: var(--field); }
+.director-how { display: inline-flex; align-items: center; gap: 5px; justify-self: start; padding: 0; border: 0; background: none; color: var(--label-2); font: inherit; font-size: 12px; cursor: pointer; }
+.director-how svg { transition: transform 160ms ease; }
+.director-how[aria-expanded="true"] svg { transform: rotate(90deg); }
+.director-how-body { display: grid; gap: 6px; padding-left: 16px; }
+.director-how-body .director-instr { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--label-2); }
+.director-how-body .link { justify-self: start; font-size: 12px; }
+.director-note-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--separator); padding-top: 8px; }
+.director-note-foot .hint { font-size: 11.5px; }
+.director-note-foot .link { font-size: 12px; }
+.director-note-foot .spacer, .director-proposal-row .spacer { flex: 1; }
+.director-new { gap: 8px; padding: 12px; }
+.director-note textarea.director-auto, .director-new textarea.director-auto, .director-area textarea.director-auto { resize: none; }

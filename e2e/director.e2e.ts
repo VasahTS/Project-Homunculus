@@ -26,7 +26,17 @@ test("ask the Director, add its note, and the next replies use it until it expir
   await expect(d.getByTestId("director-active")).toHaveCount(0);
   await d.getByTestId("director-view-notes").click();
   await d.getByRole("radio", { name: /Expired 1/ }).click();
-  await expect(d.getByTestId("director-note")).toContainText("sent with 2 replies");
+  await expect(d.getByTestId("director-note")).toContainText("Sent with 2 replies here");
+  // writing one yourself: the box grows with the text; its own instruction opens under "How the story treats it"
+  await d.getByRole("radio", { name: /Active/ }).click();
+  await d.getByTestId("director-write").click();
+  await d.getByTestId("director-new-note").fill("Mira hums an old song while she works. ".repeat(6));
+  await d.getByTestId("director-new-add").click();
+  const card = d.getByTestId("director-note").first();
+  expect((await card.getByLabel("Note", { exact: true }).boundingBox())!.height).toBeGreaterThan(60);
+  await card.getByRole("button", { name: /How the story treats it/ }).click();
+  await card.getByTestId("director-own").click();
+  await expect(card.getByLabel("Its own instruction")).toHaveValue(/Follow quietly/);
 });
 
 test("the setup is editable data: weights, the writer line; it pops out and docks", async ({ page }) => {
@@ -45,6 +55,7 @@ test("the setup is editable data: weights, the writer line; it pops out and dock
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
   await d.getByTestId("director-view-notes").click();
+  await d.getByTestId("director-write").click();
   await expect(d.getByLabel("Weight").first()).toContainText("New weight");
 
   await d.getByTestId("director-pop").click();

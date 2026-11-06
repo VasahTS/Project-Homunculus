@@ -1,5 +1,10 @@
 # HANDOFF — Homunculus 2
 
+## Director notes, roomier (2026-11-06) — CLAUDE — D-092
+
+- Daniel's screenshot: notes were cramped (two-line boxes with scrollbars). Note cards now: weight and length on top with "N of M left" on the right, text that grows with it, "How the story treats it" folded (own instruction inside), Turn off / Use again / Delete at the bottom. "New note" opens the form. All Director text boxes grow with their text.
+- Checks: typecheck; 740 unit; `e2e/director.e2e.ts` (6). Pushed to `dev`.
+
 ## Director: Library page, follows branches and swipes, docked layout (2026-11-06) — CLAUDE — D-092
 
 - **Library → Directors:** list, New, rename and edit (whole setup), Make it the default, which stories use it. A chat: its own pick → its story's → the default.
