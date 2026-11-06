@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Director: Library page, follows branches and swipes, docked layout (2026-11-06) — CLAUDE — D-092
+
+- **Library → Directors:** list, New, rename and edit (whole setup), Make it the default, which stories use it. A chat: its own pick → its story's → the default.
+- **Branches/swipes:** notes and the talk are anchored where they were made; uses count along the path on screen (swipes of a turn count, other branches do not). Notes from elsewhere: Notes → "Other branches" → Move to this branch.
+- **Layout:** docked/popped, the talk fills the space, the box is at the bottom and grows with the text.
+- **To try:** Library → Directors → New Director → a story's switch; in a chat, branch from an earlier message and look at Notes; type a long question in the Director tab.
+- Checks: typecheck; 740 unit (3 skipped); click tests `director` (6), `navigation`, `library`, `stories`, `chat`, `branches`, `inspector-overflow`, `collections` — passed (navigation's tab count now 12). Pushed to `dev`.
+
 ## Director: changes with approval, reply check, automatic question, Ask on messages, chat QoL (2026-11-06) — CLAUDE — D-092
 
 - Everything left from the drafts except a Library page: Setup → **What it may change** (notes, trackers, lorebook, Author's Note, Character's Note, memory chapters; Never / Ask first / Allowed); change cards with before/after, Apply, Skip, Undo. **Check replies against notes** and **Ask by itself every N replies** (both off by default). Quick questions, earlier talks from the story's other chats, **Ask the Director** on each message, and chat QoL (copy, edit and ask again, ask again, note from an answer, delete, copy the talk, ↑ edits, Esc stops, token meter).

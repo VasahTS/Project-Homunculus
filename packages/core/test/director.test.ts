@@ -2,8 +2,8 @@
 // the Director's own call sees the story's prompt as data and proposes notes. Author: CLAUDE, 2026-11-06.
 import { describe, expect, it } from "vitest";
 import {
-  cleanProfile, countNotes, DEFAULT_DIRECTOR, directorNotesText, directorState, noteStatus, parseChanges, parseProposals, saveDirectorProfiles,
-  saveDirectorState, splitProposals, type DirectorNote,
+  cleanProfile, countNotes, DEFAULT_DIRECTOR, directorNotesText, directorState, noteLeft, noteStatus, parseChanges, parseProposals, saveDirectorProfiles,
+  saveDirectorState, splitProposals, directorForSession, saveDirectorLinks, type DirectorNote,
 } from "../src/index.ts";
 import { connection, world } from "./helpers.ts";
 
@@ -180,5 +180,46 @@ describe("the Director changes the story, with Undo", () => {
     await w.chat.turns.undoDirectorChange(u1);
     book = (await w.store.lorebooksForUse(["lb"]))[0]!;
     expect(book.entries.map((e) => [e.title, e.content])).toEqual([["The mill", "Old."]]);
+  });
+});
+
+describe("the Director follows branches and swipes", () => {
+  it("counts a note along the path on screen: swipes of a turn count, other branches do not", async () => {
+    const w = await world(() => "She waits.");
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    await saveDirectorState(w.store, session.id, { profileId: "", chat: [], notes: [note({ id: "n", text: "Rain.", lasts: 3 })] });
+    const a = await w.chat.send(session.id, firstMessage!.id, "One.", connection);   // uses 1 (path: first → One → reply)
+    const a2 = await w.chat.generate(session.id, a.userMessage.id, connection);    // a swipe of the same turn: uses 2
+    // another branch from the first message: its first reply sees no earlier uses
+    const b = await w.chat.send(session.id, firstMessage!.id, "Other.", connection);
+    const s = await directorState(w.store, session.id);
+    const n = s.notes[0]!;
+    expect(n.sent).toEqual([a.reply.id, a2.id, b.reply.id]);
+    const along = async (id: string) => new Set((await w.store.pathTo(id)).map((m) => m.id));
+    expect(noteStatus(n, await along(a2.id))).toBe("active");
+    expect(noteLeft(n, await along(a2.id))).toBe("1 of 3 left");
+    expect(noteLeft(n, await along(b.reply.id))).toBe("2 of 3 left");
+  });
+
+  it("a note made on one branch applies only on paths through where it was made", async () => {
+    const w = await world(() => "ok");
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    const a = await w.chat.send(session.id, firstMessage!.id, "A.", connection);
+    await saveDirectorState(w.store, session.id, { profileId: "", chat: [], notes: [note({ id: "n", text: "Only on A.", anchor: a.userMessage.id })] });
+    const onA = await w.chat.send(session.id, a.reply.id, "More A.", connection);
+    const onB = await w.chat.send(session.id, firstMessage!.id, "B.", connection);
+    expect((await w.store.getGenerationRecord(onA.reply.id))!.prompt.some((p) => p.source === "agent:director")).toBe(true);
+    expect((await w.store.getGenerationRecord(onB.reply.id))!.prompt.some((p) => p.source === "agent:director")).toBe(false);
+    expect(noteStatus((await directorState(w.store, session.id)).notes[0]!, new Set((await w.store.pathTo(onB.reply.id)).map((m) => m.id)))).toBe("elsewhere");
+  });
+
+  it("a chat uses its own pick, else its story's Director, else the default", async () => {
+    const w = await world(() => "ok");
+    await saveDirectorProfiles(w.store, [cleanProfile({ id: "a", name: "A" }), cleanProfile({ id: "b", name: "B" }), cleanProfile({ id: "c", name: "C" })]);
+    await saveDirectorLinks(w.store, { defaultId: "b", stories: { s1: "c" } });
+    expect((await directorForSession(w.store, { id: "x", storyId: null })).name).toBe("B");
+    expect((await directorForSession(w.store, { id: "x", storyId: "s1" })).name).toBe("C");
+    await saveDirectorState(w.store, "x", { profileId: "a", chat: [], notes: [] });
+    expect((await directorForSession(w.store, { id: "x", storyId: "s1" })).name).toBe("A");
   });
 });

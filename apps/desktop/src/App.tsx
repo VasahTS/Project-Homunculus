@@ -62,6 +62,7 @@ import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
+import { DirectorsPage } from "./ui/DirectorPane.tsx";
 import { applyDefaultAppearance, loadAppearance, toggleSafeMode } from "./theme/appearance.ts";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, withFieldSet, withTracker, type Tracker, type TrackerDraft, sampleFor } from "./trackers.ts";
 
@@ -74,6 +75,7 @@ type View =
   | { kind: "trash" }
   | { kind: "regex" }
   | { kind: "quick-replies"; setId?: string | undefined; replyId?: string | undefined }
+  | { kind: "directors" }
   | { kind: "settings"; tab: SettingsTab }
   | { kind: "trackers"; draft?: TrackerDraft; isNew?: boolean; fromSession?: boolean }
   | { kind: "agents"; id: string | null; fromSession?: boolean }
@@ -1208,9 +1210,9 @@ export function App() {
       <Icon name="sidebar" size={17} />
     </IconButton>
   );
-  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "regex" ? { kind: "regex" } : area === "quick-replies" ? { kind: "quick-replies" } : area === "agents" ? { kind: "agents", id: null } : { kind: "trackers" }); };
+  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "regex" ? { kind: "regex" } : area === "quick-replies" ? { kind: "quick-replies" } : area === "directors" ? { kind: "directors" } : area === "agents" ? { kind: "agents", id: null } : { kind: "trackers" }); };
   const libraryCategory: LibraryCategory | null = view.kind === "vault" && view.tab !== "stories" ? view.tab : view.kind === "kit" ? "kits"
-    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" ? view.kind : null;
+    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" || view.kind === "directors" ? view.kind : null;
   const pageLead = libraryCategory ? null : lead;
   // opened a lorebook from a session (Prompt tab): a button goes straight back to it (Daniel: "me senti perdido")
   const backSession = loreBack ? sessions.find((x) => x.id === loreBack) : undefined;
@@ -1410,6 +1412,8 @@ export function App() {
       onExport={(fileName, text) => void saveExport({ fileName, mime: "application/json", bytes: new TextEncoder().encode(text) })
         .then((where) => { if (where) setNotice({ kind: "ok", title: "Quick Replies exported", lines: [where] }); })
         .catch((e: unknown) => setNotice({ kind: "error", title: "The export failed", lines: [errorText(e)] }))} />;
+  } else if (view.kind === "directors") {
+    content = <DirectorsPage svc={svc} connection={connection} lead={pageLead} stories={stories.map((x) => ({ id: x.id, name: x.name }))} />;
   } else if (view.kind === "trash") {
     content = <TrashPage lead={pageLead} items={trash} onRestore={(it) => void restore(it)} onDeleteForever={(it) => void deleteForever(it)} onEmpty={() => void emptyTrash()} />;
   } else if (view.kind === "trackers") {
@@ -1763,7 +1767,7 @@ export function App() {
           onNewStory={() => setNewStoryOpen({ cardId: null })}
           onOpenCharacters={() => setView({ kind: "characters", id: null })}
           onOpenCardBrowser={() => setView({ kind: "card-browser" })}
-          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" ? view.kind : "kits")}
+          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" || view.kind === "directors" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "general" })}
           onOpenHome={() => setHomeOpen(true)}

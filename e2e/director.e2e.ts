@@ -1,7 +1,7 @@
 // The Director (D-092): ask out of character, add a proposed note, the story's replies use it, setup is data, pop out.
 // Author: CLAUDE, 2026-11-06. Uses the offline test AI.
 import { expect, test } from "@playwright/test";
-import { newChatWith, openTab, send } from "./ui.ts";
+import { newChatWith, openLibrary, openTab, send } from "./ui.ts";
 
 test.use({ reducedMotion: "reduce" });
 
@@ -117,4 +117,36 @@ test("Ask the Director from a message, quick questions, edit and ask again, a no
   await d.locator(".director-turn.a").hover();
   await d.getByTestId("director-note-from").click();
   await expect(d.getByTestId("director-new-note")).toHaveValue(/Offline test AI here/);
+});
+
+test("Library → Directors: make one, rename it, make it the default; a chat then uses it", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.goto("/");
+  await openLibrary(page, "Directors");
+  const lib = page.getByTestId("directors-page");
+  await lib.getByTestId("directors-new").click();
+  const name = lib.getByLabel("Director name");
+  await expect(name).toHaveValue("New director");
+  await name.fill("Campaign Director");
+  await name.blur();
+  await lib.getByTestId("directors-make-default").click();
+  await expect(lib.getByRole("button", { name: /Campaign Director/ })).toContainText("★ Default");
+  await newChatWith(page);
+  await openTab(page, "director");
+  await expect(page.getByTestId("director").getByLabel("Director", { exact: true })).toContainText("Default: Campaign Director");
+});
+
+test("docked, the Director fills the inspector: the box sits at the bottom and grows with the text", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.goto("/");
+  await newChatWith(page);
+  await openTab(page, "director");
+  const body = (await page.locator(".inspector-body").boundingBox())!;
+  const input = page.getByTestId("director-input");
+  const small = (await input.boundingBox())!;
+  expect(body.y + body.height - (small.y + small.height)).toBeLessThan(80);
+  await input.fill("test ".repeat(120));
+  await expect.poll(async () => (await input.boundingBox())!.height).toBeGreaterThan(small.height + 40);
+  const big = (await input.boundingBox())!;
+  expect(big.y + big.height).toBeLessThanOrEqual(body.y + body.height + 1);
 });

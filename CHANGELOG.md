@@ -7,6 +7,7 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 - **Director** (new tab in the inspector, can pop out into its own window): talk about your story out of character — where it is going, a character acting off, which part of your preset causes something. It reads what the story's AI reads (you choose what), never writes the story, and proposes **notes** for the story: Whisper (quiet), Steer (gradual) or Turn (now), each for N replies or always. Swipes and regenerations count; expired notes stay listed. Everything is editable in its Setup, including the weights and their instructions.
 - The Director can also **fix things in your story** when you allow it — tracker values, lorebook entries, the Author's Note, a Character's Note, memory chapters — showing before and after, with Undo. Optional: it checks whether replies followed its notes, or asks itself a question every few replies. **Ask the Director** from any message, quick questions, and handy chat actions (copy, edit and ask again, turn an answer into a note).
+- **Library → Directors:** make several Directors, pick the default, and choose which one each story uses. The Director's notes and talk now **follow branches and swipes**, and its chat fills the panel with the message box at the bottom.
 
 ## 0.3.2 — 2026-11-05
 

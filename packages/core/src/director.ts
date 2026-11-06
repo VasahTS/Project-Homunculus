@@ -91,6 +91,13 @@ export interface DirectorNote {
   createdAt: number;
   /** Reply id → whether that reply followed the note (only with "Check replies against notes"). */
   checks?: Record<string, "followed" | "ignored"> | undefined;
+  /**
+   * Where in the story it was made (D-092, branches): it applies only on paths through this message. Null or missing
+   * = everywhere. The app anchors at the parent of the message on screen, so swipes of that message share it.
+   */
+  anchor?: string | null | undefined;
+  /** Reply id → the message it answered: a use counts only on paths through that message (swipes of a turn count). */
+  sentFrom?: Record<string, string | null> | undefined;
 }
 
 export interface DirectorTurn {
@@ -103,6 +110,8 @@ export interface DirectorTurn {
   applied?: Record<string, { undo: ChangeUndo; undone?: boolean | undefined; at: number }> | undefined;
   /** Asked by itself (the automatic question), not by you. */
   auto?: boolean | undefined;
+  /** Where in the story it was said; shown only on paths through it (like a note's anchor). */
+  anchor?: string | null | undefined;
 }
 
 /** One chat's Director: which profile, its notes and its conversation. */
@@ -136,7 +145,22 @@ export type ChangeUndo =
   | { kind: "characterNote"; characterId: string; before: unknown }
   | { kind: "chapter"; sessionId: string; branchId: string | null; chapterId: string; before: { summary: string; edited?: boolean | undefined } };
 
-export type NoteStatus = "active" | "expired" | "off";
+export type NoteStatus = "active" | "expired" | "off" | "elsewhere";
+
+/** A point in the story: the ids of the messages from the first one to it (both included). Missing = ignore branches. */
+export type DirectorPoint = ReadonlySet<string>;
+
+const onPath = (id: string | null | undefined, at?: DirectorPoint) => !at || id === null || id === undefined || at.has(id);
+
+/** A Director's chat turn or note belongs to this point of the story. */
+export function seenAt(x: { anchor?: string | null | undefined }, at?: DirectorPoint): boolean {
+  return onPath(x.anchor, at);
+}
+
+/** The replies on this path (and their swipes) that carried the note. */
+export function noteUses(n: DirectorNote, at?: DirectorPoint): string[] {
+  return n.sent.filter((r) => onPath(n.sentFrom?.[r], at));
+}
 
 export const DIRECTOR_JOB = `You are the Director of this story, not its writer. You talk with {{user}} out of character about how the story is going: pacing, where it is heading, whether characters act like themselves, and which prompt, card or lorebook entry causes what.
 Answer plainly and briefly. Quote the story only to point at something.
@@ -252,25 +276,51 @@ export async function saveDirectorState(store: SqlStore, sessionId: string, stat
 }
 
 /** The profile a chat uses: its own pick, else the first one. */
-export function profileFor(profiles: DirectorProfile[], state: Pick<DirectorState, "profileId">): DirectorProfile {
-  return profiles.find((p) => p.id === state.profileId) ?? profiles[0] ?? DEFAULT_DIRECTOR;
+/**
+ * The Director a chat uses: its own pick, else its story's, else the default one, else the first (D-092, Library).
+ * `links.stories` maps a story id to a Director id.
+ */
+export function profileFor(profiles: DirectorProfile[], state: Pick<DirectorState, "profileId">, links?: DirectorLinks, storyId?: string | null): DirectorProfile {
+  const by = (id: string | undefined | null) => (id ? profiles.find((p) => p.id === id) : undefined);
+  return by(state.profileId) ?? by(storyId ? links?.stories[storyId] : undefined) ?? by(links?.defaultId) ?? profiles[0] ?? DEFAULT_DIRECTOR;
 }
 
-export function noteStatus(n: DirectorNote): NoteStatus {
+/** Which Director is the default, and which one each story uses (Library → Directors). */
+export interface DirectorLinks { defaultId: string; stories: Record<string, string> }
+const LINKS_KEY = "director.links";
+
+export async function directorLinks(store: SqlStore): Promise<DirectorLinks> {
+  const raw = await store.getAppSetting<Partial<DirectorLinks>>(LINKS_KEY);
+  const stories = raw?.stories && typeof raw.stories === "object" ? Object.fromEntries(Object.entries(raw.stories).filter(([, v]) => typeof v === "string")) as Record<string, string> : {};
+  return { defaultId: typeof raw?.defaultId === "string" ? raw.defaultId : "", stories };
+}
+
+export async function saveDirectorLinks(store: SqlStore, links: DirectorLinks): Promise<void> {
+  await store.setAppSetting(LINKS_KEY, links);
+}
+
+/** The Director a chat uses, read from storage. */
+export async function directorForSession(store: SqlStore, session: { id: string; storyId: string | null }, state?: DirectorState): Promise<DirectorProfile> {
+  const [profiles, links, s] = await Promise.all([directorProfiles(store), directorLinks(store), state ? Promise.resolve(state) : directorState(store, session.id)]);
+  return profileFor(profiles, s, links, session.storyId);
+}
+
+export function noteStatus(n: DirectorNote, at?: DirectorPoint): NoteStatus {
   if (n.off) return "off";
-  return n.lasts !== null && n.sent.length >= n.lasts ? "expired" : "active";
+  if (!seenAt(n, at)) return "elsewhere";
+  return n.lasts !== null && noteUses(n, at).length >= n.lasts ? "expired" : "active";
 }
 
-/** "2 of 3 left", "Always", "Expired after 3". */
-export function noteLeft(n: DirectorNote): string {
+/** "2 of 3 left", "Always", "Used 3 of 3" — along this path. */
+export function noteLeft(n: DirectorNote, at?: DirectorPoint): string {
   if (n.lasts === null) return "Always";
-  const left = Math.max(0, n.lasts - n.sent.length);
+  const left = Math.max(0, n.lasts - noteUses(n, at).length);
   return left ? `${left} of ${n.lasts} left` : `Used ${n.lasts} of ${n.lasts}`;
 }
 
 /** The text that goes to the story's AI, or "" when no note is active. Grouped by weight, in the profile's order. */
-export function directorNotesText(profile: DirectorProfile, notes: DirectorNote[]): string {
-  const active = notes.filter((n) => noteStatus(n) === "active" && n.text.trim());
+export function directorNotesText(profile: DirectorProfile, notes: DirectorNote[], at?: DirectorPoint): string {
+  const active = notes.filter((n) => noteStatus(n, at) === "active" && n.text.trim());
   if (!active.length) return "";
   const known = new Set(profile.weights.map((w) => w.id));
   const groups: string[] = [];
@@ -285,9 +335,13 @@ export function directorNotesText(profile: DirectorProfile, notes: DirectorNote[
   return [profile.notesHeader.trim(), ...groups].filter(Boolean).join("\n\n");
 }
 
-/** Every reply that went out with the notes counts once for each active note (swipes and regenerations too). */
-export function countNotes(notes: DirectorNote[], replyId: string): DirectorNote[] {
-  return notes.map((n) => (noteStatus(n) === "active" && !n.sent.includes(replyId) ? { ...n, sent: [...n.sent, replyId] } : n));
+/**
+ * Every reply that went out with the notes counts once for each note active at its point (swipes and regenerations
+ * too). `parentId` is the message it answered, `at` the path up to it.
+ */
+export function countNotes(notes: DirectorNote[], replyId: string, parentId: string | null = null, at?: DirectorPoint): DirectorNote[] {
+  return notes.map((n) => (noteStatus(n, at) === "active" && !n.sent.includes(replyId)
+    ? { ...n, sent: [...n.sent, replyId], sentFrom: { ...(n.sentFrom ?? {}), [replyId]: parentId } } : n));
 }
 
 export interface ProposedNote { index: number; text: string; weightId: string; lasts: number | null }
@@ -383,10 +437,11 @@ export function seesPart(source: string, sees: DirectorSees): boolean {
 }
 
 /** The notes' list for the Director itself: what is on, what ran out, what was switched off. */
-export function notesForDirector(profile: DirectorProfile, notes: DirectorNote[]): string {
-  if (!notes.length) return "No notes yet.";
+export function notesForDirector(profile: DirectorProfile, notes: DirectorNote[], at?: DirectorPoint): string {
+  const here = notes.filter((n) => seenAt(n, at));
+  if (!here.length) return "No notes yet.";
   const name = (id: string) => profile.weights.find((w) => w.id === id)?.name ?? id;
-  return notes.map((n) => `- [${noteStatus(n)} · ${name(n.weightId)} · ${noteLeft(n)}] ${n.text}`).join("\n");
+  return here.map((n) => `- [${noteStatus(n, at)} · ${name(n.weightId)} · ${noteLeft(n, at)}] ${n.text}`).join("\n");
 }
 
 export function weightsList(profile: DirectorProfile): string {

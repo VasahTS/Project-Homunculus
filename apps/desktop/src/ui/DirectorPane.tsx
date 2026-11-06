@@ -2,12 +2,12 @@
 // Author: CLAUDE, 2026-11-06. Canvas "Homunculus 2 — Director": A2 (an inspector tab that pops out into its own
 // window), D (notes, kept when expired), F (setup) and G (a note's weight). Everything a Director says or does is
 // data the user can edit: job, writer line, how notes are proposed, the weights and their instructions, what it sees.
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import type { Session } from "@homunculus/schemas";
 import {
   cleanProfile, DEFAULT_DIRECTOR, directorProfiles, directorState, noteLeft, noteStatus, profileFor, saveDirectorProfiles, saveDirectorState,
-  CHANGE_KINDS, CHANGE_LABELS, parseChanges, parseProposals, splitProposals, type ChangeUndo, type DirectorNote, type DirectorPermission, type DirectorProfile,
+  CHANGE_KINDS, CHANGE_LABELS, directorLinks, noteUses, parseChanges, saveDirectorLinks, seenAt, type DirectorLinks, type DirectorPoint, parseProposals, splitProposals, type ChangeUndo, type DirectorNote, type DirectorPermission, type DirectorProfile,
   type DirectorState, type DirectorTurn, type DirectorWeight, type NoteStatus, type ProposedChange, type ProposedNote,
 } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
@@ -15,6 +15,7 @@ import type { ConnectionState } from "../connection.ts";
 import { Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { MessageText } from "./MessageText.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
+import { Toolbar } from "./Toolbar.tsx";
 
 type View = "chat" | "notes";
 const newId = () => crypto.randomUUID();
@@ -32,19 +33,32 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
   onChanged?: (() => void) | undefined;
 }) {
   const [profiles, setProfiles] = useState<DirectorProfile[]>([DEFAULT_DIRECTOR]);
+  const [links, setLinks] = useState<DirectorLinks>({ defaultId: "", stories: {} });
+  // where in the story we are (D-092, branches and swipes): notes and the talk follow the path on screen
+  const [path, setPath] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    if (!headId) { setPath([]); return; }
+    void svc.store.pathTo(headId).then((ms) => { if (live) setPath(ms.map((m) => m.id)); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [svc, headId]);
+  const at = useMemo<DirectorPoint>(() => new Set(path), [path]);
+  /** New notes and turns belong to the message the one on screen answered, so its swipes share them. */
+  const anchor = path.length >= 2 ? path[path.length - 2]! : null;
   const [state, setState] = useState<DirectorState>({ profileId: "", notes: [], chat: [] });
   const [view, setView] = useState<View>("chat");
   const [setupOpen, setSetupOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState<{ text: string; at: number } | undefined>();
   const [error, setError] = useState("");
   const load = useCallback(async () => {
-    const [p, s] = await Promise.all([directorProfiles(svc.store), directorState(svc.store, session.id)]);
-    setProfiles(p); setState(s);
+    const [p, s, l] = await Promise.all([directorProfiles(svc.store), directorState(svc.store, session.id), directorLinks(svc.store)]);
+    setProfiles(p); setState(s); setLinks(l);
   }, [svc, session.id]);
   useEffect(() => { void load().catch((e) => setError(String(e))); }, [load]);
   useEffect(() => { if (prefill) setView("chat"); }, [prefill]);
   useEffect(() => svc.core.events.on("director.changed", (e) => { if (e.sessionId === session.id) void load(); }, "director-pane"), [svc, session.id, load]);
-  const profile = profileFor(profiles, state);
+  const profile = profileFor(profiles, state, links, session.storyId);
+  const inherited = profileFor(profiles, { profileId: "" }, links, session.storyId);
 
   // always write the latest state from disk, so a reply counting notes meanwhile is never lost
   const change = async (fn: (s: DirectorState) => DirectorState) => {
@@ -55,12 +69,14 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
     void svc.core.events.emit("director.changed", { sessionId: session.id });
   };
   const saveProfiles = async (list: DirectorProfile[]) => { setProfiles(list); await saveDirectorProfiles(svc.store, list); };
-  const active = state.notes.filter((n) => noteStatus(n) === "active");
+  const active = state.notes.filter((n) => noteStatus(n, at) === "active");
 
   return (
     <div className={`director${popped ? " popped" : ""}`} data-testid="director">
       <div className="director-head">
-        <select className="pick-select" aria-label="Director" value={profile.id} onChange={(e) => void change((s) => ({ ...s, profileId: e.target.value }))}>
+        <select className="pick-select" aria-label="Director" value={profiles.some((p) => p.id === state.profileId) ? state.profileId : ""}
+          onChange={(e) => void change((s) => ({ ...s, profileId: e.target.value }))}>
+          <option value="">{session.storyId && links.stories[session.storyId] ? "The story's" : "Default"}: {inherited.name}</option>
           {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <Segmented small label="Director view" value={view} onChange={setView} options={[
@@ -72,9 +88,9 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
       </div>
       {error && <p className="hint director-error" role="alert">{error}</p>}
       {view === "chat" && <ChatView svc={svc} session={session} headId={headId} branchId={branchId} connection={connection} profile={profile}
-        state={state} change={change} onError={setError} onNotes={() => setView("notes")} prefill={prefill}
+        state={state} change={change} onError={setError} onNotes={() => setView("notes")} prefill={prefill} at={at} anchor={anchor}
         onNoteFrom={(text) => { setNoteDraft({ text, at: Date.now() }); setView("notes"); }} onChanged={onChanged} />}
-      {view === "notes" && <NotesView profile={profile} notes={state.notes} change={change} draft={noteDraft} />}
+      {view === "notes" && <NotesView profile={profile} notes={state.notes} change={change} draft={noteDraft} at={at} anchor={anchor} />}
       {setupOpen && <SetupSheet onClose={() => setSetupOpen(false)} title={profile.name}>
         <SetupView svc={svc} connection={connection} profiles={profiles} profile={profile} onSave={saveProfiles}
           onPick={(id) => void change((s) => ({ ...s, profileId: id }))} />
@@ -85,22 +101,32 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
 
 // ---------------------------------------------------------------- chat
 
-function ChatView({ svc, session, headId, branchId, connection, profile, state, change, onError, onNotes, onNoteFrom, prefill, onChanged }: {
+function ChatView({ svc, session, headId, branchId, connection, profile, state, change, onError, onNotes, onNoteFrom, prefill, onChanged, at, anchor }: {
   svc: AppServices; session: Session; headId: string | null; branchId: string | null; connection: ConnectionState; profile: DirectorProfile;
   state: DirectorState; change: (fn: (s: DirectorState) => DirectorState) => Promise<void>; onError: (e: string) => void; onNotes: () => void;
   /** Opens Notes with this text in "Write a note yourself". */
   onNoteFrom: (text: string) => void;
   prefill?: { text: string; at: number } | undefined;
   onChanged?: (() => void) | undefined;
+  at: DirectorPoint; anchor: string | null;
 }) {
   const [input, setInput] = useState("");
+  /** The talk at this point of the story: turns said on other branches stay out of sight (and out of its prompt). */
+  const chat = state.chat.filter((t) => seenAt(t, at));
   const [streaming, setStreaming] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [state.chat.length, streaming]);
+  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [chat.length, streaming]);
+  // the box grows with what is typed (up to 40% of the window, then it scrolls), like the story's message box
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * 0.4))}px`;
+  }, [input]);
   useEffect(() => { if (prefill) { setInput(prefill.text); requestAnimationFrame(() => { box.current?.focus(); box.current?.setSelectionRange(prefill.text.length, prefill.text.length); }); } }, [prefill]);
-  const active = state.notes.filter((n) => noteStatus(n) === "active");
+  const active = state.notes.filter((n) => noteStatus(n, at) === "active");
   const ctx = { sessionId: session.id, branchId, headId };
 
   const ask = async (asked?: string, history?: DirectorTurn[]) => {
@@ -108,8 +134,8 @@ function ChatView({ svc, session, headId, branchId, connection, profile, state, 
     if (!question || streaming !== null) return;
     if (asked === undefined) setInput("");
     onError("");
-    const before = history ?? state.chat;
-    await change((s) => ({ ...s, chat: [...s.chat, { role: "user", text: question, at: Date.now() }] }));
+    const before = history ?? chat;
+    await change((s) => ({ ...s, chat: [...s.chat, { role: "user", text: question, at: Date.now(), anchor }] }));
     const ctl = new AbortController();
     abort.current = ctl;
     setStreaming("");
@@ -118,13 +144,13 @@ function ChatView({ svc, session, headId, branchId, connection, profile, state, 
       const text = await svc.chat.turns.askDirector({ sessionId: session.id, parentId: headId, branchId, profile, question, chat: before,
         connection: r.connection, connections: r.connections, signal: ctl.signal, onToken: (t) => setStreaming(t) });
       const at = Date.now();
-      const answer: DirectorTurn = { role: "director", text: text || "(no answer)", at };
+      const answer: DirectorTurn = { role: "director", text: text || "(no answer)", at, anchor };
       // what Setup allows by itself goes in at once (notes added, changes applied), with Undo on each card
       if (profile.may.notes === "allowed") {
         const notes = parseProposals(answer.text, profile);
         if (notes.length) {
           answer.added = notes.map((n) => n.index);
-          await change((s) => ({ ...s, notes: [...s.notes, ...notes.map((n) => ({ id: newId(), text: n.text, weightId: n.weightId, lasts: n.lasts, sent: [], createdAt: at }))] }));
+          await change((s) => ({ ...s, notes: [...s.notes, ...notes.map((n) => ({ id: newId(), text: n.text, weightId: n.weightId, lasts: n.lasts, sent: [], createdAt: at, anchor }))] }));
         }
       }
       const applied: NonNullable<DirectorTurn["applied"]> = {};
@@ -140,7 +166,7 @@ function ChatView({ svc, session, headId, branchId, connection, profile, state, 
   };
   const addNote = (turnAt: number, p: ProposedNote, weightId: string, lasts: number | null) => void change((s) => ({
     ...s,
-    notes: [...s.notes, { id: newId(), text: p.text, weightId, lasts, sent: [], createdAt: Date.now() }],
+    notes: [...s.notes, { id: newId(), text: p.text, weightId, lasts, sent: [], createdAt: Date.now(), anchor }],
     chat: s.chat.map((t) => (t.at === turnAt ? { ...t, added: [...(t.added ?? []), p.index] } : t)),
   }));
   const setApplied = (turnAt: number, index: number, v: { undo: ChangeUndo; undone?: boolean; at: number }) => change((s) => ({
@@ -148,48 +174,49 @@ function ChatView({ svc, session, headId, branchId, connection, profile, state, 
   })).then(() => onChanged?.());
 
   // quality of life: copy, edit a question, retry the last answer, delete, a note from an answer, the context size
-  const indexOf = (at: number) => state.chat.findIndex((t) => t.at === at);
+  const indexOf = (when: number) => chat.findIndex((t) => t.at === when);
   const copy = (text: string) => { void navigator.clipboard?.writeText(text).catch(() => undefined); };
-  const editQuestion = (at: number) => {
-    const i = indexOf(at);
+  const here = at;
+  const editQuestion = (at0: number) => {
+    const i = indexOf(at0);
     if (i < 0 || streaming !== null) return;
-    setInput(state.chat[i]!.text);
-    void change((s) => ({ ...s, chat: s.chat.slice(0, s.chat.findIndex((t) => t.at === at)) }));
+    setInput(chat[i]!.text);
+    void change((s) => ({ ...s, chat: s.chat.filter((t) => t.at < at0 || !seenAt(t, here)) }));
     requestAnimationFrame(() => box.current?.focus());
   };
-  const retry = (at: number) => {
-    const i = indexOf(at);
-    const q = state.chat[i - 1];
+  const retry = (when: number) => {
+    const i = indexOf(when);
+    const q = chat[i - 1];
     if (i < 1 || q?.role !== "user" || streaming !== null) return;
-    const history = state.chat.slice(0, i - 1);
-    void change((s) => ({ ...s, chat: history })).then(() => ask(q.text, history));
+    const history = chat.slice(0, i - 1);
+    void change((s) => ({ ...s, chat: s.chat.filter((t) => t.at < q.at || !seenAt(t, here)) })).then(() => ask(q.text, history));
   };
-  const remove = (at: number) => void change((s) => ({ ...s, chat: s.chat.filter((t) => t.at !== at) }));
-  const lastDirector = [...state.chat].reverse().find((t) => t.role === "director")?.at;
+  const remove = (when: number) => void change((s) => ({ ...s, chat: s.chat.filter((t) => t.at !== when) }));
+  const lastDirector = [...chat].reverse().find((t) => t.role === "director")?.at;
   const [tokens, setTokens] = useState<number | null>(null);
   useEffect(() => {
     let live = true;
     const t = setTimeout(() => {
       const r = connection.forRequest();
       svc.chat.turns.directorPrompt(session.id, headId, profile, r.connection, { connections: r.connections, branchId })
-        .then((p) => { if (live) setTokens(p.tokens + state.chat.reduce((n, x) => n + Math.ceil(x.text.length / 4), 0)); }).catch(() => { if (live) setTokens(null); });
+        .then((p) => { if (live) setTokens(p.tokens + chat.reduce((n, x) => n + Math.ceil(x.text.length / 4), 0)); }).catch(() => { if (live) setTokens(null); });
     }, 400);
     return () => { live = false; clearTimeout(t); };
-  }, [svc, session.id, headId, branchId, profile, state.chat.length]);
-  const copyChat = () => copy(state.chat.map((t) => `${t.role === "user" ? "**You:**" : "**Director:**"} ${t.text}`).join("\n\n"));
+  }, [svc, session.id, headId, branchId, profile, chat.length]);
+  const copyChat = () => copy(chat.map((t) => `${t.role === "user" ? "**You:**" : "**Director:**"} ${t.text}`).join("\n\n"));
 
   return (
     <div className="director-chat">
       {active.length > 0 && (
         <button type="button" className="director-active" onClick={onNotes} data-testid="director-active">
-          {active.map((n) => <span key={n.id} className="director-chip"><WeightMark profile={profile} id={n.weightId} /> {n.text}<small>{noteLeft(n)}{lastCheck(n) === "ignored" ? " · ignored last time" : ""}</small></span>)}
+          {active.map((n) => <span key={n.id} className="director-chip"><WeightMark profile={profile} id={n.weightId} /> {n.text}<small>{noteLeft(n, at)}{lastCheck(n) === "ignored" ? " · ignored last time" : ""}</small></span>)}
         </button>
       )}
       <div className="director-log" ref={list}>
-        {!state.chat.length && streaming === null && (
+        {!chat.length && streaming === null && (
           <p className="hint director-empty">Talk about the story out of character: where it is going, a character acting off, which prompt causes what. Nothing here goes into the story, except the notes you add.</p>
         )}
-        {state.chat.map((t) => t.role === "user"
+        {chat.map((t) => t.role === "user"
           ? (
             <div key={t.at} className={`director-turn q${t.auto ? " auto" : ""}`} data-testid="director-question">
               <div className="director-q" title={new Date(t.at).toLocaleString()}>{t.auto && <span className="director-who">Asked by itself</span>}{t.text}</div>
@@ -220,19 +247,19 @@ function ChatView({ svc, session, headId, branchId, connection, profile, state, 
         </div>
       )}
       <div className="director-box">
-        <textarea ref={box} rows={2} aria-label="Ask the Director" placeholder="Ask the Director…" value={input} onChange={(e) => setInput(e.target.value)}
+        <textarea ref={box} rows={1} aria-label="Ask the Director" placeholder="Ask the Director…" value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void ask(); }
             else if (e.key === "Escape" && streaming !== null) { e.preventDefault(); abort.current?.abort(); }
-            else if (e.key === "ArrowUp" && !input) { const q = [...state.chat].reverse().find((t) => t.role === "user" && !t.auto); if (q) { e.preventDefault(); editQuestion(q.at); } }
+            else if (e.key === "ArrowUp" && !input) { const q = [...chat].reverse().find((t) => t.role === "user" && !t.auto); if (q) { e.preventDefault(); editQuestion(q.at); } }
           }} data-testid="director-input" />
         <div className="director-box-row">
-          <span className="hint" data-testid="director-meter">{tokens !== null ? `Reads ~${tokens.toLocaleString()} tokens per question · ` : ""}Enter asks · ↑ edits your last question</span>
-          {state.chat.length > 0 && <IconButton label="Copy the whole talk" onClick={copyChat}><Icon name="copy" size={13} /></IconButton>}
+          <span className="hint" data-testid="director-meter" title="Enter asks · Shift+Enter makes a new line · ↑ in an empty box edits your last question · Esc stops an answer">{tokens !== null ? `~${tokens.toLocaleString()} tokens per question` : "Out of character"}</span>
+          {chat.length > 0 && <IconButton label="Copy the whole talk" onClick={copyChat}><Icon name="copy" size={13} /></IconButton>}
           {streaming !== null
             ? <Button small onClick={() => abort.current?.abort()}>Stop</Button>
             : <Button small variant="prominent" onClick={() => void ask()} disabled={!input.trim()} data-testid="director-ask">Ask</Button>}
-          {state.chat.length > 0 && streaming === null && <Button small onClick={() => void change((s) => ({ ...s, chat: [] }))}>Clear</Button>}
+          {chat.length > 0 && streaming === null && <Button small title="Clears the talk here; talks on other branches stay" onClick={() => void change((s) => ({ ...s, chat: s.chat.filter((t) => !seenAt(t, here)) }))}>Clear</Button>}
         </div>
       </div>
     </div>
@@ -341,30 +368,32 @@ function Proposal({ profile, p, added, disabled, onAdd }: { profile: DirectorPro
 
 // ---------------------------------------------------------------- notes
 
-function NotesView({ profile, notes, change, draft }: {
+function NotesView({ profile, notes, change, draft, at, anchor }: {
   profile: DirectorProfile; notes: DirectorNote[]; change: (fn: (s: DirectorState) => DirectorState) => Promise<void>; draft?: { text: string; at: number } | undefined;
+  at: DirectorPoint; anchor: string | null;
 }) {
   const [tab, setTab] = useState<NoteStatus>("active");
   const [text, setText] = useState(draft?.text ?? "");
   useEffect(() => { if (draft) setText(draft.text); }, [draft]);
   const [weightId, setWeightId] = useState(profile.defaultWeightId);
   const [lasts, setLasts] = useState<number | null>(profile.weights.find((w) => w.id === profile.defaultWeightId)?.lasts ?? null);
-  const count = (s: NoteStatus) => notes.filter((n) => noteStatus(n) === s).length;
-  const shown = notes.filter((n) => noteStatus(n) === tab).slice().reverse();
+  const count = (s: NoteStatus) => notes.filter((n) => noteStatus(n, at) === s).length;
+  const shown = notes.filter((n) => noteStatus(n, at) === tab).slice().reverse();
   const edit = (id: string, patch: Partial<DirectorNote>) => void change((s) => ({ ...s, notes: s.notes.map((n) => (n.id === id ? { ...n, ...patch } : n)) }));
   const add = () => {
     if (!text.trim()) return;
-    void change((s) => ({ ...s, notes: [...s.notes, { id: newId(), text: text.trim(), weightId, lasts, sent: [], createdAt: Date.now() }] }));
+    void change((s) => ({ ...s, notes: [...s.notes, { id: newId(), text: text.trim(), weightId, lasts, sent: [], createdAt: Date.now(), anchor }] }));
     setText(""); setTab("active");
   };
   return (
     <div className="director-notes">
       <Segmented small label="Notes" value={tab} onChange={setTab} options={[
         { value: "active", label: `Active ${count("active")}` }, { value: "expired", label: `Expired ${count("expired")}` }, { value: "off", label: `Off ${count("off")}` },
+        ...(count("elsewhere") ? [{ value: "elsewhere" as const, label: `Other branches ${count("elsewhere")}` }] : []),
       ]} />
-      <p className="hint">A reply, a swipe and a regeneration each use a note once. Expired notes stay here, so you can see what was sent.</p>
-      {!shown.length && <p className="hint director-empty">{tab === "active" ? "No active notes." : tab === "expired" ? "No expired notes yet." : "No notes switched off."}</p>}
-      {shown.map((n) => <NoteCard key={n.id} profile={profile} n={n} onChange={(patch) => edit(n.id, patch)}
+      <p className="hint">A reply, a swipe and a regeneration each use a note once, counted along the branch on screen. Expired notes stay here, so you can see what was sent. A note made on another branch applies only there.</p>
+      {!shown.length && <p className="hint director-empty">{tab === "active" ? "No active notes." : tab === "expired" ? "No expired notes yet." : tab === "elsewhere" ? "None." : "No notes switched off."}</p>}
+      {shown.map((n) => <NoteCard key={n.id} profile={profile} n={n} at={at} anchor={anchor} onChange={(patch) => edit(n.id, patch)}
         onDelete={() => void change((s) => ({ ...s, notes: s.notes.filter((x) => x.id !== n.id) }))} />)}
       <div className="director-new">
         <span className="director-label">Write a note yourself</span>
@@ -379,8 +408,9 @@ function NotesView({ profile, notes, change, draft }: {
   );
 }
 
-function NoteCard({ profile, n, onChange, onDelete }: { profile: DirectorProfile; n: DirectorNote; onChange: (p: Partial<DirectorNote>) => void; onDelete: () => void }) {
-  const status = noteStatus(n);
+function NoteCard({ profile, n, at, anchor, onChange, onDelete }: { profile: DirectorProfile; n: DirectorNote; at: DirectorPoint; anchor: string | null; onChange: (p: Partial<DirectorNote>) => void; onDelete: () => void }) {
+  const status = noteStatus(n, at);
+  const uses = noteUses(n, at).length;
   const [text, setText] = useState(n.text);
   const [own, setOwn] = useState(n.instruction ?? "");
   useEffect(() => setText(n.text), [n.text]);
@@ -394,7 +424,7 @@ function NoteCard({ profile, n, onChange, onDelete }: { profile: DirectorProfile
       <div className="director-proposal-row">
         <WeightPicker profile={profile} value={n.weightId} onChange={(weightId) => onChange({ weightId })} />
         <LastsPicker value={n.lasts} onChange={(lasts) => onChange({ lasts })} />
-        <span className="hint">{status === "off" ? "Off" : noteLeft(n)}{n.sent.length ? ` · sent with ${n.sent.length} ${n.sent.length === 1 ? "reply" : "replies"}` : ""}{checkSummary(n)}</span>
+        <span className="hint">{status === "off" ? "Off" : status === "elsewhere" ? "Made on another branch" : noteLeft(n, at)}{uses ? ` · sent with ${uses} ${uses === 1 ? "reply" : "replies"} here` : ""}{checkSummary(n)}</span>
       </div>
       <label className="director-own">
         <Switch label="Its own instruction" checked={hasOwn} onChange={(on) => onChange({ instruction: on ? (weight?.instruction ?? "") : undefined })} />
@@ -406,7 +436,8 @@ function NoteCard({ profile, n, onChange, onDelete }: { profile: DirectorProfile
       <div className="director-proposal-row">
         {status === "active" && <Button small onClick={() => onChange({ off: true })}>Turn off</Button>}
         {status === "off" && <Button small onClick={() => onChange({ off: false })}>Turn on</Button>}
-        {status === "expired" && <Button small onClick={() => onChange({ sent: [] })}>Use again</Button>}
+        {status === "expired" && <Button small onClick={() => onChange({ sent: n.sent.filter((r) => !noteUses(n, at).includes(r)), anchor })}>Use again</Button>}
+        {status === "elsewhere" && <Button small onClick={() => onChange({ anchor })}>Move to this branch</Button>}
         <Button small onClick={onDelete}>Delete</Button>
       </div>
     </div>
@@ -701,5 +732,74 @@ export function DirectorWindow({ children, onClose }: { children: React.ReactNod
           onPointerDown={begin(edge)} onPointerMove={during} onPointerUp={end} />
       ))}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- Library → Directors
+
+/**
+ * Library → Directors (D-092): every Director, which one is the default, and which stories use which. A chat uses its
+ * own pick (the Director tab's menu), else its story's, else the default. Each Director's setup is edited here too.
+ */
+export function DirectorsPage({ svc, connection, lead, stories }: {
+  svc: AppServices; connection: ConnectionState; lead?: React.ReactNode; stories: Array<{ id: string; name: string }>;
+}) {
+  const [profiles, setProfiles] = useState<DirectorProfile[]>([DEFAULT_DIRECTOR]);
+  const [links, setLinks] = useState<DirectorLinks>({ defaultId: "", stories: {} });
+  const [openId, setOpenId] = useState<string>("");
+  const load = useCallback(async () => {
+    const [p, l] = await Promise.all([directorProfiles(svc.store), directorLinks(svc.store)]);
+    setProfiles(p); setLinks(l);
+  }, [svc]);
+  useEffect(() => { void load(); }, [load]);
+  const defaultId = profiles.some((p) => p.id === links.defaultId) ? links.defaultId : profiles[0]?.id ?? "";
+  const open = profiles.find((p) => p.id === openId) ?? profiles.find((p) => p.id === defaultId) ?? profiles[0]!;
+  const save = async (list: DirectorProfile[]) => { setProfiles(list); await saveDirectorProfiles(svc.store, list); };
+  const saveLinks = async (l: DirectorLinks) => { setLinks(l); await saveDirectorLinks(svc.store, l); };
+  const usedBy = (id: string) => stories.filter((s) => (links.stories[s.id] ?? "") === id);
+  const add = () => { const p = cleanProfile({ ...DEFAULT_DIRECTOR, id: newId(), name: "New director" }); void save([...profiles, p]).then(() => setOpenId(p.id)); };
+  return (
+    <section className="directors-page" data-testid="directors-page">
+      <Toolbar lead={lead} title="Directors" subtitle="Out-of-character helpers for your stories"
+        trailing={<Button small onClick={add} data-testid="directors-new"><Icon name="plus" size={13} /> New Director</Button>} />
+      <div className="directors-body">
+        <nav className="directors-list" aria-label="Directors">
+          {profiles.map((p) => (
+            <button key={p.id} type="button" className={`directors-item${p.id === open.id ? " on" : ""}`} onClick={() => setOpenId(p.id)} aria-current={p.id === open.id}>
+              <b>{p.name}</b>
+              <small>{p.id === defaultId ? "★ Default" : ""}{usedBy(p.id).length ? `${p.id === defaultId ? " · " : ""}${usedBy(p.id).length} ${usedBy(p.id).length === 1 ? "story" : "stories"}` : ""}</small>
+            </button>
+          ))}
+        </nav>
+        <div className="directors-detail">
+          <section className="mem-card" data-testid="directors-use">
+            <h3>Where it is used</h3>
+            <Field label="Default Director" help="For chats and stories that pick none.">
+              {open.id === defaultId ? <span className="hint">★ This is the default</span>
+                : <Button small onClick={() => void saveLinks({ ...links, defaultId: open.id })} data-testid="directors-make-default">Make it the default</Button>}
+            </Field>
+            <p className="mem-text hint">Stories that use this Director (a chat can still pick another in its Director tab):</p>
+            {!stories.length && <p className="mem-text hint">No stories yet.</p>}
+            <div className="directors-stories">
+              {stories.map((s) => {
+                const mine = (links.stories[s.id] ?? "") === open.id;
+                const other = links.stories[s.id] && !mine ? profiles.find((p) => p.id === links.stories[s.id])?.name : undefined;
+                return (
+                  <label key={s.id} className="director-own">
+                    <Switch label={`${s.name} uses ${open.name}`} checked={mine} onChange={(on) => {
+                      const next = { ...links.stories };
+                      if (on) next[s.id] = open.id; else delete next[s.id];
+                      void saveLinks({ ...links, stories: next });
+                    }} />
+                    <span>{s.name}{other ? <small className="hint"> · uses {other}</small> : null}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </section>
+          <SetupView svc={svc} connection={connection} profiles={profiles} profile={open} onSave={save} onPick={setOpenId} />
+        </div>
+      </div>
+    </section>
   );
 }
