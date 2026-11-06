@@ -2,7 +2,7 @@
 // the Director's own call sees the story's prompt as data and proposes notes. Author: CLAUDE, 2026-11-06.
 import { describe, expect, it } from "vitest";
 import {
-  cleanProfile, countNotes, DEFAULT_DIRECTOR, directorNotesText, directorState, noteStatus, parseProposals, saveDirectorProfiles,
+  cleanProfile, countNotes, DEFAULT_DIRECTOR, directorNotesText, directorState, noteStatus, parseChanges, parseProposals, saveDirectorProfiles,
   saveDirectorState, splitProposals, type DirectorNote,
 } from "../src/index.ts";
 import { connection, world } from "./helpers.ts";
@@ -89,5 +89,96 @@ describe("the Director", () => {
     expect(call[0]!.content).not.toContain("A wary ranger."); // characters switched off
     expect(call.at(-1)).toEqual({ role: "user", content: "Why the fight?" });
     expect(w.ai.prompts.filter((p) => !p[0]!.content.includes("<story_prompt>")).length).toBe(0); // nothing went to the story
+  });
+});
+
+describe("the Director changes the story, with Undo", () => {
+  it("lists what it may change in its prompt, and nothing when every kind is Never", async () => {
+    const w = await world(() => "ok");
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    const ask = cleanProfile({});
+    const { system } = await w.chat.turns.directorPrompt(session.id, firstMessage!.id, ask, connection);
+    expect(system).toContain('<change kind="authorsNote">');
+    expect(system).toContain('<change kind="characterNote" character="NAME">');
+    const never = cleanProfile({ may: { notes: "never", tracker: "never", lore: "never", authorsNote: "never", characterNote: "never", chapter: "never" } });
+    const p2 = await w.chat.turns.directorPrompt(session.id, firstMessage!.id, never, connection);
+    expect(p2.system).not.toContain("<change kind=");
+    expect(p2.system).not.toContain("<note weight=");
+  });
+
+  it("parses changes and applies/undoes the Author's Note and a Character's Note", async () => {
+    const w = await world(() => "ok");
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    const text = 'Fix:\n<change kind="authorsNote">Night, slow.</change>\n<change kind="characterNote" character="Lyra">Trusts no guide.</change>\n<change kind="bogus">x</change>';
+    const changes = parseChanges(text);
+    expect(changes.map((c) => c.kind)).toEqual(["authorsNote", "characterNote"]);
+    expect(splitProposals(text, DEFAULT_DIRECTOR).map((p) => p.kind)).toEqual(["text", "change", "change", "text"]);
+    const t = w.chat.turns;
+    const a = await t.directorChange(session.id, null, firstMessage!.id, changes[0]!);
+    expect(a).toMatchObject({ title: "Author's Note", before: "", after: "Night, slow." });
+    const undoA = await a.apply();
+    expect((await w.store.getSession(session.id))!.setup.authorsNote?.text).toBe("Night, slow.");
+    const c = await (await t.directorChange(session.id, null, firstMessage!.id, changes[1]!)).apply();
+    expect((await w.store.getCharacter("lyra"))!.characterNote?.text).toBe("Trusts no guide.");
+    await t.undoDirectorChange(undoA);
+    await t.undoDirectorChange(c);
+    expect((await w.store.getSession(session.id))!.setup.authorsNote).toBeUndefined();
+    expect((await w.store.getCharacter("lyra"))!.characterNote).toBeUndefined();
+  });
+
+  it("changes tracker values at the latest message, merging objects, and Undo puts them back", async () => {
+    const w = await world((m) => (m.at(-1)?.content.includes("Answer with ONLY") ? '```json\n{"lyra": {"mood": "wary", "place": "gate"}}\n```' : "ok"));
+    await w.store.saveAgentConfig({ id: "people", name: "People", triggers: [{ on: "turn", phase: "after" }], output: "state", state: { namespace: "people" } });
+    await w.store.setDefaultSetup({ agents: { mode: "add", add: ["people"], remove: [] } });
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    const { reply } = await w.chat.send(session.id, firstMessage!.id, "Hi", connection);
+    const [c] = parseChanges('<change kind="tracker" target="People">{"lyra": {"place": "cellar"}}</change>');
+    const r = await w.chat.turns.directorChange(session.id, null, reply.id, c!);
+    expect(JSON.parse(r.after)).toEqual({ lyra: { mood: "wary", place: "cellar" } });
+    const undo = await r.apply();
+    expect((await w.core.state.resolve(session.id, reply.id)).people).toEqual({ lyra: { mood: "wary", place: "cellar" } });
+    await w.chat.turns.undoDirectorChange(undo);
+    expect((await w.core.state.resolve(session.id, reply.id)).people).toEqual({ lyra: { mood: "wary", place: "gate" } });
+  });
+
+  it("checks replies against notes when asked to, and asks its own question every N replies", async () => {
+    const w = await world((m) => {
+      const last = m.at(-1)?.content ?? "";
+      if (last.includes('"followed" or "ignored"')) return '{"n1": "ignored"}';
+      if (m[0]!.content.includes("<story_prompt>")) return "All good.";
+      return "She lowers the bow.";
+    });
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    await saveDirectorProfiles(w.store, [cleanProfile({ id: "d", checkReplies: true, autoEvery: 2, autoQuestion: "Anything off?" })]);
+    await saveDirectorState(w.store, session.id, { profileId: "d", chat: [], notes: [note({ id: "n1", text: "Lyra stays guarded." })] });
+    const errors: string[] = [];
+    w.core.events.on("core.error", (e) => { errors.push(e.message); });
+    const { userMessage, reply } = await w.chat.send(session.id, firstMessage!.id, "Hello.", connection);
+    let s = await directorState(w.store, session.id);
+    expect(s.notes[0]!.checks).toEqual({ [reply.id]: "ignored" });
+    expect(s.chat).toEqual([]);
+    await w.chat.generate(session.id, userMessage.id, connection);
+    s = await directorState(w.store, session.id);
+    expect(errors).toEqual([]);
+    expect(s.chat.map((t) => [t.role, t.text, t.auto])).toEqual([["user", "Anything off?", true], ["director", "All good.", true]]);
+  });
+
+  it("edits a lorebook entry (or adds one) and Undo restores the book", async () => {
+    const w = await world(() => "ok");
+    await w.store.saveLorebook({ id: "lb", name: "Thornwood", entries: [{ id: "e1", title: "The mill", keys: ["mill"], content: "Old." }] });
+    await w.store.setDefaultSetup({ lorebooks: { mode: "add", add: ["lb"], remove: [] } });
+    const { session, firstMessage } = await w.chat.createSession({ characterIds: ["lyra"] });
+    const [edit, add] = parseChanges('<change kind="lore" book="Thornwood" entry="The mill">Burned down.</change><change kind="lore" book="Thornwood" entry="The bell" keys="bell, ring">It rings at night.</change>');
+    const r = await w.chat.turns.directorChange(session.id, null, firstMessage!.id, edit!);
+    expect(r).toMatchObject({ before: "Old.", after: "Burned down." });
+    const u1 = await r.apply();
+    const u2 = await (await w.chat.turns.directorChange(session.id, null, firstMessage!.id, add!)).apply();
+    let book = (await w.store.lorebooksForUse(["lb"]))[0]!;
+    expect(book.entries.map((e) => [e.title, e.content])).toEqual([["The mill", "Burned down."], ["The bell", "It rings at night."]]);
+    expect(book.entries[1]!.keys).toEqual(["bell", "ring"]);
+    await w.chat.turns.undoDirectorChange(u2);
+    await w.chat.turns.undoDirectorChange(u1);
+    book = (await w.store.lorebooksForUse(["lb"]))[0]!;
+    expect(book.entries.map((e) => [e.title, e.content])).toEqual([["The mill", "Old."]]);
   });
 });

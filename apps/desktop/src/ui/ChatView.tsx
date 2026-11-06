@@ -47,7 +47,7 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex, onOpenQuickReply, onError }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex, onOpenQuickReply, onError, onLibraryChanged }: {
   /** Ctrl+click on a quick reply, or "Edit sets" in the Prompt tab: Library → Quick Replies (D-090). */
   onOpenQuickReply?: ((setId?: string, replyId?: string) => void) | undefined;
   onError?: ((e: unknown) => void) | undefined;
@@ -79,6 +79,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   /** Save someone of the Scene to the Vault (round 3). */
   /** Saves a card edited in the Prompt tab; opens the full editor (round 3). */
   onSaveCharacter?: ((c: Character) => Promise<void>) | undefined;
+  /** Something outside the chat changed under it (a Director's change: Author's Note, a card, a lorebook): reload. */
+  onLibraryChanged?: (() => void) | undefined;
   onOpenCharacter?: ((id: string) => void) | undefined;
   onSaveNpcToVault?: ((d: { name: string; schemaId: string; values: Record<string, unknown> }) => void) | undefined;
   onOpenSettings: () => void;
@@ -163,6 +165,14 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   // the Director (D-092) can leave the inspector for its own window; remembered across chats
   const [directorOut, setDirectorOut] = useState(() => { try { return localStorage.getItem("director.out") === "1"; } catch { return false; } });
   const [directorShown, setDirectorShown] = useState(true);
+  const [directorPrefill, setDirectorPrefill] = useState<{ text: string; at: number } | undefined>();
+  /** "Ask the Director" on a message: opens it (where it lives) with the message quoted in its box. */
+  const askDirectorAbout = (m: Message, n: number, who: string) => {
+    const said = m.content.replace(/\s+/g, " ").trim();
+    setDirectorPrefill({ text: `About #${n} (${who}): "${said.length > 220 ? `${said.slice(0, 220)}…` : said}"\n`, at: Date.now() });
+    if (directorOut) setDirectorShown(true);
+    else { setTab("director"); if (!inspectorOpen) onToggleInspector(); }
+  };
   const popDirector = (out: boolean) => {
     setDirectorOut(out); setDirectorShown(true);
     try { localStorage.setItem("director.out", out ? "1" : "0"); } catch { /* storage may be blocked */ }
@@ -857,6 +867,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                       {!user && m.parentId !== null && (
                         <IconButton className="act" label="Details" onClick={() => openReply(m.id)}><Icon name="info" size={15} /></IconButton>
                       )}
+                      <IconButton className="act" label="Ask the Director" title="Ask the Director about this message (out of character)."
+                        onClick={() => askDirectorAbout(m, i + 1, name)} data-testid="ask-director"><Icon name="masks" size={15} /></IconButton>
                       <span className="act-sep" aria-hidden />
                       <IconButton className="act" label="Delete" disabled={busy} onClick={() => setDeletingMsg(m.id)}><Icon name="trash" size={15} /></IconButton>
                       {isLastAi && !busy && <><span className="spacer" /><ReceiptLine svc={svc} messageId={m.id} trackers={trackers} refreshKey={sceneKey} onDetails={() => openReply(m.id)} /></>}
@@ -977,14 +989,14 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           director={directorOut
             ? <div className="director-away mem-card"><p className="mem-text">The Director is in its own window.</p>
               <div className="mem-actions"><Button small onClick={() => setDirectorShown(true)}>Show it</Button><Button small onClick={() => popDirector(false)} data-testid="director-dock">Dock here</Button></div></div>
-            : <DirectorPane svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} onPop={() => popDirector(true)} />}
+            : <DirectorPane svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} onPop={() => popDirector(true)} prefill={directorPrefill} onChanged={onLibraryChanged} />}
           reply={<ReplyPane providers={providers} svc={svc} session={session} storySetup={storySetup} messageId={replyFor ?? lastAi?.id ?? null} trackers={trackers} connection={connection}
             refreshKey={sceneKey} busy={busy} running={manual && manual.messageId === (replyFor ?? lastAi?.id) ? manual.agentId : null} onRun={runAgentsOn} />}
         />
       )}
       {directorOut && directorShown && headId !== undefined && (
         <DirectorWindow onClose={() => setDirectorShown(false)}>
-          <DirectorPane svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} popped onPop={() => popDirector(false)} />
+          <DirectorPane svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} popped onPop={() => popDirector(false)} prefill={directorPrefill} onChanged={onLibraryChanged} />
         </DirectorWindow>
       )}
     </div>

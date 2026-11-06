@@ -75,3 +75,46 @@ test("the setup is editable data: weights, the writer line; it pops out and dock
   await expect(win).toHaveCount(0);
   await expect(page.locator(".inspector").getByTestId("director")).toBeVisible();
 });
+
+test("a proposed change shows before and after, applies, and Undo puts it back", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.goto("/");
+  await newChatWith(page);
+  await openTab(page, "director");
+  const d = page.getByTestId("director");
+  await d.getByTestId("director-input").fill("Can you fix the Author's Note?");
+  await d.getByTestId("director-ask").click();
+  const card = d.getByTestId("director-change");
+  await expect(card).toContainText("Author's Note");
+  await expect(card.getByLabel("After")).toHaveText("Keep the night quiet and slow.");
+  await card.getByTestId("director-apply").click();
+  await expect(card).toContainText("Applied");
+  await openTab(page, "prompt");
+  await expect(page.locator(".inspector")).toContainText("Keep the night quiet and slow.");
+  await openTab(page, "director");
+  await d.getByTestId("director-change").getByTestId("director-undo").click();
+  await expect(d.getByTestId("director-change")).toContainText("Undone");
+});
+
+test("Ask the Director from a message, quick questions, edit and ask again, a note from an answer", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.goto("/");
+  await newChatWith(page);
+  await page.getByTestId("messages").locator("li").first().hover();
+  await page.getByTestId("ask-director").first().click();
+  const d = page.getByTestId("director");
+  await expect(d.getByTestId("director-input")).toHaveValue(/^About #1 \(Lyra\): "/);
+  await d.getByTestId("director-quick").getByRole("button", { name: "Where is the story going?" }).click();
+  await expect(d.getByTestId("director-proposal")).toHaveCount(1);
+  await expect(d.getByTestId("director-meter")).toContainText("tokens per question");
+  // edit the question: it goes back into the box and the answer leaves
+  await d.getByTestId("director-question").hover();
+  await d.getByTestId("director-edit").click();
+  await expect(d.getByTestId("director-input")).toHaveValue("Where is the story going?");
+  await expect(d.getByTestId("director-proposal")).toHaveCount(0);
+  await d.getByTestId("director-ask").click();
+  await expect(d.getByTestId("director-proposal")).toHaveCount(1);
+  await d.locator(".director-turn.a").hover();
+  await d.getByTestId("director-note-from").click();
+  await expect(d.getByTestId("director-new-note")).toHaveValue(/Offline test AI here/);
+});

@@ -1639,6 +1639,7 @@ export function App() {
         focusMessageId={focusMessage?.sessionId === active.id ? focusMessage.messageId : null}
         onSaveNpcToVault={(d) => setSavingNpc({ draft: d, sessionId: active.id })}
         onSaveCharacter={async (c) => { await svc.store.saveCharacter(c); await refresh(svc); }}
+        onLibraryChanged={() => void refresh(svc)}
         onOpenCharacter={(id) => setView({ kind: "characters", id, edit: true })}
       />
     );

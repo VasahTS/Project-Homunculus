@@ -34,7 +34,15 @@ export interface DirectorSees {
   agents: boolean;
   /** Messages of the story chat it reads (0 = none). */
   chat: number;
+  /** Earlier Director talks in other chats of the same story it remembers (question/answer pairs, 0 = none). */
+  past: number;
 }
+
+/** What a Director may change in the story (D-092): never, after you approve, or by itself (always with Undo). */
+export type DirectorPermission = "never" | "ask" | "allowed";
+export const CHANGE_KINDS = ["notes", "tracker", "lore", "authorsNote", "characterNote", "chapter"] as const;
+export type ChangeKind = (typeof CHANGE_KINDS)[number];
+export type DirectorMay = Record<ChangeKind, DirectorPermission>;
 
 export interface DirectorProfile {
   id: string;
@@ -56,6 +64,17 @@ export interface DirectorProfile {
   /** Where the notes go in the story's prompt: messages before the end of the chat (0 = after the last one). */
   depth: number;
   role: "system" | "user";
+  may: DirectorMay;
+  /** How it proposes changes. {{changes}} becomes the list of what it may change. */
+  changeFormat: string;
+  /** After each reply that carried notes, one short extra call checks whether the reply followed them. */
+  checkReplies: boolean;
+  checkPrompt: string;
+  /** A question it is asked by itself every N story replies (0 = off); the answer lands in its chat. */
+  autoEvery: number;
+  autoQuestion: string;
+  /** Buttons above its message box. */
+  quick: string[];
 }
 
 export interface DirectorNote {
@@ -70,6 +89,8 @@ export interface DirectorNote {
   sent: string[];
   off?: boolean | undefined;
   createdAt: number;
+  /** Reply id → whether that reply followed the note (only with "Check replies against notes"). */
+  checks?: Record<string, "followed" | "ignored"> | undefined;
 }
 
 export interface DirectorTurn {
@@ -78,6 +99,10 @@ export interface DirectorTurn {
   at: number;
   /** Proposed notes already added from this turn, by their index in the text. */
   added?: number[] | undefined;
+  /** Proposed changes applied from this turn, by their index: what Undo puts back. */
+  applied?: Record<string, { undo: ChangeUndo; undone?: boolean | undefined; at: number }> | undefined;
+  /** Asked by itself (the automatic question), not by you. */
+  auto?: boolean | undefined;
 }
 
 /** One chat's Director: which profile, its notes and its conversation. */
@@ -85,7 +110,31 @@ export interface DirectorState {
   profileId: string;
   notes: DirectorNote[];
   chat: DirectorTurn[];
+  /** Story replies since the chat began (for the automatic question). */
+  replies?: number | undefined;
 }
+
+/** A change the Director proposed (D-092), as it wrote it. */
+export interface ProposedChange {
+  index: number;
+  kind: ChangeKind;
+  /** tracker: its name or namespace · lore: book name · characterNote: character name · chapter: its number. */
+  target: string;
+  /** lore: the entry's title (a new entry when none matches). */
+  entry: string;
+  /** lore: keys for a new entry, comma-separated. */
+  keys: string;
+  /** The new text (a JSON object for a tracker). */
+  value: string;
+}
+
+/** What Undo needs to put a change back. */
+export type ChangeUndo =
+  | { kind: "tracker"; messageId: string; namespace: string; before: Record<string, unknown> }
+  | { kind: "lore"; bookId: string; storyId?: string | undefined; patch?: unknown; entries?: unknown }
+  | { kind: "authorsNote"; sessionId: string; before: unknown }
+  | { kind: "characterNote"; characterId: string; before: unknown }
+  | { kind: "chapter"; sessionId: string; branchId: string | null; chapterId: string; before: { summary: string; edited?: boolean | undefined } };
 
 export type NoteStatus = "active" | "expired" | "off";
 
@@ -113,13 +162,27 @@ export const DIRECTOR_WEIGHTS: DirectorWeight[] = [
 ];
 
 export const DIRECTOR_SEES: DirectorSees = {
-  preset: "active", characters: true, persona: true, story: true, lore: "fired", trackers: true, memory: true, notes: true, agents: true, chat: 40,
+  preset: "active", characters: true, persona: true, story: true, lore: "fired", trackers: true, memory: true, notes: true, agents: true, chat: 40, past: 6,
 };
+
+export const DIRECTOR_MAY: DirectorMay = { notes: "ask", tracker: "ask", lore: "ask", authorsNote: "ask", characterNote: "ask", chapter: "ask" };
+
+export const DIRECTOR_CHANGE_FORMAT = `When {{user}} wants something in the story fixed, you may propose a change, on its own lines. You may change:
+{{changes}}
+Propose a change only when asked or when something is clearly wrong, and say in a sentence why.`;
+
+export const DIRECTOR_CHECK_PROMPT = `Here are the Director's notes the story's AI had for its last reply, and that reply. For each note, did the reply follow it? A Whisper is followed when the reply is consistent with it, even if it does not show it.`;
+
+export const DIRECTOR_AUTO_QUESTION = "Is anyone acting out of character, or is the story drifting from where {{user}} wanted it? Answer in two sentences; say \"All good.\" if nothing is off.";
+
+export const DIRECTOR_QUICK = ["Where is the story going?", "Three ideas for the next scene.", "Who has been left out lately?"];
 
 export const DEFAULT_DIRECTOR: DirectorProfile = {
   id: "director", name: "Story Director", connectionId: "", model: "",
   job: DIRECTOR_JOB, writerLine: DIRECTOR_WRITER_LINE, noteFormat: DIRECTOR_NOTE_FORMAT, notesHeader: DIRECTOR_NOTES_HEADER,
   weights: DIRECTOR_WEIGHTS, defaultWeightId: "whisper", sees: DIRECTOR_SEES, depth: 0, role: "system",
+  may: DIRECTOR_MAY, changeFormat: DIRECTOR_CHANGE_FORMAT, checkReplies: false, checkPrompt: DIRECTOR_CHECK_PROMPT,
+  autoEvery: 0, autoQuestion: DIRECTOR_AUTO_QUESTION, quick: DIRECTOR_QUICK,
 };
 
 const PROFILES_KEY = "director.profiles";
@@ -147,8 +210,10 @@ export function cleanProfile(raw: unknown): DirectorProfile {
     characters: bool("characters"), persona: bool("persona"), story: bool("story"),
     lore: s.lore === "none" || s.lore === "all" || s.lore === "fired" ? s.lore : d.sees.lore,
     trackers: bool("trackers"), memory: bool("memory"), notes: bool("notes"), agents: bool("agents"),
-    chat: num(s.chat, d.sees.chat, 0, 1000),
+    chat: num(s.chat, d.sees.chat, 0, 1000), past: num(s.past, d.sees.past, 0, 100),
   };
+  const m = (r.may && typeof r.may === "object" ? r.may : {}) as Record<string, unknown>;
+  const may = Object.fromEntries(CHANGE_KINDS.map((k) => [k, m[k] === "never" || m[k] === "ask" || m[k] === "allowed" ? m[k] : d.may[k]])) as DirectorMay;
   const defaultWeightId = str(r.defaultWeightId, d.defaultWeightId);
   return {
     id: str(r.id, d.id) || d.id, name: str(r.name, d.name), connectionId: str(r.connectionId, ""), model: str(r.model, ""),
@@ -156,6 +221,9 @@ export function cleanProfile(raw: unknown): DirectorProfile {
     notesHeader: str(r.notesHeader, d.notesHeader), weights,
     defaultWeightId: weights.some((w) => w.id === defaultWeightId) ? defaultWeightId : weights[0]?.id ?? "",
     sees, depth: num(r.depth, d.depth, 0, 999), role: r.role === "user" ? "user" : "system",
+    may, changeFormat: str(r.changeFormat, d.changeFormat), checkReplies: r.checkReplies === true, checkPrompt: str(r.checkPrompt, d.checkPrompt),
+    autoEvery: num(r.autoEvery, 0, 0, 999), autoQuestion: str(r.autoQuestion, d.autoQuestion),
+    quick: Array.isArray(r.quick) ? r.quick.filter((q): q is string => typeof q === "string" && !!q.trim()) : d.quick,
   };
 }
 
@@ -175,6 +243,7 @@ export async function directorState(store: SqlStore, sessionId: string): Promise
     profileId: typeof raw?.profileId === "string" ? raw.profileId : "",
     notes: Array.isArray(raw?.notes) ? raw.notes.filter((n) => n && typeof n.text === "string").map((n) => ({ ...n, sent: Array.isArray(n.sent) ? n.sent : [] })) : [],
     chat: Array.isArray(raw?.chat) ? raw.chat.filter((t) => t && typeof t.text === "string") : [],
+    ...(typeof raw?.replies === "number" ? { replies: raw.replies } : {}),
   };
 }
 
@@ -243,21 +312,58 @@ export function parseProposals(text: string, profile: DirectorProfile): Proposed
   return out;
 }
 
-/** The reply split into plain text and proposed notes, in order (the chat shows notes as cards). */
-export function splitProposals(text: string, profile: DirectorProfile): Array<{ kind: "text"; text: string } | { kind: "note"; note: ProposedNote }> {
+const CHANGE_RE = /<change\b([^>]*)>([\s\S]*?)<\/change>/gi;
+const KIND_ALIASES: Record<string, ChangeKind> = {
+  tracker: "tracker", trackers: "tracker", lore: "lore", lorebook: "lore", authorsnote: "authorsNote", "authors-note": "authorsNote", note: "authorsNote",
+  characternote: "characterNote", "character-note": "characterNote", chapter: "chapter", memory: "chapter", notes: "notes",
+};
+
+/** The changes the Director proposed in a reply (unknown kinds are left as text). */
+export function parseChanges(text: string): ProposedChange[] {
+  const out: ProposedChange[] = [];
+  let i = 0;
+  for (const m of text.matchAll(CHANGE_RE)) {
+    const a = m[1] ?? "";
+    const kind = KIND_ALIASES[(attr(a, "kind") ?? "").toLowerCase().replace(/[\s_']/g, "")];
+    if (!kind || kind === "notes") continue;
+    out.push({ index: i++, kind, target: attr(a, "target") ?? attr(a, "tracker") ?? attr(a, "book") ?? attr(a, "character") ?? attr(a, "number") ?? "",
+      entry: attr(a, "entry") ?? "", keys: attr(a, "keys") ?? "", value: (m[2] ?? "").trim() });
+  }
+  return out;
+}
+
+export type DirectorPiece = { kind: "text"; text: string } | { kind: "note"; note: ProposedNote } | { kind: "change"; change: ProposedChange };
+
+/** The reply split into plain text, proposed notes and proposed changes, in order (the chat shows them as cards). */
+export function splitProposals(text: string, profile: DirectorProfile): DirectorPiece[] {
   const notes = parseProposals(text, profile);
-  const out: Array<{ kind: "text"; text: string } | { kind: "note"; note: ProposedNote }> = [];
-  let last = 0, i = 0;
-  for (const m of text.matchAll(NOTE_RE)) {
+  const changes = parseChanges(text);
+  const tags = [...[...text.matchAll(NOTE_RE)].map((m) => ({ m, t: "note" as const })), ...[...text.matchAll(CHANGE_RE)].map((m) => ({ m, t: "change" as const }))]
+    .sort((a, b) => (a.m.index ?? 0) - (b.m.index ?? 0));
+  const out: DirectorPiece[] = [];
+  let last = 0, ni = 0, ci = 0;
+  for (const { m, t } of tags) {
+    if ((m.index ?? 0) < last) continue;
     const before = text.slice(last, m.index).trim();
     if (before) out.push({ kind: "text", text: before });
     last = (m.index ?? 0) + m[0].length;
-    if ((m[2] ?? "").trim()) out.push({ kind: "note", note: notes[i++]! });
+    if (t === "note" && (m[2] ?? "").trim()) out.push({ kind: "note", note: notes[ni++]! });
+    if (t === "change") {
+      const c = changes.find((x) => x.index === ci);
+      const kind = KIND_ALIASES[(attr(m[1] ?? "", "kind") ?? "").toLowerCase().replace(/[\s_']/g, "")];
+      if (kind && kind !== "notes") { if (c) out.push({ kind: "change", change: c }); ci++; }
+      else out.push({ kind: "text", text: m[0] });
+    }
   }
   const rest = text.slice(last).trim();
   if (rest) out.push({ kind: "text", text: rest });
   return out;
 }
+
+/** The text before a proposal tag, for the chat history sent back to the Director (tags stay: it knows what it asked). */
+export const CHANGE_LABELS: Record<ChangeKind, string> = {
+  notes: "Director's notes", tracker: "Tracker values", lore: "Lorebook entries", authorsNote: "Author's Note", characterNote: "Character's Note", chapter: "Memory chapters",
+};
 
 /** Which part of the story's prompt a part's `source` belongs to, for "What it sees". */
 export function seesPart(source: string, sees: DirectorSees): boolean {

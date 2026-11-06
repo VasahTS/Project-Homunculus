@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## Director: changes with approval, reply check, automatic question, Ask on messages, chat QoL (2026-11-06) — CLAUDE — D-092
+
+- Everything left from the drafts except a Library page: Setup → **What it may change** (notes, trackers, lorebook, Author's Note, Character's Note, memory chapters; Never / Ask first / Allowed); change cards with before/after, Apply, Skip, Undo. **Check replies against notes** and **Ask by itself every N replies** (both off by default). Quick questions, earlier talks from the story's other chats, **Ask the Director** on each message, and chat QoL (copy, edit and ask again, ask again, note from an answer, delete, copy the talk, ↑ edits, Esc stops, token meter).
+- **To try:** Director → "Can you fix the Author's Note?" (offline AI proposes a change) → Apply → Prompt tab shows it → Undo. Hover a story message → masks icon. Setup → What it may change / Checks and questions.
+- Checks: typecheck; 737 unit (3 skipped); click tests `director` (4), `chat`, `memory`, `inspector-overflow`, `branches`, `trackers`, `character-editor`, `authors-note`, `lorebooks` — 65 passed. Pushed to `dev`.
+
 ## Director window resizable, maximize, Setup in its own panel (2026-11-06) — CLAUDE — D-092
 
 - Daniel: make the popped-out Director expandable (size, maximize) and give Setup a separate panel. The window resizes from its edges/corners, maximizes (button or double-click on its top), remembers size/place/state; ⚙ opens "Director setup" as a wide two-column panel (Esc closes). A `.glass` width transition was freezing the resize under reduced motion; the window has no transitions now.

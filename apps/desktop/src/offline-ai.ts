@@ -111,7 +111,10 @@ export const offlineAiModule: HomunculusModule = {
         // the Director (D-092): talks about the story and proposes a note in the shape its setup asks for
         if ((req.messages[0]?.content ?? "").includes("<story_prompt>")) {
           const weight = /^- (\w[\w-]*) \(/m.exec(req.messages[0]!.content)?.[1] ?? "whisper";
-          const answer = `Offline test AI here: I read the story's prompt, but I can't really judge it. Here is a note you could try:\n\n<note weight="${weight}" lasts="3">Keep the scene calm for a while.</note>`;
+          const asked = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+          const answer = /author.?s note/i.test(asked) && req.messages[0]!.content.includes('kind="authorsNote"')
+            ? "Offline test AI here: this would change the Author's Note of this chat.\n\n<change kind=\"authorsNote\">Keep the night quiet and slow.</change>"
+            : `Offline test AI here: I read the story's prompt, but I can't really judge it. Here is a note you could try:\n\n<note weight="${weight}" lasts="3">Keep the scene calm for a while.</note>`;
           for (const word of answer.split(/(?<= )/)) { if (req.signal?.aborted) return; await new Promise((r) => setTimeout(r, 15)); yield word; }
           return;
         }
