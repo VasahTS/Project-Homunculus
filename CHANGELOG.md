@@ -3,7 +3,7 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
-## Unreleased
+## 0.3.5 — 2026-11-07
 
 - **Stories: From a card…** — take the scenario and any greetings of any card in Characters, with a button for each, instead of copying and pasting. A card's {{char}} becomes its name in the story.
 - **Export and Import** for narrators, NPCs, stories, Kits, agents, trackers and Directors: one Homunculus file (`.h2.json`) with everything the item uses (cards, lorebooks, preset, NPCs, agents, pictures), to keep or share. Import sits beside New on each of those pages; nothing you already have is changed, and a changed copy comes in as "(imported)". Connections, personas and chats are never in the file.
