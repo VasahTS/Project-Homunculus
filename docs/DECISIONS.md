@@ -1005,5 +1005,6 @@ Daniel picked "Monogram" from two batches of 16 app-icon concepts (Retort, Moon 
 - The app icon (taskbar, shortcut, installer) is an **H in Instrument Serif**, bone `#ece6d6` on warm black `#0b0b0a` with a faint radial glow, a thin rule under it, inside a rounded plate with a hairline inner edge — the Observatory look (D-086). It replaces the red eye-and-gear icon.
 - Source: `apps/desktop/src-tauri/icons/icon-source.svg` (1024×1024, the letter is outlined, no font needed). The other files were generated from it with `npx @tauri-apps/cli icon` (the `.ico` holds 16–256 px).
 - For now: Daniel may pick another later; small sizes (16 px) read fine as they are.
+- **The exe kept the old icon** after a rebuild (Cargo reused the old build-script output), so `src-tauri/build.rs` now tells Cargo to rerun when any file in `icons/` changes.
 
 Signed: **CLAUDE**.
