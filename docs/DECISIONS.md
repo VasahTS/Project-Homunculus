@@ -998,3 +998,12 @@ Daniel: "an OOC chat to ask questions and give instructions: 'the story is headi
 - Tests: `packages/core/test/director.test.ts` (11), `e2e/director.e2e.ts` (4).
 
 Signed: **CLAUDE**.
+
+## D-093 — App icon: the serif H monogram (2026-11-07)
+
+Daniel picked "Monogram" from two batches of 16 app-icon concepts (Retort, Moon & Ridge, Lunar Eye, Observatory, Seal, Mandrake, Ouroboros, Nib, Pixel, Blackletter, Skull, Egg…): "it was the one I liked the most, just take out the moon".
+- The app icon (taskbar, shortcut, installer) is an **H in Instrument Serif**, bone `#ece6d6` on warm black `#0b0b0a` with a faint radial glow, a thin rule under it, inside a rounded plate with a hairline inner edge — the Observatory look (D-086). It replaces the red eye-and-gear icon.
+- Source: `apps/desktop/src-tauri/icons/icon-source.svg` (1024×1024, the letter is outlined, no font needed). The other files were generated from it with `npx @tauri-apps/cli icon` (the `.ico` holds 16–256 px).
+- For now: Daniel may pick another later; small sizes (16 px) read fine as they are.
+
+Signed: **CLAUDE**.
