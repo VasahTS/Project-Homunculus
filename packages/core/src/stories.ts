@@ -140,3 +140,11 @@ export function storyFromCard(c: Character, id: string, now: number): Story {
     scenario: c.scenario, openings: [...c.firstMessages], userRole: "player", setup: {}, lorePatches: {}, createdAt: now,
   };
 }
+
+/**
+ * A card's greeting or scenario taken into a story (D-095). In a story, {{char}} is whoever tells it, so the card's own
+ * {{char}} (and the old <BOT>) becomes the card's name, unless the card is the story's narrator. {{user}} stays.
+ */
+export function cardTextForStory(text: string, cardName: string, isNarrator = false): string {
+  return isNarrator ? text : text.replace(/\{\{char\}\}/gi, cardName).replace(/<BOT>/g, cardName);
+}

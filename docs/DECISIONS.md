@@ -1020,3 +1020,13 @@ Daniel: "make it possible to export/import narrators, stories, kits etc. in Homu
 - Not done yet (ask Daniel first): a story's export with its chats; picking what goes in (an options sheet would be new UI: draft first).
 
 Signed: **CLAUDE**.
+
+## D-095 — "From a card…": a story takes any card's scenario and greetings (2026-11-07)
+
+Daniel: "in Stories, can you make it possible to pick the greetings of each card in Characters? Having to copy and paste every time, or ask the Assistant, felt odd; the same with the scenario".
+- A story's (and a Kit's) **How it starts** has **From a card…** beside Scenario and **+ From a card's greetings…** under Openings. Both open the big Add… window (D-036) with **every card in Characters**, the story's own cards first under "In this story" (before, a small menu offered only the greetings of cards already in the story, and nothing for the scenario).
+- The window's new **browse mode** (`PickKind.browse`): a click on a card only shows it (hovering doesn't change the preview), because the choosing happens in the preview: the card's scenario (**Use as the scenario** / **Replace the scenario**, **Add below**) and each greeting (**Add as an opening**, "Add all N"), with "✓ An opening" / "✓ In the scenario" for what the story already has. The window stays open to take several; Enter or the main button adds the card's greetings still missing. Variants with their own greetings or scenario are listed too, labeled.
+- In a story `{{char}}` means whoever tells it, so the card's `{{char}}` (and `<BOT>`) becomes the card's name when taken (`cardTextForStory`); not when the card is the story's narrator. `{{user}}` stays.
+- Reuses the existing window (no new screen), so no separate draft.
+
+Signed: **CLAUDE**.

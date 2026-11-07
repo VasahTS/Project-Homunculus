@@ -35,6 +35,13 @@ export interface PickKind {
   virtual?: Array<{ id: string; name: string; note: string }> | undefined;
   /** Shown first when nothing is searched (ids). */
   recent?: string[] | undefined;
+  /** The heading above `recent` (default "Recently used"). */
+  recentLabel?: string | undefined;
+  /**
+   * The preview is where you choose (D-095: a card's greetings and scenario, each with its own button): a click on a
+   * row only shows it (no adding), hovering doesn't change the preview, and a double click or Enter does the action.
+   */
+  browse?: boolean | undefined;
   /** Already there: shown, but cannot be added again. */
   exclude?: string[] | undefined;
   excludeNote?: string | undefined;
@@ -100,7 +107,8 @@ export function Picker({ title, kinds, initial, onClose }: { title: string; kind
     const where = all ? (kind.map[it.id] ? folderLabel(kind.folders, kind.map[it.id]) : kind.virtual?.find((v) => v.id === it.group)?.name) : undefined;
     return (
       <button key={`${i}:${it.id}`} type="button" data-index={i} className={`pk-row${i === cursor ? " on" : ""}${off ? " off" : ""}`} data-testid="pick-row"
-        onMouseEnter={() => setCursor(i)} onClick={() => pick(it)} onDoubleClick={() => pick(it)} aria-disabled={off}>
+        onMouseEnter={kind.browse ? undefined : () => setCursor(i)} onClick={() => (kind.browse ? setCursor(i) : pick(it))} onDoubleClick={() => pick(it)} aria-disabled={off}
+        aria-current={kind.browse && i === cursor ? true : undefined}>
         {pic(it, 34)}
         <span className="pk-text"><strong>{it.name}</strong><small>{off ? kind.excludeNote ?? "Already in" : [where, it.line].filter(Boolean).join(" · ") || " "}</small></span>
       </button>
@@ -162,7 +170,7 @@ export function Picker({ title, kinds, initial, onClose }: { title: string; kind
                 })}
               </div>
             )}
-            {recent.length > 0 && <div className="pk-label">Recently used</div>}
+            {recent.length > 0 && <div className="pk-label">{kind.recentLabel ?? "Recently used"}</div>}
             {recent.map((it, i) => row(it, i))}
             {recent.length > 0 && shown.some((it) => !recent.includes(it)) && <div className="pk-label">{view === "all" ? `All ${kind.label.toLowerCase()}` : folder === null ? "Not in a folder" : "In this folder"}</div>}
             {flat.slice(recent.length).map((it, i) => row(it, i + recent.length))}

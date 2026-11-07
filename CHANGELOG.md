@@ -5,6 +5,7 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+- **Stories: From a card…** — take the scenario and any greetings of any card in Characters, with a button for each, instead of copying and pasting. A card's {{char}} becomes its name in the story.
 - **Export and Import** for narrators, NPCs, stories, Kits, agents, trackers and Directors: one Homunculus file (`.h2.json`) with everything the item uses (cards, lorebooks, preset, NPCs, agents, pictures), to keep or share. Import sits beside New on each of those pages; nothing you already have is changed, and a changed copy comes in as "(imported)". Connections, personas and chats are never in the file.
 - **Presets:** Export is now at the top of the preset editor too (it was hidden at the very bottom).
 - **New app icon:** a serif H on warm black, in the colors of the Observatory look.

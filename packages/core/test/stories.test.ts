@@ -174,3 +174,11 @@ describe("chats of a story and Director mode", () => {
     expect(await userInStory(w.store, session)).toBe(false);
   });
 });
+
+describe("a card's text taken into a story (D-095)", () => {
+  it("the card's {{char}} becomes its name, unless it tells the story", async () => {
+    const { cardTextForStory } = await import("../src/index.ts");
+    expect(cardTextForStory("*{{char}} nods.* Hi {{user}}. <BOT> waits. {{Char}}!", "Mira")).toBe("*Mira nods.* Hi {{user}}. Mira waits. Mira!");
+    expect(cardTextForStory("{{char}} nods.", "Mira", true)).toBe("{{char}} nods.");
+  });
+});

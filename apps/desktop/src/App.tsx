@@ -1610,7 +1610,7 @@ export function App() {
         fieldSets={fieldSets} stories={npcHomes} lorebooks={lorebooks} setup={setupProps}
         onSave={saveKit} onNewChat={() => undefined} onOpenSession={() => undefined}
         onSaveNpc={saveNpc} onSaveNarrator={saveNarrator} onImage={(id, f) => void changeAvatar(id, f)} onOpenNarrator={(id) => setView({ kind: "vault", tab: "narrators", id })}
-        onOpenLorebook={(id) => setView({ kind: "lorebooks", id })} folder={folderPick("kit", k.id)} pickers={storyPickers}
+        onOpenLorebook={(id) => setView({ kind: "lorebooks", id })} folder={folderPick("kit", k.id)} pickers={storyPickers} cardFolders={{ folders: foldersOf("character"), map: mapOf("character") }}
         onStartFromKit={(x) => void startFromKit(x)} onDuplicate={(x) => void duplicateKit(x)} onTrash={(x) => void trashKit(x)}
         onExport={(x) => void exportItem("kit", x.id, x.name)} />
     ) : (
@@ -1625,7 +1625,7 @@ export function App() {
         fieldSets={fieldSets} stories={npcHomes} lorebooks={lorebooks} setup={setupProps}
         onSave={saveStory} onNewChat={(x, c) => void newStoryChat(x, c)} onOpenSession={(id) => { setActiveId(id); setView({ kind: "session" }); }}
         onSaveNpc={saveNpc} onSaveNarrator={saveNarrator} onImage={(id, f) => void changeAvatar(id, f)} onOpenNarrator={(id) => setView({ kind: "vault", tab: "narrators", id })}
-        onOpenLorebook={(id) => setView({ kind: "lorebooks", id })} folder={folderPick("story", st.id)} pickers={storyPickers}
+        onOpenLorebook={(id) => setView({ kind: "lorebooks", id })} folder={folderPick("story", st.id)} pickers={storyPickers} cardFolders={{ folders: foldersOf("character"), map: mapOf("character") }}
         chatTools={{ search: searchChats(sessionsOfStory(st.id).map((x) => x.id)), onOpen: openChat, onRename: (id, t) => void renameChat(id, t),
           onExport: (id, f) => void exportSession(id, f), onTrash: (id) => void trashChat(id) }}
         onSaveAsKit={(x) => void saveAsKit(x)} onExport={(x) => void exportItem("story", x.id, x.name)}

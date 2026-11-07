@@ -141,11 +141,13 @@ test("director mode: the user is not in the story, and their messages are direct
   await addCardToStory(page, "Lyra");
   await expect(page.getByTestId("story-people")).toContainText("Card, joins as it is");
   // a card's greeting becomes an opening; Director mode has no "You play as"
-  const greeting = page.getByLabel("Add a card's greeting as an opening");
-  // only the story's own cards are offered (Lyra is in the cast; no other card)
-  await expect(greeting.locator("optgroup")).toHaveCount(1);
-  await expect(greeting.locator("optgroup")).toHaveAttribute("label", "Lyra");
-  await greeting.selectOption({ index: 1 });
+  // D-095: "From a card…" lists every card, the story's own first ("In this story")
+  await page.getByTestId("openings-from-card").click();
+  const picker = page.getByTestId("picker");
+  await expect(picker.locator(".pk-label").first()).toHaveText("In this story");
+  await picker.getByTestId("pick-row").first().click();
+  await picker.getByRole("button", { name: "Add the first message as an opening" }).click();
+  await page.keyboard.press("Escape");
   await expect(page.getByLabel("Opening 1")).toHaveValue(/That's close enough/);
   await expect(page.getByTestId("story-setup").getByLabel("You play as")).toHaveCount(0);
   await startChat(page);

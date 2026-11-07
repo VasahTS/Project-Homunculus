@@ -6,7 +6,7 @@
 // scroll to"), as a list you can search (names and messages) and export. The same page edits a Kit (kind="kit"): no chats,
 // and "Start a Story" instead of Play.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, UserRole } from "@homunculus/schemas";
+import type { Avatar, Character, Folder, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, UserRole } from "@homunculus/schemas";
 import { effectiveCharacter, isTracked, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
@@ -21,6 +21,7 @@ import { Toolbar } from "./Toolbar.tsx";
 import { Modal, NarratorForm, NpcEditor, type FieldSetOption } from "./Vault.tsx";
 import { ImagePicker } from "./ImagePicker.tsx";
 import { ChatList, type ChatSearch } from "./ChatList.tsx";
+import { CardStartPicker } from "./CardStart.tsx";
 import type { ChatExportFormat } from "@homunculus/core";
 
 export const ROLE_HELP: Record<UserRole, string> = {
@@ -58,7 +59,7 @@ export function changesIn(layer: SetupLayer): number {
 
 export function StoryPage({ lead, story, characters, avatars, narrators, npcs, sessionsKey, loadChats, nextTitle, cardGreetings,
   fieldSets, stories, lorebooks, setup, onSave, onNewChat, onOpenSession, onSaveNpc, onSaveNarrator, onOpenNarrator, onOpenLorebook,
-  onDuplicate, onTrash, onImage, kind = "story", chatTools, onSaveAsKit, onStartFromKit, onExport, folder, pickers }: {
+  onDuplicate, onTrash, onImage, kind = "story", chatTools, onSaveAsKit, onStartFromKit, onExport, folder, pickers, cardFolders }: {
   lead: ReactNode;
   /** A story, or a Kit (what new stories start with: no chats). */
   kind?: "story" | "kit";
@@ -73,6 +74,8 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   onExport?: ((s: Story) => void) | undefined;
   /** The "Folder" pick of this story/kit. */
   folder?: ReactNode;
+  /** The Characters folders, for "From a card…" (D-095). */
+  cardFolders?: { folders: Folder[]; map: Record<string, string> } | undefined;
   /** Bigger pickers (round 3): "+ Add a Card" and "+ From the Vault" open these instead of a plain list. */
   pickers?: {
     card: (exclude: string[], onPick: (id: string) => void) => void;
@@ -192,17 +195,17 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   const tab = Math.min(opening, openings.length - 1);
   const setOpening = (i: number, text: string) => change({ openings: openings.map((o, j) => (j === i ? text : o)) });
   const newChatOpenings = draft.openings.some((o) => o.trim()) ? draft.openings : cardGreetings;
-  /** Cards whose greetings can become openings: only the story's own (its narrator card and the cards in its cast). */
-  const greetingCards = characters.filter((c) => c.firstMessages.some((m) => m.trim())
-    && (c.id === narratorCard?.id || draft.cast.some((m) => m.characterId === c.id)));
-  const addGreeting = (v: string) => {
-    const [cid, i] = [v.slice(0, v.lastIndexOf(":")), Number(v.slice(v.lastIndexOf(":") + 1))];
-    const text = characters.find((c) => c.id === cid)?.firstMessages[i];
-    if (!text) return;
+  // "From a card…" (D-095): any card's greetings and scenario, in the big Add… window
+  const [fromCard, setFromCard] = useState(false);
+  const addOpenings = (texts: string[]) => {
     const kept = draft.openings.filter((o) => o.trim());
-    change({ openings: [...kept, text] });
-    setOpeningTab(kept.length);
+    change({ openings: [...kept, ...texts] });
+    setOpeningTab(kept.length + texts.length - 1);
   };
+  const fromCardLink = (label: string, testId: string) => characters.length > 0 && (
+    <button type="button" className="link align-start" data-testid={testId} onClick={() => setFromCard(true)}
+      title="Take a scenario or greetings from any card in Characters">{label}</button>
+  );
 
   const lore = draft.setup.lorebooks && draft.setup.lorebooks.mode !== "keep" ? draft.setup.lorebooks.add : [];
   const latest = chats?.[0];
@@ -361,7 +364,10 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
 
             <SetupSection title="How it starts" aside="for new chats" testId="story-start">
               <div className="setup-row column">
-                <span className="setup-k"><span>Scenario</span><small>Sent with each reply.</small></span>
+                <span className="opening-head">
+                  <span className="setup-k grow"><span>Scenario</span><small>Sent with each reply.</small></span>
+                  {fromCardLink("From a card…", "scenario-from-card")}
+                </span>
                 <textarea className="prose-input" rows={2} aria-label="Scenario" value={draft.scenario}
                   placeholder="e.g. A high-fantasy world. The party meets at a tavern in Greywater, the night the bells stop ringing."
                   onChange={(e) => change({ scenario: e.target.value })} />
@@ -376,16 +382,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                     <button type="button" className="opening-tab" aria-label="Add an opening" onClick={() => { change({ openings: [...openings, ""] }); setOpeningTab(openings.length); }}>+</button>
                   </span>
                 </span>
-                {greetingCards.length > 0 && (
-                  <select className="link-select wide" aria-label="Add a card's greeting as an opening" value="" onChange={(e) => e.target.value && addGreeting(e.target.value)}>
-                    <option value="">+ From a card's greetings</option>
-                    {greetingCards.map((c) => (
-                      <optgroup key={c.id} label={c.name}>
-                        {c.firstMessages.map((m, i) => (m.trim() ? <option key={i} value={`${c.id}:${i}`}>{`${i === 0 ? "First message" : `Greeting ${i}`}: ${m.replace(/\s+/g, " ").slice(0, 70)}`}</option> : null))}
-                      </optgroup>
-                    ))}
-                  </select>
-                )}
+                {fromCardLink("+ From a card's greetings…", "openings-from-card")}
                 <textarea className="prose-input" rows={4} aria-label={`Opening ${tab + 1}`} value={openings[tab] ?? ""} placeholder="The narrator's first message (optional)"
                   onChange={(e) => setOpening(tab, e.target.value)} />
                 {openings.length > 1 && <button type="button" className="link align-end" onClick={() => { change({ openings: openings.filter((_, j) => j !== tab) }); setOpeningTab(Math.max(0, tab - 1)); }}>Remove opening {tab + 1}</button>}
@@ -453,6 +450,10 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
       {newChat && (
         <NewChatSheet story={draft} openings={newChatOpenings} chats={chats ?? []} title={nextTitle} setup={setup}
           onStart={startChat} onClose={() => setNewChat(false)} />
+      )}
+      {fromCard && (
+        <CardStartPicker story={draft} characters={characters} avatars={avatars} folders={cardFolders}
+          onAddOpenings={addOpenings} onScenario={(text) => change({ scenario: text })} onClose={() => setFromCard(false)} />
       )}
     </div>
   );

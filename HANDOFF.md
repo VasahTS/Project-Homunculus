@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## "From a card…": a story takes any card's scenario and greetings (2026-11-07) — CLAUDE — D-095
+
+- Daniel: copying a card's greetings/scenario into a story by hand (or via the Assistant) felt odd. Story/Kit page → How it starts → **From a card…** (Scenario) and **+ From a card's greetings…** (Openings) open the Add… window in a new browse mode: every card, the story's own first; the preview has the scenario and each greeting with its own button. `{{char}}` becomes the card's name (`cardTextForStory`). Replaces the old small menu (only the story's own cards, greetings only).
+- **To try:** Stories → a story → How it starts → From a card… → pick any card → Use as the scenario / Add as an opening.
+- Checks: typecheck; 752 unit; click tests `card-start` (new), `stories` (old menu test updated), `round3`, `collections`, `cast`, `people`, `homunculus-files` — passed. Pushed to `dev`.
+
 ## Homunculus files: export/import of narrators, NPCs, stories, Kits, agents, trackers, Directors (2026-11-07) — CLAUDE — D-094
 
 - Daniel asked for export/import of narrators, stories, Kits "etc.", then agents too, and said presets could only be imported. One file format (`<name>.h2.json`, `packages/core/src/bundle.ts`) carries the picked item and what it needs (cards, lorebooks, preset, NPCs, agents, field sets, the Director, pictures) — never connections, personas or chats. Importing keeps ids when free, uses what is already here, and brings a changed copy in as "(imported)". Presets: Export is now also at the top of the editor (it was only at the very bottom).
