@@ -3,6 +3,7 @@
 // Characters and Trackers share this master-detail shape; future library kinds (personas, lorebooks,
 // presets, agents) reuse it.
 import { dragItem } from "./Folders.tsx";
+import { ImportButton } from "./BundleButtons.tsx";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character, Lorebook, Persona, Preset, TrashItem } from "@homunculus/schemas";
 import { ConfirmButton, Help } from "./Help.tsx";
@@ -112,7 +113,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
   );
 }
 
-export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew, detail }: {
+export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew, onImport, detail }: {
   lead: ReactNode;
   /** The Library tabs (characters, personas…), shown in the toolbar. */
   tabs?: ReactNode;
@@ -120,6 +121,8 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
   selectedId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
+  /** Adds trackers from Homunculus files (D-094). */
+  onImport?: (files: File[]) => void;
   detail: ReactNode;
 }) {
   useAutoOpen("trackers", trackers.map((t) => t.agent.id), selectedId, onSelect, !!detail);
@@ -129,7 +132,7 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
   return (
     <div className="page">
       <Toolbar lead={lead} title="Trackers" center={tabs} subtitle="Values the AI keeps up to date after each reply"
-        trailing={<Button onClick={onNew}><Icon name="plus" size={14} /> New Tracker</Button>} />
+        trailing={<>{onImport && <ImportButton what="trackers" onFiles={onImport} />}<Button onClick={onNew}><Icon name="plus" size={14} /> New Tracker</Button></>} />
       <MasterDetail
         list={<>
           <SearchBox value={q} onChange={setQ} label="Search trackers" />

@@ -110,7 +110,7 @@ export function StoryHero({ story, avatar, line, latestTitle, selected, onSelect
 }
 
 // ------------------------------------------------------------------------------------------------ a story's sheet
-export function StorySheet({ story, narratorName, npcNames, cardNames = [], avatar, ownImage = false, onImage, onOpen, onNewChat, onContinue, latestTitle, onDuplicate, onSaveAsKit, onTrash, folder, chats }: {
+export function StorySheet({ story, narratorName, npcNames, cardNames = [], avatar, ownImage = false, onImage, onOpen, onNewChat, onContinue, latestTitle, onDuplicate, onSaveAsKit, onExport, onTrash, folder, chats }: {
   story: Story; narratorName: string; npcNames: string[]; cardNames?: string[]; avatar?: Avatar | undefined;
   /** The picture shown is the story's own (not its narrator's). */
   ownImage?: boolean;
@@ -124,6 +124,8 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
   onContinue?: (() => void) | undefined;
   latestTitle?: string | undefined;
   onDuplicate: () => void; onSaveAsKit?: (() => void) | undefined; onTrash: () => void;
+  /** Saves the story (without its chats) and what it uses to a Homunculus file (D-094). */
+  onExport?: (() => void) | undefined;
   folder?: ReactNode;
   /** The story's chats (a ChatList). */
   chats?: ReactNode;
@@ -161,6 +163,7 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
         <Button onClick={() => setReading(true)} data-testid="story-read">Read</Button>
         <Button onClick={onDuplicate}>Duplicate</Button>
         {onSaveAsKit && <Button onClick={onSaveAsKit} title="Keep how this story starts in Library › Kits, to start new stories from it">Save as Kit</Button>}
+        {onExport && <Button onClick={onExport} data-testid="story-export" title="Save this story to a file, with its narrator, people, cards and lorebooks, to keep or share. Chats stay here.">Export</Button>}
         <ConfirmButton label="Move to Trash" confirmLabel="Click Again" className="btn btn-plain btn-small danger-text" onConfirm={onTrash} />
       </div>
       {folder && <div className="vs-folder">{folder}</div>}
@@ -177,10 +180,12 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
 
 // ------------------------------------------------------------------------------------------------ a Kit's sheet
 /** A Kit (round 3, D-036): what a story starts with, kept to start new stories from. */
-export function KitSheet({ kit, narratorName, npcNames, cardNames, avatar, onImage, onStart, onOpen, onDuplicate, onTrash, folder }: {
+export function KitSheet({ kit, narratorName, npcNames, cardNames, avatar, onImage, onStart, onOpen, onDuplicate, onExport, onTrash, folder }: {
   kit: Story; narratorName: string; npcNames: string[]; cardNames: string[]; avatar?: Avatar | undefined;
   onImage?: ((file: File | null) => void) | undefined;
   onStart: () => void; onOpen: () => void; onDuplicate: () => void; onTrash: () => void; folder?: ReactNode;
+  /** Saves the Kit and what it uses to a Homunculus file (D-094). */
+  onExport?: (() => void) | undefined;
 }) {
   const openings = kit.openings.filter((o) => o.trim()).length;
   return (
@@ -193,6 +198,7 @@ export function KitSheet({ kit, narratorName, npcNames, cardNames, avatar, onIma
         <Button variant="prominent" onClick={onStart} data-testid="kit-start">Start a Story</Button>
         <Button onClick={onOpen}>Edit Kit</Button>
         <Button onClick={onDuplicate}>Duplicate</Button>
+        {onExport && <Button onClick={onExport} data-testid="kit-export" title="Save this Kit to a file, with its narrator, people, cards and lorebooks, to keep or share">Export</Button>}
         <span className="spacer" />
         <ConfirmButton label="Move to Trash" confirmLabel="Click Again" className="btn btn-plain btn-small danger-text" onConfirm={onTrash} />
       </div>
@@ -317,9 +323,11 @@ export function NarratorForm({ value, onChange, starts = [] }: { value: Narrator
   );
 }
 
-export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTrash, onDuplicate, folder, starts = [] }: {
+export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTrash, onDuplicate, onExport, folder, starts = [] }: {
   narrator: Narrator; usedBy: string[]; avatar?: Avatar | undefined; onImage?: ((file: File | null) => void) | undefined; folder?: ReactNode;
   onSave: (n: Narrator) => Promise<void>; onTrash: () => Promise<void>; onDuplicate: () => void; starts?: Narrator[];
+  /** Saves the narrator to a Homunculus file (D-094), after saving its changes. */
+  onExport?: (() => void) | undefined;
 }) {
   const [draft, setDraft] = useState(narrator);
   const [saved, setSaved] = useState(false);
@@ -328,8 +336,8 @@ export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTr
   const [tab, setTab] = useState<"edit" | "sent">("edit");
   useEffect(() => { setDraft(narrator); setSaved(false); setError(""); }, [narrator]);
   const save = async () => {
-    if (!draft.name.trim()) { setError("The narrator needs a name."); return; }
-    try { await onSave({ ...draft, name: draft.name.trim() }); setSaved(true); setError(""); } catch (e) { setError(errorText(e)); }
+    if (!draft.name.trim()) { setError("The narrator needs a name."); return false; }
+    try { await onSave({ ...draft, name: draft.name.trim() }); setSaved(true); setError(""); return true; } catch (e) { setError(errorText(e)); return false; }
   };
   return (
     <div className={`view-sheet narrator-editor tab-${tab}`} data-testid="narrator-sheet">
@@ -341,6 +349,7 @@ export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTr
         {saved && <span className="ok-text">✓ Saved</span>}
         <Button variant="prominent" onClick={() => void save()}>Save</Button>
         <Button onClick={onDuplicate}>Duplicate</Button>
+        {onExport && <Button onClick={() => void save().then((ok) => { if (ok) onExport(); })} data-testid="narrator-export" title="Save this narrator to a file, to keep or share">Export</Button>}
         {!narrator.builtin && <Button variant="destructive" small onClick={() => void onTrash().catch((e) => setError(errorText(e)))}>Move to Trash</Button>}
       </div>
       {error && <div className="error-bar inline" role="alert">{error}</div>}
@@ -392,11 +401,13 @@ function NpcField({ f, value, onChange }: { f: TrackerField; value: unknown; onC
     : <label>{label}<input aria-label={f.label} value={fieldText(f, value)} onChange={(e) => onChange(e.target.value)} /></label>;
 }
 
-export function NpcEditor({ npc, fieldSets, stories, alsoIn, avatar, onImage, onSave, onTrash, onCopy, onClose, folder }: {
+export function NpcEditor({ npc, fieldSets, stories, alsoIn, avatar, onImage, onSave, onTrash, onCopy, onExport, onClose, folder }: {
   npc: Npc; fieldSets: FieldSetOption[]; stories: Story[]; alsoIn: string[];
   /** The NPC's picture; onImage sets it (undefined while the NPC isn't saved yet). */
   avatar?: Avatar | undefined; onImage?: ((file: File | null) => void) | undefined;
   onSave: (n: Npc) => Promise<void>; onTrash?: () => Promise<void>; onCopy?: () => void; onClose?: () => void;
+  /** Saves the NPC to a Homunculus file (D-094), after saving its changes. */
+  onExport?: (() => void) | undefined;
   /** The "Folder" pick (round 3), in the Vault. */
   folder?: ReactNode;
 }) {
@@ -408,10 +419,10 @@ export function NpcEditor({ npc, fieldSets, stories, alsoIn, avatar, onImage, on
   const fields = set ? npcSheetFields(set.schema) : [];
   const change = (patch: Partial<Npc>) => { setDraft((d) => ({ ...d, ...patch })); setSaved(false); };
   const save = async () => {
-    if (!draft.name.trim()) { setError("The NPC needs a name."); return; }
+    if (!draft.name.trim()) { setError("The NPC needs a name."); return false; }
     const values = Object.fromEntries(Object.entries(draft.values).filter(([, v]) => v !== undefined && v !== ""));
-    try { await onSave({ ...draft, name: draft.name.trim(), schemaId: set?.id ?? draft.schemaId, values: values as Npc["values"] }); setSaved(true); setError(""); }
-    catch (e) { setError(errorText(e)); }
+    try { await onSave({ ...draft, name: draft.name.trim(), schemaId: set?.id ?? draft.schemaId, values: values as Npc["values"] }); setSaved(true); setError(""); return true; }
+    catch (e) { setError(errorText(e)); return false; }
   };
   let section = "";
   return (
@@ -457,6 +468,7 @@ export function NpcEditor({ npc, fieldSets, stories, alsoIn, avatar, onImage, on
         <Button variant="prominent" onClick={() => void save()}>Save</Button>
         {saved && <span className="ok-text">✓ Saved</span>}
         {onCopy && <Button onClick={onCopy} title="A copy that changes on its own (e.g. this story's version of the NPC)">Make a Copy</Button>}
+        {onExport && <Button onClick={() => void save().then((ok) => { if (ok) onExport(); })} data-testid="npc-export" title="Save this NPC to a file, to keep or share">Export</Button>}
         <span className="spacer" />
         {onTrash && <Button variant="destructive" small onClick={() => void onTrash().catch((e) => setError(errorText(e)))}>Move to Trash</Button>}
       </div>

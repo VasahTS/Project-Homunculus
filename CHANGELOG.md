@@ -5,6 +5,8 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+- **Export and Import** for narrators, NPCs, stories, Kits, agents, trackers and Directors: one Homunculus file (`.h2.json`) with everything the item uses (cards, lorebooks, preset, NPCs, agents, pictures), to keep or share. Import sits beside New on each of those pages; nothing you already have is changed, and a changed copy comes in as "(imported)". Connections, personas and chats are never in the file.
+- **Presets:** Export is now at the top of the preset editor too (it was hidden at the very bottom).
 - **New app icon:** a serif H on warm black, in the colors of the Observatory look.
 - **Director** (new tab in the inspector, can pop out into its own window): talk about your story out of character — where it is going, a character acting off, which part of your preset causes something. It reads what the story's AI reads (you choose what), never writes the story, and proposes **notes** for the story: Whisper (quiet), Steer (gradual) or Turn (now), each for N turns or always. Swiping or regenerating a turn keeps the note without using another turn; expired notes stay listed. Everything is editable in its Setup, including the weights and their instructions.
 - The Director can also **fix things in your story** when you allow it — tracker values, lorebook entries, the Author's Note, a Character's Note, memory chapters — showing before and after, with Undo. Optional: it checks whether replies followed its notes, or asks itself a question every few replies. **Ask the Director** from any message, quick questions, and handy chat actions (copy, edit and ask again, turn an answer into a note).

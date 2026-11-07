@@ -132,6 +132,9 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
       <div className="session-bar">
         <h2 className="editor-title">{isNew && !saved ? "New Preset" : d.name || "Preset"}</h2>
         <span className="spacer" />
+        {/* D-094: Export was only at the very end of the editor, below every block; now also up here, like agents and trackers */}
+        {exists && <button className="btn btn-bordered btn-small" data-testid="preset-export" onClick={() => onExport(d)}
+          title="Save this preset to a file in SillyTavern's format (Homunculus imports it too), to keep or share">Export</button>}
         <button className="btn btn-bordered btn-small" onClick={onClose}>Close</button>
       </div>
       <div className="editor-body settings-body">

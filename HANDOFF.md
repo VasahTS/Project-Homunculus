@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## Homunculus files: export/import of narrators, NPCs, stories, Kits, agents, trackers, Directors (2026-11-07) — CLAUDE — D-094
+
+- Daniel asked for export/import of narrators, stories, Kits "etc.", then agents too, and said presets could only be imported. One file format (`<name>.h2.json`, `packages/core/src/bundle.ts`) carries the picked item and what it needs (cards, lorebooks, preset, NPCs, agents, field sets, the Director, pictures) — never connections, personas or chats. Importing keeps ids when free, uses what is already here, and brings a changed copy in as "(imported)". Presets: Export is now also at the top of the editor (it was only at the very bottom).
+- **To try:** Library → Narrators → a narrator → Export; then Import (beside New Narrator) the saved file. Stories → a story → Export, Move to Trash, Import it back. Agents / Trackers / Directors / Kits / NPCs work the same.
+- Checks: typecheck; 751 unit (3 skipped; new `packages/core/test/bundle.test.ts`); click tests `homunculus-files` (5, new), `presets`, `stories`, `agents`, `trackers`, `director`, `navigation`, `collections`, `round3`, `field-sets` — passed. Pushed to `dev`.
+
 ## Director notes count by turn, roomier note cards (2026-11-06) — CLAUDE — D-092
 
 - Daniel: "the notes' turns are spent even when you swipe". Now a note lasts N turns: swipes/regenerations of a turn get it again for free; Setup → "Swipes use up notes" for the old behavior.

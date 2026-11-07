@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useGuardedNavigation } from "./ui/ux.tsx";
 import { pageIn, slideTab } from "./ui/motion.ts";
 import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript } from "@homunculus/schemas";
+import { bundleExtras, bundleFile, collectBundle, countsText, importBundle, parseBundle, type BundleRoot } from "@homunculus/core";
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
 import { LorebookEditor } from "./ui/LorebookEditor.tsx";
@@ -63,6 +64,7 @@ import { isDesktop } from "./db.ts";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
 import { DirectorsPage } from "./ui/DirectorPane.tsx";
+import { ImportButton } from "./ui/BundleButtons.tsx";
 import { applyDefaultAppearance, loadAppearance, toggleSafeMode } from "./theme/appearance.ts";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, withFieldSet, withTracker, type Tracker, type TrackerDraft, sampleFor } from "./trackers.ts";
 
@@ -178,6 +180,8 @@ export function App() {
   // paint so the app does not flash its last screen first; the "Open at" setting decides once the data is in.
   const [homeOpen, setHomeOpen] = useState(() => !(typeof navigator !== "undefined" && navigator.webdriver));
   const [notice, setNotice] = useState<Notice | null>(null);
+  /** Bumped after a Homunculus file is imported, so Library → Directors reads its list again (D-094). */
+  const [directorsVersion, setDirectorsVersion] = useState(0);
   // Keep failed agent drafts across editor navigation, only within this app instance. CODEX, D-051.
   const [agentDrafts] = useState(() => new Map<string, AgentDraft>());
   const [agentPreview, setAgentPreview] = useState<AgentDraft | null>(null);
@@ -1159,6 +1163,52 @@ export function App() {
       setNotice({ kind: "ok", title: `Exported “${sessions.find((x) => x.id === sessionId)?.title ?? "chat"}”`, lines: [`Saved to: ${where}`] });
     } catch (e) { setNotice({ kind: "error", title: "Could not export the chat", lines: [errorText(e)] }); }
   };
+  // ---- Homunculus files: narrators, NPCs, stories, Kits, agents, trackers, Directors (D-094)
+  const KIND_TITLE: Record<BundleRoot["kind"], string> = { narrator: "narrator", npc: "NPC", story: "story", kit: "Kit", agent: "agent", director: "Director" };
+  const exportItem = async (kind: BundleRoot["kind"], id: string, name: string, what = KIND_TITLE[kind]) => {
+    try {
+      const bundle = await collectBundle(svc.store, [{ kind, id }]);
+      const where = await saveExport(bundleFile(bundle, name));
+      if (!where) return;
+      const extras = countsText(bundleExtras(bundle));
+      setNotice({ kind: "ok", title: `Exported “${name}”`, lines: [
+        `Saved to: ${where}`,
+        extras ? `With ${extras} it uses, so it works on another install.` : `Import it on another install from Library → its page → Import.`,
+        "Connections, personas and chats are not in the file.",
+      ] });
+    } catch (e) { setNotice({ kind: "error", title: `Could not export the ${what}`, lines: [errorText(e)] }); }
+  };
+  const importItems = async (files: File[]) => {
+    const lines: string[] = []; const failed: string[] = [];
+    let first: { kind: BundleRoot["kind"]; id: string } | undefined;
+    for (const file of files) {
+      try {
+        const r = await importBundle(svc.store, parseBundle(await file.text()), file.name);
+        first ??= r.roots[0];
+        const names = r.roots.map((x) => `the ${x.what} “${x.name}”`).join(", ");
+        const extra = countsText(r.withThem);
+        lines.push(`${file.name}: ${names || "nothing new"}${extra ? `, with ${extra}` : ""}.`);
+        if (Object.keys(r.reused).length) lines.push(`Already here, so kept as they are: ${countsText(r.reused)}.`);
+        lines.push(...r.notes);
+      } catch (e) { failed.push(`${file.name}: ${errorText(e)}`); }
+    }
+    await refresh(svc);
+    setDirectorsVersion((v) => v + 1);
+    if (first) {
+      const { kind, id } = first;
+      if (kind === "narrator") setView({ kind: "vault", tab: "narrators", id });
+      else if (kind === "npc") setView({ kind: "vault", tab: "npcs", id });
+      else if (kind === "story") setView({ kind: "vault", tab: "stories", id });
+      else if (kind === "kit") setView({ kind: "vault", tab: "kits", id });
+      else if (kind === "director") setView({ kind: "directors" });
+      else {
+        const t = (await listTrackers(svc.store)).find((x) => x.agent.id === id);
+        setView(t ? { kind: "trackers", draft: draftOf(t), isNew: false } : { kind: "agents", id });
+      }
+    }
+    setNotice({ kind: failed.length ? (lines.length ? "warn" : "error") : "ok", title: failed.length && !lines.length ? "Nothing was imported" : "Imported", lines: [...lines, ...failed] });
+  };
+
   const openChat = (sessionId: string, messageId?: string) => {
     setFocusMessage(messageId ? { sessionId, messageId } : null);
     setActiveId(sessionId);
@@ -1413,16 +1463,17 @@ export function App() {
         .then((where) => { if (where) setNotice({ kind: "ok", title: "Quick Replies exported", lines: [where] }); })
         .catch((e: unknown) => setNotice({ kind: "error", title: "The export failed", lines: [errorText(e)] }))} />;
   } else if (view.kind === "directors") {
-    content = <DirectorsPage svc={svc} connection={connection} lead={pageLead} stories={stories.map((x) => ({ id: x.id, name: x.name }))} />;
+    content = <DirectorsPage svc={svc} connection={connection} lead={pageLead} stories={stories.map((x) => ({ id: x.id, name: x.name }))}
+      version={directorsVersion} onImport={(files) => void importItems(files)} onExport={(id, name) => void exportItem("director", id, name)} />;
   } else if (view.kind === "trash") {
     content = <TrashPage lead={pageLead} items={trash} onRestore={(it) => void restore(it)} onDeleteForever={(it) => void deleteForever(it)} onEmpty={() => void emptyTrash()} />;
   } else if (view.kind === "trackers") {
     content = (
       <TrackersPage lead={pageLead} trackers={trackers} selectedId={view.draft && !view.isNew ? view.draft.id : null}
-        onSelect={(id) => openTracker(id)} onNew={() => openTracker("new")}
+        onSelect={(id) => openTracker(id)} onNew={() => openTracker("new")} onImport={(files) => void importItems(files)}
         detail={view.draft ? (
           <TrackerEditor key={view.draft.id} initial={view.draft} isNew={view.isNew ?? false}
-            onSave={onSaveTracker} onDelete={onDeleteTracker} onClose={() => setView(view.fromSession ? { kind: "session" } : { kind: "trackers" })}
+            onSave={onSaveTracker} onDelete={onDeleteTracker} onExport={(id, name) => void exportItem("agent", id, name, "tracker")} onClose={() => setView(view.fromSession ? { kind: "session" } : { kind: "trackers" })}
             loadSample={(id) => sampleFor(svc, id)} avatars={avatars} />
         ) : null} />
     );
@@ -1433,8 +1484,9 @@ export function App() {
       ? (current.fromSession ? { kind: "session" } : { kind: "agents", id: null }) : current);
     content = (
       <><AgentsPage lead={pageLead} agents={agents} stories={stories} sessions={sessions} selectedId={editing?.id ?? null}
-        onSelect={(id) => openAgent(id)} onNew={() => void onNewAgent()}
-        detail={editing ? <AgentEditor key={editing.id} agent={editing} agents={agents} profiles={connection.profiles} drafts={agentDrafts} onTry={setAgentPreview} onSave={onSaveAgent} onDelete={onDeleteAgent} onClose={close} /> : null} />
+        onSelect={(id) => openAgent(id)} onNew={() => void onNewAgent()} onImport={(files) => void importItems(files)}
+        detail={editing ? <AgentEditor key={editing.id} agent={editing} agents={agents} profiles={connection.profiles} drafts={agentDrafts} onTry={setAgentPreview} onSave={onSaveAgent} onDelete={onDeleteAgent}
+          onExport={(id, name) => void exportItem("agent", id, name)} onClose={close} /> : null} />
       {agentPreview && editing?.id === agentPreview.snapshot().value.id && <AgentTryIt draft={agentPreview} svc={svc} sessions={sessions} stories={stories}
         characters={characters} connection={connection} defaultSetup={defaultSetup} initialSessionId={activeId} onClose={() => setAgentPreview(null)} />}</>
     );
@@ -1473,6 +1525,7 @@ export function App() {
           onOpen={() => setView({ kind: "story", id: st.id })} onNewChat={() => void playStory(st, 0)}
           onContinue={rows[0] ? () => openChat(rows[0]!.session.id) : undefined} latestTitle={rows[0]?.session.title}
           onDuplicate={() => void duplicateStory(st)} onSaveAsKit={() => void saveAsKit(st)} onTrash={() => void trashStory(st)} folder={folderPick("story", st.id)}
+          onExport={() => void exportItem("story", st.id, st.name)}
           chats={<ChatList chats={rows} search={searchChats(rows.map((x) => x.session.id))} testId="story-sheet-chats"
             onOpen={openChat} onRename={(id, t) => void renameChat(id, t)} onExport={(id, f) => void exportSession(id, f)} onTrash={(id) => void trashChat(id)}
             empty={`No chats in ${st.name} yet.`} />} />
@@ -1483,7 +1536,7 @@ export function App() {
         <StoryHero story={last.x} avatar={storyAvatar(last.x)} line={chatsLine(last.rows)} latestTitle={last.rows[0]!.session.title}
           selected={st?.id === last.x.id} onSelect={() => select(last.x.id)} onContinue={() => openChat(last.rows[0]!.session.id)} />
       );
-      newButton = <Button onClick={() => setNewStoryOpen({ cardId: null })}><Icon name="plus" size={14} /> New Story</Button>;
+      newButton = <><ImportButton what="stories" onFiles={(files) => void importItems(files)} /><Button onClick={() => setNewStoryOpen({ cardId: null })}><Icon name="plus" size={14} /> New Story</Button></>;
       emptyText = open ? "This folder is empty. Drag stories onto it." : "Create your first story.";
     } else if (tab === "kits") {
       const k = kits.find((x) => x.id === view.id);
@@ -1494,9 +1547,9 @@ export function App() {
           cardNames={k.cast.filter((m) => m.characterId && m.role !== "narrator").map((m) => byId[m.characterId!]?.name ?? "").filter(Boolean)}
           avatar={avatars[k.id]} onImage={(f) => void changeAvatar(k.id, f)}
           onStart={() => void startFromKit(k)} onOpen={() => setView({ kind: "kit", id: k.id })}
-          onDuplicate={() => void duplicateKit(k)} onTrash={() => void trashKit(k)} folder={folderPick("kit", k.id)} />
+          onDuplicate={() => void duplicateKit(k)} onTrash={() => void trashKit(k)} folder={folderPick("kit", k.id)} onExport={() => void exportItem("kit", k.id, k.name)} />
       ) : null;
-      newButton = <Button onClick={() => void newKit()}><Icon name="plus" size={14} /> New Kit</Button>;
+      newButton = <><ImportButton what="Kits" onFiles={(files) => void importItems(files)} /><Button onClick={() => void newKit()}><Icon name="plus" size={14} /> New Kit</Button></>;
       emptyText = open ? "This folder is empty. Drag Kits onto it." : "No Kits yet. A Kit keeps how a story starts (narrator, people, scenario, openings, setup) to start new stories from. Make one here, or from a story: More… → Save as Kit.";
     } else if (tab === "narrators") {
       const n = narrators.find((x) => x.id === view.id);
@@ -1509,9 +1562,10 @@ export function App() {
         <NarratorEditor narrator={n} usedBy={stories.filter((st) => st.narrator.kind === "vault" && st.narrator.id === n.id).map((st) => st.name)}
           avatar={avatars[n.id]} onImage={(f) => void changeAvatar(n.id, f)} folder={folderPick("narrator", n.id)} starts={narrators}
           onSave={saveNarrator} onTrash={async () => { await toTrash("narrator", n.id, n.name); setView({ kind: "vault", tab, id: null }); }}
-          onDuplicate={() => { const id = crypto.randomUUID(); void svc.store.saveNarrator({ ...n, id, name: `${n.name} (copy)`, builtin: false }).then(() => refreshVault(svc)).then(() => select(id)); }} />
+          onDuplicate={() => { const id = crypto.randomUUID(); void svc.store.saveNarrator({ ...n, id, name: `${n.name} (copy)`, builtin: false }).then(() => refreshVault(svc)).then(() => select(id)); }}
+          onExport={() => void exportItem("narrator", n.id, n.name)} />
       ) : null;
-      newButton = <Button onClick={() => void newNarrator()}><Icon name="plus" size={14} /> New Narrator</Button>;
+      newButton = <><ImportButton what="narrators" onFiles={(files) => void importItems(files)} /><Button onClick={() => void newNarrator()}><Icon name="plus" size={14} /> New Narrator</Button></>;
       emptyText = open ? "This folder is empty. Drag narrators onto it." : "No narrators.";
     } else {
       const n = npcs.find((x) => x.id === view.id);
@@ -1532,9 +1586,10 @@ export function App() {
         <NpcEditor npc={n} fieldSets={fieldSets} stories={npcHomes} avatar={avatars[n.id]} onImage={(f) => void changeAvatar(n.id, f)} folder={folderPick("npc", n.id)}
           alsoIn={[...stories.filter((st) => st.npcIds.includes(n.id)).map((st) => `“${st.name}”`), ...sessions.filter((x) => x.npcIds.includes(n.id)).map((x) => `the chat “${x.title}”`)]}
           onSave={saveNpc} onTrash={async () => { await toTrash("npc", n.id, n.name); setView({ kind: "vault", tab, id: null }); }}
-          onCopy={() => { const id = crypto.randomUUID(); void svc.store.saveNpc({ ...structuredClone(n), id, name: `${n.name} (copy)` }).then(() => refreshVault(svc)).then(() => select(id)); }} />
+          onCopy={() => { const id = crypto.randomUUID(); void svc.store.saveNpc({ ...structuredClone(n), id, name: `${n.name} (copy)` }).then(() => refreshVault(svc)).then(() => select(id)); }}
+          onExport={() => void exportItem("npc", n.id, n.name)} />
       ) : null;
-      newButton = <Button onClick={() => void newNpc()}><Icon name="plus" size={14} /> New NPC</Button>;
+      newButton = <><ImportButton what="NPCs" onFiles={(files) => void importItems(files)} /><Button onClick={() => void newNpc()}><Icon name="plus" size={14} /> New NPC</Button></>;
       emptyText = open ? "This folder is empty. Drag NPCs onto it." : "No NPCs yet. NPCs are light sheets (Scene: Characters fields) the narrator voices. Use them in stories and chats.";
     }
     // nothing left at the top, but there are folders with things in them
@@ -1556,7 +1611,8 @@ export function App() {
         onSave={saveKit} onNewChat={() => undefined} onOpenSession={() => undefined}
         onSaveNpc={saveNpc} onSaveNarrator={saveNarrator} onImage={(id, f) => void changeAvatar(id, f)} onOpenNarrator={(id) => setView({ kind: "vault", tab: "narrators", id })}
         onOpenLorebook={(id) => setView({ kind: "lorebooks", id })} folder={folderPick("kit", k.id)} pickers={storyPickers}
-        onStartFromKit={(x) => void startFromKit(x)} onDuplicate={(x) => void duplicateKit(x)} onTrash={(x) => void trashKit(x)} />
+        onStartFromKit={(x) => void startFromKit(x)} onDuplicate={(x) => void duplicateKit(x)} onTrash={(x) => void trashKit(x)}
+        onExport={(x) => void exportItem("kit", x.id, x.name)} />
     ) : (
       <div className="page"><Toolbar lead={lead} title="Kit" /><div className="empty-detail"><p>This Kit is in the Trash or was deleted.</p></div></div>
     );
@@ -1572,7 +1628,7 @@ export function App() {
         onOpenLorebook={(id) => setView({ kind: "lorebooks", id })} folder={folderPick("story", st.id)} pickers={storyPickers}
         chatTools={{ search: searchChats(sessionsOfStory(st.id).map((x) => x.id)), onOpen: openChat, onRename: (id, t) => void renameChat(id, t),
           onExport: (id, f) => void exportSession(id, f), onTrash: (id) => void trashChat(id) }}
-        onSaveAsKit={(x) => void saveAsKit(x)}
+        onSaveAsKit={(x) => void saveAsKit(x)} onExport={(x) => void exportItem("story", x.id, x.name)}
         onDuplicate={(x) => void duplicateStory(x)} onTrash={(x) => void trashStory(x)} />
     ) : (
       <div className="page"><Toolbar lead={lead} title="Story" /><div className="empty-detail"><p>This story is in the Trash or was deleted.</p></div></div>

@@ -101,12 +101,14 @@ function groupsOf(fields: TrackerField[]): Array<{ name: string; fields: Tracker
   return groups;
 }
 
-export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadSample, avatars = {} }: {
+export function TrackerEditor({ initial, isNew, onSave, onDelete, onExport, onClose, loadSample, avatars = {} }: {
   initial: TrackerDraft;
   isNew: boolean;
   /** Returns the draft as saved (new fields get their permanent keys). */
   onSave: (d: TrackerDraft) => Promise<TrackerDraft>;
   onDelete: (id: string) => Promise<void>;
+  /** Saves the tracker and its field sets to a Homunculus file (D-094), after saving its changes. */
+  onExport?: (id: string, name: string) => void;
   onClose: () => void;
   /** Real values for the preview: the tracker at the end of the latest session that uses it. */
   loadSample?: (trackerId: string) => Promise<TrackerSample | null>;
@@ -248,6 +250,8 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onClose, loadS
         <h2 className="editor-title">{isNew && !exists ? "New Tracker" : draft.name || "Tracker"}</h2>
         <span className="spacer" />
         {saved && <span className="ok-text">✓ Saved</span>}
+        {onExport && exists && <button className="btn btn-bordered btn-small" data-testid="tracker-export" title="Save this tracker and its field sets to a file, to keep or share"
+          onClick={() => void save().then((ok) => { if (ok) onExport(draft.id, draft.name || "tracker"); })}>Export</button>}
         <button className="btn btn-bordered btn-small" onClick={onClose}>Close</button>
         <button className="btn btn-prominent btn-small" onClick={() => void save()}>Save</button>
       </div>

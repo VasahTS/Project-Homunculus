@@ -8,13 +8,14 @@ import { Button, Icon, Segmented } from "./kit.tsx";
 import { EmptyDetail, MasterDetail, SearchBox } from "./LibraryPages.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { useCollectionOrder } from "./CollectionOrder.tsx";
+import { ImportButton } from "./BundleButtons.tsx";
 
 type View = "table" | "list";
 type SortKey = "name" | "kind" | "when" | "on";
 const VIEW_KEY = "h2.agentsView";
 const readView = (): View => { try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "table"; } catch { return "table"; } };
 
-export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, onSelect, onNew, detail }: {
+export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, onSelect, onNew, onImport, detail }: {
   lead: ReactNode;
   tabs?: ReactNode;
   agents: AgentConfig[];
@@ -23,6 +24,8 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onNew: () => void;
+  /** Adds agents from Homunculus files (D-094). */
+  onImport?: (files: File[]) => void;
   /** The editor of the selected agent. */
   detail: ReactNode;
 }) {
@@ -59,6 +62,7 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
       <Toolbar lead={lead} title="Agents" center={tabs} subtitle="Helpers for each reply"
         trailing={<>
           <Segmented small label="View" value={view} onChange={setView} options={[{ value: "table", label: "Table", testId: "agents-view-table" }, { value: "list", label: "List", testId: "agents-view-list" }]} />
+          {onImport && <ImportButton what="agents" onFiles={onImport} />}
           <Button onClick={onNew}><Icon name="plus" size={14} /> New Agent</Button>
         </>} />
       {view === "table" ? (

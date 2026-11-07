@@ -1008,3 +1008,15 @@ Daniel picked "Monogram" from two batches of 16 app-icon concepts (Retort, Moon 
 - **The exe kept the old icon** after a rebuild (Cargo reused the old build-script output), so `src-tauri/build.rs` now tells Cargo to rerun when any file in `icons/` changes.
 
 Signed: **CLAUDE**.
+
+## D-094 — Homunculus files: export and import narrators, NPCs, stories, Kits, agents, trackers and Directors (2026-11-07)
+
+Daniel: "make it possible to export/import narrators, stories, kits etc. in Homunculus" … "agents too" … "presets can only be imported too, I think you can't export them".
+- **One format for all of them:** `homunculus-bundle` (version 1), saved as `<name>.h2.json` (`packages/core/src/bundle.ts`). It holds the picked items (`roots`) plus everything they need on another install: a story or Kit brings its narrator, NPCs (also its own folder's NPCs), cards (and their lorebooks), the lorebooks and agents its setup turns on, its preset, the field sets those use, its story-changed lorebooks and the Director it uses; an agent brings the agents it reads; a tracker its field sets; an NPC its field set. Pictures (and variant pictures) come along.
+- **Never in the file:** connections and their keys, personas, chats (chats have their own export), folders. Links to connections or personas the other install doesn't have are dropped, so it falls back to its own Default setup.
+- **Importing never changes what you have:** ids are kept when free (moving between installs keeps every link). Something already here with the same id is used as it is (a card a story uses, a starter agent); a picked item that is already here but different comes in beside it as "Name (imported)"; an identical one is not duplicated. Taken ids (also in the Trash) get new ones and every link inside the file follows, including a tracker's namespace (its id) in the agents that read it. Agents that run a module's code (`runMode: "code"`) are never copied; if the install lacks them they are left out with a note.
+- **Where:** Import beside New on Stories, Kits, Narrators, NPCs, Agents, Trackers and Directors (any Homunculus file works on any of them; what is in the file comes in, and the first picked item opens). Export on the story sheet and the story page's More…, the Kit sheet and page, the narrator and NPC editors (they save first), the agent editor, the tracker editor (saves first) and Library → Directors (the open one). The messages say what came along and what was already here.
+- **Presets** already had "Export for SillyTavern", but only at the very bottom of the editor, below every block; it is now also at the top of the editor (Export). Personas still have no export.
+- Not done yet (ask Daniel first): a story's export with its chats; picking what goes in (an options sheet would be new UI: draft first).
+
+Signed: **CLAUDE**.

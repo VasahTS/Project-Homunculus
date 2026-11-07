@@ -31,3 +31,4 @@ export * from "./recall.ts";
 export * from "./regex.ts";
 export * from "./quick-replies.ts";
 export * from "./director.ts";
+export * from "./bundle.ts";

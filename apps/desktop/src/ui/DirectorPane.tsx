@@ -16,6 +16,7 @@ import { Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { MessageText } from "./MessageText.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import { Toolbar } from "./Toolbar.tsx";
+import { ImportButton } from "./BundleButtons.tsx";
 
 type View = "chat" | "notes";
 const newId = () => crypto.randomUUID();
@@ -775,8 +776,12 @@ export function DirectorWindow({ children, onClose }: { children: React.ReactNod
  * Library → Directors (D-092): every Director, which one is the default, and which stories use which. A chat uses its
  * own pick (the Director tab's menu), else its story's, else the default. Each Director's setup is edited here too.
  */
-export function DirectorsPage({ svc, connection, lead, stories }: {
+export function DirectorsPage({ svc, connection, lead, stories, version = 0, onImport, onExport }: {
   svc: AppServices; connection: ConnectionState; lead?: React.ReactNode; stories: Array<{ id: string; name: string }>;
+  /** Changes when Directors were added from outside this page (an import, D-094): the list is read again. */
+  version?: number;
+  onImport?: (files: File[]) => void;
+  onExport?: (id: string, name: string) => void;
 }) {
   const [profiles, setProfiles] = useState<DirectorProfile[]>([DEFAULT_DIRECTOR]);
   const [links, setLinks] = useState<DirectorLinks>({ defaultId: "", stories: {} });
@@ -785,7 +790,7 @@ export function DirectorsPage({ svc, connection, lead, stories }: {
     const [p, l] = await Promise.all([directorProfiles(svc.store), directorLinks(svc.store)]);
     setProfiles(p); setLinks(l);
   }, [svc]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); }, [load, version]);
   const defaultId = profiles.some((p) => p.id === links.defaultId) ? links.defaultId : profiles[0]?.id ?? "";
   const open = profiles.find((p) => p.id === openId) ?? profiles.find((p) => p.id === defaultId) ?? profiles[0]!;
   const save = async (list: DirectorProfile[]) => { setProfiles(list); await saveDirectorProfiles(svc.store, list); };
@@ -795,7 +800,11 @@ export function DirectorsPage({ svc, connection, lead, stories }: {
   return (
     <section className="directors-page" data-testid="directors-page">
       <Toolbar lead={lead} title="Directors" subtitle="Out-of-character helpers for your stories"
-        trailing={<Button small onClick={add} data-testid="directors-new"><Icon name="plus" size={13} /> New Director</Button>} />
+        trailing={<>
+          {onImport && <ImportButton small what="Directors" onFiles={onImport} />}
+          {onExport && <Button small onClick={() => onExport(open.id, open.name)} data-testid="directors-export" title={`Save “${open.name}” to a file, to keep or share`}>Export</Button>}
+          <Button small onClick={add} data-testid="directors-new"><Icon name="plus" size={13} /> New Director</Button>
+        </>} />
       <div className="directors-body">
         <nav className="directors-list" aria-label="Directors">
           {profiles.map((p) => (

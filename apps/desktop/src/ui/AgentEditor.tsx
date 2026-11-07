@@ -12,7 +12,7 @@ import { Switch } from "./kit.tsx";
 
 const GEN_TYPES = [{ value: "normal", label: "New replies" }, { value: "swipe", label: "New versions" }, { value: "continue", label: "Continue" }] as const;
 
-export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, onSave, onDelete, onClose }: {
+export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, onSave, onDelete, onExport, onClose }: {
   agent: AgentConfig;
   /** All agents, to pick the ones whose results this one reads. */
   agents?: AgentConfig[];
@@ -22,6 +22,8 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
   onTry: (draft: AgentDraft) => void;
   onSave: (a: AgentConfigInput) => Promise<AgentConfig>;
   onDelete: (id: string) => Promise<void>;
+  /** Saves the agent (and the agents it reads) to a Homunculus file (D-094). */
+  onExport?: (id: string, name: string) => void;
   onClose?: () => void;
 }) {
   const [draft] = useState(() => {
@@ -67,6 +69,8 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
           {status === "saving" ? "Saving…" : status === "error" ? "Not saved" : "✓ Saved"}
         </span>
         <button type="button" className="btn btn-bordered btn-small" onClick={() => onTry(draft)}>Try It</button>
+        {onExport && <button type="button" className="btn btn-bordered btn-small" data-testid="agent-export" title="Save this agent to a file, to keep or share"
+          onClick={() => { void draft.flush().then((saved) => { if (saved) onExport(d.id, d.name || "agent"); }); }}>Export</button>}
         {onClose && <button className="btn btn-bordered btn-small" onClick={() => { void draft.flush().then((saved) => { if (saved) onClose(); }); }}>Close</button>}
       </div>
       <div className="editor-body ae-body">

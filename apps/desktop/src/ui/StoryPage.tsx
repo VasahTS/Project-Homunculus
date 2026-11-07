@@ -58,7 +58,7 @@ export function changesIn(layer: SetupLayer): number {
 
 export function StoryPage({ lead, story, characters, avatars, narrators, npcs, sessionsKey, loadChats, nextTitle, cardGreetings,
   fieldSets, stories, lorebooks, setup, onSave, onNewChat, onOpenSession, onSaveNpc, onSaveNarrator, onOpenNarrator, onOpenLorebook,
-  onDuplicate, onTrash, onImage, kind = "story", chatTools, onSaveAsKit, onStartFromKit, folder, pickers }: {
+  onDuplicate, onTrash, onImage, kind = "story", chatTools, onSaveAsKit, onStartFromKit, onExport, folder, pickers }: {
   lead: ReactNode;
   /** A story, or a Kit (what new stories start with: no chats). */
   kind?: "story" | "kit";
@@ -69,6 +69,8 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   } | undefined;
   onSaveAsKit?: ((s: Story) => void) | undefined;
   onStartFromKit?: ((k: Story) => void) | undefined;
+  /** Saves it to a Homunculus file (D-094), after saving its changes. */
+  onExport?: ((s: Story) => void) | undefined;
   /** The "Folder" pick of this story/kit. */
   folder?: ReactNode;
   /** Bigger pickers (round 3): "+ Add a Card" and "+ From the Vault" open these instead of a plain list. */
@@ -122,14 +124,16 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   const isKit = kind === "kit";
   useEffect(() => { if (isKit) { setChats([]); return; } let live = true; void loadChats().then((c) => { if (live) setChats(c); }); return () => { live = false; }; }, [sessionsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const flush = () => {
+  const flush = (): Promise<void> => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     const d = pending.current;
     pending.current = null;
-    if (d) { setState("saving"); void saveRef.current(d).then(() => setState("saved")); }
+    if (!d) return Promise.resolve();
+    setState("saving");
+    return Promise.resolve(saveRef.current(d)).then(() => setState("saved"));
   };
-  useEffect(() => () => flush(), []); // leaving the page saves what is left
+  useEffect(() => () => { void flush(); }, []); // leaving the page saves what is left
   const setDraft = (next: Story) => {
     setDraftState(next);
     pending.current = next;
@@ -218,6 +222,8 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                 <button type="button" role="menuitem" className="menu-item" onClick={() => { setMore(false); setRenaming(true); }}>Rename</button>
                 {!isKit && onSaveAsKit && <button type="button" role="menuitem" className="menu-item" onClick={() => { setMore(false); flush(); onSaveAsKit(draft); }}
                   title="Save this setup as a reusable Kit.">Save as Kit</button>}
+                {onExport && <button type="button" role="menuitem" className="menu-item" data-testid="story-page-export" onClick={() => { setMore(false); void flush().then(() => onExport(draft)); }}
+                  title={isKit ? "Save this Kit and what it uses to a file, to keep or share." : "Save this story and what it uses to a file, to keep or share. Chats stay here."}>Export…</button>}
                 <button type="button" role="menuitem" className="menu-item danger-text" onClick={() => { setMore(false); flush(); onTrash(draft); }}
                   title={isKit ? "Move this Kit to Trash." : "Move this story and its chats to Trash."}>Move to Trash</button>
               </div>
