@@ -120,7 +120,7 @@ Pygmalion login; personas from sites.
 ---
 
 
-## Text mode (edit the card as text) — CLAUDE, 10/31 (plan) · 11/01 draft · ⏳ waiting for Daniel's OK on the draft
+## Text mode (edit the card as text) — CLAUDE, 10/31 (plan) · 11/01 draft · ✅ 11/08 "implement it" — in the app (D-102)
 
 Daniel (10/30, translated): "a mode that shows all fields at once, to edit raw without the JSON or tags; with find, replace etc.; a copy to compare with before editing; so I don't have to open Notepad++ every time I want to edit a card." Lorebooks stay out (they have their own editor). On 11/01: "can we start the built-in text editor for characters?"
 Draft: `docs/drafts/text-mode/index.html` (works: typing, Ctrl+F / Ctrl+H, options, Replace All with one Undo, Compare with Put back).

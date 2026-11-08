@@ -2962,6 +2962,79 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
   .ce-page { padding: 20px 0 30px; }
 }
 
+/* Text: the whole card as one document (D-102, CLAUDE 2026-11-08). Draft: docs/drafts/text-mode/. CodeMirror draws the
+ * document; the titles are its block widgets (.tm-head), the field's look is a class on each of its lines (.tm-l). */
+.tm { display: flex; flex-direction: column; position: relative; min-height: 0; }
+.tm-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 20px; border-bottom: 1px solid var(--separator); font-size: var(--size-small); color: var(--label-2); }
+.tm-bar .spacer { flex: 1; }
+.tm-bar .btn.on { background: var(--fill-selected); color: var(--label); }
+.tm-versions { margin: 0; }
+.tm-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.tm-check input { accent-color: var(--accent); }
+.tm-find { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 8px; align-items: center; padding: 8px 20px; background: var(--pop); border-bottom: 1px solid var(--separator); }
+.tm-lbl { color: var(--label-3); font-size: 11.5px; width: 52px; }
+.tm-row { display: flex; gap: 6px; align-items: center; min-width: 0; flex-wrap: wrap; }
+.tm-row input[type=text] { flex: 1; min-width: 140px; }
+.tm-row input.bad { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.tm-opt { border: 1px solid var(--separator); background: none; border-radius: calc(6px * var(--round)); padding: 2px 7px; font: 12px var(--font-mono); color: var(--label-2); cursor: pointer; }
+.tm-opt:hover { color: var(--label); background: var(--fill); }
+.tm-opt.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.tm-nav { justify-content: flex-end; }
+.tm-count { color: var(--label-2); font-variant-numeric: tabular-nums; font-family: var(--font-figures); min-width: 74px; text-align: right; font-size: 12px; }
+.tm-count.err { color: var(--danger); min-width: 0; text-align: left; white-space: normal; }
+.tm-notice { grid-column: 1 / -1; color: var(--label-2); font-size: 12px; }
+.tm-doc { flex: 1; min-height: 0; display: flex; }
+.tm-doc .cm-editor { flex: 1; min-width: 0; height: 100%; background: transparent; color: var(--label); }
+.tm-doc .cm-editor.cm-focused { outline: none; }
+.tm-doc .cm-scroller { font-family: var(--font-prose); line-height: var(--leading-prose, 1.72); overflow-y: auto; }
+.tm-doc .cm-content { max-width: 74ch; width: 100%; margin: 0 auto; padding: 22px 20px 140px; caret-color: var(--accent); }
+.tm-doc .cm-line { padding: 0; }
+.tm-doc .cm-cursor { border-left-color: var(--accent); border-left-width: 2px; }
+.tm-doc .cm-selectionBackground, .tm-doc .cm-editor.cm-focused .cm-selectionBackground { background: var(--accent-soft) !important; }
+.tm-doc ::selection { background: var(--accent-soft); }
+.tm-l.tm-prose { font-size: 16px; }
+.tm-l.tm-title { font: 600 28px/1.3 var(--font-prose); }
+.tm-l.tm-mono { font: 13px/1.65 var(--font-mono); }
+.tm-l.tm-line { font: 14px/1.6 var(--font-ui); }
+.tm-l.tm-end { padding-bottom: 10px; }
+.tm-head { display: flex; align-items: baseline; gap: 10px; padding: 18px 0 2px; font-family: var(--font-ui); user-select: none; }
+.tm-head.first { padding-top: 0; }
+.tm-name { border: 0; background: none; padding: 1px 6px 1px 0; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; font-weight: 700; color: var(--label-3); border-radius: calc(4px * var(--round)); cursor: pointer; }
+.tm-name:hover, .tm-name:focus-visible { color: var(--label); }
+.tm-tok { color: var(--label-3); font-size: 11px; font-variant-numeric: tabular-nums; font-family: var(--font-figures); }
+.tm-hits { font-size: 11px; color: var(--warn); }
+.tm-mark { font-size: 11px; color: var(--label-3); }
+.tm-mark.changed { color: var(--accent); }
+.tm-empty { color: var(--label-3); font-style: italic; pointer-events: none; }
+.tm-macro { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 3px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent); }
+.tm-hit { background: color-mix(in srgb, var(--warn) 30%, transparent); border-radius: 2px; }
+.tm-hit.cur { background: color-mix(in srgb, var(--warn) 72%, transparent); color: var(--window); }
+.tm-menu { position: fixed; z-index: 60; display: grid; min-width: 190px; padding: 4px; border-radius: calc(9px * var(--round)); background: var(--pop); box-shadow: var(--shadow-pop); }
+.tm-menu button { border: 0; background: none; text-align: left; padding: 6px 10px; border-radius: calc(6px * var(--round)); color: var(--label); cursor: pointer; }
+.tm-menu button:hover, .tm-menu button:focus-visible { background: var(--fill-hover); }
+.tm-cmp { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--surface); }
+.tm-cmp-bar { flex: none; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--separator); }
+.tm-cmp-bar .spacer { flex: 1; }
+.tm-sum { color: var(--label-2); font-size: var(--size-small); }
+.tm-cmp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 60px; display: grid; gap: 18px; align-content: start; }
+.tm-side { display: block; margin-bottom: 4px; font: 600 10px/1.4 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--label-3); white-space: normal; }
+.tm-cf { display: grid; gap: 6px; max-width: 1200px; width: 100%; margin: 0 auto; }
+.tm-cf-head { font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; font-weight: 700; color: var(--label-2); }
+.tm-cf-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.tm-cf-cols > div { font: 14.5px/1.7 var(--font-prose); white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 12px; border-radius: calc(9px * var(--round)); background: var(--window); min-width: 0; }
+.tm-cf-cols del { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); text-decoration: line-through; border-radius: 2px; }
+.tm-cf-cols ins { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); text-decoration: none; border-radius: 2px; }
+.tm-pb { border: 0; background: var(--fill); color: var(--label-2); border-radius: calc(5px * var(--round)); font: 11px var(--font-ui); padding: 0 6px; margin: 0 3px; vertical-align: 1px; cursor: pointer; }
+.tm-pb:hover, .tm-pb:focus-visible { background: var(--fill-hover); color: var(--label); }
+.tm-same { color: var(--label-3); max-width: 1200px; width: 100%; margin: 0 auto; }
+@container (max-width: 720px) {
+  .tm-find { grid-template-columns: minmax(0, 1fr); }
+  .tm-lbl { display: none; }
+  .tm-nav { justify-content: flex-start; }
+  .tm-doc .cm-content { padding: 16px 16px 80px; }
+  .tm-cf-cols { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+}
+
 /* ───────────── motion round 1 (D-072, CLAUDE 2026-11-01): the Coffra reference. Draft: docs/drafts/motion/index.html.
  * Titles rise in letter by letter; editor blocks arrive in a cascade (ui/motion.ts enter); the tab underline glides.
  * The reduced-motion block above turns all of it off. */

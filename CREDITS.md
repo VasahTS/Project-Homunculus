@@ -24,6 +24,8 @@ Memory v2 (D-083), ideas and prompt wording, no code copied: Daniel's friend's "
 
 Reference projects studied (ideas, not code, unless listed above): SillyTavern, SillyBunny, Homunculus v1 (VasahTS/Homunculus), Marinara Engine, Aventuras. Studied commits are pinned in `docs/reference/pins.json`.
 
+Libraries used as dependencies (not adapted code): CodeMirror 6 (`@codemirror/state`, `@codemirror/view`, `@codemirror/commands`, MIT, Marijn Haverbeke and others) for the character editor's Text layout. D-102.
+
 Fonts bundled with the app (SIL Open Font License 1.1, from Google Fonts through Fontsource): Literata, Geist and Geist Mono (Vercel), Archivo (Omnibus-Type). D-073. Instrument Serif (Instrument), JetBrains Mono (JetBrains), for the Observatory look. D-086.
 
 Home art (`apps/desktop/src/assets/home/`: the moon panorama and the spire) and the Alchemical icons (`theme/iconSets.ts`): drawn by code by CLAUDE on 2026-11-04 for this project. D-086.

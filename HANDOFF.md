@@ -24,6 +24,14 @@
 
 **Session notes:** Glaze reference clone was at hydall/Glaze f1fe39e. The dev machine can't reach janitorai.com ("Access Restricted"); test live only on Daniel's PC. Writing files to his PC: a re-used upload path once wrote the **old** file — use a fresh output path per write and check the size after.
 
+## Text layout in the character editor (2026-11-08, evening) — CLAUDE — D-102
+
+- Daniel: "implement that text editor we talked about". **Library → Characters → Edit → Text** (4th layout): the whole card as one document with fixed titles; Ctrl+F / Ctrl+H (Aa, W, .* with $1, in all fields or this field, Replace All = one Ctrl+Z); **Compare…** with Before This Edit / Last Saved / Original Import / Main Version / History, Put Back per change.
+- Files: `apps/desktop/src/textDoc.ts` (+ test), `ui/TextMode.tsx`, `ui/CharacterEditor.tsx` (layout, `cardTextOf`, compare sources), styles `.tm-*` in `styles.css`; `LoreReplace.tsx` exports `expand`. New deps: `@codemirror/state`, `view`, `commands`.
+- **To try (Windows):** edit a card with alternate greetings → Text → type, Ctrl+H a name across fields → Replace All → Ctrl+Z → Compare… → Put Back → switch to Sheet and check the same text. Ctrl+S saves as before.
+- Not tried in the Windows app (WebView2 typing, IME/spellcheck); only Chromium. Persona/NPC/Narrator editors don't have Text yet.
+- Changelog line for the next release: "**Edit a character as text:** Characters → Edit → **Text** shows the whole card as one plain document under fixed titles. Ctrl+F / Ctrl+H find and replace across every field (match case, whole word, regular expressions with $1); one Ctrl+Z undoes a Replace All. **Compare…** shows what changed since you opened it (or the last save, the original import, the main version, any saved version) side by side, with **Put Back** on each change."
+
 ## JanitorAI: extract hidden cards like Glaze (2026-11-08) — CLAUDE — D-099
 
 - Daniel: make the scraper like Glaze's. A hidden card's sheet now offers **Extract and Add** (signed in): JanitorAI's window shows, a temporary proxy/persona/chat is made on his account, the assembled prompt is read, everything is put back, and the card comes in with its public lorebooks + the closed lore rebuilt into keyed entries by the default AI connection (switched-off text entries without one). First use shows a one-time notice (risks). Cards locked to JanitorAI's model can't be extracted.

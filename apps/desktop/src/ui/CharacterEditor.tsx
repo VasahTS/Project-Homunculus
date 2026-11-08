@@ -3,6 +3,7 @@ import { useUnsavedChanges, useGuardedNavigation } from "./ux.tsx";
 // 2026-10-28 (slice 1): versions side by side, a picture per version, history of saves, Move to Trash.
 // 2026-11-01 (D-070): three layouts the user picks (Sheet · Tabs · Writer, remembered), a greetings editor (alternates
 // included), the Description's <sections>, token counts, Save and Chat Now always in sight (Ctrl+S).
+// 2026-11-08 (D-102): a fourth layout, Text — the whole card as one document with Find / Replace and Compare (TextMode.tsx).
 import { useBackState } from "./back-button.ts";
 import { LorebookChips } from "./LorePanels.tsx";
 import { cropImage } from "./ImageCropper.tsx";
@@ -19,6 +20,9 @@ import { Button, IconButton, Icon, RiseText, Segmented } from "./kit.tsx";
 import { CASCADE, enter, useSlidingPill } from "./motion.ts";
 import { AutoText, Greetings, tokensText } from "./Greetings.tsx";
 import { FieldLabel, HistoryList, pruneVariants, useVersionedDraft, VersionBar, type HistoryField } from "./Versions.tsx";
+import { parseCard } from "@homunculus/st-cards";
+import { TextMode, type CompareSource } from "./TextMode.tsx";
+import type { CardText, TextKey as DocKey } from "../textDoc.ts";
 
 const blank = (): Character => ({
   id: crypto.randomUUID(), name: "", description: "", personality: "", scenario: "", firstMessages: [""],
@@ -37,9 +41,19 @@ export const CHARACTER_HISTORY_FIELDS: HistoryField[] = [
 ];
 
 /** The editor's layout (D-070): the user picks it; remembered on this computer. */
-export type EditorLayout = "sheet" | "tabs" | "writer";
+export type EditorLayout = "sheet" | "tabs" | "writer" | "text";
 const LAYOUT_KEY = "h2.characterEditor.layout";
-const readLayout = (): EditorLayout => { try { const v = localStorage.getItem(LAYOUT_KEY); return v === "tabs" || v === "writer" ? v : "sheet"; } catch { return "sheet"; } };
+const readLayout = (): EditorLayout => { try { const v = localStorage.getItem(LAYOUT_KEY); return v === "tabs" || v === "writer" || v === "text" ? v : "sheet"; } catch { return "sheet"; } };
+
+/** The parts of a character the Text layout edits (D-102). */
+function cardTextOf(c: Pick<Character, keyof Fields>): CardText {
+  return {
+    name: c.name, description: c.description, personality: c.personality, scenario: c.scenario, firstMessages: c.firstMessages,
+    exampleMessages: c.exampleMessages, note: c.characterNote?.text ?? "", systemPrompt: c.systemPrompt,
+    postHistoryInstructions: c.postHistoryInstructions, creatorNotes: c.creatorNotes, tags: c.tags,
+  };
+}
+const whenSaved = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 type Tab = "character" | "greetings" | "prompt" | "lore" | "about" | "history";
 
 const HELP = {
@@ -56,7 +70,7 @@ const HELP = {
   history: "Open a saved character to compare or restore it. History includes all versions and excludes pictures.",
   lore: "Included in chats with this character. Embedded lorebooks are linked here and preserved in exports.",
   meter: "About how many tokens this character adds to every reply (greetings are sent only when a chat starts). A token is roughly 3–4 letters.",
-  layout: "How this editor is arranged: Sheet (everything on one page), Tabs (one part at a time) or Writer (one document with an outline). Same character, same fields; pick what you like. Remembered on this computer.",
+  layout: "How this editor is arranged: Sheet (everything on one page), Tabs (one part at a time), Writer (one document with an outline) or Text (the whole card as plain text, with Find / Replace and Compare). Same character, same fields; pick what you like. Remembered on this computer.",
 };
 
 /** One text field of the card (works on the version being edited). */
@@ -115,6 +129,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(justSaved);
   const [dirty, setDirty] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Character | null>(character);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   // Sheet / Tabs / Writer and the card's tabs are moves M4/M5 go back and forth through (D-097)
@@ -168,6 +183,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
       });
       await onSave(clean);
       setDraftState(clean);
+      setLastSaved(clean);
       setSaved(true);
       setDirty(false);
       if (historyOpen) refreshHistory();
@@ -496,6 +512,42 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
         <div className="ce-pane" ref={scroller}>{tab !== "greetings" && versionBanner}{pane}</div>
       </div>
     );
+  } else if (layout === "text") {
+    const values = cardTextOf({ ...draft, ...Object.fromEntries((["name", "description", "personality", "scenario", "firstMessages", "exampleMessages", "systemPrompt", "postHistoryInstructions", "creatorNotes", "tags"] as const).map((k) => [k, v.get(k)])), characterNote: note });
+    const marks: Partial<Record<keyof CardText, "changed" | "main">> = {};
+    if (v.variant) for (const k of Object.keys(values) as Array<keyof CardText>) marks[k] = v.isChanged(k === "note" ? "characterNote" : k) ? "changed" : "main";
+    const sources: CompareSource[] = [];
+    if (lastSaved && exists) sources.push({ id: "saved", label: "Last Saved", values: cardTextOf(effectiveCharacter(lastSaved, variantId)) });
+    if (draft.original) { try { sources.push({ id: "import", label: "Original Import", values: cardTextOf(Character.parse({ ...parseCard(draft.original).character, id: draft.id })) }); } catch { /* not a card we can read */ } }
+    if (variantId) sources.push({ id: "main", label: "Main Version", values: cardTextOf(draft) });
+    const history = exists ? () => loadHistory(draft.id).then((list) => list.flatMap((e, i): CompareSource[] => {
+      const c = Character.safeParse({ ...(e.data as object), id: draft.id });
+      return c.success && i > 0 ? [{ id: `h-${e.id}`, label: `Saved ${whenSaved(e.createdAt)}`, values: cardTextOf(effectiveCharacter(c.data, variantId)) }] : [];
+    })) : undefined;
+    const onText = (next: CardText, parts: Array<keyof CardText>) => {
+      for (const k of parts) {
+        if (k === "note") v.set("characterNote", { ...note, text: next.note });
+        else v.set(k, next[k] as never);
+      }
+    };
+    const openInForm = (k: DocKey) => {
+      const part = k === "name" || k === "tags" ? null : k.startsWith("greeting:") ? "greetings" : k === "description" ? "description"
+        : k === "note" || k === "systemPrompt" || k === "postHistoryInstructions" ? "prompt" : k === "creatorNotes" ? "more" : "details";
+      const label = k === "name" ? "Name" : k === "tags" ? "Tags" : k === "note" ? "Character's Note" : null;
+      setLayout("sheet");
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (part) scrollToPart(part, !label);
+        if (label) root.current?.querySelector<HTMLElement>(`[aria-label="${label}"]`)?.focus();
+      }));
+    };
+    const chips = draft.variants.length > 0 ? (
+      <div className="versions-row tm-versions" role="tablist" aria-label="Versions">
+        <span className="label-row muted">Version</span>
+        <button type="button" role="tab" aria-selected={!variantId} className={`chip${!variantId ? " on" : ""}`} onClick={() => setVariantId(null)}>Main</button>
+        {draft.variants.map((x) => <button key={x.id} type="button" role="tab" aria-selected={variantId === x.id} className={`chip${variantId === x.id ? " on" : ""}`} onClick={() => setVariantId(x.id)}>{x.label}</button>)}
+      </div>
+    ) : null;
+    body = <TextMode values={values} marks={marks} resetKey={variantId ?? ""} versions={chips} onChange={onText} sources={sources} loadHistory={history} onOpenInForm={openInForm} />;
   } else {
     const item = (id: string, label: string, text?: string) => (
       <button type="button" key={id} className={`ce-oi${text !== undefined && !text.trim() ? " empty" : ""}`} onClick={() => scrollToPart(id, true)}>
@@ -570,7 +622,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
         {status}
         <span className="ce-layout" title={HELP.layout}>
           <Segmented small label="Layout" value={layout} onChange={setLayout}
-            options={[{ value: "sheet", label: "Sheet" }, { value: "tabs", label: "Tabs" }, { value: "writer", label: "Writer" }]} />
+            options={[{ value: "sheet", label: "Sheet" }, { value: "tabs", label: "Tabs" }, { value: "writer", label: "Writer" }, { value: "text", label: "Text" }]} />
         </span>
         {exists && <button type="button" className="btn btn-bordered" title={`Start a chat with ${shownName === "?" ? "them" : shownName}${v.variant ? ` (${v.variant.label})` : ""}`}
           onClick={() => onStartSession(draft, variantId)}>Chat Now</button>}

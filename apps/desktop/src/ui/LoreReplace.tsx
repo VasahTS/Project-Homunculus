@@ -43,7 +43,7 @@ export function replaceIn(text: string, re: RegExp, o: Pick<ReplaceOptions, "rep
 }
 
 /** "$1", "$&", "$$" in a regex replacement (what String.replace does), with the match's own groups. */
-function expand(tpl: string, args: unknown[]): string {
+export function expand(tpl: string, args: unknown[]): string {
   const groups = args.slice(0, args.findIndex((a) => typeof a === "number")) as Array<string | undefined>;
   return tpl.replace(/\$(\$|&|\d{1,2})/g, (_, k: string) => (k === "$" ? "$" : k === "&" ? groups[0] ?? "" : groups[Number(k)] ?? ""));
 }
