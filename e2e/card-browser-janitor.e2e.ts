@@ -4,7 +4,7 @@
 // JanitorAI + Try Again, All Sites leaves JanitorAI out. CLAUDE, 2026-11-08.
 import { expect, test, type Page } from "@playwright/test";
 
-async function fakeJanitor(page: Page, opts: { challenge?: boolean } = {}) {
+async function fakeJanitor(page: Page, opts: { challenge?: boolean; datacat?: boolean } = {}) {
   await page.addInitScript((o) => {
     const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
     const ok = (data: unknown) => ({ status: 200, finalUrl: "", contentType: "application/json", cfMitigated: false, text: JSON.stringify(data) });
@@ -61,6 +61,11 @@ async function fakeJanitor(page: Page, opts: { challenge?: boolean } = {}) {
         if (u.host === "janitorai.com" && u.pathname === `/hampter/characters/${hidden.id}`) return ok(hidden);
         if (u.host === "janitorai.com" && u.pathname === `/hampter/characters/${locked.id}`) return ok(locked);
         if (u.host === "janitorai.com" && u.pathname.startsWith("/hampter/script/")) return ok({ script: JSON.stringify([{ key: ["lighthouse"], content: "The lighthouse is old." }]) });
+        // DataCat (D-101): the hidden card is there, under JanitorAI's own id, only when the test says so
+        if (u.host === "datacat.run" && u.pathname === "/api/liberator/identify") return ok({ success: true, sessionToken: "s" });
+        if (u.host === "datacat.run" && u.pathname === `/api/characters/${hidden.id}` && o.datacat) return ok({ character: { character_id: hidden.id, name: "Hidden Keeper", personality: "Hidden Keeper guards a secret lamp.", scenario: "Night.", first_message: "Psst.", updatedAt: "2026-10-03T12:00:00Z", downloadsDisabled: false,
+          chara_card_v2_json: { spec: "chara_card_v2", data: { name: "Hidden Keeper", description: "Hidden Keeper guards a secret lamp.", character_book: { entries: [{ keys: ["lamp"], content: "It never goes out." }] } } } } });
+        if (u.host === "datacat.run" && u.pathname.startsWith("/api/characters/")) return { status: 404, finalUrl: r.url, contentType: "application/json", cfMitigated: false, text: "{}" };
         if (u.host === "api.chub.ai") return ok({ data: { count: 1, nodes: [{ fullPath: "anna/elf-1", name: "Elf Queen", tagline: "", topics: [], starCount: 1, nTokens: 10 }] } });
         throw new Error(`no fake for ${r.url}`);
       },
@@ -209,5 +214,35 @@ test("JanitorAI: the Lorebook Trigger row changes what the extraction sends, and
   await expect(page.locator(".notice")).toContainText("Added Hidden Keeper to Characters", { timeout: 15_000 });
   const sends = (await janitor(page)).sends;
   expect(sends).toEqual([".", "The Silver Fox inn"]);
+});
+
+test("JanitorAI + DataCat: a hidden card already on DataCat offers Add from DataCat, with Extract Yourself beside it", async ({ page }) => {
+  await fakeJanitor(page, { datacat: true });
+  await page.addInitScript(() => { try { localStorage.setItem("h2.cardBrowser", JSON.stringify({ datacatOk: true })); } catch { /* none */ } });
+  const browser = await openJanitor(page);
+  await browser.getByTestId("cb-card").filter({ hasText: "Hidden Keeper" }).click();
+  const sheet = page.getByTestId("cb-sheet");
+  await expect(sheet.getByTestId("cb-datacat")).toContainText("Already on DataCat");
+  await expect(sheet.getByTestId("cb-datacat")).toContainText("lorebook: 1 entry");
+  await expect(sheet.getByTestId("cb-extract")).toHaveText("Extract Yourself");
+  await expect(sheet.getByTestId("cb-png")).toBeEnabled();
+  await sheet.getByTestId("cb-datacat-add").click();
+  await expect(page.locator(".notice")).toContainText("Added Hidden Keeper to Characters");
+  await expect(page.locator(".notice")).toContainText("From DataCat's copy");
+  // nothing was done on the JanitorAI account
+  const j = await janitor(page);
+  expect(j.writes).toEqual([]);
+  expect(j.calls.some((c) => c.startsWith("page "))).toBe(false);
+});
+
+test("JanitorAI + DataCat: not on DataCat (or DataCat not allowed) keeps Extract and Add", async ({ page }) => {
+  await fakeJanitor(page);
+  await page.addInitScript(() => { try { localStorage.setItem("h2.cardBrowser", JSON.stringify({ datacatOk: true })); } catch { /* none */ } });
+  const browser = await openJanitor(page);
+  await browser.getByTestId("cb-card").filter({ hasText: "Hidden Keeper" }).click();
+  const sheet = page.getByTestId("cb-sheet");
+  await expect(sheet.getByTestId("cb-extract")).toHaveText("Extract and Add");
+  await expect(sheet.getByTestId("cb-hidden")).not.toContainText("Looking on DataCat");
+  await expect(sheet.getByTestId("cb-datacat-add")).toHaveCount(0);
 });
 

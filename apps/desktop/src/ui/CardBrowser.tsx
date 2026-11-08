@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { Avatar, Character, Folder } from "@homunculus/schemas";
 import { bytesToBase64 } from "@homunculus/st-cards";
-import { CARD_SOURCES, cardSource, DEFAULT_TRIGGER, isSourceId, NO_FILTERS, pauses, SiteError } from "@homunculus/card-browser";
+import { CARD_SOURCES, cardSource, datacatCopy, DEFAULT_TRIGGER, isSourceId, NO_FILTERS, pauses, SiteError, type DatacatCopy } from "@homunculus/card-browser";
 import type { BotbooruAccountState, CardDetails, CardFile, CardFilters, CardItem, CardQuery, CardSource, MustHave, SiteTransport, SourceId, TriggerChoice } from "@homunculus/card-browser";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
 import { recordMove, useLive } from "./back-button.ts";
@@ -574,7 +574,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, co
   const k = `${item.source}:${item.id}`;
   const [d, setD] = useState<CardDetails | "failed" | null>(details.get(k) ?? null);
   const [greeting, setGreeting] = useState(0);
-  const [working, setWorking] = useState<"add" | "png" | "extract" | null>(null);
+  const [working, setWorking] = useState<"add" | "png" | "extract" | "datacat" | null>(null);
   const [phase, setPhase] = useState("");
   const [askExtract, setAskExtract] = useState(false);
   // what the lorebook trigger sends (D-100): the switches are remembered, the extra text belongs to this card
@@ -592,14 +592,35 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, co
   }, [k]); // eslint-disable-line react-hooks/exhaustive-deps
   const full = d && d !== "failed" ? d : null;
   const mine = justAdded ?? addedId;
+  // D-101: a hidden JanitorAI card may already be on DataCat (someone else extracted it). Looked up when the sheet opens,
+  // only when DataCat is allowed (its adult-only notice was accepted); it never blocks the sheet.
+  const [copy, setCopy] = useState<DatacatCopy | null | "looking">(null);
+  const lookUp = !!full?.canExtract && !mine && prefs.datacatOk === true;
+  useEffect(() => {
+    if (!lookUp) { setCopy(null); return; }
+    let live = true; setCopy("looking");
+    void datacatCopy(item.id, item, transport).then((c) => { if (live) setCopy(c); });
+    return () => { live = false; };
+  }, [k, lookUp]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onDatacat = copy && copy !== "looking" && !copy.downloadsOff ? copy : null;
   const folderChoice = (): FolderChoice => (prefs.folder === "web" ? "from-the-web" : prefs.folder ? { id: prefs.folder } : null);
-  const fetchFile = async () => source.download(item, transport);
+  const fetchFile = async () => onDatacat ? cardSource("datacat").download(onDatacat.item, transport) : source.download(item, transport);
   const add = async () => {
     setWorking("add"); setMenu(false);
     try {
       const id = await onAdd(await fetchFile(), item, { folder: folderChoice(), importTags: prefs.importTags });
       if (id) setJustAdded(id);
     } catch (e) { onError(`Could not add ${item.name}`, e instanceof Error ? e.message : String(e), e instanceof SiteError && e.paused ? onImportDownloaded : undefined); }
+    finally { setWorking(null); }
+  };
+  const addFromDatacat = async () => {
+    if (!onDatacat) return;
+    setWorking("datacat"); setMenu(false);
+    try {
+      const notes = [`From DataCat's copy${onDatacat.date ? ` (${shortDate(onDatacat.date)})` : ""}; it may be older than the card on JanitorAI.`];
+      const id = await onAdd(await fetchFile(), item, { folder: folderChoice(), importTags: prefs.importTags, notes });
+      if (id) setJustAdded(id);
+    } catch (e) { onError(`Could not add ${item.name} from DataCat`, e instanceof Error ? e.message : String(e)); }
     finally { setWorking(null); }
   };
   // JanitorAI hidden card (D-099): read through the person's account, then added like any other card
@@ -634,10 +655,13 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, co
         {mine
           ? <>{justAdded ? <Button variant="prominent" data-testid="cb-chat" onClick={() => onChat(mine)}>Chat Now</Button>
                         : <Button variant="prominent" data-testid="cb-open" onClick={() => onOpenCharacter(mine)}>Open in Characters</Button>}</>
+          : full?.canExtract && source.extract && onDatacat
+            ? <><Button variant="prominent" data-testid="cb-datacat-add" disabled={working !== null} onClick={() => void addFromDatacat()}>{working === "datacat" ? "Adding…" : "Add from DataCat"}</Button>
+                <Button data-testid="cb-extract" disabled={working !== null} onClick={() => void extract()}>{working === "extract" ? `${phase || "Extracting"}…` : "Extract Yourself"}</Button></>
           : full?.canExtract && source.extract
             ? <Button variant="prominent" data-testid="cb-extract" disabled={working !== null} onClick={() => void extract()}>{working === "extract" ? `${phase || "Extracting"}…` : "Extract and Add"}</Button>
             : <Button variant="prominent" data-testid="cb-add" disabled={working !== null || !!full?.hidden} title={full?.hidden} onClick={() => void add()}>{working === "add" ? "Adding…" : "Add to Characters"}</Button>}
-        <Button data-testid="cb-png" disabled={working !== null || !!full?.hidden} title={full?.hidden} onClick={() => void png()}>{working === "png" ? "Saving…" : "Save as PNG"}</Button>
+        <Button data-testid="cb-png" disabled={working !== null || (!!full?.hidden && !onDatacat)} title={onDatacat ? undefined : full?.hidden} onClick={() => void png()}>{working === "png" ? "Saving…" : "Save as PNG"}</Button>
         <Button onClick={() => void openLink(item.url)}>Open on {source.name}</Button>
   </>;
   const by = [item.creator && `by ${item.creator}`, figs].filter(Boolean).join(" · ");
@@ -652,7 +676,9 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, co
           {menu && <span className="cb-pop cb-pop-right" role="menu"><button type="button" role="menuitem" data-testid="cb-add-again" onClick={() => void add()}>Add Again</button></span>}
         </span>}
       </div>
-      {full?.hidden && !mine && <p className="hint cb-hidden" data-testid="cb-hidden">{full.hidden}</p>}
+      {full?.hidden && !mine && (onDatacat
+        ? <p className="hint cb-hidden" data-testid="cb-datacat">Already on DataCat{onDatacat.date ? ` · ${shortDate(onDatacat.date)}` : ""} · {onDatacat.loreEntries ? `lorebook: ${onDatacat.loreEntries} ${onDatacat.loreEntries === 1 ? "entry" : "entries"}` : "no lorebook"}. Its copy may be older than the card here; Extract Yourself reads the current one.</p>
+        : <p className="hint cb-hidden" data-testid="cb-hidden">{full.hidden}{copy === "looking" ? " Looking on DataCat…" : copy && copy.downloadsOff ? " It is on DataCat, but its creator turned downloads off there." : ""}</p>)}
       {askExtract && (
         <div className="cb-account" data-testid="cb-extract-ask" role="alertdialog" aria-label="Extract from JanitorAI">
           <span className="hint">Extracting opens a chat with this character on your JanitorAI account, through a temporary proxy setting, and puts everything back afterwards (about a minute; JanitorAI's window shows while it works). JanitorAI's rules don't allow this, and accounts can be limited for it.</span>
@@ -834,5 +860,11 @@ function TriggerOptions({ value, onChange, disabled }: { value: TriggerChoice; o
     <textarea aria-label="Extra Text" data-testid="cb-trigger-extra" rows={3} disabled={disabled} value={value.extra} placeholder="Extra Text: names, places or factions from the card's world"
       onChange={(e) => onChange({ ...value, extra: e.target.value })} />
   </details>;
+}
+
+/** "2026-10-03T…" → "3 Oct 2026" in the reader's locale. */
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 

@@ -83,17 +83,7 @@ objects ≤ 64 KB. Ids: `[A-Za-z0-9-]{1,64}`. `profiles/mine` GET returns only `
 6. **Orphan chats**: if a step fails after `POST /hampter/chats` but before the id is read, the chat stays. Two were left on
    Daniel's account on 11/08 (asked him to delete them). Fix idea: on failure, `GET` his chats for this character and delete the newest.
 7. Scripted ("advanced") public lorebooks (JS source) are skipped. Glaze has the AI convert them (`kLorebookSystemPromptJs`).
-8. **Idea for later (Daniel, 2026-11-08): reuse DataCat's copy first.** DataCat's cards are JanitorAI extractions already done by
-   someone else. Before extracting a hidden card, look it up on DataCat; if it is there, offer it instead of driving the account.
-   - Why: seconds instead of about a minute, no change to his JanitorAI account (no ban risk), no AI call for the lore.
-   - Lookup: DataCat rows carry `characterId` (`datacat.ts` `rowId`) and its pictures come from `ella.janitorai.com`, so the id is
-     very likely JanitorAI's own uuid — **verify on Daniel's PC** (the dev machine can't reach either site reliably). If DataCat has
-     a by-id endpoint use it; otherwise search by name and match the id. Respect `prefs.datacatOk` (adult-only acknowledgment, D-081).
-   - UX proposal (not a modal question): on the hidden card's sheet, when the lookup finds it, one quiet line
-     "Already on DataCat · extracted <date>" and the main button becomes **Add from DataCat**, with **Extract Yourself** beside it.
-     Not found → today's **Extract and Add**. Lookup runs when the sheet opens, never blocks it.
-   - Caveat to show: DataCat's copy may be older than the card on JanitorAI or lack the closed lore; show its date and whether it
-     has a lorebook, so he can choose.
+8. ✅ Reuse DataCat's copy first — done (D-101): `datacatCopy()` in `datacat.ts`; the sheet offers **Add from DataCat** / **Extract Yourself**. Confirm live that DataCat's ids are JanitorAI's.
 9. Not verified live: Google sign-in in the window, Linux/WebKitGTK at runtime, the Windows-only UA line compiling (it did run on Windows).
 
 ## 6. Practical notes

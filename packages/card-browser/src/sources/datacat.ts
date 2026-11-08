@@ -130,3 +130,36 @@ async function character(item: CardItem, t: SiteTransport): Promise<Record<strin
   if (!d.character) throw new SiteError("DataCat did not return this character.", "datacat", "data");
   return d.character;
 }
+
+// ------------------------------------------------------------------ DataCat's copy of a hidden JanitorAI card (D-101)
+/** DataCat's record of a JanitorAI card: it is keyed by JanitorAI's own character id (its pictures come from JanitorAI too). */
+export interface DatacatCopy {
+  item: CardItem;
+  /** When DataCat got it (ISO text, or "" when it says nothing). */
+  date: string;
+  loreEntries: number;
+  /** The creator turned downloads off there: shown, but not offered. */
+  downloadsOff: boolean;
+}
+const DATE_KEYS = ["extractedAt", "extracted_at", "scrapedAt", "scraped_at", "updatedAt", "updated_at", "createdAt", "created_at"];
+/** Looks the card up on DataCat by its JanitorAI id. Never throws: anything but a usable record is "not there". */
+export async function datacatCopy(janitorId: string, fallback: Pick<CardItem, "name" | "creator" | "thumb" | "image" | "url">, t: SiteTransport): Promise<DatacatCopy | null> {
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(janitorId)) return null;
+  const item: CardItem = { source: "datacat", id: janitorId, name: fallback.name, creator: fallback.creator, tagline: "", tags: [], thumb: fallback.thumb, image: fallback.image, nsfw: true, url: `${API}/characters/${janitorId}`, stats: {} };
+  try {
+    const c = await character(item, t);
+    const card = definition(c, item);
+    const data = record(card.data) ?? {};
+    const desc = text(data.description);
+    // a record without a definition is no better than what JanitorAI shows
+    if (!desc && !text(data.scenario)) return null;
+    const book = record(data.character_book);
+    const raw = DATE_KEYS.map((k) => c[k]).find((v) => typeof v === "string" || typeof v === "number");
+    const date = raw === undefined ? "" : (() => { const d = new Date(typeof raw === "number" && raw < 1e12 ? raw * 1000 : raw); return Number.isNaN(d.getTime()) ? "" : d.toISOString(); })();
+    return {
+      item: { ...item, name: text(data.name) || item.name, creator: text(data.creator) || item.creator, image: datacatAvatarUrl(c.avatarDisplayUrl ?? c.avatar) || item.image },
+      date, loreEntries: Array.isArray(book?.entries) ? book!.entries.length : 0,
+      downloadsOff: !!(c.downloadsDisabled || c.downloads_disabled || c.deletedByCreatorPolicy || c.deleted_by_creator_policy),
+    };
+  } catch { return null; }
+}

@@ -1088,3 +1088,13 @@ Daniel (translated): "continue the JanitorAI". Gaps 2–4 of `docs/JANITOR-EXTRA
 
 Signed: **CLAUDE**.
 
+## D-101 — A hidden JanitorAI card already on DataCat: Add from DataCat or Extract Yourself (2026-11-08)
+
+Daniel (translated): "check whether DataCat already has the card extracted; if so, ask: download it from there, or extract it yourself through the proxy."
+- When a hidden JanitorAI card's sheet opens, the app looks it up on DataCat by **JanitorAI's own character id** (`GET datacat.run/api/characters/{id}`; DataCat keys its records by it and its pictures come from JanitorAI). Only when DataCat is allowed (its adult-only notice was accepted, `prefs.datacatOk`); it never blocks the sheet. `datacatCopy()` never throws: not found, an error, a record without a definition or a bad id = no copy.
+- **Not a question window** (Claude's proposal, accepted): when found, one quiet line "Already on DataCat · <date> · lorebook: N entries. Its copy may be older than the card here; Extract Yourself reads the current one." The main button becomes **Add from DataCat**, with **Extract Yourself** beside it; **Save as PNG** works from the copy. The Added notice says it came from DataCat's copy. Not found → **Extract and Add** as before; downloads turned off on DataCat → said under the reason, Extract stays.
+- Adding from DataCat touches nothing on the JanitorAI account. The date is the first of DataCat's extracted/updated/created fields it sends.
+- **Not verified live:** that DataCat's ids are JanitorAI's (very likely; confirm on Daniel's PC).
+
+Signed: **CLAUDE**.
+

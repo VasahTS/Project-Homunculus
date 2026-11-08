@@ -14,7 +14,7 @@ export * from "./pauses.ts";
 export { buildCard, detailsFromCard, plain, slugify } from "./build.ts";
 export { parseJannyPage, searchKey, resetJannyKey } from "./sources/janny.ts";
 export { wyvernAvatarUrl } from "./sources/wyvern.ts";
-export { datacatAvatarUrl, resetDatacat } from "./sources/datacat.ts";
+export { datacatAvatarUrl, datacatCopy, resetDatacat, type DatacatCopy } from "./sources/datacat.ts";
 export { HIDDEN_DEFINITION, NO_PROXY, janitorAvatarUrl, janitorSearchUrl, resetJanitor } from "./sources/janitor.ts";
 
 /** In the source picker's order (UI-PLAN "Card Browser"). DataCat: Daniel's choice (D-081). JanitorAI: D-098. */
