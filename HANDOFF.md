@@ -1,5 +1,10 @@
 # HANDOFF — Homunculus 2
 
+## Prepare the 0.3.6 release (2026-11-08) — CODEX
+
+- The release packages the seven commits after 0.3.5, through 02066a2. The 0.3.6 changelog covers Personas, interface sizing, mouse back and forward, and chat and Director fixes.
+- The release notes script selects this section. Use the standard Publish release workflow for signed installers.
+
 ## M4 / M5 revised: inside screens too (2026-11-08) — CLAUDE — D-097
 
 - Daniel: Card Browser preview → M4 went to the previous page instead of closing it; switching Sheet/Tabs/Writer → M4 left the editor. Cause 1: the always-there side panels (`data-region="sheet"`) counted as open windows. Cause 2: only screens were remembered. Now one list of moves (`ui/back-button.ts`: `recordMove`, `goMove`, `useBackState`); screens are moves (App.tsx), and so are tabs, layouts, previews and open items across the app (list in D-097).

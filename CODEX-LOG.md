@@ -1,5 +1,9 @@
 # Work log — CODEX
 
+## Prepare the 0.3.6 release (2026-11-08) — CODEX
+
+- Promoted the seven commits after 0.3.5 to main and prepared their 0.3.6 changelog section. Checked the generated release notes before starting the standard installer workflow.
+
 ## 0.3.2 Memory width follow-up (2026-11-05) — CODEX
 
 - Corrected the remaining Memory layout hierarchy missed by 0.3.1. Per-chat summary-model names could set an implicit minimum grid width larger than the inspector; the short-model fixture fit while the long-model fixture failed before the fix.

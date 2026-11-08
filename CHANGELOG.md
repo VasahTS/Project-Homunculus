@@ -3,7 +3,7 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
-## Unreleased
+## 0.3.6 — 2026-11-08
 
 - **Mouse side buttons everywhere:** back (M4, or Alt+←) closes the open window, menu or card preview, then steps back through what you switched — tabs, the character editor's layout, the open entry — and screens; forward (M5, or Alt+→) goes forward again.
 - **Interface size:** Settings → Appearance → Interface size (70% to 150%), or **Ctrl +** / **Ctrl −** anywhere; **Ctrl 0** goes back to 100%.

@@ -1,5 +1,10 @@
 # CODEX change record
 
+## Prepare the 0.3.6 release (2026-11-08) — CODEX
+
+- Moved the existing release notes for the seven commits after 0.3.5 into the 0.3.6 section of CHANGELOG.md. Recorded the release scope in HANDOFF.md and CODEX-LOG.md.
+- The release notes script reads the 0.3.6 section. The standard Publish release workflow tests the app and builds and signs the Windows and Linux installers.
+
 ## 0.3.2 Memory width follow-up (2026-11-05) — CODEX
 
 - Daniel reported Memory still clipped after the UI hotfix and clarified that this is a visual problem affecting only some chats. This continues the authorized release hotfix; no memory behavior redesign is requested.
