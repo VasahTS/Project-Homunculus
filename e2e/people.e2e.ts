@@ -79,10 +79,14 @@ test("personas: the first one becomes the default, its name is used in the story
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("✓ Saved")).toBeVisible();
   await openSession(page);
-  await page.getByTestId("who-button").click();
-  await page.getByLabel("Persona version").selectOption({ label: "Knight" });
+  // D-096: the Personas window (the button under the message box) picks the persona and its version
+  await page.getByTestId("persona-chip").click();
+  const win = page.getByTestId("persona-picker");
+  await win.getByTestId("persona-row").filter({ hasText: "Dan" }).click();
+  await win.getByRole("radio", { name: "Knight" }).click();
+  await win.getByTestId("persona-play").click();
   await expect(page.getByTestId("who-button")).toContainText("as Sir Dan");
-  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("persona-chip")).toContainText(/Sir Dan.*Knight/);
   await send(page, "Kneel.");
   await page.getByRole("button", { name: "Details" }).last().click();
   await expect(page.getByTestId("reply-persona")).toHaveText("Sir Dan (Knight)");

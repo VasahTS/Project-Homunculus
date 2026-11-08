@@ -3841,3 +3841,33 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .director-note-foot .spacer, .director-proposal-row .spacer { flex: 1; }
 .director-new { gap: 8px; padding: 12px; }
 .director-note textarea.director-auto, .director-new textarea.director-auto, .director-area textarea.director-auto { resize: none; }
+
+/* D-096: who you play — the button under the message box and the Personas window (draft A, canvas "Homunculus 2 — Personas") */
+.persona-chip { display: inline-flex; align-items: center; gap: 7px; flex: 0 1 auto; min-width: 0; max-width: 46%; height: 26px; padding: 0 9px 0 4px;
+  border: 0; border-radius: var(--radius-control); background: var(--fill); box-shadow: inset 0 0 0 1px var(--separator); color: var(--label);
+  font: inherit; font-size: var(--size-small); cursor: pointer; transition: background-color var(--dur-fast), box-shadow var(--dur-fast); }
+.persona-chip:hover { background: var(--fill-hover); box-shadow: inset 0 0 0 1px var(--label-3); }
+.persona-chip:active { background: var(--fill-selected); }
+.persona-chip .avatar-dot { flex: none; }
+.persona-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.persona-chip-sub { flex: none; color: var(--label-2); }
+.who-persona { border: 0; background: var(--fill); color: var(--label); font: inherit; padding: 4px 8px; border-radius: var(--radius-control); cursor: pointer;
+  max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who-persona:hover { background: var(--fill-hover); }
+.modal-personas .sheet-head .pp-where { margin-right: auto; align-self: center; }
+.modal-personas .pk-layout { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
+.pp-row { position: relative; }
+.pp-row .pk-text { flex: 1; }
+.pp-row .badge { margin-left: 8px; }
+.pp-row .pp-now { flex: none; margin: 0; color: var(--dialogue); }
+.pk-pic.pp-symbol { color: var(--label-2); font-weight: 400; }
+.pp-name { min-width: 0; }
+.pp-name h3 { overflow-wrap: anywhere; }
+.pp-title { margin: 2px 0 0; font-family: var(--font-display, var(--font-prose)); font-size: 22px; font-weight: 400; }
+.pp-text { line-height: 1.6; max-width: 46ch; }
+.pp-versions { display: grid; gap: 6px; justify-items: start; }
+.pp-versions .segmented { max-width: 100%; overflow-x: auto; }
+.pp-label { font-size: 11px; color: var(--label-2); }
+.pp-meta { margin: 0; }
+.modal-personas .modal-foot { flex-wrap: wrap; row-gap: 8px; }
+@media (max-width: 1100px) { .modal-personas .pp-keys { display: none; } }

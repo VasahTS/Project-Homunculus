@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## Personas window + persona button under the message box (2026-11-08) — CLAUDE — D-096
+
+- A friend's feedback via Daniel: changing persona was hard to find. Drafts (canvas "Homunculus 2 — Personas"); Daniel picked A, asked for a Sort, Ctrl+P and the title "Personas". New `ui/PersonaPicker.tsx`; the button sits at the left of `.composer-meta`; WhoPicker's persona drop-downs became a row that opens the window. Personas sort by Recent / Most chats (chats that play each one, following story/default) — Library → Personas now defaults to Recent.
+- **To try:** open a chat → the "Daniel ▾" button under the box (or Ctrl+P) → search, pick a persona and a version → Play as. Make Default, Follow the default, No persona.
+- Checks: typecheck; 752 unit (3 skipped); click tests `personas-window` (new), `people` (version pick now in the window), `tracker-persona`, `ui-review-fixes`, `untracked-cards`, `cast`, `chat`, `collection-sort`, `library`, `quick-replies`, `navigation`, `stories`, `assistant-persona`, `inspector-overflow`, `quick-connect`, `collections` — passed. App screenshots compared with the draft (Observatory, 1440 and 1000 px).
+
 ## "From a card…": a story takes any card's scenario and greetings (2026-11-07) — CLAUDE — D-095
 
 - Daniel: copying a card's greetings/scenario into a story by hand (or via the Assistant) felt odd. Story/Kit page → How it starts → **From a card…** (Scenario) and **+ From a card's greetings…** (Openings) open the Add… window in a new browse mode: every card, the story's own first; the preview has the scenario and each greeting with its own button. `{{char}}` becomes the card's name (`cardTextForStory`). Replaces the old small menu (only the story's own cards, greetings only).

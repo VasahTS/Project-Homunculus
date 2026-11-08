@@ -1030,3 +1030,14 @@ Daniel: "in Stories, can you make it possible to pick the greetings of each card
 - Reuses the existing window (no new screen), so no separate draft.
 
 Signed: **CLAUDE**.
+
+## D-096 — The Personas window and the persona button under the message box (2026-11-08)
+
+A friend of Daniel's: "it's hard to find where to change persona; maybe a button that opens a window with all your personas, where you can search". The persona was a plain drop-down inside "with Lyra ▾" (Who is in this story), and the summary didn't mention you at all while you followed the default.
+- Drafts on the canvas "Homunculus 2 — Personas": A (button under the box), B (a pill in the top bar + quick menu), and the window as a grid. Daniel picked **A** with the list + preview window, asked for a **Sort**, **Ctrl+P**, and the title **"Personas"**.
+- **Under the message box, left:** a button with your picture, name, version and "(default)" / "(story)" when the chat follows one; "You" with no persona. Who writes on the left, who answers (the model, Quick Connection) on the right.
+- **The window** (`ui/PersonaPicker.tsx`, same layout as the Add… window, D-036): search (names, descriptions, versions), **Sort** (Recent, Most chats, A-Z… — the same remembered sort as Library → Personas), "This chat": **Follow the default** (or **the story** when the story sets one) and **No persona**, then every persona. A click only shows one; the preview has its versions, whole description, tokens, where it goes and its lorebooks; **Play as**, **Make Default**, **Edit**, **+ New Persona**, **Open Personas in the Library**. ↑ ↓, Enter plays, double click plays, Esc clears the search then closes.
+- **Ctrl+P** opens/closes it in a chat. "Who is in this story" keeps a "You play as" row that opens the same window (its drop-downs for persona and version are gone: one way to choose).
+- Sorting personas by **Recent / Most chats** counts the chats that play each one: a chat's own pick, else its story's, else the default persona. Library → Personas now opens on **Recent** too (was A-Z), like Characters and Stories.
+
+Signed: **CLAUDE**.

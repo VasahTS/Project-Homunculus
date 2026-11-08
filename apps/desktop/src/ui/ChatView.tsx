@@ -16,8 +16,10 @@ import { MemoryPane } from "./MemoryPane.tsx";
 import { DirectorPane, DirectorWindow } from "./DirectorPane.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
 import { SessionLorebooks } from "./LorePanels.tsx";
-import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, isTracked } from "@homunculus/core";
+import { REGEX_HTML, regexKey, applyBasicMacros, applyRegexScripts, DEFAULT_USER_NAME, effectiveCharacter, effectivePersona, isTracked, variantAvatarId } from "@homunculus/core";
 import { WhoPicker } from "./WhoPicker.tsx";
+import { PersonaPicker, type PersonaChoice } from "./PersonaPicker.tsx";
+import { AvatarDot } from "./Sidebar.tsx";
 import type { AppServices } from "../core-instance.ts";
 import { turns, useTurn, type LiveTurn, type StreamTo } from "../turns.ts";
 import type { ConnectionState } from "../connection.ts";
@@ -47,7 +49,7 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex, onOpenQuickReply, onError, onLibraryChanged }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex, onOpenQuickReply, onError, onLibraryChanged, onSetDefaultPersona, onOpenPersona }: {
   /** Ctrl+click on a quick reply, or "Edit sets" in the Prompt tab: Library → Quick Replies (D-090). */
   onOpenQuickReply?: ((setId?: string, replyId?: string) => void) | undefined;
   onError?: ((e: unknown) => void) | undefined;
@@ -113,6 +115,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   /** Regex scripts were allowed here (the Library and editors reload what is allowed). */
   onRegexChanged?: () => void;
   onOpenRegex?: () => void;
+  /** The Personas window (D-096): "Make Default", and Edit / New Persona / the Library page. */
+  onSetDefaultPersona?: (id: string) => void;
+  onOpenPersona?: (id: string | "new" | null) => void;
 }) {
   // regex scripts for drawing messages (global → preset → character, D-060)
   const [regex, setRegex] = useState<Awaited<ReturnType<typeof svc.chat.turns.regexForSession>>>({ scripts: [], ctx: { macros: (t) => t } });
@@ -563,6 +568,31 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const personaRaw = personaId ? personas.find((p) => p.id === personaId) : undefined;
   const persona = personaRaw ? effectivePersona(personaRaw, personaLayer ? personaLayer.personaVariantId ?? null : null) : undefined;
   const userName = persona?.name ?? DEFAULT_USER_NAME;
+  // the Personas window (D-096): the button under the box, "Who is in this story" and Ctrl+P open it
+  const [personasOpen, setPersonasOpen] = useState(false);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "p") return;
+      e.preventDefault();
+      setPersonasOpen((o) => !o);
+    };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, []);
+  const personaVariantId = personaLayer ? personaLayer.personaVariantId ?? null : null;
+  const personaPicture = personaRaw ? (personaVariantId ? avatars[variantAvatarId(personaRaw.id, personaVariantId)] : undefined) ?? avatars[personaRaw.id] : undefined;
+  const personaFollows = storySetup?.personaId !== undefined
+    ? { from: "story" as const, personaId: storySetup.personaId ?? null } : { from: "default" as const, personaId: defaultPersonaId };
+  const personaChoice: PersonaChoice = session.setup.personaId === undefined ? { kind: "follow" }
+    : session.setup.personaId === null ? { kind: "none" } : { kind: "persona", id: session.setup.personaId, variantId: session.setup.personaVariantId ?? null };
+  const playPersona = (c: PersonaChoice) => {
+    const setup = { ...session.setup };
+    if (c.kind === "follow") { delete setup.personaId; delete setup.personaVariantId; }
+    else if (c.kind === "none") { setup.personaId = null; setup.personaVariantId = null; }
+    else { setup.personaId = c.id; setup.personaVariantId = c.variantId; }
+    onChangeSession({ ...session, setup });
+  };
+  const personaVersion = personaRaw && personaVariantId ? personaRaw.variants.find((v) => v.id === personaVariantId)?.label : undefined;
 
   const speakerName = (m: Message) =>
     m.speaker.kind === "user" ? (persona?.name ?? "You")
@@ -706,8 +736,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                 onGo={(b) => goTo(b)} onRename={(b, name) => void renameBranch(b, name)} onDelete={(b) => void deleteBranch(b)}
                 onTree={() => setTreeOpen(true)} onSeparate={(b) => void separate(b.endId, b.name)} />
             )}
-            <WhoPicker session={session} characters={characters} personas={personas} defaultPersonaId={defaultPersonaId}
-              avatars={avatars} onChange={onChangeSession} story={storyInfo} npcs={npcs} />
+            <WhoPicker session={session} characters={characters}
+              avatars={avatars} onChange={onChangeSession} story={storyInfo} npcs={npcs}
+              persona={{ name: persona?.name ?? null, avatar: personaPicture, version: personaVersion, follows: personaChoice.kind === "follow" ? personaFollows.from : null }}
+              onOpenPersonas={() => setPersonasOpen(true)} />
             {visible.length > 0 && <ChatSize messages={visible.length}
               refreshKey={`${session.id}|${headId ?? ""}|${currentId ?? ""}|${busy ? 1 : 0}|${JSON.stringify(session.setup)}|${sceneKey}`}
               load={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, branchId: currentId }); }} />}
@@ -935,7 +967,17 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           </div>
           {/* UX review item 4 (D-078): the same shape as the Assistant's box — the model under the box opens Quick Connection;
               samplers stay a quiet link to the Prompt tab */}
-          <div className="composer-meta"><span className="composer-hint">{sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to {input.trim() ? "send" : "continue"} · {sendKey === "enter" ? "Shift+Enter" : "Enter"} for a new line</span>
+          <div className="composer-meta">
+            {/* D-096: who you play, always in sight where you write; the model is on the other side */}
+            <button type="button" className="persona-chip" data-testid="persona-chip" onClick={() => setPersonasOpen(true)}
+              aria-label={`Who you play: ${persona?.name ?? "no persona"}. Change persona`} title="Change persona (Ctrl+P)">
+              <AvatarDot name={persona?.name ?? "You"} avatar={personaPicture} size={18} />
+              <span className="persona-chip-name">{persona?.name ?? "You"}</span>
+              {personaVersion && <span className="persona-chip-sub">· {personaVersion}</span>}
+              {personaChoice.kind === "follow" && persona && <span className="persona-chip-sub">({personaFollows.from})</span>}
+              <span className="persona-chip-sub" aria-hidden>▾</span>
+            </button>
+            <span className="composer-hint">{sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to {input.trim() ? "send" : "continue"} · {sendKey === "enter" ? "Shift+Enter" : "Enter"} for a new line</span>
             <span className="grow" />
             {(params.temperature !== undefined || params.reasoningEffort) && (
               <button type="button" className="link quiet" onClick={() => { setTab("prompt"); if (!inspectorOpen) onToggleInspector(); }} title="Sampling: open the Prompt tab">
@@ -954,6 +996,13 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           </div>
         </form>
       </div>
+
+      {personasOpen && (
+        <PersonaPicker personas={personas} avatars={avatars} defaultPersonaId={defaultPersonaId} follows={personaFollows} current={personaChoice}
+          chatTitle={session.title} lorebookNames={Object.fromEntries(lorebooks.map((b) => [b.id, b.name]))}
+          onPlay={playPersona} onMakeDefault={(id) => onSetDefaultPersona?.(id)} onEdit={(id) => onOpenPersona?.(id)}
+          onNew={() => onOpenPersona?.("new")} onOpenLibrary={() => onOpenPersona?.(null)} onClose={() => setPersonasOpen(false)} />
+      )}
 
       {treeOpen && (
         <TreeSheet svc={svc} sessionId={session.id} title={session.title} info={branches} current={current} speakerName={speakerName}

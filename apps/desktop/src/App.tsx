@@ -1698,6 +1698,8 @@ export function App() {
         onNewTracker={() => openTracker("new", true)}
         focusMessageId={focusMessage?.sessionId === active.id ? focusMessage.messageId : null}
         onSaveNpcToVault={(d) => setSavingNpc({ draft: d, sessionId: active.id })}
+        onSetDefaultPersona={(id) => void setDefaultPersona(id)}
+        onOpenPersona={(id) => setView({ kind: "personas", id })}
         onSaveCharacter={async (c) => { await svc.store.saveCharacter(c); await refresh(svc); }}
         onLibraryChanged={() => void refresh(svc)}
         onOpenCharacter={(id) => setView({ kind: "characters", id, edit: true })}
@@ -1834,7 +1836,7 @@ export function App() {
         {noticeBar}
         <CollectionOrderContext.Provider value={{ store: svc.store, prefs: collPrefs,
           onSort: (key, sort, seed) => setPrefs(key)({ ...prefsOf(key), sort, sortSeed: seed }),
-          sources: { characters, stories, kits, narrators, npcs, personas, presets, lorebooks, trackers, agents, regex: globalRegex, trash }, sessions, lastTimes }}>
+          sources: { characters, stories, kits, narrators, npcs, personas, presets, lorebooks, trackers, agents, regex: globalRegex, trash }, sessions, lastTimes, defaultPersonaId }}>
         {mode === "assistant" ? (
           <AssistantView focusMessageId={focusMessage?.sessionId === asst.activeId ? focusMessage.messageId : null} svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary}
             listModels={listModels} onManageConnections={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }}

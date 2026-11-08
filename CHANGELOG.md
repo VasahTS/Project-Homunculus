@@ -3,6 +3,10 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
+## Unreleased
+
+- **Personas window:** your persona now sits under the message box (picture, name, version) — click it or press **Ctrl+P** to open **Personas**: search, sort (Recent, Most chats, A-Z…), see each persona's versions and whole description, then **Play as**, **Make Default** or **Edit**. "Follow the default" and "No persona" are there too, and "Who is in this story" opens the same window.
+
 ## 0.3.5 — 2026-11-07
 
 - **Stories: From a card…** — take the scenario and any greetings of any card in Characters, with a button for each, instead of copying and pasting. A card's {{char}} becomes its name in the story.

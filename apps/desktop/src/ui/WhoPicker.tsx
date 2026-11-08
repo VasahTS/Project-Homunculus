@@ -2,25 +2,25 @@
 // Author: CLAUDE, 2026-10-28 (slice 1, BLUEPRINT §2.2 and §2.5). Lives in the story's toolbar.
 // Changes are saved on the session and count from the next reply (each reply's receipt says what it used).
 // Slice 4 (2026-10-29, D-029): NPCs from the Vault can join a chat; a story session says who tells it.
+// D-096 (2026-11-08): the persona is chosen in the Personas window (search, versions); this row opens it.
 import { useEffect, useRef, useState } from "react";
-import type { Avatar, Character, Npc, Persona, Session } from "@homunculus/schemas";
-import { effectiveCharacter, effectivePersona, isTracked, npcTagline, variantAvatarId } from "@homunculus/core";
+import type { Avatar, Character, Npc, Session } from "@homunculus/schemas";
+import { effectiveCharacter, isTracked, npcTagline, variantAvatarId } from "@homunculus/core";
 import { Help } from "./Help.tsx";
 import { AvatarDot } from "./Sidebar.tsx";
 import { Switch } from "./kit.tsx";
 
-const INHERIT = "__default__";
-const NONE = "__none__";
 
-export function WhoPicker({ session, characters, personas, defaultPersonaId, avatars, onChange, story, npcs = [] }: {
+export function WhoPicker({ session, characters, avatars, onChange, story, npcs = [], persona, onOpenPersonas }: {
   session: Session;
   characters: Record<string, Character>;
-  personas: Persona[];
-  defaultPersonaId: string | null;
   avatars: Record<string, Avatar>;
   onChange: (s: Session) => void;
   story?: { name: string; narrator: string } | undefined;
   npcs?: Npc[];
+  /** Who you play, as the chat works it out (its own pick, the story's or the default). */
+  persona: { name: string | null; avatar: Avatar | undefined; version: string | undefined; follows: "story" | "default" | null };
+  onOpenPersonas: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -34,12 +34,6 @@ export function WhoPicker({ session, characters, personas, defaultPersonaId, ava
   }, [open]);
 
   const members = session.cast.filter((m) => m.characterId && characters[m.characterId]);
-  const ownPersona = session.setup.personaId !== undefined;
-  const personaId = ownPersona ? session.setup.personaId ?? null : defaultPersonaId;
-  const personaRaw = personaId ? personas.find((p) => p.id === personaId) : undefined;
-  const personaVariantId = ownPersona ? session.setup.personaVariantId ?? null : null;
-  const persona = personaRaw ? effectivePersona(personaRaw, personaVariantId) : undefined;
-  const defaultName = personas.find((p) => p.id === defaultPersonaId)?.name;
 
   const lead = members[0];
   const leadChar = lead ? characters[lead.characterId!] : undefined;
@@ -48,7 +42,7 @@ export function WhoPicker({ session, characters, personas, defaultPersonaId, ava
   const summary = [
     story ? `told by ${story.narrator}` : leadChar ? `with ${effectiveCharacter(leadChar, lead!.variantId).name}${leadVersion ? ` · ${leadVersion}` : ""}` : "no character",
     !story && inChat.length ? `+${inChat.length} NPC${inChat.length === 1 ? "" : "s"}` : null,
-    persona ? `as ${persona.name}` : null,
+    persona.name ? `as ${persona.name}` : null,
   ].filter(Boolean).join(" · ");
   const setNpcs = (npcIds: string[]) => onChange({ ...session, npcIds });
 
@@ -57,13 +51,6 @@ export function WhoPicker({ session, characters, personas, defaultPersonaId, ava
   /** Track in the Scene, for this chat (the card's own choice is the default, and is not stored again). D-065. */
   const setTracked = (c: Character, v: boolean) =>
     onChange({ ...session, cast: session.cast.map((m) => { if (m.characterId !== c.id) return m; const { tracked: _t, ...rest } = m; return v === (c.tracked ?? true) ? rest : { ...rest, tracked: v }; }) });
-  const setPersona = (value: string) => {
-    const setup = { ...session.setup };
-    if (value === INHERIT) { delete setup.personaId; delete setup.personaVariantId; }
-    else { setup.personaId = value === NONE ? null : value; setup.personaVariantId = null; }
-    onChange({ ...session, setup });
-  };
-  const setPersonaVariant = (variantId: string | null) => onChange({ ...session, setup: { ...session.setup, personaId, personaVariantId: variantId } });
 
   return (
     <span className="who-picker" ref={ref}>
@@ -92,13 +79,11 @@ export function WhoPicker({ session, characters, personas, defaultPersonaId, ava
             );
           })}
           <div className="who-row">
-            <AvatarDot name={persona?.name ?? "You"} avatar={personaRaw ? (personaVariantId ? avatars[variantAvatarId(personaRaw.id, personaVariantId)] : undefined) ?? avatars[personaRaw.id] : undefined} size={26} />
-            <span className="who-name label-row">You play as <Help text="Your persona: your name ({{user}}) and description in the story. 'Default' follows the default persona chosen in Personas." /></span>
-            <select aria-label="Persona" value={ownPersona ? session.setup.personaId ?? NONE : INHERIT} onChange={(e) => setPersona(e.target.value)}>
-              <option value={INHERIT}>Default ({defaultName ?? "none"})</option>
-              {personas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              <option value={NONE}>No persona (“User”)</option>
-            </select>
+            <AvatarDot name={persona.name ?? "You"} avatar={persona.avatar} size={26} />
+            <span className="who-name label-row">You play as <Help text="Your persona: your name ({{user}}) and description in the story. Change it here, with the button under the message box, or with Ctrl+P." /></span>
+            <button type="button" className="who-persona" data-testid="who-persona" onClick={() => { setOpen(false); onOpenPersonas(); }}>
+              {persona.name ?? "No persona"}{persona.version ? ` · ${persona.version}` : ""}{persona.follows && persona.name ? ` (${persona.follows})` : ""} <span aria-hidden>▾</span>
+            </button>
           </div>
           {!story && (
             <div className="who-npcs" data-testid="chat-npcs">
@@ -116,15 +101,6 @@ export function WhoPicker({ session, characters, personas, defaultPersonaId, ava
                   {npcs.filter((n) => !session.npcIds.includes(n.id)).map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
                 </select>
               ) : inChat.length === 0 && <p className="hint">No NPCs in the Vault yet.</p>}
-            </div>
-          )}
-          {personaRaw && personaRaw.variants.length > 0 && (
-            <div className="who-row">
-              <span className="who-name indent">{personaRaw.name} version</span>
-              <select aria-label="Persona version" value={personaVariantId ?? ""} onChange={(e) => setPersonaVariant(e.target.value || null)}>
-                <option value="">Main</option>
-                {personaRaw.variants.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-              </select>
             </div>
           )}
           <p className="hint">Changes count from the next reply.</p>

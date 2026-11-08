@@ -8,12 +8,12 @@ export const object = (x: unknown): Record<string, unknown> => x && typeof x ===
 export const sortItem = (x: unknown) => { const r = object(x); return r.agent ? object(r.agent) : r; };
 export const itemId = (x: unknown) => { const r = sortItem(x); const id = String(r.id ?? ""); return typeof r.trashedAt === "number" ? `${r.kind}:${id}` : id; };
 export const prefKey = (kind: string) => ["stories", "kits", "narrators", "npcs"].includes(kind) ? `vault-${kind}` : kind;
-export const defaultSort = (kind: string): SortMode => ["characters", "stories"].includes(kind) ? "recent" : ["agents", "regex", "narrators"].includes(kind) ? "original" : kind === "trash" ? "newest" : "az";
+export const defaultSort = (kind: string): SortMode => ["characters", "stories", "personas"].includes(kind) ? "recent" : ["agents", "regex", "narrators"].includes(kind) ? "original" : kind === "trash" ? "newest" : "az";
 export function sortOptions(kind: string): SortMode[] {
   if (kind === "regex") return ["original", "az", "za", "random"];
   const modes: SortMode[] = ["az", "za", "newest", "oldest", "added"];
   if (kind === "characters") modes.push("favorites");
-  if (["characters", "stories"].includes(kind)) modes.push("recent", "mostChats", "leastChats");
+  if (["characters", "stories", "personas"].includes(kind)) modes.push("recent", "mostChats", "leastChats");
   if (kind !== "trash") modes.push("mostTokens", "leastTokens");
   modes.push("random");
   return ["agents", "narrators"].includes(kind) ? ["original", ...modes] : modes;
