@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## JanitorAI in the Card Browser (2026-11-08) — CLAUDE — D-098
+
+- Daniel asked to try Glaze's JanitorAI scraper in the app. T-013 is unparked: **Card Browser → source JanitorAI**. Guests can search; **Sign In…** shows JanitorAI's own window on its sign-in page (the app never sees the password or token; on return the line says "Signed in to JanitorAI as …"). Public cards are added with their public lorebooks; cards with a **hidden definition** can be read but Add / Save as PNG are off. Glaze's hidden-definition extraction stays out (D-081).
+- Native: `src-tauri/src/janitor.{rs,js}`, `capabilities/janitor.json`, `permissions/janitor.toml`; the main window closing also destroys the JanitorAI window. Package: `sources/janitor.ts`. UI: `ui/JanitorAccount.tsx`, small changes in `CardBrowser.tsx` (All Sites skips JanitorAI; Cloudflare notice → Open JanitorAI + Try Again; hidden reason under the sheet's buttons).
+- **To try (Windows):** Card Browser → JanitorAI → a search as a guest → a card with a public definition → Add to Characters (check its lorebook) → a hidden one (Add off) → Sign In… (email, then Google) → back in the app → Sign Out. If a search hangs ~25 s, press **Open JanitorAI** (its browser check).
+- Checks: typecheck; 762 unit (3 skipped; new `packages/card-browser/test/janitor.test.ts`); cargo test --lib 33 (5 new, Linux); click tests `card-browser-janitor` (4, new), `card-browser`, `card-browser-all-sites`, `card-browser-details`, `card-browser-pictures` — passed. The live site was not reachable from the dev machine (JanitorAI answers "Access Restricted"), and the Windows-only user-agent line was not compiled here.
+
 ## Prepare the 0.3.6 release (2026-11-08) — CODEX
 
 - The release packages the seven commits after 0.3.5, through 02066a2. The 0.3.6 changelog covers Personas, interface sizing, mouse back and forward, and chat and Director fixes.

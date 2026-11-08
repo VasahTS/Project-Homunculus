@@ -1,0 +1,16 @@
+{
+  "identifier": "janitor",
+  "description": "JanitorAI's own page may only return the pending read-only response. CLAUDE, 2026-11-08 (D-098).",
+  "windows": [
+    "janitor"
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "https://janitorai.com"
+    ]
+  },
+  "permissions": [
+    "allow-janitor-report"
+  ]
+}

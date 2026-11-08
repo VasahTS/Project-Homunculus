@@ -1053,3 +1053,14 @@ Daniel: "make every window, tab etc. work with M4 and M5". Before, only folders 
 - Not moves: settings-like switches (card size, Folders/Everything, per-item options) and the connection picked in Settings (going back there could drop unsaved edits without asking). A page that opens its first item by itself (Presets, Personas, Trackers) says so (`quietNextScreen`) and adds no step.
 
 Signed: **CLAUDE**.
+
+## D-098 — JanitorAI in the Card Browser, through its own window (2026-11-08)
+
+Daniel (translated): "I wanted to try that JanitorAI scraper; look at Glaze and find a way to integrate it into the app." T-013 (parked since D-081) is unparked and built by Claude.
+- **How:** the same shape as BotBooru's account window (CODEX, 2026-11-02): a hidden window `janitor` on `https://janitorai.com` (its own profile in `janitor-browser/` in the data folder) runs fixed read-only GETs *inside the page* (`src-tauri/src/janitor.{rs,js}`), so JanitorAI's Cloudflare check and the user's sign-in stay there; the answer comes back through `janitor_report`, the only command `capabilities/janitor.json` grants that origin. Allowed paths: the catalog (`page`, `mode`, `sort`, `search`, `tag_id[]`, `custom_tags[]`), one character, one public script, the tag list, the signed-in name, Sign Out. One pending request, a random id, 25 s for the page to be ready, 35 s for the answer, 8 MiB. Nothing writes to the account.
+- **Sign-in:** optional — guests can search. **Sign In…** shows the window on JanitorAI's sign-in page; the person signs in there (Google/Discord pass through: the window may visit any https page, but only JanitorAI's own page can talk to the app). Back in the app, the line says "Signed in to JanitorAI as …" and the search runs again. On Windows the window presents itself as Chrome of the same version (Google refuses "Edg" WebViews), as Glaze does. The token is read only inside the page; the app learns only the account's name.
+- **Cards:** curated tags go by id, any other tag as text; NSFW = `mode=all`. A card whose creator left the definition public is added with its public lorebooks merged into the card's book (scripted "advanced" books are skipped). A card whose definition is **hidden** shows its public parts (picture, bio, greetings) with "The creator keeps this card's definition hidden, so it can't be added." — Add and Save as PNG are off. Glaze's extraction of hidden definitions stays out (D-081 unchanged).
+- **All Sites** leaves JanitorAI out (it needs its own window first; `CardSource.separate`). Cloudflare: the notice offers **Open JanitorAI** (the app's window, not the system browser) and **Try Again**.
+- **Not verified yet:** the live site from Daniel's PC (the dev machine gets JanitorAI's "Access Restricted" page); Google sign-in inside WebView2; WebKitGTK on Linux beyond compiling.
+
+Signed: **CLAUDE**.

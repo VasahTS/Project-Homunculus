@@ -7,6 +7,7 @@ import { wyvern } from "./sources/wyvern.ts";
 import { pygmalion } from "./sources/pygmalion.ts";
 import { datacat } from "./sources/datacat.ts";
 import { botbooru } from "./sources/botbooru.ts";
+import { janitor } from "./sources/janitor.ts";
 
 export * from "./types.ts";
 export * from "./pauses.ts";
@@ -14,8 +15,9 @@ export { buildCard, detailsFromCard, plain, slugify } from "./build.ts";
 export { parseJannyPage, searchKey, resetJannyKey } from "./sources/janny.ts";
 export { wyvernAvatarUrl } from "./sources/wyvern.ts";
 export { datacatAvatarUrl, resetDatacat } from "./sources/datacat.ts";
+export { HIDDEN_DEFINITION, janitorAvatarUrl, janitorSearchUrl, resetJanitor } from "./sources/janitor.ts";
 
-/** In the source picker's order (UI-PLAN "Card Browser"). DataCat: Daniel's choice (D-081). */
-export const CARD_SOURCES: CardSource[] = [chub, janny, wyvern, pygmalion, datacat, botbooru];
+/** In the source picker's order (UI-PLAN "Card Browser"). DataCat: Daniel's choice (D-081). JanitorAI: D-098. */
+export const CARD_SOURCES: CardSource[] = [chub, janny, wyvern, pygmalion, datacat, botbooru, janitor];
 export const cardSource = (id: string): CardSource => CARD_SOURCES.find((s) => s.id === id) ?? chub;
 export const isSourceId = (id: unknown): id is SourceId => CARD_SOURCES.some((s) => s.id === id);

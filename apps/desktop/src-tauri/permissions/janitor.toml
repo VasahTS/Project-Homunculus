@@ -1,0 +1,5 @@
+# JanitorAI's page may only return its pending read-only response. CLAUDE, 2026-11-08 (D-098).
+[[permission]]
+identifier = "allow-janitor-report"
+description = "Return one bounded JanitorAI response."
+commands.allow = ["janitor_report"]

@@ -19,9 +19,17 @@ export interface SiteResponse {
   mime?: string;
 }
 export interface BotbooruAccountState { username: string | null; showNsfw: boolean; showNsfl: boolean }
-export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse>; decodeCard?(bytes: Uint8Array): Record<string, unknown>; botbooruAccount?(action: "status" | "open" | "logout"): Promise<BotbooruAccountState> }
+/** JanitorAI's own window: who is signed in there (null = browsing as a guest). D-098. */
+export interface JanitorAccountState { username: string | null }
+export interface SiteTransport {
+  request(input: SiteRequest): Promise<SiteResponse>;
+  decodeCard?(bytes: Uint8Array): Record<string, unknown>;
+  botbooruAccount?(action: "status" | "open" | "logout"): Promise<BotbooruAccountState>;
+  /** "open" shows its sign-in page, "show" the window as it is (for its browser check). */
+  janitorAccount?(action: "status" | "open" | "show" | "logout"): Promise<JanitorAccountState>;
+}
 
-export type SourceId = "chub" | "janny" | "wyvern" | "pygmalion" | "datacat" | "botbooru";
+export type SourceId = "chub" | "janny" | "wyvern" | "pygmalion" | "datacat" | "botbooru" | "janitor";
 export type MustHave = "lorebook" | "greetings" | "gallery" | "expressions";
 
 export interface CardFilters { must: MustHave[]; ascending: boolean; minTokens?: number; maxTokens?: number; lowQuality: boolean }
@@ -61,6 +69,8 @@ export interface CardDetails {
   tags: string[];
   /** Only the basics came back (the site refused the full details). */
   partial?: boolean;
+  /** Why this card can't be added (e.g. the creator hides its definition); the sheet shows it and turns Add off. */
+  hidden?: string;
 }
 /** A ready card PNG, or a V2 card object built from the site's fields plus its picture. */
 export type CardFile =
@@ -83,6 +93,8 @@ export interface CardSource {
   ascending: boolean;
   tokens: boolean;
   lowQuality: boolean;
+  /** Left out of All Sites (it needs its own window first). */
+  separate?: boolean;
   /** Tags to suggest before any search. */
   suggestedTags: string[];
   /** Tags the site lists itself (loaded once); used when there are no suggested ones. */

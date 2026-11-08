@@ -1,6 +1,6 @@
 // Card Browser desktop transport and browser-test seam. CODEX, 2026-11-02 (T-007).
 import { base64ToBytes, importCardPng } from "@homunculus/st-cards";
-import type { BotbooruAccountState } from "@homunculus/card-browser";
+import type { BotbooruAccountState, JanitorAccountState } from "@homunculus/card-browser";
 import { isDesktop } from "./db.ts";
 
 export interface SiteRequest {
@@ -21,7 +21,13 @@ export interface SiteResponse {
   bytes?: Uint8Array;
   mime?: string;
 }
-export interface SiteTransport { request(input: SiteRequest): Promise<SiteResponse>; decodeCard?(bytes: Uint8Array): Record<string, unknown>; botbooruAccount?(action: "status" | "open" | "logout"): Promise<BotbooruAccountState> }
+export interface SiteTransport {
+  request(input: SiteRequest): Promise<SiteResponse>;
+  decodeCard?(bytes: Uint8Array): Record<string, unknown>;
+  botbooruAccount?(action: "status" | "open" | "logout"): Promise<BotbooruAccountState>;
+  /** "open" shows its sign-in page, "show" the window as it is (for its browser check). */
+  janitorAccount?(action: "status" | "open" | "show" | "logout"): Promise<JanitorAccountState>;
+}
 type NativeResponse = Omit<SiteResponse, "bytes"> & { base64?: string };
 
 // Prefer Marinara's browser route; a challenged download can complete in the site's own native session.
@@ -53,6 +59,20 @@ export const desktopCardSites: SiteTransport = {
     const a = JSON.parse(r.text ?? "{}");
     return { username: typeof a.username === "string" ? a.username : null, showNsfw: a.showNsfw === true, showNsfl: a.showNsfl === true };
   },
+  // JanitorAI's own window (D-098): "open" shows its sign-in page; the app only ever learns the account's name.
+  async janitorAccount(action) {
+    if (!isDesktop) {
+      const fake = (globalThis as { __h2FakeCardSites?: SiteTransport }).__h2FakeCardSites;
+      if (fake?.janitorAccount) return fake.janitorAccount(action);
+      throw new Error("JanitorAI works in the desktop app.");
+    }
+    const { invoke } = await import("@tauri-apps/api/core");
+    if (action === "open" || action === "show") { await invoke("janitor_window", { signIn: action === "open" }); return { username: null }; }
+    const r = await invoke<NativeResponse>("janitor_request", { path: action === "logout" ? "logout" : "/hampter/profiles/mine" });
+    if (r.status !== 200) throw new Error("Open JanitorAI to finish its browser check, then refresh.");
+    const a = JSON.parse(r.text ?? "{}");
+    return { username: typeof a.username === "string" && a.username ? a.username : null };
+  },
   decodeCard: (bytes) => importCardPng(bytes).character.original as Record<string, unknown>,
   async request(request) {
     if (!isDesktop) {
@@ -65,8 +85,12 @@ export const desktopCardSites: SiteTransport = {
     const { invoke } = await import("@tauri-apps/api/core");
     const botbooru = new URL(request.url).origin === "https://botbooru.com" && request.expect === "json";
     if (botbooru && (request.method !== "GET" || request.body || Object.keys(request.headers ?? {}).length)) throw new Error("BotBooru supports fixed read-only requests.");
-    let native = botbooru
-      ? await invoke<NativeResponse>("botbooru_request", { path: new URL(request.url).pathname + new URL(request.url).search })
+    // JanitorAI's API answers only inside its own page (Cloudflare); read-only GETs go there (D-098)
+    const janitor = new URL(request.url).origin === "https://janitorai.com" && request.expect === "json";
+    if (janitor && (request.method !== "GET" || request.body || Object.keys(request.headers ?? {}).length)) throw new Error("JanitorAI supports fixed read-only requests.");
+    const path = new URL(request.url).pathname + new URL(request.url).search;
+    let native = botbooru ? await invoke<NativeResponse>("botbooru_request", { path })
+      : janitor ? await invoke<NativeResponse>("janitor_request", { path })
       : await invoke<NativeResponse>("card_site_request", { request });
     if (jannyJson && request.url === "https://api.jannyai.com/api/v1/download" && native.cfMitigated && [403, 503].includes(native.status)) {
       try { const body = JSON.parse(request.body ?? "{}"); const recovered = await invoke<NativeResponse>("janny_card_url", { characterId: body.characterId }); if ((recovered.status >= 200 && recovered.status < 300) || recovered.status === 429) native = recovered; } catch { /* Preserve the original refusal and recovery actions. */ }

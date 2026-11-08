@@ -1,7 +1,7 @@
 # Card Browser — technical plan
 
 Author: CLAUDE, 2026-11-02. Status: **built** on `ui` (T-007 by CODEX; T-008 … T-012 by Claude the same night, at Daniel's request). The screen's behaviour is in `docs/UI-PLAN.md` → "Card Browser" (waits for Daniel's OK);
-the work is split into CODEX cards T-007 … T-013 in `docs/CODEX-TASKS.md`, in this order: T-007 native request → T-008 package + ChubAI → T-009 import path → T-010 the screen, finished (usable with ChubAI from here) → T-011 Wyvern, Pygmalion, DataCat → T-012 JannyAI. T-013 JanitorAI (sign-in window) is parked. Claude reviews each card's diff. BLUEPRINT §8 (`card-browser` module), §10 slice 9.
+the work is split into CODEX cards T-007 … T-013 in `docs/CODEX-TASKS.md`, in this order: T-007 native request → T-008 package + ChubAI → T-009 import path → T-010 the screen, finished (usable with ChubAI from here) → T-011 Wyvern, Pygmalion, DataCat → T-012 JannyAI. T-013 JanitorAI (sign-in window) was built on 2026-11-08 (D-098). Claude reviews each card's diff. BLUEPRINT §8 (`card-browser` module), §10 slice 9.
 
 **What it is:** find character cards on public sites (ChubAI, JannyAI, Wyvern, Pygmalion, DataCat), read them, and add them to
 Characters in one click — without downloading a file and importing it by hand. v1 had it (`classic-card-browser.js`); Marinara too
@@ -148,7 +148,7 @@ fixtures follow v1's shapes; Wyvern and Pygmalion fixtures were recorded live.
 - **Live check** (CODEX on Daniel's PC, desktop app): one search + one import per source; write what worked in the report. Sites
   change without warning; a failing source must fail with its message, never break the screen.
 
-## 7. JanitorAI (T-013) — from Glaze · ⏸ parked (Daniel, 11/02: "leave JanitorAI aside for now")
+## 7. JanitorAI (T-013) — from Glaze · ✅ built 2026-11-08 (D-098); the notes below are the plan it followed
 
 Reference: Glaze (github.com/hydall/Glaze, Flutter, AGPL-3.0) at f1fe39e, `lib/features/catalog/services/`:
 `janitor_webview_proxy.dart` (2,047 lines), `janitor_provider.dart`, `janitor_public_lorebook.dart`, `janitor_session.dart`;
@@ -164,7 +164,10 @@ public lorebooks: `GET /hampter/script/{id}`; pictures from `ella.janitorai.com/
 **What we take:** the hidden-WebView idea, the endpoints, the field mapping (`_convertToGlaze`, greetings normalisation, tag ids),
 public lorebooks, the "signed in / signed out / Cloudflare" states.
 
-**In Tauri:** a second webview window labelled `janitor` on `https://janitorai.com` (shown for sign-in, hidden otherwise). The app
+**As built (D-098):** it reuses BotBooru's account-window shape (`botbooru.rs`, CODEX) rather than a nonce map: `janitor.rs` / `janitor.js`,
+`janitor_window` (Sign In… / show), `janitor_request` (fixed GET paths only), `janitor_report`; sign-in is optional; All Sites skips it.
+
+**In Tauri (plan):** a second webview window labelled `janitor` on `https://janitorai.com` (shown for sign-in, hidden otherwise). The app
 asks it to run a fixed request script with `eval`; the script posts its answer back through **one** command,
 `janitor_report({ nonce, status, body })`, the only command that capability grants to the remote origin `https://janitorai.com`
 (Tauri `remote.urls`). Rust keeps a map nonce → waiting request (random nonce per request, 30 s timeout, 8 MB cap); anything

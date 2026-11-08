@@ -86,7 +86,7 @@ Between runs: last source, sort and NSFW per source, card size, folder, Import T
 Selecting several cards and adding them together; "update available" for cards added earlier; PlotLight and CharacterTavern;
 Pygmalion login; personas from sites.
 
-### JanitorAI (T-013) — ⏸ parked (Daniel, 11/02: "leave JanitorAI aside for now"); kept for later
+### JanitorAI (T-013) — ✅ built 2026-11-08 (D-098). Changes from this text: signing in is optional (guests can search); the line is "Signed in to JanitorAI as <name> · Sign Out · Refresh" under the toolbar, not in the source menu; All Sites leaves JanitorAI out
 - JanitorAI needs the user's own account and sits behind Cloudflare, so it works through a **JanitorAI window**: picking the
   source the first time shows "JanitorAI needs you to sign in. **Sign In…**" → a window with janitorai.com opens; Daniel signs in
   there himself (the app never sees the password) and closes it. Then it is searched like the other sites.

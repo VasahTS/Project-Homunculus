@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 mod janny;
 mod botbooru;
+mod janitor;
 
 // ---- Where the app keeps its data (D-030, CLAUDE 2026-10-29: portable mode, like SillyTavern).
 // Portable: a file `portable.txt` next to Homunculus.exe → everything (database, backups, API keys,
@@ -626,12 +627,13 @@ pub fn run() {
     tauri::Builder::default()
         .manage(janny::JannyBridge::default())
         .manage(botbooru::BotbooruBridge::default())
+        .manage(janitor::JanitorBridge::default())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
         // A hidden account window must not keep the app alive after its main window closes. CODEX, 2026-11-02.
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
-                if let Some(account) = window.app_handle().get_webview_window("botbooru") { let _ = account.destroy(); }
+                for label in ["botbooru", "janitor"] { if let Some(account) = window.app_handle().get_webview_window(label) { let _ = account.destroy(); } }
             }
         })
         .setup(|app| {
@@ -704,7 +706,10 @@ pub fn run() {
             janny::janny_card_report,
             botbooru::botbooru_window,
             botbooru::botbooru_request,
-            botbooru::botbooru_report
+            botbooru::botbooru_report,
+            janitor::janitor_window,
+            janitor::janitor_request,
+            janitor::janitor_report
         ])
         .run(tauri::generate_context!())
         .expect("error while running Homunculus");

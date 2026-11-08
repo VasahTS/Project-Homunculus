@@ -9,6 +9,7 @@ import type { BotbooruAccountState, CardDetails, CardFile, CardFilters, CardItem
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
 import { recordMove, useLive } from "./back-button.ts";
 import { BotbooruAccount } from "./BotbooruAccount.tsx";
+import { JanitorAccount } from "./JanitorAccount.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { Help } from "./Help.tsx";
 import { CardPicture, GalleryCard } from "./Gallery.tsx";
@@ -158,7 +159,7 @@ function useOnScreen<T extends Element>(): [RefObject<T | null>, boolean] {
 }
 
 // ------------------------------------------------------------------ helpers
-const NSFW_NOTE: Record<BrowseSourceId, string> = { all: "Search across card sites", chub: "Adult cards with NSFW on", janny: "Adult cards with NSFW on", wyvern: "Adult cards with NSFW on", pygmalion: "Safe cards only", datacat: "Adult cards only", botbooru: "NSFW and NSFL with your account" };
+const NSFW_NOTE: Record<BrowseSourceId, string> = { all: "Search across card sites", chub: "Adult cards with NSFW on", janny: "Adult cards with NSFW on", wyvern: "Adult cards with NSFW on", pygmalion: "Safe cards only", datacat: "Adult cards only", botbooru: "NSFW and NSFL with your account", janitor: "Adult cards with NSFW on" };
 const MUST_LABEL: Record<MustHave, string> = { lorebook: "Has Lorebook", greetings: "Has Alternate Greetings", gallery: "Has Gallery", expressions: "Has Expressions" };
 const MUST_SHORT: Record<MustHave, string> = { lorebook: "Lorebook", greetings: "Alternate Greetings", gallery: "Gallery", expressions: "Expressions" };
 const fmt = (n: number | undefined) => (n === undefined ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n));
@@ -288,7 +289,13 @@ export function CardBrowser(p: CardBrowserProps) {
     for (const k of pictures.keys()) if (k.startsWith("https://botbooru.com/")) pictures.delete(k);
     pauses.verified("botbooru"); setAccount(a); setAccountEpoch((x) => x + 1);
   }, []);
-  const key = JSON.stringify([sourceId, text.trim(), sort, include, exclude, filters, nsfw, dataCatAllowed, sourceId === "botbooru" || !source ? accountEpoch : 0]);
+  // JanitorAI's sign-in changed, or its browser check passed (Refresh): forget what came from it and search again (D-098)
+  const janitorChanged = useCallback(() => {
+    ++seq.current; setBusy(null); setItems([]); setSelected(null); setSeenTags([]); setError(null);
+    for (const k of details.keys()) if (k.startsWith("janitor:")) details.delete(k);
+    pauses.verified("janitor"); setAccountEpoch((x) => x + 1);
+  }, []);
+  const key = JSON.stringify([sourceId, text.trim(), sort, include, exclude, filters, nsfw, dataCatAllowed, sourceId === "botbooru" || sourceId === "janitor" || !source ? accountEpoch : 0]);
   const lastKey = useRef(restore?.key ?? "");
 
   const run = async (mode: SearchMode) => {
@@ -315,6 +322,7 @@ export function CardBrowser(p: CardBrowserProps) {
         }
         await Promise.all(CARD_SOURCES.map(async (site) => {
           if (site.nsfw === "always" && !dataCatAllowed) return;
+          if (site.separate) return; // JanitorAI: its own window first (D-098)
           const state = progress.get(site.id);
           const sitePage = mode === "search" ? 1 : state?.nextPage;
           if (!sitePage || (mode === "retry" && !state?.failure) || (more && state?.failure)) return;
@@ -456,6 +464,7 @@ export function CardBrowser(p: CardBrowserProps) {
         <span className="collection-right"><SizeSwitch prefs={{ view: "everything", size: prefs.size }} onPrefs={(x) => setPrefs((y) => ({ ...y, size: x.size }))} /></span>
       </div>
       {(!source || sourceId === "botbooru") && <BotbooruAccount transport={p.transport} onChange={accountChanged} />}
+      {sourceId === "janitor" && <JanitorAccount transport={p.transport} onChange={janitorChanged} />}
       {(include.length > 0 || exclude.length > 0 || activeFilters > 0) && (
         <div className="cb-chips" data-testid="cb-chips">
           {include.map((t) => <button key={`+${t}`} type="button" className="cb-chip" onClick={() => setTag(t, null)}>{t} <Icon name="close" size={11} /></button>)}
@@ -498,7 +507,10 @@ export function CardBrowser(p: CardBrowserProps) {
             : <div className="cb-notice gallery-empty" data-testid="cb-notice">
                 <p>{error.message}</p>
                 <div className="cb-notice-actions">
-                  {error.paused
+                  {error.paused && source.id === "janitor"
+                    ? <><Button onClick={() => void p.transport.janitorAccount?.("show")}>Open JanitorAI</Button>
+                        <Button onClick={janitorChanged}>Try Again</Button></>
+                    : error.paused
                     ? <><Button onClick={() => void openLink(source.site)}>Open {source.name}</Button>
                         <Button onClick={() => fileInput.current?.click()}>Import a Downloaded File…</Button></>
                     : <Button onClick={() => void run("search")}>Try Again</Button>}
@@ -602,8 +614,8 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
         {mine
           ? <>{justAdded ? <Button variant="prominent" data-testid="cb-chat" onClick={() => onChat(mine)}>Chat Now</Button>
                         : <Button variant="prominent" data-testid="cb-open" onClick={() => onOpenCharacter(mine)}>Open in Characters</Button>}</>
-          : <Button variant="prominent" data-testid="cb-add" disabled={working !== null} onClick={() => void add()}>{working === "add" ? "Adding…" : "Add to Characters"}</Button>}
-        <Button data-testid="cb-png" disabled={working !== null} onClick={() => void png()}>{working === "png" ? "Saving…" : "Save as PNG"}</Button>
+          : <Button variant="prominent" data-testid="cb-add" disabled={working !== null || !!full?.hidden} title={full?.hidden} onClick={() => void add()}>{working === "add" ? "Adding…" : "Add to Characters"}</Button>}
+        <Button data-testid="cb-png" disabled={working !== null || !!full?.hidden} title={full?.hidden} onClick={() => void png()}>{working === "png" ? "Saving…" : "Save as PNG"}</Button>
         <Button onClick={() => void openLink(item.url)}>Open on {source.name}</Button>
   </>;
   const by = [item.creator && `by ${item.creator}`, figs].filter(Boolean).join(" · ");
@@ -618,6 +630,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
           {menu && <span className="cb-pop cb-pop-right" role="menu"><button type="button" role="menuitem" data-testid="cb-add-again" onClick={() => void add()}>Add Again</button></span>}
         </span>}
       </div>
+      {full?.hidden && <p className="hint cb-hidden" data-testid="cb-hidden">{full.hidden}</p>}
       <button type="button" className="vs-pic-read" aria-label={`Read ${item.name} full window`} onClick={() => setReading(true)}><CardPicture name={item.name} avatar={pic} className="vs-pic" /></button>
       {reading && <CardReader name={item.name} where={`Card Browser · ${source.name}`} byline={by} picture={pic} tags={tags}
         actions={mainActions} greetings={greetings} greetingLabel="First Message" renderText={(t) => <Linked text={t} />}
@@ -638,7 +651,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
       {badges.length > 0 && <div className="vs-tags cb-badges">{badges.map((b) => <span key={b} className="gallery-tag big">{b}</span>)}</div>}
 
       {justAdded && <p className="hint cb-in" data-testid="cb-in">In your Characters · <a href="#" onClick={(e) => { e.preventDefault(); onOpenCharacter(justAdded); }}>Open</a></p>}
-      {!mine && (
+      {!mine && !full?.hidden && (
         <div className="cb-add-options">
           <label className="row-line"><span className="field-label">Folder</span>
             {naming === null
