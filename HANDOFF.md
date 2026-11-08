@@ -1,5 +1,23 @@
 # HANDOFF — Homunculus 2
 
+## ▶ Where the JanitorAI session stopped (2026-11-08, 09:45) — CLAUDE — read this first to continue
+
+**State:** JanitorAI is a Card Browser source (D-098) and hidden cards can be extracted like Glaze (D-099). **Daniel's first live extraction worked** on Windows ("Sarah": hidden description recovered, card added). Everything is on `dev` (last commit 58f3bc7); Daniel's `Homunculus-dev` folder got the files written directly (not through git), so he should **Pull origin** on `dev` — the files are already identical, the changes just vanish.
+
+**Fixed after live tries:**
+- JanitorAI returns the new chat's id as a **number**; only text was accepted → "JanitorAI did not open a chat." Fixed (d54c4f3). Two failed tries left chats behind on his account ("Oh my god, is this yours?", "Stranger in the Dark") — asked him to delete them by hand.
+- The Added notice said both "1 entry rebuilt" and "the AI could not split the closed lore" (the count included the text fallback). Now "rebuilt" counts only the AI's entries, the note says **why** the AI failed (empty answer / not JSON with its start / the connection's error), and the rebuild call asks for up to **8192 tokens** (58f3bc7).
+
+**Open — next steps:**
+1. **Why the AI didn't rebuild Sarah's closed lore** — waiting for Daniel's next try with the new notice (he was asked to delete Sarah and extract again). Likely a small reply limit on his default connection, or a reasoning-only/empty answer.
+2. **"Rate limited" flashes** during the run: expected — JanitorAI's page shows an error when it tries the unreachable temporary proxy, after the prompt was already captured. Confirm nothing else (e.g. JanitorAI's own 429 on the API calls) if it keeps happening.
+3. **Check his account is clean** after a run: no leftover chat, `{{user}}` persona or temporary proxy preset, his own proxy / model / context length selected again.
+4. **Robustness:** if a chat is created but a later step fails before its id is read, it stays on the account — consider finding it by character id and deleting it.
+5. **Not ported from Glaze yet** (D-099): re-sending the trigger in pieces when lore hits JanitorAI's cap, the field diff (lore written into card fields), scripted ("advanced") lorebooks rebuilt by AI, trigger-context choices.
+6. Not verified: Google sign-in in the JanitorAI window, Linux/WebKitGTK at runtime.
+
+**Session notes:** Glaze reference clone was at hydall/Glaze f1fe39e. The dev machine can't reach janitorai.com ("Access Restricted"); test live only on Daniel's PC. Writing files to his PC: a re-used upload path once wrote the **old** file — use a fresh output path per write and check the size after.
+
 ## JanitorAI: extract hidden cards like Glaze (2026-11-08) — CLAUDE — D-099
 
 - Daniel: make the scraper like Glaze's. A hidden card's sheet now offers **Extract and Add** (signed in): JanitorAI's window shows, a temporary proxy/persona/chat is made on his account, the assembled prompt is read, everything is put back, and the card comes in with its public lorebooks + the closed lore rebuilt into keyed entries by the default AI connection (switched-off text entries without one). First use shows a one-time notice (risks). Cards locked to JanitorAI's model can't be extracted.
