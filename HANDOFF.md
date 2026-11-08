@@ -2,6 +2,8 @@
 
 ## ▶ Where the JanitorAI session stopped (2026-11-08, 09:45) — CLAUDE — read this first to continue
 
+**Full technical notes (read before touching it): `docs/JANITOR-EXTRACTION.md`** — the trick, file map, the run step by step, the native allow-list, gaps in order, testing and file-writing notes.
+
 **State:** JanitorAI is a Card Browser source (D-098) and hidden cards can be extracted like Glaze (D-099). **Daniel's first live extraction worked** on Windows ("Sarah": hidden description recovered, card added). Everything is on `dev` (last commit 58f3bc7); Daniel's `Homunculus-dev` folder got the files written directly (not through git), so he should **Pull origin** on `dev` — the files are already identical, the changes just vanish.
 
 **Fixed after live tries:**
