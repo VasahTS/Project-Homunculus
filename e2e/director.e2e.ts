@@ -1,7 +1,7 @@
 // The Director (D-092): ask out of character, add a proposed note, the story's replies use it, setup is data, pop out.
 // Author: CLAUDE, 2026-11-06. Uses the offline test AI.
 import { expect, test } from "@playwright/test";
-import { newChatWith, openLibrary, openTab, send } from "./ui.ts";
+import { newChatWith, openLibrary, openSession, openTab, send } from "./ui.ts";
 
 test.use({ reducedMotion: "reduce" });
 
@@ -160,4 +160,27 @@ test("docked, the Director fills the inspector: the box sits at the bottom and g
   await expect.poll(async () => (await input.boundingBox())!.height).toBeGreaterThan(small.height + 40);
   const big = (await input.boundingBox())!;
   expect(big.y + big.height).toBeLessThanOrEqual(body.y + body.height + 1);
+});
+
+test("a closed Director window stays closed when you come back to the chat", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.goto("/");
+  await newChatWith(page);
+  await openTab(page, "director");
+  await page.getByTestId("director").getByTestId("director-pop").click();
+  const win = page.getByTestId("director-window");
+  await expect(win).toBeVisible();
+  await win.getByRole("button", { name: "Close the Director" }).click();
+  await expect(win).toHaveCount(0);
+  await openLibrary(page, "Personas");
+  await openSession(page);
+  await expect(page.getByTestId("messages")).toBeVisible();
+  await expect(win).toHaveCount(0);
+  // "Show it" in the inspector still opens it, and an open window stays open
+  await openTab(page, "director");
+  await page.getByRole("button", { name: "Show it" }).click();
+  await expect(win).toBeVisible();
+  await openLibrary(page, "Personas");
+  await openSession(page);
+  await expect(win).toBeVisible();
 });

@@ -3871,3 +3871,13 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .pp-meta { margin: 0; }
 .modal-personas .modal-foot { flex-wrap: wrap; row-gap: 8px; }
 @media (max-width: 1100px) { .modal-personas .pp-keys { display: none; } }
+/* the line under the box keeps one line: the persona button keeps its name, the hint gives way first (2026-11-08) */
+.composer-meta { min-width: 0; }
+.composer-meta .persona-chip { flex: none; max-width: 220px; }
+.composer-meta .composer-hint { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.composer-meta > .link, .composer-meta .qc-anchor, .composer-meta .composer-usage { flex: none; white-space: nowrap; }
+.composer-meta .qc-anchor { min-width: 0; max-width: 40%; }
+.composer-meta .qc-anchor > button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* when the hint can't fit whole, it goes away instead of showing "Ent…" */
+.composer { container-type: inline-size; }
+@container (max-width: 900px) { .composer-meta .composer-hint { display: none; } }

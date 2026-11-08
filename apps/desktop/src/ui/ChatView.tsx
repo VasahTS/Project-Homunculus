@@ -169,7 +169,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const [tab, setTab] = useState<InspectorTab>("scene");
   // the Director (D-092) can leave the inspector for its own window; remembered across chats
   const [directorOut, setDirectorOut] = useState(() => { try { return localStorage.getItem("director.out") === "1"; } catch { return false; } });
-  const [directorShown, setDirectorShown] = useState(true);
+  // whether its window is open is remembered too: the chat is drawn again when you come back to it, and a closed
+  // Director window used to open again every time (Daniel, 2026-11-08)
+  const [directorShown, setDirectorShownState] = useState(() => { try { return localStorage.getItem("director.shown") !== "0"; } catch { return true; } });
+  const setDirectorShown = (v: boolean) => { setDirectorShownState(v); try { localStorage.setItem("director.shown", v ? "1" : "0"); } catch { /* storage may be blocked */ } };
   const [directorPrefill, setDirectorPrefill] = useState<{ text: string; at: number } | undefined>();
   /** "Ask the Director" on a message: opens it (where it lives) with the message quoted in its box. */
   const askDirectorAbout = (m: Message, n: number, who: string) => {
