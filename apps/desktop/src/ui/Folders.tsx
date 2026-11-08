@@ -6,6 +6,7 @@
 // Dragging (same evening: "make it possible to hold and drag the characters"): hold a card and drag it onto a folder (or a
 // step of the path "All › Fantasy"). It is done with pointer events, not the browser's HTML drag and drop, which the
 // desktop window (WebView2) can swallow. The sheet of an item has a "Folder" pick that does the same with the keyboard.
+import { claimBack } from "./back-button.ts";
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { Avatar, Folder } from "@homunculus/schemas";
 import { avatarUrl } from "../files.ts";
@@ -337,11 +338,11 @@ export function FolderView({ label, folders, map, items, current, currentName, o
   const upRef = useRef(up); upRef.current = up;
   useEffect(() => {
     if (!inside) return;
-    const mouse = (e: MouseEvent) => { if (e.button === 3) { e.preventDefault(); upRef.current(); } };
+    const mouse = (e: MouseEvent) => { if (e.button === 3) { claimBack(e); upRef.current(); } };
     const block = (e: MouseEvent) => { if (e.button === 3) e.preventDefault(); };
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (e.altKey && e.key === "ArrowLeft" && !(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"))) { e.preventDefault(); upRef.current(); }
+      if (e.altKey && e.key === "ArrowLeft" && !(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"))) { claimBack(e); upRef.current(); }
     };
     window.addEventListener("mouseup", mouse);
     window.addEventListener("mousedown", block);

@@ -4,6 +4,7 @@
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useGuardedNavigation } from "./ui/ux.tsx";
+import { backForwardOf, isClaimed, openLayers, pressEscape } from "./ui/back-button.ts";
 import { pageIn, slideTab } from "./ui/motion.ts";
 import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript } from "@homunculus/schemas";
 import { bundleExtras, bundleFile, collectBundle, countsText, importBundle, parseBundle, type BundleRoot } from "@homunculus/core";
@@ -88,6 +89,12 @@ type View =
 export interface Notice { kind: "ok" | "warn" | "error"; title: string; lines: string[]; action?: { label: string; run: () => void } }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** A screen as M4/M5 remember it (D-097): without one-time marks ("just saved") or unsaved drafts. */
+function placeView(v: View): View {
+  const { justSaved: _saved, draft: _draft, ...rest } = v as View & { justSaved?: boolean; draft?: unknown };
+  return rest as View;
+}
 
 /** Small per-viewer layout memory (which panels are open). Never required: defaults apply without it. */
 /** The order of the groups in Ctrl+K (D-069). */
@@ -289,6 +296,78 @@ export function App() {
     };
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
+  }, []);
+
+  // M4 / M5 (the mouse's side buttons) and Alt+← / Alt+→ (Daniel, 2026-11-08): M4 closes what is open on top, like Esc,
+  // else goes back to the previous screen; M5 goes forward. A screen with its own "back" (folders) claims the event.
+  type Visit = { view: View; activeId: string | null; mode: AppMode };
+  const visitNow: Visit = { view: placeView(view), activeId: view.kind === "session" ? activeId : null, mode };
+  const placeKey = JSON.stringify(visitNow);
+  const visits = useRef<{ back: Visit[]; forward: Visit[]; now: Visit | null; restoring: boolean; pending: Visit | null }>({ back: [], forward: [], now: null, restoring: false, pending: null });
+  useEffect(() => {
+    const h = visits.current;
+    // a step drawn on the way to a later one (M5 pressed twice quickly): not where we are going, nothing to record
+    if (h.pending && JSON.stringify(h.pending) !== placeKey) { h.now = visitNow; return; }
+    // a page opening its first item by itself (Presets, Personas…) replaces its empty state instead of adding a step,
+    // or M4 would land on the empty page and it would open the item again
+    const autoOpened = !!h.now && h.now.view.kind === visitNow.view.kind && h.now.mode === visitNow.mode
+      && "id" in h.now.view && h.now.view.id === null && "id" in visitNow.view && visitNow.view.id !== null;
+    // the first moments, before a chat is picked, are not a place to come back to
+    const starting = !!h.now && h.now.view.kind === "session" && h.now.activeId === null;
+    if (h.now && JSON.stringify(h.now) !== placeKey && !h.restoring && !autoOpened && !starting) { h.back.push(h.now); if (h.back.length > 60) h.back.shift(); h.forward = []; }
+    h.restoring = false;
+    h.pending = null;
+    h.now = visitNow;
+  }, [placeKey]);
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
+  const goRef = useRef<(dir: -1 | 1) => void>(() => {});
+  goRef.current = (dir) => {
+    const h = visits.current;
+    const from = dir < 0 ? h.back : h.forward;
+    // a chat deleted since is skipped
+    let to: Visit | undefined;
+    while ((to = from[from.length - 1]) && to.activeId && !sessionsRef.current.some((x) => x.id === to!.activeId)) from.pop();
+    // pressed again before the last step was drawn: count from where that step goes
+    const here = h.pending ?? h.now;
+    if (!to || !here) return;
+    const target = to;
+    navigate(() => {
+      from.pop();
+      (dir < 0 ? h.forward : h.back).push(here);
+      h.restoring = true;
+      h.pending = target;
+      // if the page changes the screen it was given (it opens an item by itself), stop waiting for the exact one
+      setTimeout(() => { if (h.pending === target) { h.pending = null; h.restoring = false; } }, 800);
+      setHomeOpen(false);
+      if (target.mode !== mode) { setModeState(target.mode); try { localStorage.setItem("homunculus.mode", target.mode); } catch { /* private window */ } }
+      if (target.activeId) setActiveId(target.activeId);
+      setViewNow(target.view);
+    });
+  };
+  useEffect(() => {
+    const back = () => {
+      if (homeRef.current) { setHomeOpen(false); return; }
+      const before = openLayers();
+      if (!before) { goRef.current(-1); return; }
+      pressEscape();
+      // a window that does not close with Esc: go back anyway
+      setTimeout(() => { if (openLayers() >= before) goRef.current(-1); }, 60);
+    };
+    const act = (e: MouseEvent | KeyboardEvent) => {
+      const dir = backForwardOf(e);
+      if (dir === null) return;
+      e.preventDefault(); // the WebView must not try to navigate the page itself
+      // after every other listener of this event, so a screen can claim it first (a folder goes one folder up)
+      setTimeout(() => { if (!isClaimed(e)) { if (dir < 0) back(); else goRef.current(1); } }, 0);
+    };
+    // the side buttons' press must not count as a click outside an open menu (which would close it before M4 decides)
+    const block = (e: MouseEvent) => { if (e.button === 3 || e.button === 4) { e.preventDefault(); e.stopPropagation(); } };
+    window.addEventListener("mouseup", act);
+    window.addEventListener("keydown", act);
+    window.addEventListener("mousedown", block, true);
+    window.addEventListener("auxclick", block, true);
+    return () => { window.removeEventListener("mouseup", act); window.removeEventListener("keydown", act); window.removeEventListener("mousedown", block, true); window.removeEventListener("auxclick", block, true); };
   }, []);
 
   /** Stories, narrators and NPCs (the Vault). */

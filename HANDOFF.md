@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## M4 / M5 everywhere (2026-11-08) — CLAUDE — D-097
+
+- Daniel: every window, tab etc. should work with the mouse's side buttons. M4 (and Alt+←) closes the top window/menu/popover like Esc, else goes back a screen; M5 (and Alt+→) forward. History of screens in App.tsx (`visits`); helpers in `ui/back-button.ts`; Folders now `claimBack` its own "one folder up".
+- **To try:** open a chat → Library → Personas → Presets, then M4 three times and M5; open Ctrl+P or "with Lyra ▾" and press M4.
+- Checks: typecheck; 752 unit; click tests `back-forward` (new), `round3` (folders), `collections`, `card-browser-details`, `home`, `navigation`, `stories`, `lorebooks`, `presets`, `character-editor`, `ux-review`, `director`, `personas-window`, `settings-v2`, `card-browser`, `chat`, `branches`, `quick-replies`, `people`, `assistant` — passed. Real side buttons not tried on Windows yet (Playwright sends the same mouse events).
+
 ## Interface size, the chat's top bar in narrow windows (2026-11-08) — CLAUDE
 
 - Daniel: fix the narrow top bar too, and make the UI scalable (150%, 70%…). **Settings → Appearance → Interface size** (70–150%, `uiScale`); **Ctrl +** / **Ctrl −** step through the sizes, **Ctrl 0** back to 100%. In the app the WebView zooms (`getCurrentWebview().setZoom`, permission `core:webview:allow-set-webview-zoom` added to `capabilities/default.json`); the browser preview uses CSS zoom. Not checked on Windows yet.

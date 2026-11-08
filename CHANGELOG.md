@@ -5,6 +5,7 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+- **Mouse side buttons everywhere:** back (M4, or Alt+←) closes the open window or menu, then goes to the previous screen; forward (M5, or Alt+→) goes forward again.
 - **Interface size:** Settings → Appearance → Interface size (70% to 150%), or **Ctrl +** / **Ctrl −** anywhere; **Ctrl 0** goes back to 100%.
 - In narrow windows the chat's top bar no longer overlaps its buttons, and the inspector's close button no longer covers the Reply tab.
 - **Settings → Chat → Model:** show the model that wrote each reply, quietly beside its time.

@@ -1041,3 +1041,12 @@ A friend of Daniel's: "it's hard to find where to change persona; maybe a button
 - Sorting personas by **Recent / Most chats** counts the chats that play each one: a chat's own pick, else its story's, else the default persona. Library → Personas now opens on **Recent** too (was A-Z), like Characters and Stories.
 
 Signed: **CLAUDE**.
+
+## D-097 — The mouse's side buttons (M4 back, M5 forward) everywhere (2026-11-08)
+
+Daniel: "make every window, tab etc. work with M4 and M5". Before, only folders (one folder up) and the card reading view answered M4.
+- **M4 / Alt+←:** first closes what is open on top — a window, menu or popover — exactly as Esc does (a synthetic Esc; every layer already answers it). With nothing open (or a window that ignores Esc), it goes back to the previous screen. On Home it closes Home. **M5 / Alt+→:** forward again. Alt+arrows are left alone inside text boxes (they move by word there).
+- The app keeps a list of screens visited (page, chat, Play/Assistant), up to 60. A page opening its first item by itself (Presets, Personas…) replaces its empty state rather than adding a step; chats deleted since are skipped; drafts and "just saved" marks are not kept. Unsaved changes still ask first (the same guard as any navigation).
+- A screen with its own "back" claims the event (`claimBack`, `ui/back-button.ts`): folders still go one folder up, the card reading view still steps back from the picture. The side buttons' press is stopped early, so it never counts as a click outside an open menu and never makes the WebView navigate by itself. The Director's window is a tool and stays open.
+
+Signed: **CLAUDE**.
