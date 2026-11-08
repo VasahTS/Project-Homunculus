@@ -140,26 +140,42 @@ export interface DatacatCopy {
   loreEntries: number;
   /** The creator turned downloads off there: shown, but not offered. */
   downloadsOff: boolean;
+  /** Found by searching the name and creator (another id on DataCat), not by JanitorAI's id. */
+  byName: boolean;
 }
 const DATE_KEYS = ["extractedAt", "extracted_at", "scrapedAt", "scraped_at", "updatedAt", "updated_at", "createdAt", "created_at"];
 /** Looks the card up on DataCat by its JanitorAI id. Never throws: anything but a usable record is "not there". */
+/** One DataCat record as a copy, or null when it carries no definition (no better than what JanitorAI shows). */
+function asCopy(c: Record<string, unknown>, item: CardItem, byName: boolean): DatacatCopy | null {
+  const data = record(definition(c, item).data) ?? {};
+  if (!text(data.description) && !text(data.scenario)) return null;
+  const book = record(data.character_book);
+  const raw = DATE_KEYS.map((k) => c[k]).find((v) => typeof v === "string" || typeof v === "number");
+  const date = raw === undefined ? "" : (() => { const d = new Date(typeof raw === "number" && raw < 1e12 ? raw * 1000 : raw); return Number.isNaN(d.getTime()) ? "" : d.toISOString(); })();
+  return {
+    item: { ...item, name: text(data.name) || item.name, creator: text(data.creator) || item.creator, image: datacatAvatarUrl(c.avatarDisplayUrl ?? c.avatar) || item.image },
+    date, loreEntries: Array.isArray(book?.entries) ? book!.entries.length : 0, byName,
+    downloadsOff: !!(c.downloadsDisabled || c.downloads_disabled || c.deletedByCreatorPolicy || c.deleted_by_creator_policy),
+  };
+}
+const same = (a: unknown, b: unknown) => text(a).replace(/\s+/g, " ").trim().toLowerCase() === text(b).replace(/\s+/g, " ").trim().toLowerCase();
+/** Looks the card up on DataCat: first by its JanitorAI id; then, since DataCat often holds the same card under another id
+ *  (a re-upload, or its own key), by searching its name and keeping a row with the same name and creator. Never throws. */
 export async function datacatCopy(janitorId: string, fallback: Pick<CardItem, "name" | "creator" | "thumb" | "image" | "url">, t: SiteTransport): Promise<DatacatCopy | null> {
   if (!/^[A-Za-z0-9-]{1,64}$/.test(janitorId)) return null;
-  const item: CardItem = { source: "datacat", id: janitorId, name: fallback.name, creator: fallback.creator, tagline: "", tags: [], thumb: fallback.thumb, image: fallback.image, nsfw: true, url: `${API}/characters/${janitorId}`, stats: {} };
+  const itemFor = (id: string): CardItem => ({ source: "datacat", id, name: fallback.name, creator: fallback.creator, tagline: "", tags: [], thumb: fallback.thumb, image: fallback.image, nsfw: true, url: `${API}/characters/${id}`, stats: {} });
+  try { const hit = asCopy(await character(itemFor(janitorId), t), itemFor(janitorId), false); if (hit) return hit; } catch { /* try by name */ }
+  if (!fallback.name.trim()) return null;
   try {
-    const c = await character(item, t);
-    const card = definition(c, item);
-    const data = record(card.data) ?? {};
-    const desc = text(data.description);
-    // a record without a definition is no better than what JanitorAI shows
-    if (!desc && !text(data.scenario)) return null;
-    const book = record(data.character_book);
-    const raw = DATE_KEYS.map((k) => c[k]).find((v) => typeof v === "string" || typeof v === "number");
-    const date = raw === undefined ? "" : (() => { const d = new Date(typeof raw === "number" && raw < 1e12 ? raw * 1000 : raw); return Number.isNaN(d.getTime()) ? "" : d.toISOString(); })();
-    return {
-      item: { ...item, name: text(data.name) || item.name, creator: text(data.creator) || item.creator, image: datacatAvatarUrl(c.avatarDisplayUrl ?? c.avatar) || item.image },
-      date, loreEntries: Array.isArray(book?.entries) ? book!.entries.length : 0,
-      downloadsOff: !!(c.downloadsDisabled || c.downloads_disabled || c.deletedByCreatorPolicy || c.deleted_by_creator_policy),
-    };
-  } catch { return null; }
+    const p = new URLSearchParams({ limit: String(PAGE), offset: "0", summary: "1", minTotalTokens: "0", search: fallback.name.trim().slice(0, 120) });
+    const d = await get<{ characters?: Row[] }>(t, `/api/characters/recent-public?${p}`, "datacat:search");
+    const rows = (Array.isArray(d.characters) ? d.characters : []).filter((r) => rowId(r) && rowId(r) !== janitorId);
+    const matches = rows.filter((r) => (same(r.name, fallback.name) || same(r.chatName ?? r.chat_name, fallback.name)) && (!fallback.creator || same(r.creatorName ?? r.creator_name, fallback.creator)));
+    for (const r of matches.slice(0, 3)) {
+      const it = itemFor(rowId(r));
+      try { const hit = asCopy(await character(it, t), it, true); if (hit) return hit; } catch { /* next */ }
+    }
+  } catch { /* not there */ }
+  return null;
 }
+

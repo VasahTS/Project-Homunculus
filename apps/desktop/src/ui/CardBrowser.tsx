@@ -677,7 +677,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, co
         </span>}
       </div>
       {full?.hidden && !mine && (onDatacat
-        ? <p className="hint cb-hidden" data-testid="cb-datacat">Already on DataCat{onDatacat.date ? ` · ${shortDate(onDatacat.date)}` : ""} · {onDatacat.loreEntries ? `lorebook: ${onDatacat.loreEntries} ${onDatacat.loreEntries === 1 ? "entry" : "entries"}` : "no lorebook"}. Its copy may be older than the card here; Extract Yourself reads the current one.</p>
+        ? <p className="hint cb-hidden" data-testid="cb-datacat">Already on DataCat{onDatacat.byName ? " (same name and creator)" : ""}{onDatacat.date ? ` · ${shortDate(onDatacat.date)}` : ""} · {onDatacat.loreEntries ? `lorebook: ${onDatacat.loreEntries} ${onDatacat.loreEntries === 1 ? "entry" : "entries"}` : "no lorebook"}. Its copy may be older than the card here; Extract Yourself reads the current one.</p>
         : <p className="hint cb-hidden" data-testid="cb-hidden">{full.hidden}{copy === "looking" ? " Looking on DataCat…" : copy && copy.downloadsOff ? " It is on DataCat, but its creator turned downloads off there." : ""}</p>)}
       {askExtract && (
         <div className="cb-account" data-testid="cb-extract-ask" role="alertdialog" aria-label="Extract from JanitorAI">

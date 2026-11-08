@@ -1095,6 +1095,7 @@ Daniel (translated): "check whether DataCat already has the card extracted; if s
 - **Not a question window** (Claude's proposal, accepted): when found, one quiet line "Already on DataCat · <date> · lorebook: N entries. Its copy may be older than the card here; Extract Yourself reads the current one." The main button becomes **Add from DataCat**, with **Extract Yourself** beside it; **Save as PNG** works from the copy. The Added notice says it came from DataCat's copy. Not found → **Extract and Add** as before; downloads turned off on DataCat → said under the reason, Extract stays.
 - Adding from DataCat touches nothing on the JanitorAI account. The date is the first of DataCat's extracted/updated/created fields it sends.
 - **Not verified live:** that DataCat's ids are JanitorAI's (very likely; confirm on Daniel's PC).
+- **Same day, after Daniel's test** (most cards found, some extracted ones not): DataCat often holds the same card under **another id** (a re-upload, or its own key). When the id misses, the app searches DataCat for the name (`recent-public?search=…&minTotalTokens=0`) and keeps a row with the **same name and creator**, opening at most 3; the line then says "Already on DataCat (same name and creator)".
 
 Signed: **CLAUDE**.
 
