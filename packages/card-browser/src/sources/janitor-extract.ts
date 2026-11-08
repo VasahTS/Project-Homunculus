@@ -203,8 +203,10 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
     persona = await userPersona(j);
     phase("Opening a chat");
     const chat = (await call(j, "POST", "/hampter/chats", { character_id: item.id, ...(persona.id ? { persona_id: persona.id } : {}) })) as Row | null;
-    const chatId = text(chat?.id ?? (chat?.data as Row | undefined)?.id);
-    if (!/^[A-Za-z0-9-]{1,64}$/.test(chatId)) throw fail("JanitorAI did not open a chat.");
+    // JanitorAI answers with a numeric id (Glaze reads it with toString)
+    const rawId = chat?.id ?? (chat?.data as Row | undefined)?.id ?? (chat?.chat as Row | undefined)?.id;
+    const chatId = typeof rawId === "number" || typeof rawId === "string" ? String(rawId).trim() : "";
+    if (!/^[A-Za-z0-9-]{1,64}$/.test(chatId)) throw fail(`JanitorAI did not open a chat (answer: ${JSON.stringify(chat).slice(0, 160)}).`);
     try {
       await j.page("open-chat", chatId);
       // JanitorAI keeps the old proxy in its page state: one reload makes the temporary one take effect (Glaze)

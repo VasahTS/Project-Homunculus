@@ -69,9 +69,9 @@ function fakeJanitor(over: { allowProxy?: false; noPersona?: boolean; refuse?: n
       if (path === "/hampter/personas" && method === "GET") return ok(account.personas);
       if (path === "/hampter/personas" && method === "POST") { if (over.noPersona) return { status: 500, text: "{}" }; account.personas.push({ id: "p1", name: b.name }); return ok({ id: "p1" }); }
       if (path.startsWith("/hampter/personas/") && method === "DELETE") { account.personas = account.personas.filter((p) => p.id !== path.split("/").pop()); return ok({}); }
-      if (path === "/hampter/chats" && method === "POST") { account.chats.push("c-1"); return ok({ id: "c-1" }); }
-      if (path === "/hampter/chats/c-1" && method === "GET") return ok({ character: { first_message: "Mira waves.", first_messages: ["Mira waves.", "Mira frowns at {{user}}."] } });
-      if (path === "/hampter/chats/c-1" && method === "DELETE") { account.chats = []; return ok({}); }
+      if (path === "/hampter/chats" && method === "POST") { account.chats.push("123"); return ok({ id: 123 }); }
+      if (path === "/hampter/chats/123" && method === "GET") return ok({ character: { first_message: "Mira waves.", first_messages: ["Mira waves.", "Mira frowns at {{user}}."] } });
+      if (path === "/hampter/chats/123" && method === "DELETE") { account.chats = []; return ok({}); }
       return { status: 404, text: "{}" };
     },
     async page(op, text) {
@@ -132,7 +132,7 @@ it("a whole run: hidden card, greetings, public + rebuilt closed lore; the accou
   // nothing written outside the extraction's own temporary things
   const writes = calls.filter((c) => /^(POST|PATCH|DELETE) /.test(c));
   expect(writes).toEqual(["POST /hampter/api-settings/proxy-configs", "PATCH /hampter/api-settings", "PATCH /hampter/api-settings", "PATCH /hampter/api-settings", "POST /hampter/personas",
-    "POST /hampter/chats", "DELETE /hampter/chats/c-1", "DELETE /hampter/personas/p1", "PATCH /hampter/api-settings", "DELETE /hampter/api-settings/proxy-configs/99"]);
+    "POST /hampter/chats", "DELETE /hampter/chats/123", "DELETE /hampter/personas/p1", "PATCH /hampter/api-settings", "DELETE /hampter/api-settings/proxy-configs/99"]);
   expect(calls).toContain("page hide");
 });
 
