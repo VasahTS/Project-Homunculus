@@ -2,6 +2,7 @@
 // Author: CLAUDE, 2026-11-06. Canvas "Homunculus 2 — Director": A2 (an inspector tab that pops out into its own
 // window), D (notes, kept when expired), F (setup) and G (a note's weight). Everything a Director says or does is
 // data the user can edit: job, writer line, how notes are proposed, the weights and their instructions, what it sees.
+import { useBackState } from "./back-button.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import type { Session } from "@homunculus/schemas";
@@ -47,7 +48,7 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
   /** New notes and turns belong to the message the one on screen answered, so its swipes share them. */
   const anchor = path.length >= 2 ? path[path.length - 2]! : null;
   const [state, setState] = useState<DirectorState>({ profileId: "", notes: [], chat: [] });
-  const [view, setView] = useState<View>("chat");
+  const [view, setView, setViewQuiet] = useBackState<View>("chat");
   const [setupOpen, setSetupOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState<{ text: string; at: number } | undefined>();
   const [error, setError] = useState("");
@@ -56,7 +57,7 @@ export function DirectorPane({ svc, session, headId, branchId, connection, poppe
     setProfiles(p); setState(s); setLinks(l);
   }, [svc, session.id]);
   useEffect(() => { void load().catch((e) => setError(String(e))); }, [load]);
-  useEffect(() => { if (prefill) setView("chat"); }, [prefill]);
+  useEffect(() => { if (prefill) setViewQuiet("chat"); }, [prefill]);
   useEffect(() => svc.core.events.on("director.changed", (e) => { if (e.sessionId === session.id) void load(); }, "director-pane"), [svc, session.id, load]);
   const profile = profileFor(profiles, state, links, session.storyId);
   const inherited = profileFor(profiles, { profileId: "" }, links, session.storyId);
@@ -373,7 +374,7 @@ function NotesView({ profile, notes, change, draft, at, anchor }: {
   profile: DirectorProfile; notes: DirectorNote[]; change: (fn: (s: DirectorState) => DirectorState) => Promise<void>; draft?: { text: string; at: number } | undefined;
   at: DirectorPoint; anchor: string | null;
 }) {
-  const [tab, setTab] = useState<NoteStatus>("active");
+  const [tab, setTab, setTabQuiet] = useBackState<NoteStatus>("active");
   const [text, setText] = useState(draft?.text ?? "");
   const [writing, setWriting] = useState(!!draft);
   useEffect(() => { if (draft) { setText(draft.text); setWriting(true); } }, [draft]);
@@ -385,7 +386,7 @@ function NotesView({ profile, notes, change, draft, at, anchor }: {
   const add = () => {
     if (!text.trim()) return;
     void change((s) => ({ ...s, notes: [...s.notes, { id: newId(), text: text.trim(), weightId, lasts, sent: [], createdAt: Date.now(), anchor }] }));
-    setText(""); setTab("active"); setWriting(false);
+    setText(""); setTabQuiet("active"); setWriting(false);
   };
   return (
     <div className="director-notes">

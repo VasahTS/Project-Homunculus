@@ -2,6 +2,7 @@
 // Author: CLAUDE, 2026-10-29. Plan: docs/UI-PLAN.md "Lorebooks"; mockup: canvas "Homunculus 2 — UI mockups",
 // row "Lorebooks", board A. Every field of SillyTavern's World Info entry is here, grouped by the question it
 // answers (what it says · when it goes in · where it goes · the rest), plus ours: conditions on the world state.
+import { useBackState } from "./back-button.ts";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { LoreEntry, Lorebook, type GenerationType, type HistoryEntry, type LoreCondition, type LorePosition, type Session } from "@homunculus/schemas";
 import { estimateTokens, parseKeyRegex, type LoreTryResult } from "@homunculus/core";
@@ -141,10 +142,11 @@ export function LorebookEditor(p: LorebookEditorProps) {
   const [d, setD] = useState<Lorebook>(p.book);
   const [status, setStatus] = useState<"idle" | "waiting" | "saving" | "saved">(p.justSaved ? "saved" : "idle");
   const [error, setError] = useState("");
-  const [open, setOpen] = useState<string | null>(null);
+  // the entry that is open and the "Show" filter are moves M4/M5 step through (D-097)
+  const [open, setOpen] = useBackState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState<Record<string, boolean>>({});
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter, setFilterQuiet] = useBackState<Filter>("all");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [tryOn, setTryOn] = useState(() => { try { return localStorage.getItem("homunculus.ui.loreTry") !== "0"; } catch { return true; } });
@@ -212,7 +214,7 @@ export function LorebookEditor(p: LorebookEditorProps) {
   const addEntry = () => {
     const e = newEntry(d);
     set({ entries: [e, ...d.entries] });
-    setOpen(e.id); setQ(""); setFilter("all");
+    setOpen(e.id); setQ(""); setFilterQuiet("all");
   };
   const removeEntry = (id: string) => { set({ entries: d.entries.filter((e) => e.id !== id) }); if (open === id) setOpen(null); };
   const duplicateEntry = (e: LoreEntry) => {
@@ -222,7 +224,7 @@ export function LorebookEditor(p: LorebookEditorProps) {
     setOpen(copy.id);
   };
   const openEntry = (id: string) => {
-    setOpen(id); setQ(""); setFilter("all");
+    setOpen(id); setQ(""); setFilterQuiet("all");
     requestAnimationFrame(() => document.querySelector(`[data-entry="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
   };
 
@@ -289,7 +291,7 @@ export function LorebookEditor(p: LorebookEditorProps) {
       </div>
       {replaceOpen && (
         <ReplaceBar entries={d.entries} openId={open} focusTick={replaceTick}
-          onOpenEntry={(id) => { if (!shown.some((x) => x.id === id)) { setQ(""); setFilter("all"); } setOpen(id); }}
+          onOpenEntry={(id) => { if (!shown.some((x) => x.id === id)) { setQ(""); setFilterQuiet("all"); } setOpen(id); }}
           onApply={(entries) => set({ entries })}
           onClose={() => setReplaceOpen(false)} />
       )}

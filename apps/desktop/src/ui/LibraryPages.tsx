@@ -2,6 +2,7 @@
 // 2026-10-28 (slice 1): Personas and the Trash.
 // Characters and Trackers share this master-detail shape; future library kinds (personas, lorebooks,
 // presets, agents) reuse it.
+import { quietNextScreen } from "./back-button.ts";
 import { dragItem } from "./Folders.tsx";
 import { ImportButton } from "./BundleButtons.tsx";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -42,6 +43,7 @@ function useAutoOpen(kind: string, ids: string[], selectedId: string | null, onS
     if (selectedId === "new" || !ids.length) return;
     let last: string | null = null;
     try { last = localStorage.getItem(key); } catch { /* private window */ }
+    quietNextScreen(kind); // the page opening its item by itself is not a step M4 goes back through (D-097)
     onSelect(last && ids.includes(last) ? last : ids[0]!);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, ids.length, open]);

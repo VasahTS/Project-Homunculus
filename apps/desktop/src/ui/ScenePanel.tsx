@@ -14,6 +14,7 @@
 // and an NPC can be removed from the cast.
 // Values are as they are AT the message on screen (swipes and branches show their own); a change made here is saved
 // as the user's change at that message (it wins over the tracker).
+import { useBackState } from "./back-button.ts";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { AgentRun, Avatar, Npc, Session, SetupLayer, StateDelta, TrackerField, TrackerSchema } from "@homunculus/schemas";
 import {
@@ -98,7 +99,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
   const saveOpen = (next: Record<string, boolean>) => { setOpenCards(next); void svc.store.setAppSetting("sceneOpenCards", next); };
   const saveOrder = (next: string[]) => { setOrder(next); void svc.store.setAppSetting(`castOrder:${session.id}`, next); };
   /** The open tab under "Now": "cast" (the people) or a group ("<tracker>/<title>"). */
-  const [tab, setTab] = useState("cast");
+  const [tab, setTab] = useBackState("cast");
   const enabled = trackers.filter((t) => isOnIn(session, t.agent.id, storySetup));
 
   useEffect(() => {

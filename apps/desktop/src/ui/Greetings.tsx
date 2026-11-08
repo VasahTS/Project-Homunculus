@@ -1,6 +1,7 @@
 // Homunculus 2 — a character's greetings: the first message and the alternates (D-070). Author: CLAUDE, 2026-11-01.
 // Greeting 1 is the main one; in a new chat the others are swipes of it. Three looks, one per editor layout:
 // "list" (Sheet: list + editor/preview), "strip" (Tabs: cards + editor beside a chat preview), "inline" (Writer: blocks).
+import { useBackState } from "./back-button.ts";
 import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
 import { estimateTokens } from "@homunculus/core";
 import { MessageText } from "./MessageText.tsx";
@@ -37,7 +38,7 @@ export function Greetings({ value, onChange, look, name, avatarSrc, changed, onR
   const list = value.length ? value : [""];
   const [picked, setPicked] = useState(0);
   const cur = Math.min(picked, list.length - 1);
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview, setPreviewQuiet] = useBackState(false);
   const [armed, setArmed] = useState(-1);
   const boxes = useRef<Record<number, HTMLTextAreaElement | null>>({});
   // Another greeting picked: its text and preview slide in from the side it came from (D-072)
@@ -55,7 +56,7 @@ export function Greetings({ value, onChange, look, name, avatarSrc, changed, onR
 
   const put = (next: string[], pick?: number) => { onChange(next); if (pick !== undefined) setPicked(pick); setArmed(-1); };
   const edit = (k: number, text: string) => onChange(list.map((t, j) => (j === k ? text : t)));
-  const add = () => { put([...list, ""], list.length); setPreview(false); requestAnimationFrame(() => boxes.current[list.length]?.focus()); };
+  const add = () => { put([...list, ""], list.length); setPreviewQuiet(false); requestAnimationFrame(() => boxes.current[list.length]?.focus()); };
   const duplicate = (k: number) => put([...list.slice(0, k + 1), list[k]!, ...list.slice(k + 1)], k + 1);
   const remove = (k: number) => { if (armed !== k) { setArmed(k); return; } put(list.filter((_, j) => j !== k), Math.max(0, Math.min(cur, list.length - 2))); };
   const move = (k: number, d: number) => {

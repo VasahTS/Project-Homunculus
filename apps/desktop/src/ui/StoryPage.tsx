@@ -5,6 +5,7 @@
 // Round 3 (D-036): the chats are the last thing on the page (Daniel: "the chats at the bottom so they are the last thing you
 // scroll to"), as a list you can search (names and messages) and export. The same page edits a Kit (kind="kit"): no chats,
 // and "Start a Story" instead of Play.
+import { useBackState } from "./back-button.ts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character, Folder, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, UserRole } from "@homunculus/schemas";
 import { effectiveCharacter, isTracked, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
@@ -113,12 +114,12 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   const [draft, setDraftState] = useState(story);
   const [state, setState] = useState<"saved" | "saving" | "">("");
   const [chats, setChats] = useState<StoryChat[] | null>(null);
-  const [openNpc, setOpenNpc] = useState<string | null>(null);
+  const [openNpc, setOpenNpc] = useBackState<string | null>(null);
   const [narratorOpen, setNarratorOpen] = useState(false);
   const [newChat, setNewChat] = useState(false);
   const [more, setMore] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  const [opening, setOpeningTab] = useState(0);
+  const [opening, setOpeningTab, setOpeningQuiet] = useBackState(0);
   const pending = useRef<Story | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveRef = useRef(onSave);
@@ -200,7 +201,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   const addOpenings = (texts: string[]) => {
     const kept = draft.openings.filter((o) => o.trim());
     change({ openings: [...kept, ...texts] });
-    setOpeningTab(kept.length + texts.length - 1);
+    setOpeningQuiet(kept.length + texts.length - 1);
   };
   const fromCardLink = (label: string, testId: string) => characters.length > 0 && (
     <button type="button" className="link align-start" data-testid={testId} onClick={() => setFromCard(true)}
@@ -379,13 +380,13 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
                     {openings.map((_, i) => (
                       <button key={i} type="button" role="tab" aria-selected={i === tab} className={`opening-tab${i === tab ? " on" : ""}`} onClick={() => setOpeningTab(i)}>{i + 1}</button>
                     ))}
-                    <button type="button" className="opening-tab" aria-label="Add an opening" onClick={() => { change({ openings: [...openings, ""] }); setOpeningTab(openings.length); }}>+</button>
+                    <button type="button" className="opening-tab" aria-label="Add an opening" onClick={() => { change({ openings: [...openings, ""] }); setOpeningQuiet(openings.length); }}>+</button>
                   </span>
                 </span>
                 {fromCardLink("+ From a card's greetings…", "openings-from-card")}
                 <textarea className="prose-input" rows={4} aria-label={`Opening ${tab + 1}`} value={openings[tab] ?? ""} placeholder="The narrator's first message (optional)"
                   onChange={(e) => setOpening(tab, e.target.value)} />
-                {openings.length > 1 && <button type="button" className="link align-end" onClick={() => { change({ openings: openings.filter((_, j) => j !== tab) }); setOpeningTab(Math.max(0, tab - 1)); }}>Remove opening {tab + 1}</button>}
+                {openings.length > 1 && <button type="button" className="link align-end" onClick={() => { change({ openings: openings.filter((_, j) => j !== tab) }); setOpeningQuiet(Math.max(0, tab - 1)); }}>Remove opening {tab + 1}</button>}
               </div>
             </SetupSection>
 

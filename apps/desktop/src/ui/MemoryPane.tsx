@@ -12,6 +12,7 @@
 //              would pick for what you are about to say) and the last reply's receipt;
 //   Guide    — how memory works, step by step, with an example, the words it uses, and good-to-knows.
 // Engine: packages/core/src/memory.ts + recall.ts (D-054, D-083).
+import { useBackState } from "./back-button.ts";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { GenerationRecord, Session, SetupLayer } from "@homunculus/schemas";
 import type { Chapter, MemorySettings, RecallResult } from "@homunculus/core";
@@ -45,7 +46,7 @@ export function MemoryPane({ svc, session, headId, branchId, connection, storySe
   draft?: string;
 }) {
   const [state, setState] = useState<MemoryView | null>(null);
-  const [view, setView] = useState<View>("chapters");
+  const [view, setView] = useBackState<View>("chapters");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [peekOpen, setPeekOpen] = useState(false);

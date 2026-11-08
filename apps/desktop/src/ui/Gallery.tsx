@@ -3,6 +3,7 @@
 // A grid of cards (picture, name, who made it, a short summary, tags, size); clicking one opens its sheet on the right
 // (big picture, scenario, description, opening, actions). Edit leads to the full editor. Used by Library → Characters
 // and the Vault (stories, NPCs).
+import { useBackState } from "./back-button.ts";
 import { useRef, useState, type ReactNode } from "react";
 import type { Avatar, Character } from "@homunculus/schemas";
 import { effectiveCharacter, estimateTokens } from "@homunculus/core";
@@ -144,7 +145,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   const ordered = useCollectionOrder("characters", characters);
   const everything = prefs?.view === "everything";
   const fileInput = useRef<HTMLInputElement>(null);
-  const [recent, setRecent] = useState(false);
+  const [recent, setRecent] = useBackState(false);
   // the cards arrive one after another when the page opens (D-072)
   const cards = useRef<HTMLDivElement>(null);
   useEnter(cards, "open", undefined, { ...CASCADE, stagger: 60 });
@@ -218,7 +219,7 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
   /** Closes the sheet (× in the reading view). */
   onCloseSheet?: (() => void) | undefined;
 }) {
-  const [vid, setVid] = useState<string | null>(null);
+  const [vid, setVid] = useBackState<string | null>(null);
   const [reading, setReading] = useState(false);
   const shown = effectiveCharacter(c, vid);
   const pic = (vid ? avatars[`${c.id}#${vid}`] : undefined) ?? avatar;

@@ -1,6 +1,7 @@
 // Homunculus 2 — Library → Agents (slice 5, D-047). Author: CLAUDE, 2026-10-30.
 // Two views (Daniel: a table, "and other views would be good for the app"): a sortable Table that fills the page, and
 // a List grouped by what each agent does, beside the editor. The view is remembered on this computer.
+import { useBackState } from "./back-button.ts";
 import { useState, type ReactNode } from "react";
 import type { AgentConfig, Session, Story } from "@homunculus/schemas";
 import { AGENT_KINDS, PHASES, kindOf, onInText, whenOf, whenText } from "../agents.ts";
@@ -29,8 +30,8 @@ export function AgentsPage({ lead, tabs, agents, stories, sessions, selectedId, 
   /** The editor of the selected agent. */
   detail: ReactNode;
 }) {
-  const [view, setViewState] = useState<View>(readView);
-  const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* the view is a convenience */ } };
+  // Table / List is a move M4/M5 go back and forth through (D-097)
+  const [view, setView] = useBackState<View>(readView, (v) => { try { localStorage.setItem(VIEW_KEY, v); } catch { /* the view is a convenience */ } });
   const [q, setQ] = useState("");
   const [kind, setKind] = useState<string>("all");
   const [sort, setSort] = useState<{ key: SortKey; up: boolean }>({ key: "name", up: true });

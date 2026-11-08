@@ -3,6 +3,7 @@
 // Like the original app's panel: search, trackers and agents together, the switch on the left, the kind and the model as
 // labels, a status line that follows the run live (agent.started / finished / failed), ▶ to run and ✎ to edit. A run's
 // details show why it answered that: the model's reasoning, what it read, the raw answer, the result, and Compare.
+import { useBackState } from "./back-button.ts";
 import { useEffect, useMemo, useState } from "react";
 import type { AgentConfig, AgentRun, Session, SetupLayer } from "@homunculus/schemas";
 import type { DryRun } from "@homunculus/core";
@@ -199,7 +200,7 @@ export function RunSheet({ svc, item, run, session, messageId, connection, onClo
   svc: AppServices; item: { id: string; name: string }; run: AgentRun | undefined; session: Session; messageId: string;
   connection: ConnectionState; onClose: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>(run?.reasoning ? "reasoning" : "result");
+  const [tab, setTab] = useBackState<Tab>(run?.reasoning ? "reasoning" : "result");
   const meta = run ? [shortModel(run.model), secs(run.durationMs), run.tokensIn || run.tokensOut ? `${run.tokensIn ?? "?"} in / ${run.tokensOut ?? "?"} out` : ""].filter(Boolean).join(" · ") : "";
   return (
     <Modal title={`${item.name} · why it did this`} onClose={onClose} className="modal-small modal-run" testId="run-sheet"

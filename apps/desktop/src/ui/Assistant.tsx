@@ -1,5 +1,6 @@
 // Homunculus 2 — the Assistant mode: its sidebar, the conversation, Add context and Customize (D-062).
 // Author: CLAUDE, 2026-11-01. Draft: docs/drafts/library-assistant/index.html (round 3); plan: docs/UI-PLAN.md.
+import { useBackState } from "./back-button.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useDraft, useSendKey } from "./ux.tsx";
 import { createAssistantRuntime } from "../assistant/runtime.ts";
@@ -681,7 +682,7 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
   library: LibraryEntry[]; picked: Array<Extract<AssistantAttachment, { type: "item" }>>;
   onAdd: (items: Array<Extract<AssistantAttachment, { type: "item" }>>) => void; onClose: () => void;
 }) {
-  const [kind, setKind] = useState<AssistantReadKind>("character");
+  const [kind, setKind] = useBackState<AssistantReadKind>("character");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Map<string, LibraryEntry>>(() => new Map(picked.map((p) => [`${p.kind}:${p.id}`, { kind: p.kind, id: p.id, name: p.name, line: "" }])));
   const counts = useMemo(() => { const c: Partial<Record<AssistantReadKind, number>> = {}; for (const e of library) c[e.kind] = (c[e.kind] ?? 0) + 1; return c; }, [library]);

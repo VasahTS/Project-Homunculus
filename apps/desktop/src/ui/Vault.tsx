@@ -2,6 +2,7 @@
 // Same shape as Library → Characters: cards on the left, the selected one's sheet on the right. Narrators and NPCs
 // are small, so their sheet IS their editor (Save); a story opens its own page (StoryPage.tsx).
 // A new story starts from "How do you want to play?" (NewStorySheet).
+import { useBackState } from "./back-button.ts";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, TrackerField, TrackerSchema, UserRole } from "@homunculus/schemas";
@@ -333,7 +334,7 @@ export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTr
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   // "What the AI gets" beside the form on wide windows, as a tab on narrow ones (D-059: no scrolling to compare)
-  const [tab, setTab] = useState<"edit" | "sent">("edit");
+  const [tab, setTab] = useBackState<"edit" | "sent">("edit");
   useEffect(() => { setDraft(narrator); setSaved(false); setError(""); }, [narrator]);
   const save = async () => {
     if (!draft.name.trim()) { setError("The narrator needs a name."); return false; }

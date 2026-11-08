@@ -7,6 +7,7 @@ import { bytesToBase64 } from "@homunculus/st-cards";
 import { CARD_SOURCES, cardSource, isSourceId, NO_FILTERS, pauses, SiteError } from "@homunculus/card-browser";
 import type { BotbooruAccountState, CardDetails, CardFile, CardFilters, CardItem, CardQuery, CardSource, MustHave, SiteTransport, SourceId } from "@homunculus/card-browser";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
+import { recordMove, useLive } from "./back-button.ts";
 import { BotbooruAccount } from "./BotbooruAccount.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { Help } from "./Help.tsx";
@@ -233,6 +234,16 @@ export function CardBrowser(p: CardBrowserProps) {
   const [page, setPage] = useState(restore?.page ?? 1);
   const [allResults, setAllResults] = useState(EMPTY_ALL_RESULTS);
   const [selected, setSelected] = useState<string | null>(restore?.selected ?? null);
+  // M4 closes the card preview, M5 opens it again (D-097): opening it from the grid is a move; moving between cards is not
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const live = useLive();
+  const openCard = (key: string) => {
+    if (selectedRef.current === null) recordMove({ undo: () => setSelected(null), redo: () => setSelected(key),
+      canUndo: () => live.current && selectedRef.current !== null, canRedo: () => live.current && selectedRef.current === null });
+    selectedRef.current = key;
+    setSelected(key);
+  };
   const [seenTags, setSeenTags] = useState<string[]>(restore?.seenTags ?? []);
   const [busy, setBusy] = useState<"search" | "more" | null>(null);
   const [error, setError] = useState<{ message: string; paused: boolean; desktop: boolean } | null>(null);
@@ -407,7 +418,7 @@ export function CardBrowser(p: CardBrowserProps) {
     const at = Math.max(0, items.findIndex((x) => cardKey(x) === selected));
     const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -perRow, ArrowDown: perRow }[e.key] ?? 0;
     const next = items[Math.min(items.length - 1, Math.max(0, selected ? at + step : 0))];
-    if (next) { setSelected(cardKey(next)); cards?.[items.indexOf(next)]?.focus(); }
+    if (next) { openCard(cardKey(next)); cards?.[items.indexOf(next)]?.focus(); }
   };
 
   return (
@@ -499,7 +510,7 @@ export function CardBrowser(p: CardBrowserProps) {
           <div className="gallery-cards" data-testid="cb-grid" aria-busy={busy === "search"}>
             {busy === "search" && items.length === 0
               ? Array.from({ length: 12 }, (_, i) => <div key={i} className="gallery-card cb-ghost" aria-hidden />)
-              : items.map((it) => <ResultCard key={cardKey(it)} item={it} sourceLabel={!source ? cardSource(it.source).name : undefined} t={p.transport} selected={cardKey(it) === selected} added={added.has(cardKey(it))} onClick={() => setSelected(cardKey(it))} />)}
+              : items.map((it) => <ResultCard key={cardKey(it)} item={it} sourceLabel={!source ? cardSource(it.source).name : undefined} t={p.transport} selected={cardKey(it) === selected} added={added.has(cardKey(it))} onClick={() => openCard(cardKey(it))} />)}
           </div>
           {searchSucceeded && !searchPending && items.length === 0 && lastKey.current && (
             <div className="gallery-empty hint" data-testid="cb-empty">

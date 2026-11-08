@@ -8,6 +8,7 @@
 // on any message makes the branch and puts you on it; a branch is a named end; each branch keeps its own versions.
 // 2026-10-29 (Daniel: "things stop generating when we leave the chat"): the turn lives in `turns.ts`, outside this
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
+import { useBackState } from "./back-button.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
 import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
@@ -166,7 +167,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   // Settings → Chat (D-082): a live reply revealed evenly ("Smooth text")
   const liveText = useSmoothText(pending?.text ?? "", prefs.smoothText && !!pending, prefs.smoothSpeed);
   const [sceneKey, setSceneKey] = useState(0);
-  const [tab, setTab] = useState<InspectorTab>("scene");
+  const [tab, setTab] = useBackState<InspectorTab>("scene"); // inspector tabs are moves for M4/M5 (D-097)
   // the Director (D-092) can leave the inspector for its own window; remembered across chats
   const [directorOut, setDirectorOut] = useState(() => { try { return localStorage.getItem("director.out") === "1"; } catch { return false; } });
   // whether its window is open is remembered too: the chat is drawn again when you come back to it, and a closed

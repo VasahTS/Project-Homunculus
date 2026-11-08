@@ -1,6 +1,7 @@
 // Homunculus 2 — regex scripts: the list, the editor, Try it, the review of new scripts and the safe HTML box.
 // Author: CLAUDE, 2026-11-01 (D-060). Plan: docs/UI-PLAN.md → "Regex scripts".
 // One list component is used in three places: Library → Regex (global), the preset editor and the character editor.
+import { useBackState } from "./back-button.ts";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { applyRegexScripts, regexError, REGEX_HTML, type RegexRunContext } from "@homunculus/core";
 import { RegexScript, type RegexTarget } from "@homunculus/schemas";
@@ -45,7 +46,7 @@ export function RegexList({ scripts, onChange, sample, waiting, onAllow, emptyTe
   scripts: RegexScript[]; onChange: (next: RegexScript[]) => void; sample?: string; canReorder?: boolean;
   waiting?: (s: RegexScript) => boolean; onAllow?: (s: RegexScript[]) => void; emptyText?: string; testId?: string;
 }) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useBackState<string | null>(null);
   const put = (s: RegexScript) => onChange(scripts.map((x) => (x.id === s.id ? s : x)));
   const add = () => { const s = newRegexScript(); onChange([...scripts, s]); setOpen(s.id); };
   const pending = waiting ? scripts.filter((s) => s.on && waiting(s)) : [];

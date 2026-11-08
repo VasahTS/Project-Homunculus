@@ -2,6 +2,7 @@
 // Daniel: "the menu is confusing and misses options; assistants should work almost like characters (see Flint);
 // memories, rules… like a preset where I keep how I like things written and lore, so I don't repeat them".
 // Four tabs: Assistants (who answers) · Presets (what it always knows) · Limits (how calls are paced) · Usage.
+import { useBackState } from "./back-button.ts";
 import { useEffect, useMemo, useState } from "react";
 import { AssistantPersona, AssistantPreset, ConnectionProfile, type AssistantChat, type AssistantSettings } from "@homunculus/schemas";
 import type { ModelInfo } from "@homunculus/core";
@@ -21,7 +22,7 @@ export function AssistantCustomizePage({ svc, connection, lead, onClose, initial
   svc: AppServices; connection: ConnectionState; lead: React.ReactNode; onClose: () => void; initialTab?: Tab;
 }) {
   const [s, setS] = useState<AssistantSettings | null>(null);
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useBackState<Tab>(initialTab);
   useEffect(() => { void loadSettings(svc.store).then(setS); }, [svc]);
   const put = (n: AssistantSettings) => { setS(n); void saveSettings(svc.store, n); };
   if (!s) return null;

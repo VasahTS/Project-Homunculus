@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## M4 / M5 revised: inside screens too (2026-11-08) — CLAUDE — D-097
+
+- Daniel: Card Browser preview → M4 went to the previous page instead of closing it; switching Sheet/Tabs/Writer → M4 left the editor. Cause 1: the always-there side panels (`data-region="sheet"`) counted as open windows. Cause 2: only screens were remembered. Now one list of moves (`ui/back-button.ts`: `recordMove`, `goMove`, `useBackState`); screens are moves (App.tsx), and so are tabs, layouts, previews and open items across the app (list in D-097).
+- **To try:** Characters → Edit → Tabs → Greetings → Writer, then M4 ×3 and M5; Card Browser → a card → M4 / M5; inspector Prompt → Memory → M4.
+- New click tests in `back-forward` (editor layout/tabs, inspector tabs, Card Browser preview).
+
 ## M4 / M5 everywhere (2026-11-08) — CLAUDE — D-097
 
 - Daniel: every window, tab etc. should work with the mouse's side buttons. M4 (and Alt+←) closes the top window/menu/popover like Esc, else goes back a screen; M5 (and Alt+→) forward. History of screens in App.tsx (`visits`); helpers in `ui/back-button.ts`; Folders now `claimBack` its own "one folder up".

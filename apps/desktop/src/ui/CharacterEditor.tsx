@@ -3,6 +3,7 @@ import { useUnsavedChanges, useGuardedNavigation } from "./ux.tsx";
 // 2026-10-28 (slice 1): versions side by side, a picture per version, history of saves, Move to Trash.
 // 2026-11-01 (D-070): three layouts the user picks (Sheet · Tabs · Writer, remembered), a greetings editor (alternates
 // included), the Description's <sections>, token counts, Save and Chat Now always in sight (Ctrl+S).
+import { useBackState } from "./back-button.ts";
 import { LorebookChips } from "./LorePanels.tsx";
 import { cropImage } from "./ImageCropper.tsx";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
@@ -116,8 +117,9 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
   const [dirty, setDirty] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [layout, setLayoutState] = useState<EditorLayout>(readLayout);
-  const [tab, setTab] = useState<Tab>("character");
+  // Sheet / Tabs / Writer and the card's tabs are moves M4/M5 go back and forth through (D-097)
+  const [layout, setLayout] = useBackState<EditorLayout>(readLayout, (l) => { try { localStorage.setItem(LAYOUT_KEY, l); } catch { /* a convenience only */ } });
+  const [tab, setTab] = useBackState<Tab>("character");
   const [active, setActive] = useState("description");
   const [dropping, setDropping] = useState(false);
   const imageInput = useRef<HTMLInputElement>(null);
@@ -131,7 +133,6 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
   const exists = !isNew || saved;
   const setDraft = (fn: (d: Character) => Character) => { setDraftState(fn); setSaved(false); setDirty(true); };
   const v = useVersionedDraft<Fields, Character>(draft, setDraft, variantId);
-  const setLayout = (l: EditorLayout) => { setLayoutState(l); try { localStorage.setItem(LAYOUT_KEY, l); } catch { /* a convenience only */ } };
 
   const refreshHistory = () => { if (exists) void loadHistory(draft.id).then(setHistory); };
   useEffect(() => { if (historyOpen) refreshHistory(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [historyOpen]);
