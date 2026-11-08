@@ -19,6 +19,7 @@
 4. **Robustness:** if a chat is created but a later step fails before its id is read, it stays on the account — consider finding it by character id and deleting it.
 5. **Not ported from Glaze yet:** review before saving, scripted ("advanced") lorebooks rebuilt by AI (trigger choices, field diff and the lore cap were done in D-100).
 6. Not verified: Google sign-in in the JanitorAI window, Linux/WebKitGTK at runtime.
+7. **Saved for later (Daniel):** before extracting, check whether DataCat already has the card and offer "Add from DataCat" / "Extract Yourself" — plan in `docs/JANITOR-EXTRACTION.md` §5 item 9.
 
 **Session notes:** Glaze reference clone was at hydall/Glaze f1fe39e. The dev machine can't reach janitorai.com ("Access Restricted"); test live only on Daniel's PC. Writing files to his PC: a re-used upload path once wrote the **old** file — use a fresh output path per write and check the size after.
 
