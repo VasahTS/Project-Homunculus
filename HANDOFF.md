@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## Interface size, the chat's top bar in narrow windows (2026-11-08) — CLAUDE
+
+- Daniel: fix the narrow top bar too, and make the UI scalable (150%, 70%…). **Settings → Appearance → Interface size** (70–150%, `uiScale`); **Ctrl +** / **Ctrl −** step through the sizes, **Ctrl 0** back to 100%. In the app the WebView zooms (`getCurrentWebview().setZoom`, permission `core:webview:allow-set-webview-zoom` added to `capabilities/default.json`); the browser preview uses CSS zoom. Not checked on Windows yet.
+- Top bar: the token pill ran over the buttons on the right. The bar is a size container (`chatbar`): the pill drops "· N msg", then the limit, then itself as it narrows; "with Lyra" keeps room. The overlay inspector's ✕ sat on the Reply tab; it has its own place at the end of the tabs now.
+- **To try:** Settings → Appearance → Interface size, or Ctrl − in a chat; make the window narrow with the inspector open.
+- Checks: typecheck; 752 unit; click tests `settings-v2` (new size test), `chat`, `branches`, `inspector-overflow`, `navigation`, `personas-window`, `ui-round-1104`, `ux-review` — 53 passed.
+
 ## Personas window + persona button under the message box (2026-11-08) — CLAUDE — D-096
 
 - A friend's feedback via Daniel: changing persona was hard to find. Drafts (canvas "Homunculus 2 — Personas"); Daniel picked A, asked for a Sort, Ctrl+P and the title "Personas". New `ui/PersonaPicker.tsx`; the button sits at the left of `.composer-meta`; WhoPicker's persona drop-downs became a row that opens the window. Personas sort by Recent / Most chats (chats that play each one, following story/default) — Library → Personas now defaults to Recent.

@@ -3882,3 +3882,18 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .composer { container-type: inline-size; }
 @container (max-width: 560px) { .composer-meta .composer-hint { display: none; } }
 .message-model { margin-inline-start: 6px; color: var(--label-3); font: 400 var(--size-small) var(--font-figures); display: inline-block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+/* the chat's top bar in a narrow window (Daniel, 2026-11-08): the token pill no longer runs over the buttons on the
+   right — it stays whole and drops its parts as the bar narrows (messages, then the limit, then itself) */
+.story-pane > .toolbar { container: chatbar / inline-size; }
+.toolbar-sub .chat-size { flex: none; }
+.toolbar-sub .who-picker { flex: 0 1 auto; min-width: 3.5em; }
+@container chatbar (max-width: 820px) { .chat-size-count { display: none; } }
+@container chatbar (max-width: 700px) { .chat-size-limit { display: none; } }
+@container chatbar (max-width: 580px) { .toolbar-sub .chat-size { display: none; } }
+/* the overlay inspector's ✕ sat on top of the Reply tab: it now has its own place at the end of the tab row */
+@media (max-width: 1100px) {
+  .inspector-tabs { display: flex; align-items: center; gap: 4px; }
+  .inspector-tabs > .segmented { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+  .inspector-tabs > .inspector-overlay-close { order: 2; float: none; flex: none; }
+  .inspector-tabs > .segmented button { padding-inline: 7px; }
+}

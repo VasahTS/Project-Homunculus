@@ -86,3 +86,20 @@ test("Spoiler-free hides a character's definition until Show", async ({ page }) 
   await sheet.getByTestId("spoiler-gate").getByRole("button", { name: "Show" }).click();
   await expect(sheet.getByText("A wary ranger", { exact: false })).toBeVisible();
 });
+
+test("Interface size: Ctrl − / Ctrl + step through the sizes, Settings shows and picks it, Ctrl 0 goes back", async ({ page }) => {
+  await openSettings(page);
+  const zoom = () => page.evaluate(() => document.documentElement.style.zoom || "1");
+  await page.keyboard.press("Control+-");
+  await page.keyboard.press("Control+-");
+  await expect.poll(zoom).toBe("0.8");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+  const size = page.getByRole("radiogroup", { name: "Interface size" });
+  await expect(size.getByRole("radio", { name: "80%" })).toHaveAttribute("aria-checked", "true");
+  await size.getByRole("radio", { name: "125%" }).click();
+  await expect.poll(zoom).toBe("1.25");
+  await page.keyboard.press("Control+=");
+  await expect.poll(zoom).toBe("1.5");
+  await page.keyboard.press("Control+0");
+  await expect.poll(zoom).toBe("1");
+});

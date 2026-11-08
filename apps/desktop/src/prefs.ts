@@ -50,6 +50,8 @@ export interface AppPrefs {
   quickReplies: QuickReplyStyle;
   // Appearance
   lineSpacing: number;
+  /** Interface size in percent (the whole window zooms, like a browser). Daniel, 2026-11-08. */
+  uiScale: number;
   avatarShape: AvatarShape;
   avatarSize: AvatarSize;
   cardSize: CardSize;
@@ -69,7 +71,7 @@ export const DEFAULT_PREFS: AppPrefs = {
   openAt: automated ? "last" : "home", replyNotice: true, replySound: "off", soundVolume: 60, customSound: "", customSoundName: "", systemNotify: false, spoilerFree: false,
   showTime: true, showNumber: true, showTokens: true, showModel: false, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
   smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50, quickReplies: "bar",
-  lineSpacing: 1.72, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
+  lineSpacing: 1.72, uiScale: 100, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
   autoBackup: "off", keepBackups: 10, emptyTrashDays: 0, homeOffered: true, skipOpening: false, openingSound: true,
 };
 
@@ -90,6 +92,26 @@ function apply(p: AppPrefs = prefs) {
   root.dataset.avatars = p.avatarShape;
   root.dataset.avatarSize = p.avatarSize;
   root.dataset.swipeArrows = p.swipeArrows ? "on" : "off";
+  applyScale(p.uiScale);
+}
+
+/** The interface sizes offered in Settings and stepped through by Ctrl + / Ctrl −. */
+export const UI_SCALES = [70, 80, 90, 100, 110, 125, 150];
+let scaled = 100;
+/** In the app the WebView itself zooms (layout, popovers and pointer positions stay right); in the browser preview, CSS zoom. */
+function applyScale(percent: number) {
+  if (percent === scaled) return;
+  scaled = percent;
+  if ("__TAURI_INTERNALS__" in window) {
+    void import("@tauri-apps/api/webview").then((m) => m.getCurrentWebview().setZoom(percent / 100)).catch(() => {});
+  } else document.documentElement.style.zoom = percent === 100 ? "" : String(percent / 100);
+}
+/** Ctrl + / Ctrl −: the next size up or down; Ctrl 0: 100%. */
+export function stepScale(dir: 1 | -1 | 0): Promise<void> {
+  if (dir === 0) return setPrefs({ uiScale: 100 });
+  const now = prefs.uiScale;
+  const next = dir > 0 ? UI_SCALES.find((s) => s > now) ?? now : [...UI_SCALES].reverse().find((s) => s < now) ?? now;
+  return setPrefs({ uiScale: next });
 }
 
 /** The opening plays before the settings are read from the database, so it reads a copy kept in the window's storage
@@ -123,6 +145,7 @@ export function cleanPrefs(saved: unknown): AppPrefs {
   out.continueTimes = Math.min(5, Math.max(1, Math.round(out.continueTimes)));
   out.messagesToShow = Math.min(1000, Math.max(0, Math.round(out.messagesToShow)));
   out.lineSpacing = Math.min(2.4, Math.max(1.1, out.lineSpacing));
+  out.uiScale = Math.min(200, Math.max(50, Math.round(out.uiScale)));
   out.keepBackups = Math.min(100, Math.max(1, Math.round(out.keepBackups)));
   out.emptyTrashDays = Math.max(0, Math.round(out.emptyTrashDays));
   if (!OPEN_AT.includes(out.openAt)) out.openAt = DEFAULT_PREFS.openAt;

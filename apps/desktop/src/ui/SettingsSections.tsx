@@ -2,7 +2,7 @@
 // Built from the approved canvas draft "Homunculus 2 — Settings & card reading" (11/03). CLAUDE, 2026-11-03.
 import { useEffect, useRef, useState } from "react";
 import { isDesktop } from "../db.ts";
-import { setPrefs, usePrefs, type AppPrefs, type ReplySound } from "../prefs.ts";
+import { setPrefs, UI_SCALES, usePrefs, type AppPrefs, type ReplySound } from "../prefs.ts";
 import { playSound, SOUND_LABELS } from "../sounds.ts";
 import { askSystemNotifications } from "../systemNotify.ts";
 import { Button, Group, Row, Segmented, Switch } from "./kit.tsx";
@@ -153,6 +153,10 @@ export function PicturesAndReadingGroup() {
   const p = usePrefs();
   return (
     <Group icon="figure" title="Pictures and reading">
+      <Row label="Interface size" help="The whole window, bigger or smaller. Ctrl + and Ctrl − change it too; Ctrl 0 goes back to 100%.">
+        <Segmented small label="Interface size" value={String(p.uiScale)} onChange={(v) => set({ uiScale: Number(v) })}
+          options={[...new Set([...UI_SCALES, p.uiScale])].sort((a, b) => a - b).map((s) => ({ value: String(s), label: `${s}%` }))} />
+      </Row>
       <Row label="Line spacing">
         <Range label="Line spacing" value={p.lineSpacing} min={1.2} max={2.2} step={0.04} shown={p.lineSpacing.toFixed(2)} onChange={(lineSpacing) => set({ lineSpacing })} />
       </Row>

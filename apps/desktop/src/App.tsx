@@ -57,7 +57,7 @@ import { RegexPage } from "./ui/RegexScripts.tsx";
 import { QuickRepliesPage } from "./ui/QuickReplies.tsx";
 import { loadQuickReplies } from "./quickReplies.ts";
 import { loadMessageLook } from "./messageLook.ts";
-import { getPrefs, loadPrefs, usePrefs } from "./prefs.ts";
+import { getPrefs, loadPrefs, stepScale, usePrefs } from "./prefs.ts";
 import { playReplySound } from "./sounds.ts";
 import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
@@ -244,6 +244,19 @@ export function App() {
     };
     document.addEventListener("keydown", out);
     return () => document.removeEventListener("keydown", out);
+  }, []);
+
+  // Ctrl + / Ctrl − / Ctrl 0: interface size (Settings → Appearance → Interface size). Daniel, 2026-11-08.
+  useEffect(() => {
+    const size = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || (event.shiftKey && event.key !== "+")) return;
+      const dir = event.key === "=" || event.key === "+" ? 1 : event.key === "-" ? -1 : event.key === "0" && !event.shiftKey ? 0 : null;
+      if (dir === null) return;
+      event.preventDefault();
+      void stepScale(dir);
+    };
+    document.addEventListener("keydown", size);
+    return () => document.removeEventListener("keydown", size);
   }, []);
 
   // Ctrl+K opens the "open anything" box (D-069); pressed again, it closes it
