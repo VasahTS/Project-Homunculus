@@ -34,7 +34,7 @@ import { Button, Group, Icon, IconButton, Row } from "./kit.tsx";
 import { RegexReview, SessionRegex } from "./RegexScripts.tsx";
 import { QuickReplyBar, QuickReplyDrawer, SessionQuickReplies, useQuickReplyStyle, type QuickReplyHost } from "./QuickReplies.tsx";
 import { MessageText } from "./MessageText.tsx";
-import { MessageMetadata, MessageTime } from "./MessageMetadata.tsx";
+import { MessageMetadata, MessageModel, MessageTime } from "./MessageMetadata.tsx";
 import { getPrefs, usePrefs } from "../prefs.ts";
 import { useSmoothText } from "../smoothText.ts";
 import { CardPicture } from "./Gallery.tsx";
@@ -718,8 +718,6 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   // NPCs appear in the Scene as "n:<name>": their Vault picture goes with them (29/10)
   const sceneAvatars = { ...avatars, ...Object.fromEntries(npcs.filter((n) => avatars[n.id]).map((n) => [`n:${n.name}`, avatars[n.id]!])) };
   const openReply = (id: string) => { setReplyFor(id); setTab("reply"); if (!inspectorOpen) onToggleInspector(); };
-  const story = connection.storyProfileFor(session, storySetup);
-  const params = story?.params ?? {};
 
   return (
     <div className="session-view">
@@ -827,7 +825,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                     {(prefs.showNumber || prefs.showTokens) && <MessageMetadata svc={svc} message={m} position={i + 1} showNumber={prefs.showNumber} showTokens={prefs.showTokens} side />}
                   </div>}
                   <div className="msg-body">
-                  <div className="who">{name} {prefs.showTime && <MessageTime at={m.createdAt} />}
+                  <div className="who">{name} {prefs.showTime && <MessageTime at={m.createdAt} />}{prefs.showModel && !user && <MessageModel svc={svc} message={m} />}
                     {!user && <AgentMarks results={agentResults.get(m.id)} agents={agents} current={m.content} canWriteAgain={isLastAi && m.parentId !== null && !busy}
                       onSaveText={(t) => void saveText(m, t)} onWriteAgain={() => regenerate(m)} />}
                     {m.meta.incomplete === true && <span className="warn"> · incomplete</span>}
@@ -980,13 +978,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               {personaChoice.kind === "follow" && persona && <span className="persona-chip-sub">({personaFollows.from})</span>}
               <span className="persona-chip-sub" aria-hidden>▾</span>
             </button>
-            <span className="composer-hint">{sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to {input.trim() ? "send" : "continue"} · {sendKey === "enter" ? "Shift+Enter" : "Enter"} for a new line</span>
+            <span className="composer-hint" title={`${sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to ${input.trim() ? "send" : "continue"} · ${sendKey === "enter" ? "Shift+Enter" : "Enter"} for a new line`}>{sendKey === "enter" ? "↵" : "Ctrl+↵"} {input.trim() ? "send" : "continue"} · {sendKey === "enter" ? "⇧↵" : "↵"} new line</span>
             <span className="grow" />
-            {(params.temperature !== undefined || params.reasoningEffort) && (
-              <button type="button" className="link quiet" onClick={() => { setTab("prompt"); if (!inspectorOpen) onToggleInspector(); }} title="Sampling: open the Prompt tab">
-                {[params.temperature !== undefined ? `temperature ${params.temperature}` : "", params.reasoningEffort ? `thinking ${params.reasoningEffort}` : ""].filter(Boolean).join(" · ")}
-              </button>
-            )}
+            {/* temperature / thinking left this line (Daniel, 2026-11-08: "just the model"); they live in the Prompt tab */}
             <span className="qc-anchor">
               <QuickConnect svc={svc} c={connection} session={session} storySetup={storySetup} listModels={listModels}
                 onChangeSession={onChangeSession} onManage={onOpenSettings} />

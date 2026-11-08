@@ -15,6 +15,19 @@ export function MessageTime({ at }: { at: number }) {
   return <time className="message-time" dateTime={value.toISOString()} data-testid="message-time"><span>{date.format(value)}</span>{" "}<span>· {time.format(value)}</span></time>;
 }
 
+/** The model that wrote a reply, quiet beside its time (Settings → Chat → Model; like Marinara). 2026-11-08. */
+export function MessageModel({ svc, message }: { svc: AppServices; message: Message }) {
+  const [record, setRecord] = useState<{ id: string; model: string; providerId: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (message.speaker.kind === "user" || message.speaker.kind === "system") return;
+    void svc.store.getGenerationRecord(message.id).then((r) => { if (live) setRecord(r ? { id: message.id, model: r.model, providerId: r.providerId } : null); }).catch(() => { if (live) setRecord(null); });
+    return () => { live = false; };
+  }, [svc, message.id, message.speaker.kind, message.content]);
+  if (!record || record.id !== message.id || !record.model) return null;
+  return <span className="message-model" data-testid="message-model" title={`Written by ${record.model} (${record.providerId})`}>· {record.model}</span>;
+}
+
 export function MessageMetadata({ svc, message, position, showNumber = true, showTokens = true, side = false }: { svc: AppServices; message: Message; position: number; showNumber?: boolean; showTokens?: boolean;
   /** Under the picture, one value per line (Daniel, 11/04, like SillyTavern): #2 · 717t · the reasoning apart. D-089. */
   side?: boolean }) {

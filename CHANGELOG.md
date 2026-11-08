@@ -5,6 +5,9 @@ inside the app, so write it for the people who use the app, not for programmers.
 
 ## Unreleased
 
+- **Settings → Chat → Model:** show the model that wrote each reply, quietly beside its time.
+- The line under the message box is shorter: your persona, a short hint and the model (temperature and thinking are in the Prompt tab).
+- A Director window you closed no longer opens again every time you come back to the chat.
 - **Personas window:** your persona now sits under the message box (picture, name, version) — click it or press **Ctrl+P** to open **Personas**: search, sort (Recent, Most chats, A-Z…), see each persona's versions and whole description, then **Play as**, **Make Default** or **Edit**. "Follow the default" and "No persona" are there too, and "Who is in this story" opens the same window.
 
 ## 0.3.5 — 2026-11-07

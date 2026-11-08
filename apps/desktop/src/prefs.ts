@@ -33,6 +33,8 @@ export interface AppPrefs {
   showTime: boolean;
   showNumber: boolean;
   showTokens: boolean;
+  /** The model that wrote each reply, beside its time (like Marinara). 2026-11-08. */
+  showModel: boolean;
   swipeArrows: boolean;
   gestures: boolean;
   chatWidth: ChatWidth;
@@ -65,7 +67,7 @@ export interface AppPrefs {
 
 export const DEFAULT_PREFS: AppPrefs = {
   openAt: automated ? "last" : "home", replyNotice: true, replySound: "off", soundVolume: 60, customSound: "", customSoundName: "", systemNotify: false, spoilerFree: false,
-  showTime: true, showNumber: true, showTokens: true, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
+  showTime: true, showNumber: true, showTokens: true, showModel: false, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
   smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50, quickReplies: "bar",
   lineSpacing: 1.72, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
   autoBackup: "off", keepBackups: 10, emptyTrashDays: 0, homeOffered: true, skipOpening: false, openingSound: true,

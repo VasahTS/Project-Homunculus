@@ -3880,4 +3880,5 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .composer-meta .qc-anchor > button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* when the hint can't fit whole, it goes away instead of showing "Ent…" */
 .composer { container-type: inline-size; }
-@container (max-width: 900px) { .composer-meta .composer-hint { display: none; } }
+@container (max-width: 560px) { .composer-meta .composer-hint { display: none; } }
+.message-model { margin-inline-start: 6px; color: var(--label-3); font: 400 var(--size-small) var(--font-figures); display: inline-block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }

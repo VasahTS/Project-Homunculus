@@ -100,6 +100,7 @@ export function ChatSection() {
         <Row label="Date and time"><Switch label="Date and time" checked={p.showTime} onChange={(showTime) => set({ showTime })} /></Row>
         <Row label="Message number" help="Position in this branch."><Switch label="Message number" checked={p.showNumber} onChange={(showNumber) => set({ showNumber })} /></Row>
         <Row label="Token counts" help="Text and reasoning, separately. ~ means estimated."><Switch label="Token counts" checked={p.showTokens} onChange={(showTokens) => set({ showTokens })} /></Row>
+        <Row label="Model" help="The model that wrote each reply, beside its time."><Switch label="Model" checked={p.showModel} onChange={(showModel) => set({ showModel })} /></Row>
         <Row label="Swipe arrows" help="‹ 2/3 › to move between versions of a reply."><Switch label="Swipe arrows" checked={p.swipeArrows} onChange={(swipeArrows) => set({ swipeArrows })} /></Row>
         <Row label="Swipe with the trackpad" help="Swipe the latest reply with two fingers. Swipe right at the end for a new version."><Switch label="Swipe with the trackpad" checked={p.gestures} onChange={(gestures) => set({ gestures })} /></Row>
       </Group>

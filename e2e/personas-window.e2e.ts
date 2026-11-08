@@ -81,3 +81,26 @@ test("the persona button opens Personas; search, play as, follow the default, no
   await win.getByLabel("Sort personas").selectOption("az");
   await expect(win.getByTestId("persona-row").first()).toContainText("Daniel");
 });
+
+test("Settings → Chat → Model shows the model that wrote each reply", async ({ page }) => {
+  await page.goto("/");
+  await openSession(page);
+  // the offline AI has no model name: give its saved records one, as a real connection would
+  await page.evaluate(async () => {
+    // @ts-expect-error In-memory browser preview.
+    const { servicesReady } = await import("/src/core-instance.ts"); const { store } = await servicesReady;
+    const get = store.getGenerationRecord.bind(store);
+    store.getGenerationRecord = async (id: string) => { const r = await get(id); return r ? { ...r, model: r.model || "glm-5.3:thinking" } : r; };
+  });
+  await page.getByPlaceholder(/Type a message/).fill("Hello.");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("message-model")).toHaveCount(0);
+  await page.evaluate(async () => {
+    // @ts-expect-error In-memory browser preview.
+    const { setPrefs } = await import("/src/prefs.ts"); await setPrefs({ showModel: true });
+  });
+  await expect(page.getByTestId("message-model").last()).toContainText("glm-5.3:thinking");
+  // only replies get it, never your own messages
+  await expect(page.getByTestId("message").nth(1).getByTestId("message-model")).toHaveCount(0);
+});
