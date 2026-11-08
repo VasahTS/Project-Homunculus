@@ -51,10 +51,11 @@ it("reads the model's lore answer through fences and prose; junk gives nothing",
 const ID = "aaaaaaaa-0000-4000-8000-000000000002";
 const meta = { id: ID, name: "Mira", creator_name: "kit", description: "<p>A keeper.</p>", avatar: "a.webp", tagIds: [53], showdefinition: false, personality: "", scenario: "", first_message: "Mira waves.",
   scripts: [{ type: "lorebook", id: "bbbbbbbb-0000-4000-8000-000000000001", title: "Public", is_public: true }] };
-function fakeJanitor(over: { allowProxy?: false; noPersona?: boolean; refuse?: number; nameless?: boolean; signedOut?: boolean } = {}) {
+function fakeJanitor(over: { allowProxy?: false; noPersona?: boolean; refuse?: number; nameless?: boolean; signedOut?: boolean; meta?: Record<string, unknown>; system?: (msg: string, n: number, user: string) => string } = {}) {
   const account = { settings: { selected_proxy_config_id: 7, source: "proxy", generation_settings: { context_length: 8000, temperature: 1 } } as Record<string, unknown>, configs: [{ id: 7, client_id: "mine" }] as Record<string, unknown>[], personas: [] as Record<string, unknown>[], chats: [] as string[], profile: { name: over.nameless ? "" : "Daniel", profile: "about" } };
   const calls: string[] = [];
   let alpha: unknown = null, sends = 0, page = "";
+  const sent: string[] = [], chatsMade: string[] = [];
   const ok = (v: unknown) => ({ status: 200, text: JSON.stringify(v) });
   const bridge: JanitorBridge = {
     async call(method, path, body) {
@@ -69,9 +70,9 @@ function fakeJanitor(over: { allowProxy?: false; noPersona?: boolean; refuse?: n
       if (path === "/hampter/personas" && method === "GET") return ok(account.personas);
       if (path === "/hampter/personas" && method === "POST") { if (over.noPersona) return { status: 500, text: "{}" }; account.personas.push({ id: "p1", name: b.name }); return ok({ id: "p1" }); }
       if (path.startsWith("/hampter/personas/") && method === "DELETE") { account.personas = account.personas.filter((p) => p.id !== path.split("/").pop()); return ok({}); }
-      if (path === "/hampter/chats" && method === "POST") { account.chats.push("123"); return ok({ id: 123 }); }
+      if (path === "/hampter/chats" && method === "POST") { const id = 123 + chatsMade.length; chatsMade.push(String(id)); account.chats.push(String(id)); return ok({ id }); }
       if (path === "/hampter/chats/123" && method === "GET") return ok({ character: { first_message: "Mira waves.", first_messages: ["Mira waves.", "Mira frowns at {{user}}."] } });
-      if (path === "/hampter/chats/123" && method === "DELETE") { account.chats = []; return ok({}); }
+      if (/^\/hampter\/chats\/\d+$/.test(path) && method === "DELETE") { account.chats = account.chats.filter((c) => c !== path.split("/").pop()); return ok({}); }
       return { status: 404, text: "{}" };
     },
     async page(op, text) {
@@ -82,7 +83,8 @@ function fakeJanitor(over: { allowProxy?: false; noPersona?: boolean; refuse?: n
       if (op === "send") {
         sends++;
         const user = String(account.settings.selected_proxy_config_id) === "99" ? (account.personas.length ? "{{user}}" : account.profile.name) : "";
-        const sys = sends === 1 ? SYSTEM.split("\n").slice(0, 6).join("\n").replace(/Daniel/g, user) : SYSTEM.replace(/Daniel/g, user);
+        sent.push(String(text));
+        const sys = over.system ? over.system(String(text), sends, user) : sends === 1 ? SYSTEM.split("\n").slice(0, 6).join("\n").replace(/Daniel/g, user) : SYSTEM.replace(/Daniel/g, user);
         alpha = over.refuse ? null : payload(sys);
         return ok({ ok: true, cleared: true });
       }
@@ -98,12 +100,12 @@ function fakeJanitor(over: { allowProxy?: false; noPersona?: boolean; refuse?: n
       calls.push(`GET ${r.url}`);
       const base = { status: 200, finalUrl: r.url, contentType: "application/json", cfMitigated: false };
       if (r.expect === "image") return { ...base, bytes: png, mime: "image/webp" };
-      if (r.url.endsWith(`/hampter/characters/${ID}`)) return { ...base, text: JSON.stringify(over.allowProxy === false ? { ...meta, allow_proxy: false } : meta) };
+      if (r.url.endsWith(`/hampter/characters/${ID}`)) return { ...base, text: JSON.stringify({ ...meta, ...(over.allowProxy === false ? { allow_proxy: false } : {}), ...over.meta }) };
       if (r.url.includes("/hampter/script/")) return { ...base, text: JSON.stringify({ script: JSON.stringify([{ key: ["public"], content: "Public fact that the creator shared openly with everyone." }]) }) };
       return { ...base, status: 404, text: "{}" };
     },
   };
-  return { t, account, calls };
+  return { t, account, calls, sent, chatsMade };
 }
 const item: CardItem = { source: "janitor", id: ID, name: "Mira", creator: "kit", tagline: "", tags: [], thumb: "", nsfw: false, url: "", stats: {} };
 const opts = { sleep: async () => {}, limits: { composer: 50, card: 50, lore: 50 } };
@@ -178,3 +180,62 @@ it("details: a hidden card offers Extract unless the creator forbids proxies", a
   expect(d.canExtract).toBeUndefined(); expect(d.hidden).toMatch(/can't be extracted/);
   void NO_FILTERS;
 });
+
+// ------------------------------------------------------------------ D-100: trigger choice, field diff, lore cap
+it("trigger choice: the card can be left out, extra text and greetings go in, the default sends card + catalog + scenario", async () => {
+  const withScenario = { scenario: "<p>A storm on the cliffs.</p>", custom_tags: ["Cozy"], scripts: [...meta.scripts, { type: "lorebook", id: "c", title: "Coast Lore", description: "<b>Places</b> of the coast", is_public: false }] };
+  const a = fakeJanitor({ meta: withScenario });
+  await extract(a.t);
+  expect(a.sent[0]).toBe(".");
+  expect(a.sent[1]).toContain("lighthouse keeper"); // the card from the probe
+  expect(a.sent[1]).toContain("Name: Mira"); expect(a.sent[1]).toContain("Catalog description:\nA keeper.");
+  expect(a.sent[1]).toContain("- Coast Lore: Places of the coast");
+  expect(a.sent[1]).toContain("A storm on the cliffs.");
+  const b = fakeJanitor({ meta: withScenario });
+  await extract(b.t, { trigger: { card: false, catalog: false, scenario: false, greetings: true, lorebooks: false, extra: "The Silver Fox inn" } });
+  expect(b.sent[1]).toBe("Mira waves.\n\nThe Silver Fox inn");
+  // nothing chosen at all still sends something, so JanitorAI builds a prompt
+  const c = fakeJanitor();
+  await extract(c.t, { trigger: { card: false, catalog: false, scenario: false, greetings: false, lorebooks: false, extra: "" } });
+  expect(c.sent[1]).toBe(".");
+});
+
+const fieldPrompt = (inScenario: string) => [
+  "<Mira's Persona>Mira is a lighthouse keeper on the northern coast.</Mira's Persona>",
+  `<Scenario>A storm hits the coast.${inScenario ? "\n" + inScenario : ""}</Scenario>`,
+].join("\n");
+it("field diff: lore an entry wrote into the scenario goes to the lorebook and out of the card", async () => {
+  const INJ = "The lighthouse lamp was lit by Mira's mother every night for forty years.";
+  const a = fakeJanitor({ system: (_m, n) => fieldPrompt(n === 1 ? "" : INJ) });
+  const seen: string[] = [];
+  const r = await extract(a.t, { complete: async (m: unknown) => { seen.push(JSON.stringify(m)); return '{"entries":[{"comment":"Lamp","key":["lamp"],"content":"' + INJ.replace("Mira's", "{{char}}'s") + '"}]}'; } });
+  const data = (r.file as unknown as { card: { data: Record<string, unknown> } }).card.data;
+  expect(data.scenario).toBe("A storm hits the coast.");
+  expect(seen[0]).toContain("lamp was lit by {{char}}");
+  expect(r.closedEntries).toBe(1);
+});
+
+it("field diff for a public-looking definition: always-on lore in the probe is compared with the catalog's clean copy", async () => {
+  const ALWAYS = "Every storm, the old bell in the tower rings thirteen times.";
+  const a = fakeJanitor({ meta: { personality: "{{char}} is a lighthouse keeper on the northern coast.", scenario: "A storm hits the coast." },
+    system: () => fieldPrompt(ALWAYS) });
+  const r = await extract(a.t);
+  const data = (r.file as unknown as { card: { data: Record<string, unknown> } }).card.data;
+  expect(data.scenario).toBe("A storm hits the coast.");
+  const book = data.character_book as { entries: Record<string, unknown>[] };
+  expect(book.entries.some((e) => String(e.content).includes("bell in the tower"))).toBe(true);
+});
+
+it("lore cap: a capture at JanitorAI's cap re-sends the trigger in pieces, each in its own chat, and every chat is deleted", async () => {
+  const big = "Harbor lore. ".repeat(30_000); // ≈ 390 000 characters ≈ the cap by the estimate
+  const a = fakeJanitor({ meta: { scenario: "First paragraph about the harbor.\n\nSecond paragraph about the tower." },
+    system: (msg, n) => n === 1 ? fieldPrompt("") : `${fieldPrompt("")}\n${msg.includes("lighthouse keeper") ? big : "Piece lore: " + msg.slice(0, 40)}` });
+  const phases: string[] = [];
+  await extract(a.t, { onPhase: (p: string) => phases.push(p) });
+  expect(a.chatsMade.length).toBeGreaterThanOrEqual(3);
+  expect(a.account.chats).toEqual([]);
+  expect(phases.some((p) => /part 2 of/.test(p))).toBe(true);
+  // each piece is shorter than the whole trigger
+  expect(a.sent.slice(2).every((m) => m.length < a.sent[1]!.length)).toBe(true);
+});
+

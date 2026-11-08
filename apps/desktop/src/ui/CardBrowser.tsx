@@ -4,8 +4,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { Avatar, Character, Folder } from "@homunculus/schemas";
 import { bytesToBase64 } from "@homunculus/st-cards";
-import { CARD_SOURCES, cardSource, isSourceId, NO_FILTERS, pauses, SiteError } from "@homunculus/card-browser";
-import type { BotbooruAccountState, CardDetails, CardFile, CardFilters, CardItem, CardQuery, CardSource, MustHave, SiteTransport, SourceId } from "@homunculus/card-browser";
+import { CARD_SOURCES, cardSource, DEFAULT_TRIGGER, isSourceId, NO_FILTERS, pauses, SiteError } from "@homunculus/card-browser";
+import type { BotbooruAccountState, CardDetails, CardFile, CardFilters, CardItem, CardQuery, CardSource, MustHave, SiteTransport, SourceId, TriggerChoice } from "@homunculus/card-browser";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
 import { recordMove, useLive } from "./back-button.ts";
 import { BotbooruAccount } from "./BotbooruAccount.tsx";
@@ -25,7 +25,7 @@ import { getPrefs } from "../prefs.ts";
 type BrowseSourceId = SourceId | "all";
 const ALL_SITES = { id: "all", name: "All Sites" } as const;
 const SOURCE_OPTIONS = [ALL_SITES, ...CARD_SOURCES];
-interface Prefs { source: BrowseSourceId; sorts: Partial<Record<SourceId, string>>; nsfw: Partial<Record<BrowseSourceId, boolean>>; size: CollectionPrefs["size"]; folder: string; importTags: boolean; datacatOk?: boolean; janitorExtractOk?: boolean }
+interface Prefs { source: BrowseSourceId; sorts: Partial<Record<SourceId, string>>; nsfw: Partial<Record<BrowseSourceId, boolean>>; size: CollectionPrefs["size"]; folder: string; importTags: boolean; datacatOk?: boolean; janitorExtractOk?: boolean; janitorTrigger?: Omit<TriggerChoice, "extra"> }
 const PREFS_KEY = "h2.cardBrowser";
 const DEFAULT_PREFS: Prefs = { source: "chub", sorts: {}, nsfw: {}, size: "m", folder: "web", importTags: true };
 function loadPrefs(): Prefs {
@@ -577,6 +577,9 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, co
   const [working, setWorking] = useState<"add" | "png" | "extract" | null>(null);
   const [phase, setPhase] = useState("");
   const [askExtract, setAskExtract] = useState(false);
+  // what the lorebook trigger sends (D-100): the switches are remembered, the extra text belongs to this card
+  const [extraText, setExtraText] = useState("");
+  const trigger: TriggerChoice = { ...DEFAULT_TRIGGER, ...prefs.janitorTrigger, extra: extraText };
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [naming, setNaming] = useState<string | null>(null);
@@ -605,7 +608,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, co
     if (!prefs.janitorExtractOk && !confirmed) { setAskExtract(true); return; }
     setAskExtract(false); setWorking("extract"); setMenu(false);
     try {
-      const r = await source.extract(item, transport, { onPhase: setPhase, complete });
+      const r = await source.extract(item, transport, { onPhase: setPhase, complete, trigger });
       const notes = [r.closedEntries ? `Closed lorebook: ${r.closedEntries} ${r.closedEntries === 1 ? "entry" : "entries"} rebuilt by your AI connection; check their keys.` : "", r.loreNote].filter(Boolean);
       const id = await onAdd(r.file, item, { folder: folderChoice(), importTags: prefs.importTags, notes });
       if (id) setJustAdded(id);
@@ -699,6 +702,8 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, co
           <label className="row-line cb-tags-switch"><span className="field-label">Import Tags</span>
             <Switch label="Import Tags" checked={prefs.importTags} onChange={(v) => setPrefs((x) => ({ ...x, importTags: v }))} />
           </label>
+          {full?.canExtract && <TriggerOptions value={trigger} disabled={working !== null}
+            onChange={(next) => { const { extra, ...rest } = next; setExtraText(extra); setPrefs((x) => ({ ...x, janitorTrigger: rest })); }} />}
         </div>
       )}
       {tags.length > 0 && <div className="vs-tags">{tags.slice(0, 12).map((t) => <span key={t} className="gallery-tag">{t}</span>)}{tags.length > 12 && <span className="gallery-more">+{tags.length - 12}</span>}</div>}
@@ -812,3 +817,22 @@ function FilterPanel({ source, filters, onChange }: { source: CardSource; filter
     </div>
   );
 }
+
+/** What the extraction sends to make a hidden card's closed lorebook fire (D-100, Glaze's trigger choices). Folded: the
+ *  defaults (card, catalog page, scenario) fit most cards; the extra text reaches a world lorebook the card never names. */
+const TRIGGER_PARTS: Array<[keyof Omit<TriggerChoice, "extra">, string]> = [["card", "Card"], ["catalog", "Catalog Page"], ["scenario", "Scenario"], ["greetings", "Greetings"], ["lorebooks", "Lorebook Descriptions"]];
+function TriggerOptions({ value, onChange, disabled }: { value: TriggerChoice; onChange: (v: TriggerChoice) => void; disabled: boolean }) {
+  const chosen = TRIGGER_PARTS.filter(([k]) => value[k]).map(([, l]) => l);
+  if (value.extra.trim()) chosen.push("Extra Text");
+  return <details className="cb-trigger" data-testid="cb-trigger">
+    <summary><span className="field-label">Lorebook Trigger</span><span className="hint">{chosen.join(", ") || "Nothing (sends a dot)"}</span></summary>
+    <p className="hint">What the extraction writes in the chat so JanitorAI fires the closed lorebook's entries. More names and places fire more entries.</p>
+    <div className="cb-trigger-grid">
+      {TRIGGER_PARTS.map(([k, label]) => <label key={k} className="row-line"><span>{label}</span>
+        <Switch label={label} disabled={disabled} checked={value[k]} onChange={(v) => onChange({ ...value, [k]: v })} /></label>)}
+    </div>
+    <textarea aria-label="Extra Text" data-testid="cb-trigger-extra" rows={3} disabled={disabled} value={value.extra} placeholder="Extra Text: names, places or factions from the card's world"
+      onChange={(e) => onChange({ ...value, extra: e.target.value })} />
+  </details>;
+}
+

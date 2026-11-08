@@ -1076,3 +1076,15 @@ Daniel (translated), after D-098: "you can make the scraper the same as or simil
 - **Not taken from Glaze (yet):** re-sending the trigger in pieces when the lore hits JanitorAI's cap (needs its tokenizer), the field diff (lore written into card fields), scripted ("advanced") lorebooks rebuilt by AI, the trigger-context choices. **Not verified:** against the live site (the dev machine gets "Access Restricted"); JanitorAI's page structure (send button, overlays) is the fragile part, as in Glaze.
 
 Signed: **CLAUDE**.
+
+## D-100 — JanitorAI extraction: trigger choices, lore written into card fields, and JanitorAI's lore cap (2026-11-08)
+
+Daniel (translated): "continue the JanitorAI". Gaps 2–4 of `docs/JANITOR-EXTRACTION.md` §5, ported from Glaze (f1fe39e).
+- **Trigger choices** (Glaze `JanitorTriggerContext`): the second send is built from **Card**, **Catalog Page** (name, tags, catalog description, scenario, attached lorebooks), **Scenario**, **Greetings**, **Lorebook Descriptions** and an **Extra Text**. Defaults as in Glaze: card + catalog page + scenario. Nothing chosen sends ".". In the sheet, a hidden card's options get one folded row, **Lorebook Trigger**, whose summary lists what is on; the switches are remembered per computer, the extra text belongs to the card on screen. The catalog page now also feeds the lore rebuild as context.
+- **Field diff** (`janitor-diff.ts`, Glaze `janitor_field_diff.dart`): lines in the trigger capture's persona / scenario / example / first message that are not in the "." probe's were written there by entries the trigger fired; for a card whose definition is public, the probe is also compared with the catalog's clean fields (always-on entries). Those blocks go to the closed lore and are taken out of the imported card. A closed card's always-on lore stays in the card (no clean baseline; Glaze's choice). The card itself still comes from the probe.
+- **Lore cap / split passes** (Glaze `janitor_lore_budget.dart`, `_splitPasses`): JanitorAI injects at most 120,000 tokens of lore per prompt. When a capture is within 8,000 of it (and the probe alone is not), the trigger is cut in halves at paragraph → line → sentence → word boundaries and each piece is sent in a **fresh chat**, splitting again while a piece is still at the cap, up to 16 more chats; every chat is deleted after. Tokens are **estimated** (characters ÷ 3, Glaze's fallback, errs towards splitting) instead of loading JanitorAI's cl100k tokenizer. The button shows "Reading the lorebook (part N of M)".
+- Each send that must be the only message JanitorAI scans now runs through one helper (create chat → open → reload → composer → send → delete), Glaze `_inFreshChat`.
+- **Still open:** the AI rebuild failure on "Sarah" (waiting for Daniel's next try), review before saving, scripted ("advanced") public lorebooks, the exact tokenizer.
+
+Signed: **CLAUDE**.
+

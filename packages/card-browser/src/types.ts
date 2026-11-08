@@ -114,8 +114,24 @@ export interface CardSource {
   /** Cards the site hides (JanitorAI, D-099): read through the person's own account. */
   extract?(item: CardItem, t: SiteTransport, opts: ExtractOptions): Promise<{ file: CardFile; closedEntries: number; loreNote: string }>;
 }
+/** What goes into the message that makes a hidden card's closed lorebook fire (Glaze `JanitorTriggerContext`, D-100). */
+export interface TriggerChoice {
+  /** The card recovered by the "." probe. */
+  card: boolean;
+  /** Name, tags, catalog description, scenario and the attached lorebooks' titles. */
+  catalog: boolean;
+  scenario: boolean;
+  greetings: boolean;
+  /** Titles and descriptions of the lorebooks attached to the card. */
+  lorebooks: boolean;
+  /** Free text: the only way to fire entries of a world lorebook the card never names. */
+  extra: string;
+}
+export const DEFAULT_TRIGGER: TriggerChoice = { card: true, catalog: true, scenario: true, greetings: false, lorebooks: false, extra: "" };
 export interface ExtractOptions {
   onPhase?: (phase: string) => void;
+  /** Defaults to DEFAULT_TRIGGER. */
+  trigger?: TriggerChoice;
   /** One call to the person's AI connection (rebuilds the closed lorebook). */
   complete?: (messages: Array<{ role: "system" | "user"; content: string }>) => Promise<string>;
   sleep?: (ms: number) => Promise<void>;

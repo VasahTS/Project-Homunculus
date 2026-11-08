@@ -7,7 +7,8 @@
 // account, the run selects a temporary unreachable proxy, opens a chat with the character, sends "." (the card) and then the
 // card's own words (to fire lore), keeps the prompts, and puts everything back: chat deleted, persona deleted, proxy
 // preset deleted, the previous proxy / model / context length selected again. CLAUDE, 2026-11-08.
-import type { CardFile, CardItem, ExtractOptions, JanitorBridge, SiteTransport } from "../types.ts";
+import { type CardFile, type CardItem, DEFAULT_TRIGGER, type ExtractOptions, type JanitorBridge, type SiteTransport, type TriggerChoice } from "../types.ts";
+import { fieldsOf, fieldsOfMeta, isSaturated, scanInjectedFields, splitTrigger, withoutInjected } from "./janitor-diff.ts";
 import { askImage, buildCard, plain, text } from "../build.ts";
 import { SiteError } from "../pauses.ts";
 import { type AlphaPayload, extractCard, extractExample, extractFirstMessage, extractName, extractScenario, isAlphaPayload, mergeLore, restoreMacros, separate, splitEntries, stripJanitorCredit } from "./janitor-prompt.ts";
@@ -178,19 +179,45 @@ function closedEntries(rows: Row[], start: number): Row[] {
   });
 }
 
+// ------------------------------------------------------------------ the trigger
+const htmlText = (v: unknown) => plain(v).trim();
+/** The lorebooks attached to the card, as "- Title: description" lines (Glaze `buildLorebookDescsContext`). */
+export function lorebookLines(meta: Row): string {
+  return (Array.isArray(meta.scripts) ? meta.scripts as Row[] : []).filter((x) => x && (x.type === "lorebook" || x.type === "advanced"))
+    .map((x) => { const t = text(x.title), d = htmlText(x.description); return t || d ? `- ${t}${d ? `: ${d}` : ""}` : ""; }).filter(Boolean).join("\n");
+}
+/** The catalog page as text: name, tags, description, scenario, attached lorebooks (Glaze `_buildCatalogContext`). */
+export function catalogText(meta: Row, tags: string[]): string {
+  const desc = htmlText(meta.description), scen = htmlText(meta.scenario), books = lorebookLines(meta);
+  return [text(meta.name) && `Name: ${text(meta.name)}`, tags.length && `Tags: ${tags.join(", ")}`, desc && `Catalog description:\n${desc}`,
+    scen && `Scenario:\n${scen}`, books && `Lorebooks:\n${books}`].filter(Boolean).join("\n");
+}
+/** Everything chosen except the card (it exists only inside the prompt the "." probe reveals). */
+export function triggerText(meta: Row, tags: string[], c: TriggerChoice): string {
+  const greetings = [text(meta.first_message), ...(Array.isArray(meta.first_messages) ? meta.first_messages.map((g) => typeof g === "string" ? g : "") : [])].map((g) => g.trim()).filter(Boolean);
+  return [c.catalog ? catalogText(meta, tags) : "", c.scenario ? htmlText(meta.scenario) : "", c.greetings ? [...new Set(greetings)].join("\n\n") : "",
+    c.lorebooks ? lorebookLines(meta) : "", c.extra].map((x) => x.trim()).filter(Boolean).join("\n\n");
+}
+
 // ------------------------------------------------------------------ the run
+/** At most this many follow-up chats after the lore hit JanitorAI's cap (each is the better part of a minute). Glaze. */
+const MAX_SPLIT_PASSES = 16;
+
 export async function extractJanitor(item: CardItem, t: SiteTransport, deps: ExtractDeps, opts: ExtractOptions = {}): Promise<Extracted> {
   const j = t.janitor;
   if (!j || !t.janitorAccount) throw fail("Extracting works in the desktop app.");
   const phase = opts.onPhase ?? (() => {});
   const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const limits = { composer: 60_000, card: 60_000, lore: 120_000, ...opts.limits };
+  const choice = opts.trigger ?? DEFAULT_TRIGGER;
   phase("Checking the account");
   if (!(await t.janitorAccount("status")).username) throw fail("Sign In… to JanitorAI first: extracting needs your account.");
   const meta = await deps.meta(item, t);
   if (meta.allow_proxy === false) throw fail("The creator only allows this card on JanitorAI's own model, so it can't be extracted.");
   const publicBook = await deps.publicBook(meta, item.name, t);
   const publicContents = publicBook.map((e) => text(e.content));
+  const tags = deps.tags(meta);
+  const context = triggerText(meta, tags, choice);
 
   phase("Preparing your JanitorAI account");
   await j.page("show");
@@ -198,10 +225,9 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
   let profile: { restore?: Row; sentinel?: string; name?: string } = {};
   let persona: { id: string | null; made: boolean } = { id: null, made: false };
   let probe: AlphaPayload | null = null, full: AlphaPayload | null = null, greetings: string[] = [], problem = "";
-  try {
-    profile = await seedProfileName(j);
-    persona = await userPersona(j);
-    phase("Opening a chat");
+  const passes: AlphaPayload[] = [];
+  /** A chat of its own for each send that must be the only message JanitorAI scans; always deleted after. Glaze `_inFreshChat`. */
+  const inFreshChat = async <T>(body: (chatId: string) => Promise<T>): Promise<T> => {
     const chat = (await call(j, "POST", "/hampter/chats", { character_id: item.id, ...(persona.id ? { persona_id: persona.id } : {}) })) as Row | null;
     // JanitorAI answers with a numeric id (Glaze reads it with toString)
     const rawId = chat?.id ?? (chat?.data as Row | undefined)?.id ?? (chat?.chat as Row | undefined)?.id;
@@ -213,27 +239,49 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
       await untilComposer(j, 20_000, sleep);
       await j.page("reload");
       await untilComposer(j, limits.composer, sleep);
+      return await body(chatId);
+    } finally { await quiet(() => call(j, "DELETE", `/hampter/chats/${chatId}`)); }
+  };
+  try {
+    profile = await seedProfileName(j);
+    persona = await userPersona(j);
+    phase("Opening a chat");
+    let trigger = ".";
+    await inFreshChat(async (chatId) => {
       greetings = chatGreetings(await call(j, "GET", `/hampter/chats/${chatId}`).catch(() => null));
       phase("Reading the card");
       const dot = await sendAndCapture(j, ".", limits.card, sleep);
       probe = dot.payload; problem = dot.problem;
-      const card = probe ? extractCard(probe) : "";
+      const card = probe && choice.card ? extractCard(probe) : "";
+      trigger = [card, context].filter(Boolean).join("\n\n") || ".";
       phase("Reading the lorebook");
-      const trigger = [card, plain(meta.description), text(meta.scenario)].filter(Boolean).join("\n\n") || ".";
       const more = await sendAndCapture(j, trigger, limits.lore, sleep);
       full = more.payload; problem ||= more.problem;
-    } finally {
-      phase("Putting your account back");
-      await quiet(() => call(j, "DELETE", `/hampter/chats/${chatId}`));
+    });
+    // The lore that came back reached JanitorAI's cap, so fired entries were dropped: re-send the trigger in pieces,
+    // each in a fresh chat (Glaze `_splitPasses`). Not when the probe alone fills it — those are always-on entries.
+    if (full && isSaturated(full, probe) && !(probe && isSaturated(probe))) {
+      const queue = splitTrigger(trigger);
+      if (queue.length > 1) for (let pass = 1; queue.length && pass <= MAX_SPLIT_PASSES; pass++) {
+        const piece = queue.shift()!;
+        phase(`Reading the lorebook (part ${pass + 1} of ${pass + 1 + queue.length})`);
+        const sent = await inFreshChat(() => sendAndCapture(j, piece, limits.lore, sleep));
+        if (!sent.payload) continue; // one lost piece costs only the entries it fires
+        passes.push(sent.payload);
+        if (isSaturated(sent.payload, probe)) { const halves = splitTrigger(piece); if (halves.length > 1) queue.push(...halves); }
+      }
     }
   } finally {
+    phase("Putting your account back");
     await quiet(() => j.page("hide"));
     if (persona.id && persona.made) await quiet(() => call(j, "DELETE", `/hampter/personas/${persona.id}`));
     if (profile.restore) await quiet(() => call(j, "PATCH", "/hampter/profiles/mine", profile.restore));
     await restoreSettings(j, snap);
   }
-  const source = probe ?? full;
+  // the card comes from the "." probe: every entry the trigger fired into a field would otherwise be imported as the character
+  const source: AlphaPayload | null = probe ?? full;
   if (!source) throw fail(problem || "JanitorAI never built the prompt.");
+  const captures: AlphaPayload[] = [...(full ? [full] : []), ...passes];
 
   // names back to {{char}} / {{user}}, JanitorAI's credit line out
   const name = extractName(source) || text(meta.name) || item.name;
@@ -241,9 +289,17 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
   // with the {{user}} persona the macro survives; otherwise JanitorAI baked the account's name in
   const userName = profile.sentinel ?? (persona.id ? null : profile.name);
   const macro = (s: string) => restoreMacros(stripJanitorCredit(s), charNames, userName);
-  const card = macro(extractCard(source));
+  const separated = macro(mergeLore([...captures, ...(probe ? [probe] : [])].map((p) => separate(p, extractCard(source), publicContents))));
+  // lore an entry wrote into the card's own fields: the trigger's fields minus the probe's, and (public definition only)
+  // the probe's minus the catalog's clean ones
+  const clean = text(meta.personality) || text(meta.scenario) ? fieldsOfMeta(meta) : null;
+  const injected = scanInjectedFields({
+    capture: fieldsOf(captures[0] ?? source, macro), extra: captures.slice(1).map((p) => fieldsOf(p, macro)),
+    probe: probe && captures.length ? fieldsOf(probe, macro) : null, clean, publicContents, existing: separated,
+  });
+  const lore = [separated, ...injected.map((b) => b.text)].map((x) => x.trim()).filter(Boolean).join("\n\n");
+  const card = withoutInjected(macro(extractCard(source)), "persona", injected);
   if (!card) throw fail("JanitorAI's prompt had no character card in it.");
-  const lore = macro(mergeLore([full, probe].filter((p): p is AlphaPayload => !!p).map((p) => separate(p, extractCard(source), publicContents))));
   const all: string[] = [];
   for (const g of [...greetings, text(meta.first_message), ...(Array.isArray(meta.first_messages) ? meta.first_messages : []), extractFirstMessage(source)]) {
     const v = macro(typeof g === "string" ? g.trim() : "");
@@ -256,7 +312,7 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
     const asText = "it came in as text, switched off until it has keys.";
     if (opts.complete) {
       let answer = "", why = "";
-      try { answer = await opts.complete(loreMessages(lore, card, plain(meta.description))); closed = parseLoreAnswer(answer); }
+      try { answer = await opts.complete(loreMessages(lore, card, catalogText(meta, tags))); closed = parseLoreAnswer(answer); }
       catch (e) { why = e instanceof Error ? e.message : String(e); }
       rebuilt = closed.length;
       if (!closed.length) {
@@ -271,8 +327,9 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
   const file: CardFile = {
     kind: "json",
     card: buildCard({
-      name, description: card, personality: "", scenario: macro(extractScenario(source)) || text(meta.scenario), first_mes: all[0] ?? "", alternate_greetings: all.slice(1),
-      mes_example: macro(extractExample(source)), creator_notes: plain(meta.description), tags: deps.tags(meta),
+      name, description: card, personality: "", scenario: withoutInjected(macro(extractScenario(source)) || text(meta.scenario), "scenario", injected),
+      first_mes: all[0] ?? "", alternate_greetings: all.slice(1),
+      mes_example: withoutInjected(macro(extractExample(source)), "example", injected), creator_notes: plain(meta.description), tags,
       creator: text(meta.creator_name) || item.creator, character_book: entries.length ? { name: `${name} Lorebook`, entries } : undefined,
       extensions: { janitor: { id: item.id, extracted: true } },
     }),

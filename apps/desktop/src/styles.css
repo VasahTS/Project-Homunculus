@@ -3179,8 +3179,18 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 .cb-notice-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .cb-add-options { display: grid; gap: 8px; }
 .cb-add-options .row-line { gap: 10px; }
-.cb-add-options .field-label { flex: 0 0 92px; }
+.cb-add-options .field-label { flex: 0 0 116px; white-space: nowrap; }
 .cb-tags-switch { justify-content: flex-start; }
+/* Lorebook trigger choices for a JanitorAI extraction (D-100): one quiet folded row */
+.cb-trigger > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none; }
+.cb-trigger > summary::-webkit-details-marker { display: none; }
+.cb-trigger > summary .field-label { flex: 0 0 116px; white-space: nowrap; }
+.cb-trigger > summary .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cb-trigger[open] > summary { margin-bottom: 6px; }
+.cb-trigger > p.hint { margin: 0 0 8px; }
+.cb-trigger-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 16px; margin-bottom: 8px; }
+.cb-trigger-grid .row-line { justify-content: space-between; gap: 10px; }
+.cb-trigger textarea { width: 100%; resize: vertical; }
 .cb-in { margin: -4px 0 0; }
 /* Card Browser: full-width portrait and complete, collapsible fields. CODEX, 2026-11-02. */
 .card-browser .gallery-sheet { flex-basis: min(440px, 43%); min-width: 0; }

@@ -8,7 +8,7 @@ async function fakeJanitor(page: Page, opts: { challenge?: boolean } = {}) {
   await page.addInitScript((o) => {
     const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
     const ok = (data: unknown) => ({ status: 200, finalUrl: "", contentType: "application/json", cfMitigated: false, text: JSON.stringify(data) });
-    const state = { user: null as string | null, actions: [] as string[], calls: [] as string[], writes: [] as string[], challenge: o.challenge === true, selected: 7 as unknown, alpha: null as unknown };
+    const state = { user: null as string | null, actions: [] as string[], calls: [] as string[], writes: [] as string[], sends: [] as string[], challenge: o.challenge === true, selected: 7 as unknown, alpha: null as unknown };
     (globalThis as { __janitor?: unknown }).__janitor = state;
     const base = { creator_name: "kit", description: "<p>A short bio.</p>", avatar: "a.webp", tagIds: [53], is_nsfw: false, totalToken: 900, stats: { chat: 5 } };
     const open = { ...base, id: "aaaaaaaa-0000-4000-8000-000000000001", name: "Open Keeper", showdefinition: true, personality: "Keeps the lighthouse.", scenario: "A storm.", first_message: "Hello.", first_messages: ["Hello.", "Again?"],
@@ -36,8 +36,9 @@ async function fakeJanitor(page: Page, opts: { challenge?: boolean } = {}) {
           if (path === "/hampter/chats/c-1" && method === "GET") return r({ character: { first_message: "Psst.", first_messages: ["Psst.", "Again, {{user}}?"] } });
           return r({});
         },
-        async page(op: string) {
+        async page(op: string, text?: string) {
           state.calls.push("page " + op);
+          if (op === "send") state.sends.push(String(text));
           const r = (v: unknown) => ({ status: 200, text: JSON.stringify(v) });
           if (op === "composer") return r({ ready: true });
           if (op === "reset") state.alpha = null;
@@ -66,7 +67,7 @@ async function fakeJanitor(page: Page, opts: { challenge?: boolean } = {}) {
     };
   }, opts);
 }
-const janitor = (page: Page) => page.evaluate(() => (globalThis as unknown as { __janitor: { user: string | null; actions: string[]; calls: string[]; writes: string[]; challenge: boolean; selected: unknown } }).__janitor);
+const janitor = (page: Page) => page.evaluate(() => (globalThis as unknown as { __janitor: { user: string | null; actions: string[]; calls: string[]; writes: string[]; sends: string[]; challenge: boolean; selected: unknown } }).__janitor);
 
 async function openJanitor(page: Page) {
   await page.goto("/");
@@ -183,3 +184,30 @@ test("JanitorAI: All Sites leaves it out (it needs its own window first)", async
   await expect(browser.getByTestId("cb-card").first()).toBeVisible();
   expect((await janitor(page)).calls.some((c) => c.includes("janitorai.com"))).toBe(false);
 });
+
+test("JanitorAI: the Lorebook Trigger row changes what the extraction sends, and remembers its switches", async ({ page }) => {
+  await fakeJanitor(page);
+  await page.addInitScript(() => { const j = (globalThis as unknown as { __janitor?: { user: string } }).__janitor; if (j) j.user = "daniel"; });
+  const browser = await openJanitor(page);
+  await browser.getByTestId("cb-card").filter({ hasText: "Hidden Keeper" }).click();
+  const sheet = page.getByTestId("cb-sheet");
+  const trigger = sheet.getByTestId("cb-trigger");
+  await expect(trigger).toContainText("Card, Catalog Page, Scenario");
+  await trigger.locator("summary").click();
+  await trigger.getByRole("switch", { name: "Card" }).click();
+  await trigger.getByRole("switch", { name: "Catalog Page" }).click();
+  await trigger.getByRole("switch", { name: "Scenario" }).click();
+  // the switches are remembered for the next card (here: the same card opened again); the extra text belongs to one card
+  await browser.getByTestId("cb-card").filter({ hasText: "Locked Keeper" }).click();
+  await browser.getByTestId("cb-card").filter({ hasText: "Hidden Keeper" }).click();
+  await expect(trigger.locator("summary")).toContainText("Nothing (sends a dot)");
+  await trigger.locator("summary").click();
+  await trigger.getByTestId("cb-trigger-extra").fill("The Silver Fox inn");
+  await expect(trigger.locator("summary")).toContainText("Extra Text");
+  await sheet.getByTestId("cb-extract").click();
+  await sheet.getByTestId("cb-extract-ask").getByRole("button", { name: "Extract" }).click();
+  await expect(page.locator(".notice")).toContainText("Added Hidden Keeper to Characters", { timeout: 15_000 });
+  const sends = (await janitor(page)).sends;
+  expect(sends).toEqual([".", "The Silver Fox inn"]);
+});
+
