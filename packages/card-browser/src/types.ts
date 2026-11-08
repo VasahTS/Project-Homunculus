@@ -27,8 +27,15 @@ export interface SiteTransport {
   botbooruAccount?(action: "status" | "open" | "logout"): Promise<BotbooruAccountState>;
   /** "open" shows its sign-in page, "show" the window as it is (for its browser check). */
   janitorAccount?(action: "status" | "open" | "show" | "logout"): Promise<JanitorAccountState>;
+  /** JanitorAI's window for an extraction (D-099): the account calls it may make and the steps on its chat page. */
+  janitor?: JanitorBridge;
 }
 
+export type JanitorPageOp = "open-chat" | "reload" | "composer" | "send" | "alpha" | "reset" | "show" | "hide";
+export interface JanitorBridge {
+  call(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<{ status: number; text: string }>;
+  page(op: JanitorPageOp, text?: string): Promise<{ status: number; text: string }>;
+}
 export type SourceId = "chub" | "janny" | "wyvern" | "pygmalion" | "datacat" | "botbooru" | "janitor";
 export type MustHave = "lorebook" | "greetings" | "gallery" | "expressions";
 
@@ -71,6 +78,8 @@ export interface CardDetails {
   partial?: boolean;
   /** Why this card can't be added (e.g. the creator hides its definition); the sheet shows it and turns Add off. */
   hidden?: string;
+  /** The hidden card can be read through the person's account (source.extract, D-099). */
+  canExtract?: boolean;
 }
 /** A ready card PNG, or a V2 card object built from the site's fields plus its picture. */
 export type CardFile =
@@ -102,4 +111,13 @@ export interface CardSource {
   search(q: CardQuery, t: SiteTransport): Promise<CardPage>;
   details(item: CardItem, t: SiteTransport): Promise<CardDetails>;
   download(item: CardItem, t: SiteTransport): Promise<CardFile>;
+  /** Cards the site hides (JanitorAI, D-099): read through the person's own account. */
+  extract?(item: CardItem, t: SiteTransport, opts: ExtractOptions): Promise<{ file: CardFile; closedEntries: number; loreNote: string }>;
+}
+export interface ExtractOptions {
+  onPhase?: (phase: string) => void;
+  /** One call to the person's AI connection (rebuilds the closed lorebook). */
+  complete?: (messages: Array<{ role: "system" | "user"; content: string }>) => Promise<string>;
+  sleep?: (ms: number) => Promise<void>;
+  limits?: { composer?: number; card?: number; lore?: number };
 }

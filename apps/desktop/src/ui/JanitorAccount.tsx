@@ -40,7 +40,7 @@ export function JanitorAccount({ transport, onChange }: { transport: SiteTranspo
         : <Button small disabled={busy && !account} onClick={() => void signIn()}>Sign In…</Button>}
       <Button small disabled={busy} onClick={() => void read("status", true)}>Refresh</Button>
     </div>
-    <span className="hint">You sign in on JanitorAI's own page; this app never sees your password. Cards whose creator hides the definition can be read here but not added.</span>
+    <span className="hint">You sign in on JanitorAI's own page; this app never sees your password. Signing in also lets you extract cards whose creator hides the definition.</span>
     {error && <span role="alert" className="hint">{error}</span>}
   </div>;
 }

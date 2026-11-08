@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## JanitorAI: extract hidden cards like Glaze (2026-11-08) — CLAUDE — D-099
+
+- Daniel: make the scraper like Glaze's. A hidden card's sheet now offers **Extract and Add** (signed in): JanitorAI's window shows, a temporary proxy/persona/chat is made on his account, the assembled prompt is read, everything is put back, and the card comes in with its public lorebooks + the closed lore rebuilt into keyed entries by the default AI connection (switched-off text entries without one). First use shows a one-time notice (risks). Cards locked to JanitorAI's model can't be extracted.
+- Files: `packages/card-browser/src/sources/janitor-prompt.ts` (prompt → card/lore), `janitor-extract.ts` (the run, rebuild prompt), `janitor.ts` (`extract`, `canExtract`); `src-tauri/src/janitor.{rs,js}` (allowed writes + chat-page steps); `CardBrowser.tsx` (Extract and Add, notice), `App.tsx` (`complete` from the default connection; notes in the Added notice).
+- **To try (Windows):** Sign In… → a hidden card → Extract and Add → Extract. Watch the JanitorAI window: it opens a chat, sends ".", then a long message; after about a minute it hides and the notice says Added (with the lorebook note). Then check on janitorai.com that the chat, the `{{user}}` persona and the temporary proxy are gone and your own proxy/model is selected again. If it stops, the message says which step; send it to Claude.
+- Checks: typecheck; 770 unit (new `janitor-extract.test.ts`: separation, a whole run that ends with the account exactly as before, refusals); cargo 34 (allowed writes test); click tests `card-browser-janitor` (5) + the other Card Browser / cards suites — passed. Not run against the live site.
+
 ## JanitorAI in the Card Browser (2026-11-08) — CLAUDE — D-098
 
 - Daniel asked to try Glaze's JanitorAI scraper in the app. T-013 is unparked: **Card Browser → source JanitorAI**. Guests can search; **Sign In…** shows JanitorAI's own window on its sign-in page (the app never sees the password or token; on return the line says "Signed in to JanitorAI as …"). Public cards are added with their public lorebooks; cards with a **hidden definition** can be read but Add / Save as PNG are off. Glaze's hidden-definition extraction stays out (D-081).

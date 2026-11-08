@@ -93,7 +93,7 @@ Pygmalion login; personas from sites.
   "Signed in as <name> · **Sign Out**" in the source menu.
 - Cards whose creator made the definition **public** are added like any other (with the public lorebooks they list).
 - Cards with a **hidden definition**: the sheet shows the public parts (picture, bio, greetings) and "The creator keeps this
-  card's definition hidden." with **Open on JanitorAI**; **Add to Characters** is disabled. Glaze's extraction of hidden
+  card's definition hidden." with **Open on JanitorAI**; **Add to Characters** is disabled. (D-099: now **Extract and Add**, with a one-time notice.) Glaze's extraction of hidden
   definitions is **not** part of this (see `docs/CARD-BROWSER.md` §7).
 
 ### Daniel's answers (2026-11-02)

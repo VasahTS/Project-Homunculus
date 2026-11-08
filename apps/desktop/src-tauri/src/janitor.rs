@@ -18,8 +18,9 @@ pub(crate) struct JanitorBridge {
     pending: Mutex<Option<(String, std::sync::mpsc::Sender<serde_json::Value>)>>,
 }
 fn safe_id(id: &str) -> bool { !id.is_empty() && id.len() <= 64 && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-') }
+/// The read-only paths of D-098 ("account" = the signed-in name only).
 fn valid_path(path: &str) -> bool {
-    if path == "logout" { return true; }
+    if path == "logout" || path == "account" { return true; }
     let Ok(url) = reqwest::Url::parse(&format!("{ORIGIN}{path}")) else { return false; };
     if !path.starts_with("/hampter/") || url.origin().ascii_serialization() != ORIGIN || url.fragment().is_some() { return false; }
     let route = url.path();
@@ -28,9 +29,24 @@ fn valid_path(path: &str) -> bool {
         return path.len() <= 4096 && url.query_pairs().all(|(k, _)| ["page", "mode", "sort", "search", "tag_id[]", "custom_tags[]"].contains(&k.as_ref()));
     }
     if url.query().is_some() { return false; }
-    ["/hampter/tags", "/hampter/profiles/mine"].contains(&route)
-        || ["/hampter/characters/", "/hampter/script/"].iter().any(|p| route.strip_prefix(p).is_some_and(safe_id))
+    ["/hampter/tags", "/hampter/profiles/mine", "/hampter/api-settings", "/hampter/personas"].contains(&route)
+        || ["/hampter/characters/", "/hampter/script/", "/hampter/chats/"].iter().any(|p| route.strip_prefix(p).is_some_and(safe_id))
 }
+/// The account changes an extraction makes and undoes (D-099, Glaze `captureGenerateAlpha`): a temporary proxy preset and
+/// its selection, a `{{user}}` persona, a profile name when there is none, and one chat — nothing else can be written.
+fn valid_call(method: &str, path: &str, body: Option<&str>) -> bool {
+    let json_body = || body.is_some_and(|b| b.len() <= 64 * 1024 && serde_json::from_str::<serde_json::Value>(b).is_ok_and(|v| v.is_object()));
+    let id_after = |prefix: &str| path.strip_prefix(prefix).is_some_and(safe_id);
+    match method {
+        "GET" => body.is_none() && valid_path(path),
+        "POST" => json_body() && ["/hampter/api-settings/proxy-configs", "/hampter/personas", "/hampter/chats"].contains(&path),
+        "PATCH" => json_body() && ["/hampter/api-settings", "/hampter/profiles/mine"].contains(&path),
+        "DELETE" => body.is_none() && ["/hampter/api-settings/proxy-configs/", "/hampter/personas/", "/hampter/chats/"].iter().any(|p| id_after(p)),
+        _ => false,
+    }
+}
+/// Steps on the chat page an extraction opens (janitor.js `__h2JanitorPage`), plus showing/hiding the window.
+const PAGE_OPS: [&str; 8] = ["open-chat", "reload", "composer", "send", "alpha", "reset", "show", "hide"];
 fn report_allowed(label: &str, url: &reqwest::Url, body: &str) -> bool { label == LABEL && url.origin().ascii_serialization() == ORIGIN && body.len() <= CAP }
 fn deliver(state: &JanitorBridge, request_id: &str, payload: serde_json::Value) -> Result<(), String> {
     let mut pending = state.pending.lock().map_err(|_| "JanitorAI window is unavailable.")?;
@@ -82,20 +98,51 @@ pub(crate) fn janitor_report(webview: tauri::Webview, state: tauri::State<Janito
     deliver(&state, &request_id, serde_json::json!({"status":status,"contentType":"application/json","text":body,"cfMitigated":cf_mitigated,"retryAfterSecs":retry_after_secs,"finalUrl":ORIGIN}))
 }
 #[tauri::command]
-pub(crate) async fn janitor_request(app: tauri::AppHandle, webview: tauri::Webview, state: tauri::State<'_, JanitorBridge>, path: String) -> Result<serde_json::Value, String> {
+pub(crate) async fn janitor_request(app: tauri::AppHandle, webview: tauri::Webview, state: tauri::State<'_, JanitorBridge>, path: String, method: Option<String>, body: Option<String>) -> Result<serde_json::Value, String> {
     use std::hash::BuildHasher;
-    if webview.label() != "main" || !valid_path(&path) { return Err("Invalid JanitorAI request.".into()); }
+    if webview.label() != "main" { return Err("Invalid JanitorAI request.".into()); }
+    let page = path.strip_prefix("page:").map(str::to_owned);
+    let method = method.unwrap_or_else(|| "GET".into());
+    match &page {
+        Some(op) => if !PAGE_OPS.contains(&op.as_str()) || body.as_ref().is_some_and(|b| b.len() > 256 * 1024) { return Err("Invalid JanitorAI request.".into()); },
+        None => if !valid_call(&method, &path, body.as_deref()) { return Err("Invalid JanitorAI request.".into()); },
+    }
     let _serial = state.serial.lock().await;
     let w = window(&app, &state)?;
+    // window steps that need no answer from the page
+    match page.as_deref() {
+        // shown while an extraction runs (a hidden page may not draw its chat), hidden again after
+        Some("show") => { w.show().map_err(|e| e.to_string())?; return Ok(serde_json::json!({"status":200,"text":"{}","contentType":"application/json","cfMitigated":false,"finalUrl":ORIGIN})); }
+        Some("hide") => { w.hide().map_err(|e| e.to_string())?; return Ok(serde_json::json!({"status":200,"text":"{}","contentType":"application/json","cfMitigated":false,"finalUrl":ORIGIN})); }
+        Some("open-chat") => {
+            let id = body.as_deref().unwrap_or("");
+            if !safe_id(id) { return Err("Invalid JanitorAI chat.".into()); }
+            state.ready.store(false, Ordering::SeqCst);
+            w.navigate(format!("{ORIGIN}/chats/{id}").parse().map_err(|_| "Invalid JanitorAI chat.")?).map_err(|e| e.to_string())?;
+            return Ok(serde_json::json!({"status":200,"text":"{}","contentType":"application/json","cfMitigated":false,"finalUrl":ORIGIN}));
+        }
+        Some("reload") => {
+            state.ready.store(false, Ordering::SeqCst);
+            w.eval("location.reload()").map_err(|e| e.to_string())?;
+            return Ok(serde_json::json!({"status":200,"text":"{}","contentType":"application/json","cfMitigated":false,"finalUrl":ORIGIN}));
+        }
+        _ => {}
+    }
     let ready = state.ready.clone();
     tauri::async_runtime::spawn_blocking(move || { let start = std::time::Instant::now(); while !ready.load(Ordering::SeqCst) { if start.elapsed().as_secs() >= 25 { return Err("Open JanitorAI to finish its browser check or sign-in, then try again."); } std::thread::sleep(std::time::Duration::from_millis(40)); } Ok(()) }).await.map_err(|e| e.to_string())??;
     let n = state.counter.fetch_add(1, Ordering::SeqCst);
     let request_id = format!("{:x}{:x}", std::collections::hash_map::RandomState::new().hash_one((std::time::SystemTime::now(), n)), std::collections::hash_map::RandomState::new().hash_one(n));
     let (sender, receiver) = std::sync::mpsc::channel();
     *state.pending.lock().map_err(|_| "JanitorAI window is unavailable.")? = Some((request_id.clone(), sender));
-    let script = format!("window.__h2Janitor && window.__h2Janitor({});", serde_json::json!({"id":request_id,"path":path}));
+    let script = match &page {
+        Some(op) => format!("window.__h2JanitorPage ? window.__h2JanitorPage({}) : window.__TAURI_INTERNALS__.invoke('janitor_report', {});",
+            serde_json::json!({"id":request_id,"op":op,"text":body}),
+            serde_json::json!({"requestId":request_id,"status":409,"body":"{\"error\":\"JanitorAI's chat page is not open.\"}","cfMitigated":false,"retryAfterSecs":null})),
+        None => format!("window.__h2Janitor && window.__h2Janitor({});", serde_json::json!({"id":request_id,"path":path,"method":method,"body":body})),
+    };
     if let Err(e) = w.eval(script) { state.pending.lock().map_err(|_| "JanitorAI window is unavailable.")?.take(); return Err(e.to_string()); }
-    let answer = tauri::async_runtime::spawn_blocking(move || receiver.recv_timeout(std::time::Duration::from_secs(35))).await;
+    let wait = if page.is_some() { 60 } else { 35 };
+    let answer = tauri::async_runtime::spawn_blocking(move || receiver.recv_timeout(std::time::Duration::from_secs(wait))).await;
     state.pending.lock().map_err(|_| "JanitorAI window is unavailable.")?.take();
     answer.map_err(|e| e.to_string())?.map_err(|_| "JanitorAI did not answer. Open JanitorAI and try again.".into())
 }
@@ -106,11 +153,32 @@ mod tests {
     const ID: &str = "0b6e4c1a-1111-4c2b-9a77-2f1d2b3c4d5e";
     #[test]
     fn only_fixed_read_only_paths_are_accepted() {
-        for p in ["/hampter/tags", "/hampter/profiles/mine", "/hampter/characters?page=2&mode=sfw&sort=trending&search=keeper&tag_id%5B%5D=53&custom_tags%5B%5D=cozy",
+        for p in ["account", "/hampter/tags", "/hampter/profiles/mine", "/hampter/characters?page=2&mode=sfw&sort=trending&search=keeper&tag_id%5B%5D=53&custom_tags%5B%5D=cozy",
                   &format!("/hampter/characters/{ID}"), &format!("/hampter/script/{ID}"), "logout"] { assert!(valid_path(p), "{p}"); }
         for p in ["/hampter/profiles/mine/blocked-content", "/hampter/profiles/mine?x=1", "/hampter/characters?user_id%5B%5D=me", "/hampter/proxy-configs", "/hampter/generateAlpha",
-                  "/hampter/chats", "/hampter/characters/../profiles/mine", "/hampter/characters/%2e%2e/profiles/mine", "/hampter/characters/a_b", "/hampter/characters/x?y=1",
+                  "/hampter/chats", "/hampter/api-settings/proxy-configs", "/hampter/characters/../profiles/mine", "/hampter/characters/%2e%2e/profiles/mine", "/hampter/characters/a_b", "/hampter/characters/x?y=1",
                   "/hampter/script/", "/hampter/characters#x", "//evil.test/hampter/tags", "https://evil.test", "/login", &format!("/hampter/characters/{}", "a".repeat(65))] { assert!(!valid_path(p), "{p}"); }
+    }
+    #[test]
+    fn only_the_extraction_s_own_changes_can_be_written() {
+        let b = Some("{\"a\":1}");
+        assert!(valid_call("GET", "/hampter/api-settings", None));
+        assert!(valid_call("POST", "/hampter/api-settings/proxy-configs", b));
+        assert!(valid_call("POST", "/hampter/personas", b));
+        assert!(valid_call("POST", "/hampter/chats", b));
+        assert!(valid_call("PATCH", "/hampter/api-settings", b));
+        assert!(valid_call("PATCH", "/hampter/profiles/mine", b));
+        assert!(valid_call("DELETE", &format!("/hampter/chats/{ID}"), None));
+        assert!(valid_call("DELETE", "/hampter/personas/123", None));
+        assert!(valid_call("DELETE", "/hampter/api-settings/proxy-configs/42", None));
+        // no other writes, no bodies that are not JSON objects, no writes with a query
+        for (m, p, body) in [("POST", "/hampter/characters", b), ("PATCH", "/hampter/profiles/mine/blocked-content", b), ("PUT", "/hampter/api-settings", b),
+                             ("DELETE", "/hampter/characters/abc", None), ("DELETE", "/hampter/chats", None), ("DELETE", "/hampter/chats/../profiles", None),
+                             ("POST", "/hampter/chats", Some("[1]")), ("POST", "/hampter/chats", Some("nope")), ("POST", "/hampter/chats", None),
+                             ("PATCH", "/hampter/api-settings?x=1", b), ("GET", "/hampter/api-settings", b), ("DELETE", "/hampter/chats/abc", Some("{}"))] {
+            assert!(!valid_call(m, p, body), "{m} {p}");
+        }
+        assert!(!valid_call("POST", "/hampter/chats", Some(&format!("{{\"a\":\"{}\"}}", "x".repeat(70 * 1024)))));
     }
     #[test]
     fn wrong_origin_window_and_oversized_reports_are_refused() {

@@ -6,13 +6,15 @@
 import type { CardItem, CardSource, SiteTransport } from "../types.ts";
 import { askImage, askJson, buildCard, list, num, plain, text, withoutExcluded } from "../build.ts";
 import { SiteError } from "../pauses.ts";
+import { extractJanitor } from "./janitor-extract.ts";
 
 export const JANITOR = "https://janitorai.com";
 const API = JANITOR + "/hampter";
 const IMAGES = "https://ella.janitorai.com/bot-avatars/";
 /** Fixed by the server; a size parameter is ignored. */
 const PAGE = 34;
-export const HIDDEN_DEFINITION = "The creator keeps this card's definition hidden, so it can't be added.";
+export const HIDDEN_DEFINITION = "The creator keeps this card's definition hidden. Extract reads it through your JanitorAI account.";
+export const NO_PROXY = "The creator keeps this card's definition hidden and only allows JanitorAI's own model, so it can't be extracted.";
 const ID = /^[A-Za-z0-9-]{1,64}$/;
 
 /** Curated tags, used until /hampter/tags answers (the same list JannyAI mirrors). */
@@ -182,7 +184,7 @@ export const janitor: CardSource = {
       firstMessage: all[0] ?? "", alternateGreetings: all.slice(1), exampleDialogue: shown ? text(m.example_dialogs ?? m.mes_example) : "",
       creatorNotes: plain(m.description), systemPrompt: "", postHistory: "",
       hasLorebook: shown && publicScripts(m).length > 0, tags: rowTags(m).length ? rowTags(m) : item.tags,
-      ...(shown ? {} : { hidden: HIDDEN_DEFINITION }),
+      ...(shown ? {} : m.allow_proxy === false ? { hidden: NO_PROXY } : { hidden: HIDDEN_DEFINITION, canExtract: true }),
     };
   },
   async download(item, t) {
@@ -191,5 +193,14 @@ export const janitor: CardSource = {
     const { book } = await lorebook(m, item.name, t);
     const avatar = await askImage(t, "janitor:avatar", janitorAvatarUrl(m.avatar ?? m.image) || item.image || item.thumb);
     return { kind: "json", card: definition(m, item, book), avatar };
+  },
+  /** A hidden card, read through the person's account (D-099). */
+  extract(item, t, opts) {
+    return extractJanitor(item, t, {
+      meta: character,
+      publicBook: async (m, name, tt) => (((await lorebook(m, name, tt)).book?.entries ?? []) as Record<string, unknown>[]),
+      avatar: (m, it) => janitorAvatarUrl(m.avatar ?? m.image) || it.image || it.thumb,
+      tags: rowTags,
+    }, opts);
   },
 };

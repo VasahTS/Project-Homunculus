@@ -174,7 +174,10 @@ asks it to run a fixed request script with `eval`; the script posts its answer b
 without a known nonce is dropped. The window's cookies live in the app's own webview profile, never read by the app except the
 token inside the page script. Spike first: if Tauri cannot do this cleanly on Windows **and** Linux (WebKitGTK), stop and report.
 
-**What we do not take — hidden definitions.** Glaze's main JanitorAI feature (`janitor_extractor.dart`) recovers cards whose
+**Hidden definitions — taken after all (D-099, Daniel 2026-11-08):** `janitor-extract.ts` / `janitor-prompt.ts`, see D-099 for
+what was ported and what was not. The paragraph below is the original reasoning (D-081), kept for the record.
+
+**What we do not take — hidden definitions (D-081, reversed by D-099).** Glaze's main JanitorAI feature (`janitor_extractor.dart`) recovers cards whose
 creator chose to **hide** the definition and closed lorebooks: it adds a dummy proxy preset to the user's JanitorAI account,
 opens a chat with the character, types messages into the page by simulated clicks, captures the assembled prompt that JanitorAI
 sends to the "proxy", and has an AI rebuild the lorebook from it. Left out: it goes around a protection the creator set on

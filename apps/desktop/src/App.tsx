@@ -1372,10 +1372,17 @@ export function App() {
   if (view.kind === "card-browser") {
     content = (
       <CardBrowser lead={lead} transport={desktopCardSites} characters={characters} folders={foldersOf("character")}
+        complete={(() => {
+          // JanitorAI's closed lore is rebuilt into keyed entries with the default connection (D-099); none set → none
+          const r = connection.forRequest();
+          return r.connection.providerId === "offline-test" ? undefined
+            : async (messages: Array<{ role: "system" | "user"; content: string }>) => (await svc.core.connections.complete(r.connection, messages)).text;
+        })()}
         onAdd={async (file, item, opts) => {
           const r = await importFromSite(svc, file, item, opts, picturePng);
           await refresh(svc);
-          setNotice({ kind: r.warnings.length ? "warn" : "ok", title: `Added ${r.character.name} to Characters`, lines: r.warnings });
+          const lines = [...r.warnings, ...(opts.notes ?? [])];
+          setNotice({ kind: lines.length ? "warn" : "ok", title: `Added ${r.character.name} to Characters`, lines });
           return r.character.id;
         }}
         onSavePng={async (file, item) => {

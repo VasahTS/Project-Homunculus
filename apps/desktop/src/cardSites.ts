@@ -1,6 +1,6 @@
 // Card Browser desktop transport and browser-test seam. CODEX, 2026-11-02 (T-007).
 import { base64ToBytes, importCardPng } from "@homunculus/st-cards";
-import type { BotbooruAccountState, JanitorAccountState } from "@homunculus/card-browser";
+import type { BotbooruAccountState, JanitorAccountState, JanitorBridge } from "@homunculus/card-browser";
 import { isDesktop } from "./db.ts";
 
 export interface SiteRequest {
@@ -27,6 +27,8 @@ export interface SiteTransport {
   botbooruAccount?(action: "status" | "open" | "logout"): Promise<BotbooruAccountState>;
   /** "open" shows its sign-in page, "show" the window as it is (for its browser check). */
   janitorAccount?(action: "status" | "open" | "show" | "logout"): Promise<JanitorAccountState>;
+  /** JanitorAI's window for an extraction (D-099): the account calls it may make and the steps on its chat page. */
+  janitor?: JanitorBridge;
 }
 type NativeResponse = Omit<SiteResponse, "bytes"> & { base64?: string };
 
@@ -68,11 +70,29 @@ export const desktopCardSites: SiteTransport = {
     }
     const { invoke } = await import("@tauri-apps/api/core");
     if (action === "open" || action === "show") { await invoke("janitor_window", { signIn: action === "open" }); return { username: null }; }
-    const r = await invoke<NativeResponse>("janitor_request", { path: action === "logout" ? "logout" : "/hampter/profiles/mine" });
+    const r = await invoke<NativeResponse>("janitor_request", { path: action === "logout" ? "logout" : "account" });
     if (r.status !== 200) throw new Error("Open JanitorAI to finish its browser check, then refresh.");
     const a = JSON.parse(r.text ?? "{}");
     return { username: typeof a.username === "string" && a.username ? a.username : null };
   },
+  janitor: {
+    async call(method, path, body) {
+      const fake = !isDesktop ? (globalThis as { __h2FakeCardSites?: SiteTransport }).__h2FakeCardSites?.janitor : undefined;
+      if (fake) return fake.call(method, path, body);
+      if (!isDesktop) throw new Error("JanitorAI works in the desktop app.");
+      const { invoke } = await import("@tauri-apps/api/core");
+      const r = await invoke<NativeResponse>("janitor_request", { path, method, body: body === undefined ? null : JSON.stringify(body) });
+      return { status: r.status, text: r.text ?? "" };
+    },
+    async page(op, text) {
+      const fake = !isDesktop ? (globalThis as { __h2FakeCardSites?: SiteTransport }).__h2FakeCardSites?.janitor : undefined;
+      if (fake) return fake.page(op, text);
+      if (!isDesktop) throw new Error("JanitorAI works in the desktop app.");
+      const { invoke } = await import("@tauri-apps/api/core");
+      const r = await invoke<NativeResponse>("janitor_request", { path: "page:" + op, body: text ?? null });
+      return { status: r.status, text: r.text ?? "" };
+    },
+  } satisfies JanitorBridge,
   decodeCard: (bytes) => importCardPng(bytes).character.original as Record<string, unknown>,
   async request(request) {
     if (!isDesktop) {

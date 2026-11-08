@@ -25,7 +25,7 @@ import { getPrefs } from "../prefs.ts";
 type BrowseSourceId = SourceId | "all";
 const ALL_SITES = { id: "all", name: "All Sites" } as const;
 const SOURCE_OPTIONS = [ALL_SITES, ...CARD_SOURCES];
-interface Prefs { source: BrowseSourceId; sorts: Partial<Record<SourceId, string>>; nsfw: Partial<Record<BrowseSourceId, boolean>>; size: CollectionPrefs["size"]; folder: string; importTags: boolean; datacatOk?: boolean }
+interface Prefs { source: BrowseSourceId; sorts: Partial<Record<SourceId, string>>; nsfw: Partial<Record<BrowseSourceId, boolean>>; size: CollectionPrefs["size"]; folder: string; importTags: boolean; datacatOk?: boolean; janitorExtractOk?: boolean }
 const PREFS_KEY = "h2.cardBrowser";
 const DEFAULT_PREFS: Prefs = { source: "chub", sorts: {}, nsfw: {}, size: "m", folder: "web", importTags: true };
 function loadPrefs(): Prefs {
@@ -205,7 +205,9 @@ export interface CardBrowserProps {
   characters: Character[];
   folders: Folder[];
   /** Saves a card from a site in Characters (shared import path, D-081) and shows the usual notice. Returns the new character's id. */
-  onAdd: (file: CardFile, item: CardItem, opts: { folder: FolderChoice; importTags: boolean }) => Promise<string | null>;
+  onAdd: (file: CardFile, item: CardItem, opts: { folder: FolderChoice; importTags: boolean; notes?: string[] }) => Promise<string | null>;
+  /** One call to the default AI connection (rebuilds an extracted JanitorAI card's closed lorebook, D-099); none = no connection. */
+  complete?: ((messages: Array<{ role: "system" | "user"; content: string }>) => Promise<string>) | undefined;
   onSavePng: (file: CardFile, item: CardItem) => Promise<void>;
   onOpenCharacter: (id: string) => void;
   onChat: (id: string) => void;
@@ -565,14 +567,16 @@ function ResultCard({ item, sourceLabel, t, selected, added, onClick }: { item: 
 }
 
 // ------------------------------------------------------------------ the sheet
-function CardSheet({ item, source, transport, characters: _c, folders, onAdd, onSavePng, onOpenCharacter, onChat, onNewFolder, onError, onImportDownloaded, prefs, setPrefs, addedId, reading, setReading, onCloseSheet, onPrev, onNext }: CardBrowserProps & {
+function CardSheet({ item, source, transport, characters: _c, folders, onAdd, complete, onSavePng, onOpenCharacter, onChat, onNewFolder, onError, onImportDownloaded, prefs, setPrefs, addedId, reading, setReading, onCloseSheet, onPrev, onNext }: CardBrowserProps & {
   onImportDownloaded: () => void; item: CardItem; source: CardSource; prefs: Prefs; setPrefs: (f: (x: Prefs) => Prefs) => void; addedId: string | null;
   reading: boolean; setReading: (v: boolean) => void; onCloseSheet: () => void; onPrev?: (() => void) | undefined; onNext?: (() => void) | undefined;
 }) {
   const k = `${item.source}:${item.id}`;
   const [d, setD] = useState<CardDetails | "failed" | null>(details.get(k) ?? null);
   const [greeting, setGreeting] = useState(0);
-  const [working, setWorking] = useState<"add" | "png" | null>(null);
+  const [working, setWorking] = useState<"add" | "png" | "extract" | null>(null);
+  const [phase, setPhase] = useState("");
+  const [askExtract, setAskExtract] = useState(false);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [naming, setNaming] = useState<string | null>(null);
@@ -595,6 +599,19 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
     } catch (e) { onError(`Could not add ${item.name}`, e instanceof Error ? e.message : String(e), e instanceof SiteError && e.paused ? onImportDownloaded : undefined); }
     finally { setWorking(null); }
   };
+  // JanitorAI hidden card (D-099): read through the person's account, then added like any other card
+  const extract = async (confirmed = false) => {
+    if (!source.extract) return;
+    if (!prefs.janitorExtractOk && !confirmed) { setAskExtract(true); return; }
+    setAskExtract(false); setWorking("extract"); setMenu(false);
+    try {
+      const r = await source.extract(item, transport, { onPhase: setPhase, complete });
+      const notes = [r.closedEntries ? `Closed lorebook: ${r.closedEntries} ${r.closedEntries === 1 ? "entry" : "entries"} rebuilt by your AI connection; check their keys.` : "", r.loreNote].filter(Boolean);
+      const id = await onAdd(r.file, item, { folder: folderChoice(), importTags: prefs.importTags, notes });
+      if (id) setJustAdded(id);
+    } catch (e) { onError(`Could not extract ${item.name}`, e instanceof Error ? e.message : String(e)); }
+    finally { setWorking(null); setPhase(""); }
+  };
   const png = async () => {
     setWorking("png");
     try { await onSavePng(await fetchFile(), item); }
@@ -614,7 +631,9 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
         {mine
           ? <>{justAdded ? <Button variant="prominent" data-testid="cb-chat" onClick={() => onChat(mine)}>Chat Now</Button>
                         : <Button variant="prominent" data-testid="cb-open" onClick={() => onOpenCharacter(mine)}>Open in Characters</Button>}</>
-          : <Button variant="prominent" data-testid="cb-add" disabled={working !== null || !!full?.hidden} title={full?.hidden} onClick={() => void add()}>{working === "add" ? "Adding…" : "Add to Characters"}</Button>}
+          : full?.canExtract && source.extract
+            ? <Button variant="prominent" data-testid="cb-extract" disabled={working !== null} onClick={() => void extract()}>{working === "extract" ? `${phase || "Extracting"}…` : "Extract and Add"}</Button>
+            : <Button variant="prominent" data-testid="cb-add" disabled={working !== null || !!full?.hidden} title={full?.hidden} onClick={() => void add()}>{working === "add" ? "Adding…" : "Add to Characters"}</Button>}
         <Button data-testid="cb-png" disabled={working !== null || !!full?.hidden} title={full?.hidden} onClick={() => void png()}>{working === "png" ? "Saving…" : "Save as PNG"}</Button>
         <Button onClick={() => void openLink(item.url)}>Open on {source.name}</Button>
   </>;
@@ -630,7 +649,16 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
           {menu && <span className="cb-pop cb-pop-right" role="menu"><button type="button" role="menuitem" data-testid="cb-add-again" onClick={() => void add()}>Add Again</button></span>}
         </span>}
       </div>
-      {full?.hidden && <p className="hint cb-hidden" data-testid="cb-hidden">{full.hidden}</p>}
+      {full?.hidden && !mine && <p className="hint cb-hidden" data-testid="cb-hidden">{full.hidden}</p>}
+      {askExtract && (
+        <div className="cb-account" data-testid="cb-extract-ask" role="alertdialog" aria-label="Extract from JanitorAI">
+          <span className="hint">Extracting opens a chat with this character on your JanitorAI account, through a temporary proxy setting, and puts everything back afterwards (about a minute; JanitorAI's window shows while it works). JanitorAI's rules don't allow this, and accounts can be limited for it.</span>
+          <div className="cb-notice-actions">
+            <Button variant="prominent" small onClick={() => { setPrefs((x) => ({ ...x, janitorExtractOk: true })); void extract(true); }}>Extract</Button>
+            <Button small onClick={() => setAskExtract(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
       <button type="button" className="vs-pic-read" aria-label={`Read ${item.name} full window`} onClick={() => setReading(true)}><CardPicture name={item.name} avatar={pic} className="vs-pic" /></button>
       {reading && <CardReader name={item.name} where={`Card Browser · ${source.name}`} byline={by} picture={pic} tags={tags}
         actions={mainActions} greetings={greetings} greetingLabel="First Message" renderText={(t) => <Linked text={t} />}
@@ -651,7 +679,7 @@ function CardSheet({ item, source, transport, characters: _c, folders, onAdd, on
       {badges.length > 0 && <div className="vs-tags cb-badges">{badges.map((b) => <span key={b} className="gallery-tag big">{b}</span>)}</div>}
 
       {justAdded && <p className="hint cb-in" data-testid="cb-in">In your Characters · <a href="#" onClick={(e) => { e.preventDefault(); onOpenCharacter(justAdded); }}>Open</a></p>}
-      {!mine && !full?.hidden && (
+      {!mine && (!full?.hidden || full.canExtract) && (
         <div className="cb-add-options">
           <label className="row-line"><span className="field-label">Folder</span>
             {naming === null
