@@ -297,7 +297,8 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
     capture: fieldsOf(captures[0] ?? source, macro), extra: captures.slice(1).map((p) => fieldsOf(p, macro)),
     probe: probe && captures.length ? fieldsOf(probe, macro) : null, clean, publicContents, existing: separated,
   });
-  const lore = [separated, ...injected.map((b) => b.text)].map((x) => x.trim()).filter(Boolean).join("\n\n");
+  // a card without closed lore leaves only template scraps here; splitEntries drops them, so no empty lorebook is made
+  const lore = mergeLore([separated, ...injected.map((b) => b.text)]);
   const card = withoutInjected(macro(extractCard(source)), "persona", injected);
   if (!card) throw fail("JanitorAI's prompt had no character card in it.");
   const all: string[] = [];

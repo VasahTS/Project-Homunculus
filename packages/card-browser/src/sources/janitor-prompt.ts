@@ -58,7 +58,15 @@ export function withoutPublicEntries(text: string, publicContents: string[]): st
 export function separate(p: AlphaPayload, knownCard = "", publicContents: string[] = []): string {
   return tidy(withoutPublicEntries(subtractKnownCard(stripWrappers(systemContent(p)), knownCard), publicContents));
 }
-export const splitEntries = (text: string) => text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+/** Letters (any script) in a text. */
+const letters = (s: string) => s.match(/\p{L}/gu)?.length ?? 0;
+/** Fewer letters than this is not lore but what JanitorAI's template leaves around it (Daniel's cards without any closed
+ *  lorebook came in with one entry "<.>"). A real entry has words; a scrap has punctuation. */
+const MIN_LORE_LETTERS = 4;
+/** Blank-line separated blocks, without lines that have no letter or digit and without blocks too short to be an entry. */
+export const splitEntries = (text: string) => text.split(/\n\s*\n/)
+  .map((b) => b.split("\n").filter((l) => /[\p{L}\p{N}]/u.test(l)).join("\n").trim())
+  .filter((b) => letters(b) >= MIN_LORE_LETTERS);
 /** Several passes' lore as one text, each block once, in first-seen order. */
 export function mergeLore(texts: string[]): string {
   const seen = new Set<string>(); const out: string[] = [];

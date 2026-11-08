@@ -239,3 +239,13 @@ it("lore cap: a capture at JanitorAI's cap re-sends the trigger in pieces, each 
   expect(a.sent.slice(2).every((m) => m.length < a.sent[1]!.length)).toBe(true);
 });
 
+it("a card without closed lore: template scraps like \"<.>\" make no lorebook entry and no AI call", async () => {
+  const a = fakeJanitor({ system: () => "<Mira's Persona>Mira is a lighthouse keeper on the northern coast.</Mira's Persona>\n<.>\n\n---\n\n<>" });
+  let asked = 0;
+  const r = await extract(a.t, { complete: async () => { asked++; return "{}"; } });
+  const book = ((r.file as unknown as { card: { data: Record<string, unknown> } }).card.data.character_book) as { entries: Record<string, unknown>[] } | undefined;
+  expect((book?.entries ?? []).map((e) => e.comment)).toEqual(["Public · Entry 1"]);
+  expect(asked).toBe(0);
+  expect(r.loreNote).toBe("");
+});
+
