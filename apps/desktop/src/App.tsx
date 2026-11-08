@@ -1376,7 +1376,7 @@ export function App() {
           // JanitorAI's closed lore is rebuilt into keyed entries with the default connection (D-099); none set → none
           const r = connection.forRequest();
           return r.connection.providerId === "offline-test" ? undefined
-            : async (messages: Array<{ role: "system" | "user"; content: string }>) => (await svc.core.connections.complete(r.connection, messages)).text;
+            : async (messages: Array<{ role: "system" | "user"; content: string }>) => (await svc.core.connections.complete(r.connection, messages, { maxTokens: 8192 })).text;
         })()}
         onAdd={async (file, item, opts) => {
           const r = await importFromSite(svc, file, item, opts, picturePng);

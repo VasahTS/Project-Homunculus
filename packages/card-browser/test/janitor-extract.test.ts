@@ -136,6 +136,14 @@ it("a whole run: hidden card, greetings, public + rebuilt closed lore; the accou
   expect(calls).toContain("page hide");
 });
 
+it("an AI answer that can't be read: lore as text, no 'rebuilt' count, and the note says why", async () => {
+  const r = await extract(fakeJanitor().t, { complete: async () => "Sorry, I can't" });
+  expect(r.closedEntries).toBe(0);
+  expect(r.loreNote).toMatch(/not the expected JSON \("Sorry, I can't/);
+  const failed = await extract(fakeJanitor().t, { complete: async () => { throw new Error("429 Too Many Requests"); } });
+  expect(failed.loreNote).toMatch(/429 Too Many Requests/);
+});
+
 it("without an AI connection the closed lore comes in as switched-off text entries, with a note", async () => {
   const r = await extract(fakeJanitor().t);
   const book = ((r.file.kind === "json" ? r.file.card.data : {}) as Record<string, unknown>).character_book as { entries: Record<string, unknown>[] };

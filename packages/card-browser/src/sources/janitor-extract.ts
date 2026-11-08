@@ -250,13 +250,21 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
     if (v && !all.includes(v)) all.push(v);
   }
 
-  let closed: Row[] = [], loreNote = "";
+  let closed: Row[] = [], loreNote = "", rebuilt = 0;
   if (lore.trim()) {
     phase("Rebuilding the lorebook");
+    const asText = "it came in as text, switched off until it has keys.";
     if (opts.complete) {
-      try { closed = parseLoreAnswer(await opts.complete(loreMessages(lore, card, plain(meta.description)))); } catch { closed = []; }
-      if (!closed.length) loreNote = "The AI could not split the closed lore into entries; it came in as text, switched off until it has keys.";
-    } else loreNote = "No AI connection to rebuild the closed lore: it came in as text, switched off until it has keys.";
+      let answer = "", why = "";
+      try { answer = await opts.complete(loreMessages(lore, card, plain(meta.description))); closed = parseLoreAnswer(answer); }
+      catch (e) { why = e instanceof Error ? e.message : String(e); }
+      rebuilt = closed.length;
+      if (!closed.length) {
+        // say why, so a too-small reply limit, an empty answer or a refused key can be told apart
+        if (!why) why = !answer.trim() ? "the AI's answer was empty" : `the AI's answer was not the expected JSON ("${answer.replace(/\s+/g, " ").trim().slice(0, 120)}…")`;
+        loreNote = `The AI could not split the closed lore into entries (${why.slice(0, 220)}); ${asText}`;
+      }
+    } else loreNote = `No AI connection to rebuild the closed lore: ${asText}`;
     if (!closed.length) closed = splitEntries(lore).map((b, i) => ({ comment: `Entry ${i + 1}`, keys: [], secondary_keys: [], content: b, order: 100 }));
   }
   const entries = [...publicBook.map((e, i) => ({ ...e, id: i })), ...closedEntries(closed, publicBook.length)];
@@ -270,5 +278,5 @@ export async function extractJanitor(item: CardItem, t: SiteTransport, deps: Ext
     }),
     avatar: await askImage(t, "janitor:avatar", deps.avatar(meta, item)),
   };
-  return { file, closedEntries: closed.length, loreNote };
+  return { file, closedEntries: rebuilt, loreNote };
 }
