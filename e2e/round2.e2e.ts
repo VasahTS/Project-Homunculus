@@ -38,7 +38,7 @@ test("a story uses the version of a card you pick, and its chats follow", async 
   await expect(page.getByTestId("messages")).toBeVisible();
 
   // back on the story page: pick the Modern version
-  await page.getByTestId("story-page-button").click();
+  await page.getByTestId("story-crumb").click();
   await page.getByLabel("Version of Lyra").selectOption({ label: "Modern" });
   await expect(page.getByTestId("story-card-row").filter({ hasText: "Lyra" })).toContainText("Modern version");
   await page.getByTestId("story-chats").getByRole("button", { name: /^Chat 1/ }).first().click();

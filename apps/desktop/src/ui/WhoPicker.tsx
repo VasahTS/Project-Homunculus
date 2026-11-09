@@ -72,7 +72,7 @@ export function WhoPicker({ session, characters, avatars, onChange, story, npcs 
                     <option value="">Main</option>
                     {c.variants.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                   </select>
-                ) : <span className="hint">one version (add more in Characters)</span>}
+                ) : <span className="hint who-ver" title="One version. Add more in Characters.">Main</span>}
                 <span className="cast-track" title="Off keeps the card in the prompt and out of the tracked cast.">Scene
                   <Switch label={`Track ${c.name} in the Scene`} checked={isTracked(m, c)} onChange={(v) => setTracked(c, v)} /></span>
               </div>

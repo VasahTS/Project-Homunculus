@@ -81,3 +81,41 @@ test("scrolling Scene section tabs keeps world values and run controls in the in
   await expect.poll(() => horizontalOverflow(page, [".pane", "[data-testid=scene-header]", ".q-tabs", ".q-runs"])).toEqual([]);
   await expect.poll(() => page.getByTestId("scene").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
 });
+
+// Daniel's imported presets (11/09): many blocks with long names and big token counts pushed the switches out of the
+// Preset card, and a story chat's setup selects were cut. Nothing in the Prompt tab may pass the panel's edge.
+for (const width of [1440, 1200]) {
+  test(`a long imported preset and a story chat's setup stay inside the Prompt tab at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openLongStory(page);
+    // Daniel's theme: a wide typewriter font
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByTestId("settings-customize").click();
+    await page.getByRole("radio", { name: "Observatory", exact: true }).click();
+    await page.evaluate(async () => {
+      const { store } = await (await import("/src/core-instance.ts" as string)).servicesReady;
+      const p = (await store.presets.get("wide-preset"))!;
+      const names = ["Main Prompt", "Post-History Instructions For The Imported Narrator", "GM Mode Rules", "Instructions Realism", "Anti Omniscient NPCs", "NPC Instincts", "NPC Voice", "World Consequences", "Literal Narration", "{{authorPlan}}", "Enhance Definitions"];
+      await store.savePreset({ ...p, blocks: [
+        ...names.map((name, i) => ({ id: `b${i}`, name, content: "x ".repeat(400 + i * 900), enabled: i % 3 !== 0 })),
+        { id: "chatHistory", name: "Chat History", marker: "chatHistory" },
+      ] });
+    });
+    // a new chat of the story refreshes the app's copy of the presets
+    await openLibrary(page, "Stories");
+    await page.getByTestId("vault-stories").getByRole("button", { name: "The Observatory and the Cartographer's Unfinished Expedition", exact: true }).click();
+    await page.getByTestId("story-new-chat").click();
+    await expect(page.getByTestId("messages")).toBeVisible();
+    await openTab(page, "prompt");
+    await expect(page.getByTestId("prompt-preset")).toContainText("Enhance Definitions");
+    await page.screenshot({ path: test.info().outputPath(`long-preset-${width}.png`) });
+    const out = await page.getByTestId("prompt-pane").evaluate((pane) => {
+      // the cards clip what passes their edge, so measure against the card body, not only the pane
+      const body = pane.querySelector("[data-testid=prompt-card-preset] .prompt-card-body");
+      const right = Math.min(pane.getBoundingClientRect().right, body ? body.getBoundingClientRect().right : Infinity);
+      return [...pane.querySelectorAll<HTMLElement>("[data-testid=prompt-card-preset] .prompt-card-body *")].filter((el) => el.getClientRects().length && el.getBoundingClientRect().right > right + 1)
+        .map((el) => `${el.tagName.toLowerCase()}.${el.className}`).slice(0, 10);
+    });
+    expect(out).toEqual([]);
+  });
+}

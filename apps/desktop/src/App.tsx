@@ -1732,7 +1732,7 @@ export function App() {
     const story = active.storyId ? stories.find((x) => x.id === active.storyId) : undefined;
     const chatLead = story ? (
       <>{lead}<Button small variant="plain" className="back-btn" onClick={() => setView({ kind: "story", id: story.id })}
-        title="Open the story of this chat"><Icon name="chevron" size={12} /> {story.name}</Button><span className="crumb-sep" aria-hidden>/</span></>
+        title="Open the story of this chat" data-testid="story-crumb"><Icon name="chevron" size={12} /> {story.name}</Button><span className="crumb-sep" aria-hidden>/</span></>
     ) : lead;
     content = (
       <ChatView

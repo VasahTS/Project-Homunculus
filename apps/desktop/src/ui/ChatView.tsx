@@ -761,7 +761,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                 onEditTracker={onEditTracker} onPick={busy ? undefined : sendText}
                 onStyle={(id, sid) => void onChangeSession({ ...session, setup: layerWithStyle(session.setup, id, sid) })} />
             )}
-            {onOpenStory && <Button onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
+            {onOpenStory && <Button className="story-page-btn" onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
             {/* an icon (29/10): the words took the room of the title, branch and "with …" in narrow windows */}
             {/* UX review item 6 (D-078): deleting no longer sits beside everyday buttons; it is in the chat's ⋯ menu */}
             <ChatMenu onRename={() => setEditingTitle(true)} onDelete={onDelete}

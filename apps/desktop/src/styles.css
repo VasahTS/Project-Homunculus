@@ -23,7 +23,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .hint, .muted { color: var(--label-2); font-size: var(--size-small); }
 .spacer { flex: 1; }
 .tabular { font-variant-numeric: tabular-nums; font-family: var(--font-figures); }
-.stack { display: grid; gap: 4px; }
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 
 .boot { height: 100%; display: grid; place-items: center; color: var(--label-2); background: var(--backdrop); }
 .boot.error { color: var(--danger); padding: 24px; text-align: center; }
@@ -371,7 +371,8 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .who-btn:hover, .who-btn[aria-expanded="true"] { background: var(--fill); color: var(--label); }
 .who-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: 340px; margin: 0; padding: 12px; background: var(--glass); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--glass-edge); color: var(--label); white-space: normal; }
 .who-row { display: flex; align-items: center; gap: 8px; }
-.who-name { flex: 1; min-width: 0; }
+.who-name { flex: 1 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who-ver { flex: none; font-size: 12px; }
 .who-name.indent { padding-left: 34px; color: var(--label-2); }
 .who-row select { max-width: 170px; }
 /* the "who" popover must not be cut by the toolbar's ellipsis */
@@ -472,7 +473,7 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .btn svg { flex: none; }
 
 /* dragging (Sortable) */
-.sortable { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; width: 100%; }
+.sortable { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; width: 100%; min-width: 0; }
 .sortable-item { position: relative; transition: transform var(--dur) var(--ease-out); }
 .sortable.is-dragging { user-select: none; }
 .sortable.is-dragging, .sortable.is-dragging * { cursor: grabbing !important; }
@@ -1596,7 +1597,7 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .image-picker.square .ip-letter { background: var(--letter-bg); color: var(--label); }
 /* chat toolbar in narrow windows (29/10): the actions never shrink under the title; the branch and "with …" give way */
 .toolbar-trailing { flex: none; }
-.toolbar-sub > .play-wrap { flex: none; }
+.toolbar-sub > .play-wrap { flex: 0 1 auto; min-width: 3.2em; display: inline-flex; }
 .toolbar-sub .branch-btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .icon-btn.danger-hover:hover { color: var(--danger); background: var(--danger-soft); }
 
@@ -3969,7 +3970,7 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
    right — it stays whole and drops its parts as the bar narrows (messages, then the limit, then itself) */
 .story-pane > .toolbar { container: chatbar / inline-size; }
 .toolbar-sub .chat-size { flex: none; }
-.toolbar-sub .who-picker { flex: 0 1 auto; min-width: 3.5em; }
+.toolbar-sub .who-picker { flex: 0 1 auto; min-width: 2.5em; }
 @container chatbar (max-width: 820px) { .chat-size-count { display: none; } }
 @container chatbar (max-width: 700px) { .chat-size-limit { display: none; } }
 @container chatbar (max-width: 580px) { .toolbar-sub .chat-size { display: none; } }
@@ -4090,3 +4091,24 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .memory-window-bar b { display: none; }
 @container chatbar (max-width: 820px) { .memory-chip-label { display: none; } }
 .prompt-card-note .row input { min-width: 46px; text-align: center; }
+/* a story chat's setup rows inside a card: the choice takes the whole width under its name (no "DeepSeek '") */
+.prompt-card-body .setup-row:has(.pick-select) { flex-direction: column; align-items: stretch; gap: 6px; padding-inline: 0; }
+.prompt-card-body .setup-row:has(.pick-select) .setup-k { width: auto; }
+.prompt-card-body .setup-row:has(.pick-select) .setup-v { justify-content: stretch; }
+.prompt-card-body .setup-row .pick-select { width: 100%; }
+.prompt-card-body .setup-row { padding-inline: 0; }
+/* a story chat's "‹ Story name /" may shrink (a long story name pushed the whole bar over itself) */
+.toolbar-leading > .back-btn { flex: 0 1 auto; min-width: 3em; max-width: 22ch; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar-leading > .back-btn svg { vertical-align: -2px; }
+/* a chat row in a narrow column: the tags never run over the date; the date goes under the name instead */
+.cl-rows { container-type: inline-size; }
+.cl-name { overflow: hidden; }
+.cl-name > .tag, .cl-name > .badge { flex: none; }
+@container (max-width: 380px) {
+  .cl-main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "name" "meta" "line"; }
+}
+.toolbar-sub .play-wrap > .branch-btn { min-width: 0; }
+/* a narrow chat bar: the story's name at the left already opens its page */
+@container chatbar (max-width: 760px) { .story-page-btn { display: none; } }
+.sortable-item > .stack, .quick-blocks .stack { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.quick-block { min-width: 0; }

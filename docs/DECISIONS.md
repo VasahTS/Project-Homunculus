@@ -1148,3 +1148,14 @@ Daniel (translated): "a revamp of the right sidebar would be prudent; things ble
 - Click tests: `openTab(page, "prompt")` opens every card; `openTab(page, "memory")` opens the window. New: merged person test in `trackers.e2e.ts`.
 
 Signed: **CLAUDE**.
+
+## D-106 — Nothing runs over anything: a layout audit and the fixes it found (2026-11-09)
+
+Daniel (translated): "my preset is still broken; with some characters the prompt part is broken, with others not"; "it's not only there, in many parts of the UI things run over each other". Screenshots: the Preset card's switches cut at the right edge; the Story sheet's chat row with "latest" and "1 change" over "21 messages"; the Who picker's "Narrator" over "one version (add more in Characters)".
+- **Cause of "some presets/characters, not others":** a grid without a column size (`.sortable`, `.stack`) grows to its longest unbreakable line, so a long block name (or a big token count) pushed the row past the card, which then cut the switches. `.stack` and `.sortable` now have `minmax(0, 1fr)` columns; rows never grow past their box.
+- **Story chat bar:** the "‹ Story name /" link no longer refuses to shrink (a long story name pushed the whole bar over itself); the branch and "with …" items shrink with ellipses; in a narrow bar the Story Page button hides (the story's name at the left opens the same page).
+- **Chat rows (Story sheet, Chats):** tags never shrink over the date; in a narrow column the date goes under the name.
+- **Who picker:** a card with one version says "Main" (the explanation is in its tooltip); names end with "…" instead of running over.
+- **Audit** (`e2e/layout-audit.e2e.ts`): the chat and every inspector tab, Memory, the Who picker, Characters, Stories, the Library pages, Settings, a story's sheet, page, chat and Prompt tab — in Mono and Observatory at 1440 and 1200 px. It fails when two pieces of text (or an icon and text) are painted over each other, or text leaves its region. Plus `inspector-overflow.e2e.ts`: an imported preset with long block names stays inside the Preset card.
+
+Signed: **CLAUDE**.

@@ -61,7 +61,7 @@ test("narration shows the story name and its cover from Stories", async ({ page 
   await openSession(page);
   await expect(opening.locator("img.chat-avatar")).toHaveAttribute("src", inheritedSrc);
 
-  await page.getByTestId("story-page-button").click();
+  await page.getByTestId("story-crumb").click();
   const image = page.getByTestId("story-image");
   await page.getByTestId("story-image-input").setInputFiles({
     name: "story.png", mimeType: "image/png", buffer: Buffer.from(solidPng(2, 2, [20, 70, 180])),
@@ -130,7 +130,7 @@ test("a narrated story: Simple Narrator, an NPC made in the story, how it starts
   await send(page, "I look around.");
   await expect(page.getByTestId("message")).toHaveCount(3);
   // the way back to the story, and the session listed there
-  await page.getByTestId("story-page-button").click();
+  await page.getByTestId("story-crumb").click();
   await expect(page.getByTestId("story-chats")).toContainText("Chat 1");
   await expect(page.getByTestId("continue-story")).toHaveText("Continue Chat 1");
 });
@@ -209,7 +209,7 @@ test("a story goes to the Trash with its sessions and comes back with them", asy
   await page.getByLabel("Opening 1").fill("Once upon a time.");
   await startChat(page);
   await expect(page.getByTestId("message").first()).toContainText("Once upon a time.");
-  await page.getByTestId("story-page-button").click();
+  await page.getByTestId("story-crumb").click();
   await page.getByTestId("story-page").waitFor();
   await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("menuitem", { name: "Move to Trash" }).click();
@@ -242,7 +242,7 @@ test("a story's setup reaches its chats; a chat can change a row for itself and 
   // one change, for this chat only
   await own.getByRole("checkbox", { name: "Scene: Plot" }).check();
   await expect(own.getByTestId("setup-tracker-scene-plot")).toContainText("changed in this chat");
-  await page.getByTestId("story-page-button").click();
+  await page.getByTestId("story-crumb").click();
   await expect(page.getByTestId("story-chats")).toContainText("1 change");
   await expect(page.getByTestId("story-setup").getByRole("checkbox", { name: "Scene: Plot" })).not.toBeChecked();
 
@@ -253,7 +253,7 @@ test("a story's setup reaches its chats; a chat can change a row for itself and 
   await expect(page.getByTestId("chat-setup").getByRole("checkbox", { name: "Scene: World" })).toBeChecked();
 
   // back to the first chat: "Use the Story's" undoes its change
-  await page.getByTestId("story-page-button").click();
+  await page.getByTestId("story-crumb").click();
   await page.getByTestId("story-chats").getByTestId("chat-row").filter({ hasText: "Chat 1" }).locator(".cl-main").click();
   await openTab(page, "prompt");
   await page.getByTestId("chat-setup").getByTestId("setup-tracker-scene-plot").getByRole("button", { name: "Use the Story's" }).click();
