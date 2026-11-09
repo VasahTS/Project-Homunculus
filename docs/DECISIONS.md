@@ -1134,3 +1134,16 @@ Daniel (translated): "trackers are super hard to pick; when you select one it ju
 - Checks: typecheck, unit tests, click tests trackers / cast / round3 / background / inspector-overflow / tracker-persona (e2e `setTracker` follows the new flow).
 
 Signed: **CLAUDE**.
+
+## D-105 — The chat's right panel: Character tab, Prompt as cards, Memory as a window, one sheet per person (2026-11-09)
+
+Daniel (translated): "a revamp of the right sidebar would be prudent; things blend in, everything looks like the same option, it's easy to get lost"; "editing the character inside Prompt is cramped — maybe its own tab, like SillyTavern"; "everything about a character inside their sheet (except World/global things), so I don't go back and forth"; "Memory is fairly static: take it out of the tabs, a popup or something"; "Author's Note at the top of the list". Approved from the drafts (canvas "Homunculus 2 — Scene Trackers Picker", second row) with that change.
+- **Tabs:** Scene · Character · Prompt · Director · Reply. A remembered "memory" tab opens the Scene.
+- **Character:** `PromptCharacter standalone` — always open, a bigger header (picture, name, version, tokens, Full Editor), every filled field shows up to six lines of its text and opens in place to edit; empty ones are one quiet row. Saves as before (the version this chat uses).
+- **Prompt:** Preview Prompt on top with the preset's context size; the Author's Note first (its own fold); then cards — Model (connections + sampling; "Story Setup & Model" in a story chat), Preset, Narrator in the Prompt (when there is a narrator), Lorebooks, Regex, Quick Replies. Closed, a card says what is set now ("Homunculus Default · 12 of 12 blocks on", "From the card and Defaults", "3 scripts · 1 off here"); several can be open; which are open is remembered per viewer (`h2.promptCards.open`, default Preset). The inner group titles are hidden inside a card (the card names it).
+- **Memory:** a small "Memory" button in the chat's top bar (green dot when on) opens it as a window under the bar; Escape or a click outside closes it.
+- **Scene — one sheet per person:** a person kept by several trackers is one row; the values of every tracker that keeps them are merged into one sheet, without tracker titles (the tracker with "who is in the scene" leads; anyone a presence tracker sends away is away). Save to the Library keeps only the leading tracker's values.
+- **Scene — tracker tabs:** once any tracker fills the top strip, another tracker's short global values (number, bar, status with Auto display) join the strip, and its other global values make **one tab named after the tracker** with its sections as titles (was: one tab per section). Long text sits under its label, full width.
+- Click tests: `openTab(page, "prompt")` opens every card; `openTab(page, "memory")` opens the window. New: merged person test in `trackers.e2e.ts`.
+
+Signed: **CLAUDE**.

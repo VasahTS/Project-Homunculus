@@ -57,9 +57,6 @@ test("the default preset: blocks can be switched, moved and added; the next repl
 test("blocks can be dragged into a new order, in the editor and in the Prompt tab", async ({ page }) => {
   await page.goto("/");
   await openTab(page, "prompt");
-  // round 3: the character sits on top of the Prompt tab; fold it (one line) to have the preset in view
-  await page.getByTestId("prompt-character-toggle").click();
-  await expect(page.getByTestId("prompt-character-field")).toHaveCount(0); // folded (after its animation)
   // the shared preset is the default target of the Prompt tab (D-046)
   const quick = page.getByTestId("prompt-preset").locator(".sortable-item");
   await expect(quick.nth(0)).toContainText("Main Prompt");

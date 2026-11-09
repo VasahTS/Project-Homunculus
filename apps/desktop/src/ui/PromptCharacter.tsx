@@ -4,6 +4,8 @@
 // doesn't get in the way when I'm not editing".
 // The whole group folds to one line (remembered). Open: each field is a line you click to edit (several at once);
 // changes save a moment after you stop typing, to the version of the card THIS chat uses (Main or a version).
+// D-105 (2026-11-09): `standalone` = the inspector's own Character tab (SillyTavern-like): always open, a bigger header,
+// each filled field shows a few lines of its text (not one squeezed line), empty fields collapse to one quiet row.
 import { useEffect, useRef, useState } from "react";
 import type { Avatar, Character } from "@homunculus/schemas";
 import { effectiveCharacter, pruneOverrides, variantAvatarId } from "@homunculus/core";
@@ -27,14 +29,17 @@ const readOpen = () => { try { return localStorage.getItem(OPEN_KEY) !== "0"; } 
 /** One card of the chat (a group chat may have several: a pick at the top). */
 export interface ChatCard { character: Character; variantId: string | null; /** Tracked in the Scene in this chat (D-065). */ tracked?: boolean }
 
-export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
+export function PromptCharacter({ cards, avatars, onSave, onOpenEditor, standalone = false }: {
   cards: ChatCard[];
+  /** Its own inspector tab (D-105): no fold, roomy fields. */
+  standalone?: boolean;
   avatars: Record<string, Avatar>;
   onSave: (c: Character) => Promise<void>;
   /** The full editor (Characters → Edit), for everything else (greetings, versions, lorebooks, picture). */
   onOpenEditor: (characterId: string) => void;
 }) {
-  const [open, setOpenState] = useState(readOpen);
+  const [openState, setOpenState] = useState(readOpen);
+  const open = standalone || openState;
   const [which, setWhich] = useState(cards[0]?.character.id ?? "");
   const [editing, setEditing] = useState<Field[]>([]);
   const [state, setState] = useState<"" | "saving" | "saved">("");
@@ -86,11 +91,11 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
   const tokens = Math.round(FIELDS.reduce((n, f) => n + draft[f.key].length, 0) / 4);
 
   return (
-    <section className={`group-section pc${open ? " open" : ""}`} data-testid="prompt-character">
+    <section className={`group-section pc${open ? " open" : ""}${standalone ? " standalone" : ""}`} data-testid="prompt-character">
       <div className="pc-head">
-        <button type="button" className="pc-toggle" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="prompt-character-toggle">
-          <span className="chev" aria-hidden><Icon name="chevron" size={12} /></span>
-          <AvatarDot name={shown.name} avatar={pic} size={24} />
+        <button type="button" className="pc-toggle" onClick={() => { if (!standalone) setOpen(!open); }} aria-expanded={open} data-testid="prompt-character-toggle">
+          {!standalone && <span className="chev" aria-hidden><Icon name="chevron" size={12} /></span>}
+          <AvatarDot name={shown.name} avatar={pic} size={standalone ? 56 : 24} />
           <span className="pc-title"><strong>{shown.name}</strong><small>{card.tracked === false ? "Not tracked in the Scene · " : ""}{version ? `${version} version` : "Main version"} · ~{tokens} tokens{state === "saving" ? " · saving…" : state === "saved" ? " · saved" : ""}</small></span>
         </button>
         {cards.length > 1 && (
@@ -111,9 +116,13 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor }: {
               <div key={f.key} className={`pc-field${on ? " on" : ""}`} data-testid="prompt-character-field">
                 <button type="button" className="pc-field-head" onClick={() => toggle(f.key)} aria-expanded={on} title={f.help}>
                   <span className="pc-label">{f.label}<span className="pc-to" title={`Sent in the preset's “${f.to}” block`}> → {f.to}</span></span>
-                  {!on && <span className={`pc-line${v.trim() ? "" : " empty"}`}>{v.trim() ? v.replace(/\s+/g, " ") : "Empty"}</span>}
+                  {!on && !standalone && <span className={`pc-line${v.trim() ? "" : " empty"}`}>{v.trim() ? v.replace(/\s+/g, " ") : "Empty"}</span>}
+                  {!on && standalone && !v.trim() && <span className="pc-line empty">Empty</span>}
                   <span className="pc-edit" aria-hidden>{on ? "Done" : <Icon name="pencil" size={12} />}</span>
                 </button>
+                {!on && standalone && v.trim() && (
+                  <button type="button" className="pc-preview" onClick={() => toggle(f.key)} aria-label={`Edit ${f.label}`}>{v}</button>
+                )}
                 {on && (
                   <textarea className="prose-input pc-text" autoFocus aria-label={f.label} value={v} rows={Math.min(14, Math.max(3, Math.ceil(v.length / 60)))}
                     onChange={(e) => change(f.key, e.target.value)} onBlur={flush} />

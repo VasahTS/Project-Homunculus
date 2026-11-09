@@ -46,9 +46,20 @@ export async function openSession(page: Page, index = 0) {
   await expect(page.getByTestId("messages")).toBeVisible();
 }
 
-/** Opens a tab of the inspector beside the story. */
-export async function openTab(page: Page, tab: "scene" | "prompt" | "memory" | "director" | "reply") {
+/**
+ * Opens a tab of the inspector beside the story. D-105: Memory is a window opened from the chat's top bar; the Prompt
+ * tab's cards are opened (a card stays open once opened, so the tests see every control as before).
+ */
+export async function openTab(page: Page, tab: "scene" | "character" | "prompt" | "memory" | "director" | "reply") {
+  if (tab === "memory") {
+    if (!(await page.getByTestId("memory-window").isVisible())) await page.getByTestId("open-memory").click();
+    await expect(page.getByTestId("memory-window")).toBeVisible();
+    return;
+  }
   await page.getByTestId(`tab-${tab}`).click();
+  if (tab !== "prompt") return;
+  const closed = page.getByTestId("prompt-pane").locator('[data-testid="prompt-card-toggle"][aria-expanded="false"]');
+  while (await closed.count()) await closed.first().click();
 }
 
 /** Writes a message, sends it, and waits until the turn ends (reply and trackers). */

@@ -55,7 +55,7 @@ type Obj = Record<string, unknown>;
 interface Cell { t: Tracker; f: TrackerField; value: unknown; was: unknown; mine: boolean; commit: (v: unknown) => void }
 
 /** A person (or a pair) of one tracker, with the accessors for their values. */
-interface Person { key: string; t: Tracker; schema: TrackerSchema; id: string; name: string; you: boolean; here: boolean; pair: boolean; cells: Cell[] }
+interface Person { key: string; t: Tracker; schema: TrackerSchema; id: string; name: string; you: boolean; here: boolean; pair: boolean; cells: Cell[]; /** Every tracker that keeps this person (D-105). */ trackers?: Tracker[] }
 
 export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshKey, trackers, running, onRun, avatars, onToggle, onToggleAll, onPickSet, onEditTracker, onNewTracker, onChanged, onChangeSession, onSaveToVault }: {
   svc: AppServices;
@@ -155,23 +155,28 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
   const people: Person[] = [];
   const groups: Array<{ t: Tracker; title: string; cells: Cell[]; list?: Cell }> = [];
   const withPeople = new Set<string>();
+  // D-105: once a tracker fills the top strip, another tracker's short global values (a number, a status) join it, and
+  // its other global values make ONE tab named after the tracker (its sections as titles inside) — never a tab per
+  // section ("NEX" alone in one tab, the case in another).
+  const anyHeader = enabled.some((t) => schemaOf(t).fields.some((f) => f.scope === "global" && f.display === "header"));
+  const shortGlobal = (f: TrackerField) => (!f.display || f.display === "auto") && (f.type === "number" || f.type === "meter" || f.type === "status");
   if (view) {
     for (const t of enabled) {
       const schema = schemaOf(t);
       const values = view.state[t.agent.id] ?? {};
       const mine = view.userDelta[t.agent.id] ?? {};
       const globals = schema.fields.filter((f) => f.scope === "global");
-      for (const f of globals.filter((x) => x.display === "header")) header.push(cell(t, f, (o) => o?.[f.key], (v) => v, f.key in mine));
+      for (const f of globals.filter((x) => x.display === "header" || (anyHeader && shortGlobal(x)))) header.push(cell(t, f, (o) => o?.[f.key], (v) => v, f.key in mine));
       // other global values: a list gets its own group (titled by the field); single values group by section
       const bySection = new Map<string, Cell[]>();
-      for (const f of globals.filter((x) => x.display !== "header")) {
+      for (const f of globals.filter((x) => x.display !== "header" && !(anyHeader && shortGlobal(x)))) {
         const c = cell(t, f, (o) => o?.[f.key], (v) => v, f.key in mine);
         if (f.type === "list") { groups.push({ t, title: userMacro(f.label), cells: [], list: c }); continue; }
-        const title = f.section || shortName(t.agent.name);
+        const title = anyHeader ? shortName(t.agent.name) : f.section || shortName(t.agent.name);
         bySection.set(title, [...(bySection.get(title) ?? []), c]);
       }
       // single values first, then the lists (the mockup: what/where/when before goals and items)
-      const lists = groups.splice(groups.length - globals.filter((x) => x.display !== "header" && x.type === "list").length);
+      const lists = groups.splice(groups.length - globals.filter((x) => x.display !== "header" && !(anyHeader && shortGlobal(x)) && x.type === "list").length);
       for (const [title, cells] of bySection) groups.push({ t, title, cells });
       groups.push(...lists);
       // people (one per character) and pairs
@@ -200,6 +205,20 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
           people.push({ key: `${t.agent.id}/${id}`, t, schema, id, name: `${a.name} ${PAIR} ${b.name}`, you: false, pair: true, here: true, cells: personCells(id, perPair) });
         }
       }
+    }
+  }
+  // D-105 (Daniel: "everything about a character in their sheet"): one person, however many trackers keep them. The
+  // first tracker with "who is in the scene" leads (its key keeps the open/order memory); the others' values join in,
+  // without tracker titles; someone any presence tracker sends away is away.
+  for (let i = 0; i < people.length; i++) {
+    const a = people[i]!;
+    if (a.pair) continue;
+    for (let j = i + 1; j < people.length; j++) {
+      const b = people[j]!;
+      if (b.pair || b.id !== a.id) continue;
+      const lead = !a.schema.presence && b.schema.presence ? b : a;
+      people[i] = { ...lead, here: a.here && b.here, cells: lead === a ? [...a.cells, ...b.cells] : [...b.cells, ...a.cells], trackers: [...(a.trackers ?? [a.t]), ...(b.trackers ?? [b.t])] };
+      people.splice(j, 1); j--;
     }
   }
   // the order you dragged them into (new people keep the tracker's order, after those) — v1 `sortByOrder`
@@ -274,7 +293,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
   const savable = (p: Person) => !!view && !!onSaveToVault && !p.you && !p.pair && p.id.startsWith("n:") && !view.storyNpcNames.includes(p.name)
     && !view.chatNpcs.some((n) => `n:${n.name}` === p.id);
   const saveToVault = (p: Person) => onSaveToVault?.({ name: p.name, schemaId: p.schema.id,
-    values: Object.fromEntries(p.cells.filter((c) => !isEmpty(c.f, c.value)).map((c) => [c.f.key, c.value])) });
+    values: Object.fromEntries(p.cells.filter((c) => c.t === p.t && !isEmpty(c.f, c.value)).map((c) => [c.f.key, c.value])) });
   const removePerson = async (p: Person) => {
     if (!view) return;
     setError("");
@@ -390,9 +409,12 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
             <section key={t.agent.id} data-testid="tracker-card" data-tracker={t.agent.id} aria-label={t.agent.name} className="q-tracker">
               {bodyGroups.filter((g) => g.t === t && groupId(g) === active).map((g) => (
                 <div key={g.title} className="q-section q-tab-body">
-                  {g.list ? <ListGroup c={g.list} disabled={disabled} /> : (
-                    <div className="q-group">{g.cells.filter((c) => !isEmpty(c.f, c.value)).map((c) => <KeyValue key={c.f.key} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>
-                  )}
+                  {g.list ? <ListGroup c={g.list} disabled={disabled} /> : bySectionOf(g.cells.filter((c) => !isEmpty(c.f, c.value))).map(([sec, cells]) => (
+                    <div key={sec || "-"} className="q-tab-section">
+                      {sec && <div className="q-gh">{sec}</div>}
+                      <div className="q-group">{cells.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>
+                    </div>
+                  ))}
                 </div>
               ))}
             </section>
@@ -442,16 +464,29 @@ function headerRows(cells: Cell[]): Array<{ label: string; cells: Cell[] }> {
     .filter((r) => r.cells.some((c) => !isEmpty(c.f, c.value)));
 }
 
-/** One "label · value" row of a group. Several cells = one row ("14:30, afternoon"). */
+/** A tracker's tab (D-105): its values in the order of its fields, one title per section. */
+function bySectionOf(cells: Cell[]): Array<[string, Cell[]]> {
+  const out: Array<[string, Cell[]]> = [];
+  for (const c of cells) {
+    const last = out.at(-1);
+    const sec = c.f.section ?? "";
+    const found = out.find(([x]) => x === sec);
+    if (found) found[1].push(c); else if (last && !sec && !last[0]) last[1].push(c); else out.push([sec, [c]]);
+  }
+  return out;
+}
+
+/** One "label · value" row of a group. Several cells = one row ("14:30, afternoon"). Long text sits under its label (D-105). */
 function KeyValue({ label, cells, disabled, serif = false }: { label: string; cells: Cell[]; disabled: boolean; serif?: boolean }) {
   const changed = cells.some((c) => wasChanged(c.was, c.value));
+  const long = cells.length === 1 && cells[0]!.f.type === "text" && formatFieldValue(cells[0]!.f, cells[0]!.value).length > 60;
   return (
-    <div className={`q-kv${label ? "" : " solo"}`}>
+    <div className={`q-kv${label ? "" : " solo"}${long ? " stack" : ""}`}>
       {label && <span className="q-k">{label}{cells.some((c) => c.f.help) && <Help text={userMacro(cells.find((c) => c.f.help)!.f.help)} />}</span>}
       <span className={`q-v${serif ? " serif" : ""}`}>
         {changed && <span className="q-chg" title="Changed with this message" />}
         {cells.filter((c) => !isEmpty(c.f, c.value) || cells.length === 1).map((c, i) => (
-          <Val key={c.f.key} c={c} disabled={disabled} sep={i > 0} />
+          <Val key={`${c.t.agent.id}:${c.f.key}`} c={c} disabled={disabled} sep={i > 0} />
         ))}
       </span>
     </div>
@@ -621,9 +656,9 @@ function PersonDetails({ p, disabled, avatar, withTitle = false }: { p: Person; 
           <div className="grow"><h2>{p.name}{p.you && <span className="q-you"> (you)</span>}</h2></div>
         </div>
       )}
-      {subtitle.map((c) => <div key={c.f.key} className="q-sub" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
+      {subtitle.map((c) => <div key={`${c.t.agent.id}:${c.f.key}`} className="q-sub" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
       {lead.map((c) => (
-        <div key={c.f.key} className={c.f.type === "list" ? "q-lead-list" : "q-lead"} data-testid="field-value" data-field={c.f.key}>
+        <div key={`${c.t.agent.id}:${c.f.key}`} className={c.f.type === "list" ? "q-lead-list" : "q-lead"} data-testid="field-value" data-field={c.f.key}>
           {wasChanged(c.was, c.value) && <span className="q-chg" />}
           <EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} />
         </div>
@@ -634,16 +669,16 @@ function PersonDetails({ p, disabled, avatar, withTitle = false }: { p: Person; 
           {s.tiles.length > 0 && (
             <div className="q-group q-tiles">
               {s.tiles.map((c) => (
-                <div key={c.f.key} className="q-tile" data-testid="field-value" data-field={c.f.key}>
+                <div key={`${c.t.agent.id}:${c.f.key}`} className="q-tile" data-testid="field-value" data-field={c.f.key}>
                   <span className="q-tile-v">{wasChanged(c.was, c.value) && <span className="q-chg" />}<EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} />{c.mine && <span className="edited-mark" title="You changed this value at this message"> ✎</span>}</span>
                   <span className="q-tile-k">{userMacro(c.f.label)}</span>
                 </div>
               ))}
             </div>
           )}
-          {s.rows.length > 0 && <div className="q-group" style={s.tiles.length ? { marginTop: 8 } : undefined}>{s.rows.map((c) => <KeyValue key={c.f.key} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>}
+          {s.rows.length > 0 && <div className="q-group" style={s.tiles.length ? { marginTop: 8 } : undefined}>{s.rows.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>}
           {s.lists.map((c) => (
-            <div key={c.f.key}>
+            <div key={`${c.t.agent.id}:${c.f.key}`}>
               <div className="q-gh">{userMacro(c.f.label)}</div>
               <ListGroup c={c} disabled={disabled} />
             </div>
@@ -653,20 +688,20 @@ function PersonDetails({ p, disabled, avatar, withTitle = false }: { p: Person; 
       {notes.length > 0 && (
         <>
           <div className="q-gh">Notes</div>
-          <div className="q-group">{notes.map((c) => <div key={c.f.key} className="q-note"><Val c={c} disabled={disabled} /></div>)}</div>
+          <div className="q-group">{notes.map((c) => <div key={`${c.t.agent.id}:${c.f.key}`} className="q-note"><Val c={c} disabled={disabled} /></div>)}</div>
         </>
       )}
       {cells.length === 0 && unknown.length === 0 && unused.length === 0 && <p className="not-known">Nothing known yet.</p>}
       {unknown.length > 0 && (
         <p className="not-known">
           <span>Not known yet: </span>
-          {unknown.map((c, i) => <span key={c.f.key}>{i > 0 && ", "}<button className="link quiet" title={`Write ${userMacro(c.f.label)} yourself`} onClick={() => setShown((s) => [...s, c.f.key])}>{userMacro(c.f.label)}</button></span>)}
+          {unknown.map((c, i) => <span key={`${c.t.agent.id}:${c.f.key}`}>{i > 0 && ", "}<button className="link quiet" title={`Write ${userMacro(c.f.label)} yourself`} onClick={() => setShown((s) => [...s, c.f.key])}>{userMacro(c.f.label)}</button></span>)}
         </p>
       )}
       {unused.length > 0 && (
         <p className="not-known quiet-used" data-testid="not-used">
           <span>Not used: </span>
-          {unused.map((c, i) => <span key={c.f.key}>{i > 0 && ", "}<button className="link quiet" title={`Write ${userMacro(c.f.label)} yourself`} onClick={() => setShown((s) => [...s, c.f.key])}>{userMacro(c.f.label)}</button></span>)}
+          {unused.map((c, i) => <span key={`${c.t.agent.id}:${c.f.key}`}>{i > 0 && ", "}<button className="link quiet" title={`Write ${userMacro(c.f.label)} yourself`} onClick={() => setShown((s) => [...s, c.f.key])}>{userMacro(c.f.label)}</button></span>)}
         </p>
       )}
     </section>
@@ -684,9 +719,9 @@ function BriefDetails({ p, disabled, onFull }: { p: Person; disabled: boolean; o
   const rest = filled.filter((c) => !sub.includes(c) && !lead.includes(c) && (c.f.display === "pill" || c.f.key === firstLine));
   return (
     <section className="q-page q-inline q-brief" data-testid="person-brief" aria-label={p.name}>
-      {sub.map((c) => <div key={c.f.key} className="q-sub" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
-      {lead.map((c) => <div key={c.f.key} className="q-lead" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
-      {rest.length > 0 && <div className="q-group">{rest.map((c) => <KeyValue key={c.f.key} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>}
+      {sub.map((c) => <div key={`${c.t.agent.id}:${c.f.key}`} className="q-sub" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
+      {lead.map((c) => <div key={`${c.t.agent.id}:${c.f.key}`} className="q-lead" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
+      {rest.length > 0 && <div className="q-group">{rest.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>}
       <p className="q-brief-foot">
         <button type="button" className="link" data-testid="full-sheet" onClick={onFull}>Full Sheet ›</button>
         <span className="hint">kept as it was when they left</span>
@@ -1084,7 +1119,7 @@ export function TrackerPreview({ schema, values, cast, avatars, focusKey }: {
           {groups.map((g) => (
             <section key={g.title}>
               <div className="q-gh">{g.title}</div>
-              {g.list ? <ListGroup c={g.list} disabled /> : <div className="q-group">{g.cells.map((c) => <KeyValue key={c.f.key} label={userMacro(c.f.label)} cells={[c]} disabled />)}</div>}
+              {g.list ? <ListGroup c={g.list} disabled /> : <div className="q-group">{g.cells.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled />)}</div>}
             </section>
           ))}
         </div>

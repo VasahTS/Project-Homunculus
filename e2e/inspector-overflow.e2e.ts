@@ -56,10 +56,11 @@ for (const width of [1440, 1000, 620, 390]) {
     await page.getByTestId("authors-note-toggle").click();
     if (width < 600) await page.getByRole("button", { name: "Hide Sidebar", exact: true }).click();
     await page.setViewportSize({ width, height: 900 });
-    await expect(page.getByTestId("prompt-character-field")).toHaveCount(6);
     await page.screenshot({ path: test.info().outputPath(`prompt-${width}.png`) });
-    await expect.poll(() => horizontalOverflow(page, [".pane", ".pc-field-head", ".pc-label", ".pc-text", ".follows-story", ".setup-row", ".setup-v select", ".an-summary"])).toEqual([]);
+    await expect.poll(() => horizontalOverflow(page, [".pane", ".prompt-card-head", ".follows-story", ".setup-row", ".setup-v select", ".an-summary"])).toEqual([]);
     await expect.poll(() => page.getByTestId("prompt-pane").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await openTab(page, "character");
+    await expect(page.getByTestId("prompt-character-field")).toHaveCount(6);
     const field = page.getByTestId("prompt-character").getByRole("button", { name: /^Post-history instructions/ });
     await field.click();
     await expect(page.getByTestId("prompt-character").getByLabel("Post-history instructions")).toBeVisible();

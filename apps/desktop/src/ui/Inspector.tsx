@@ -1,17 +1,20 @@
 // Homunculus 2 — the inspector: one floating panel with tabs, beside the story. Author: CLAUDE, 2026-10-27 (D-018).
 // Scene = trackers at the message on screen · Prompt = connection, preset and sampling · Reply = the receipt of one reply.
 // New tabs (Agents, Notes…) plug in here. 2026-10-28 (D-023): the tab body slides in from the side of the tab you came from.
+// D-105 (2026-11-09): Character has its own tab; Memory left the tabs (a window opened from the chat's top bar).
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Icon, IconButton, Segmented } from "./kit.tsx";
 import { CASCADE, EASE_OUT, enter, reducedMotion } from "./motion.ts";
 
-export type InspectorTab = "scene" | "prompt" | "memory" | "director" | "reply";
-const ORDER: InspectorTab[] = ["scene", "prompt", "memory", "director", "reply"];
+export type InspectorTab = "scene" | "character" | "prompt" | "director" | "reply";
+const ORDER: InspectorTab[] = ["scene", "character", "prompt", "director", "reply"];
 
-export function Inspector({ tab, onTab, scene, prompt, memory, director, reply, onClose }: {
+export function Inspector({ tab: rawTab, onTab, scene, character, prompt, director, reply, onClose }: {
   onClose?: () => void;
-  tab: InspectorTab; onTab: (t: InspectorTab) => void; scene: ReactNode; prompt: ReactNode; memory: ReactNode; director: ReactNode; reply: ReactNode;
+  tab: InspectorTab; onTab: (t: InspectorTab) => void; scene: ReactNode; character: ReactNode; prompt: ReactNode; director: ReactNode; reply: ReactNode;
 }) {
+  // a tab remembered from before D-105 ("memory") opens the Scene
+  const tab: InspectorTab = ORDER.includes(rawTab) ? rawTab : "scene";
   const body = useRef<HTMLDivElement>(null);
   const prev = useRef(tab);
   // opening a chat: the panel itself stays still (D-072); its content rises in a beat after the messages
@@ -29,14 +32,14 @@ export function Inspector({ tab, onTab, scene, prompt, memory, director, reply, 
       <div className="inspector-tabs">{onClose && <IconButton className="inspector-overlay-close" label="Close Inspector" onClick={onClose}><Icon name="close" size={14} /></IconButton>}
         <Segmented tabs label="Inspector" value={tab} onChange={onTab} options={[
           { value: "scene", label: "Scene", testId: "tab-scene" },
+          { value: "character", label: "Character", testId: "tab-character" },
           { value: "prompt", label: "Prompt", testId: "tab-prompt" },
-          { value: "memory", label: "Memory", testId: "tab-memory" },
           { value: "director", label: "Director", testId: "tab-director" },
           { value: "reply", label: "Reply", testId: "tab-reply" },
         ]} />
       </div>
       <div className="inspector-body" role="tabpanel" ref={body}>
-        {tab === "scene" ? scene : tab === "prompt" ? prompt : tab === "memory" ? memory : tab === "director" ? director : reply}
+        {tab === "scene" ? scene : tab === "character" ? character : tab === "prompt" ? prompt : tab === "director" ? director : reply}
       </div>
     </aside>
   );

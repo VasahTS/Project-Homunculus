@@ -177,15 +177,16 @@ test("Save to the Library: someone the tracker knows becomes a Library NPC, in a
   await expect(page.getByTestId("folder-tile").filter({ hasText: "Villagers" })).toBeVisible();
 });
 
-test("the chat's character is edited in the Prompt tab, and the whole group folds to one line", async ({ page }) => {
+test("the chat's character is edited in its own Character tab (D-105)", async ({ page }) => {
   await page.goto("/");
-  await openTab(page, "prompt");
+  await openTab(page, "character");
   const pc = page.getByTestId("prompt-character");
   await expect(pc).toContainText("Lyra");
   await pc.getByRole("button", { name: /^Personality/ }).click();
   await pc.getByLabel("Personality").fill("Dry humor. Hates goblins.");
   await pc.getByLabel("Personality").blur();
   await expect(pc).toContainText("saved");
+  await openTab(page, "prompt");
   await page.getByRole("button", { name: "Preview Prompt" }).click();
   await expect(page.getByTestId("prompt-preview")).toContainText("Hates goblins.");
   await page.keyboard.press("Escape");
@@ -193,14 +194,10 @@ test("the chat's character is edited in the Prompt tab, and the whole group fold
   await openLibrary(page, "Characters");
   await page.getByTestId("character-list").getByRole("button", { name: "Lyra" }).click();
   await expect(page.getByTestId("character-sheet")).toContainText("Hates goblins.");
-  // fold: one line, remembered
+  // the Prompt tab no longer holds the character
   await page.getByTestId("session-list").getByRole("button").first().click();
   await openTab(page, "prompt");
-  await page.getByTestId("prompt-character-toggle").click();
-  await expect(pc.getByTestId("prompt-character-field")).toHaveCount(0);
-  await page.reload();
-  await openTab(page, "prompt");
-  await expect(page.getByTestId("prompt-character-toggle")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("prompt-pane").getByTestId("prompt-character")).toHaveCount(0);
 });
 
 test("hold a card and drag it onto a folder (and back to All)", async ({ page }) => {

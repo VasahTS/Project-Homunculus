@@ -24,10 +24,11 @@
 
 **Session notes:** Glaze reference clone was at hydall/Glaze f1fe39e. The dev machine can't reach janitorai.com ("Access Restricted"); test live only on Daniel's PC. Writing files to his PC: a re-used upload path once wrote the **old** file — use a fresh output path per write and check the size after.
 
-## Right panel revamp — draft waiting for Daniel (2026-11-09) — CLAUDE
+## Right panel revamp — built (2026-11-09) — CLAUDE — D-105
 
-- Tracker picker A is built (D-104). Daniel then asked for a revamp of the chat's right panel ("things blend in, everything looks like the same option, easy to get lost"), plus: the character gets its own tab like SillyTavern (editing it inside Prompt is cramped), one person per row even with several trackers, and no one-value tabs.
-- Drafts on the canvas "Homunculus 2 — Scene Trackers Picker", second row: Scene (one row per person, one tab per tracker), Character tab, Prompt as cards that say what is set. Open question: Director under "···". **No code until he approves.**
+- Approved drafts built: tabs Scene · Character · Prompt · Director · Reply; Prompt as cards (Author's Note first, then Model, Preset, Narrator, Lorebooks, Regex, Quick Replies); Memory as a window from the chat's top bar; one sheet per person across trackers; one tab per tracker for its global values.
+- Files: `ui/Inspector.tsx`, `ui/ChatView.tsx` (Memory button/window, Character tab, card list), `ui/ConnectionPanel.tsx` (`PromptPane`, `PromptCard`), `ui/PromptCharacter.tsx` (`standalone`), `ui/ScenePanel.tsx` (merge, tracker tabs, `bySectionOf`, stacked long text), `styles.css` (D-105 block).
+- **To try:** a chat with Scene: Characters + another tracker with per-character fields (e.g. Fichas da Ordem) + Scene: World → one row per person; NEX in the top strip; a "Fichas da Ordem" tab with Caso as a title. Character tab: click a field to edit. Prompt: cards remember being open. Memory button in the top bar.
 
 ## Scene trackers: switches no longer undo each other; picker redesign waits for a draft (2026-11-08, night) — CLAUDE
 

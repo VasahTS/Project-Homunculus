@@ -7,7 +7,7 @@ import type { ConnectionProfile, Preset, ReasoningEffort, Session, SetupLayer } 
 import { SetupFields, type StorySetupProps } from "./SetupFields.tsx";
 import { DEFAULT_PRESET, resolveSetup, type BuiltPrompt, type ProviderDefinition } from "@homunculus/core";
 import type { Tracker } from "../trackers.ts";
-import { Button, Icon } from "./kit.tsx";
+import { Button, Collapse, Icon, type ICONS } from "./kit.tsx";
 import { PromptBlocks } from "./PromptBlocks.tsx";
 import { NarratorPromptGroup } from "./NarratorPromptGroup.tsx";
 import { PromptSheet } from "./PromptSheet.tsx";
@@ -59,7 +59,26 @@ const SAME_AS_STORY = "__story__";
 
 export type PromptPreview = BuiltPrompt & { presetName: string; model: string; sent: number };
 
-export function PromptPane({ c, providers, session, storySetup, storyName, director = false, setupProps, onChangeSession, onOpenSettings, presets, defaultPresetId, onSavePreset, onOpenPreset, preview, trackers, lore, authorsNote, character, memory }: {
+/** A card of the Prompt tab (D-105): icon, title and what is set now when closed; its controls when open. */
+export interface PromptCardSpec { id: string; icon: keyof typeof ICONS; title: string; summary: string; body: ReactNode }
+
+const CARDS_KEY = "h2.promptCards.open";
+const readCards = (): string[] => { try { const v = JSON.parse(localStorage.getItem(CARDS_KEY) ?? "null") as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : ["preset"]; } catch { return ["preset"]; } };
+
+function PromptCard({ card, open, onToggle }: { card: PromptCardSpec; open: boolean; onToggle: () => void }) {
+  return (
+    <section className={`prompt-card${open ? " open" : ""}`} data-testid={`prompt-card-${card.id}`}>
+      <button type="button" className="prompt-card-head" aria-expanded={open} onClick={onToggle} data-testid="prompt-card-toggle">
+        <span className="prompt-card-icon" aria-hidden><Icon name={card.icon} size={16} /></span>
+        <span className="prompt-card-text"><b>{card.title}</b><small>{card.summary}</small></span>
+        <span className="prompt-card-chev" aria-hidden><Icon name="chevron" size={12} /></span>
+      </button>
+      <Collapse open={open}><div className="prompt-card-body">{card.body}</div></Collapse>
+    </section>
+  );
+}
+
+export function PromptPane({ c, providers, session, storySetup, storyName, director = false, setupProps, onChangeSession, onOpenSettings, presets, defaultPresetId, onSavePreset, onOpenPreset, preview, trackers, authorsNote, authorsNoteSummary = "", cards = [] }: {
   c: ConnectionState; providers: ProviderDefinition[]; session: Session; onChangeSession: (s: Session) => void | Promise<void>; onOpenSettings: () => void;
   /** A story chat (D-031): the story's layer and name, and the setup block it shares with the story's page. */
   storySetup?: SetupLayer | undefined; storyName?: string | undefined; director?: boolean; setupProps?: StorySetupProps | undefined;
@@ -67,18 +86,21 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
   /** Builds the next prompt without sending it. */
   preview: () => Promise<PromptPreview>;
   trackers: Tracker[];
-  /** The session's lorebooks group (LorePanels.tsx). */
-  lore?: ReactNode;
-  /** The Memory group (D-054). */
-  memory?: ReactNode;
-  /** The chat's Author's Note group (AuthorsNote.tsx), at the top. */
+  /** The chat's Author's Note group (AuthorsNote.tsx): the first card (Daniel, D-105). */
   authorsNote?: ReactNode;
-  /** The chat's character, editable in place (round 3, PromptCharacter.tsx), at the very top. */
-  character?: ReactNode;
+  authorsNoteSummary?: string;
+  /** Lorebooks, Regex, Quick Replies… after the preset. */
+  cards?: PromptCardSpec[];
 }) {
   const [shown, setShown] = useState<PromptPreview | null>(null);
   const [previewError, setPreviewError] = useState("");
   const [previewing, setPreviewing] = useState(false);
+  const [open, setOpenState] = useState<string[]>(readCards);
+  const toggle = (id: string) => setOpenState((cur) => {
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    try { localStorage.setItem(CARDS_KEY, JSON.stringify(next)); } catch { /* per-viewer only */ }
+    return next;
+  });
   const inStory = !!(storySetup && setupProps);
   const aboveSetup = setupProps?.setupAbove(storySetup) ?? resolveSetup({ story: storySetup });
   const selectedPresetId = session.setup.presetId !== undefined ? session.setup.presetId : aboveSetup.presetId ?? defaultPresetId;
@@ -100,11 +122,14 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
   };
   const agentValue = session.setup.agentConnectionId === undefined ? INHERIT : session.setup.agentConnectionId === null ? SAME_AS_STORY : session.setup.agentConnectionId;
   const status = story && needsKey(story.providerId) ? c.keyStatus(story) : null;
+  const model = story ? (session.setup.modelOverride ?? storySetup?.modelOverride) || story.model : "";
+  const blocksOn = preset.blocks.filter((b) => b.enabled).length;
+  const narratorOn = inStory || session.cast.some((member) => member.role === "narrator" && member.presence !== "off");
 
-  return (
-    <div className="pane" aria-label="Connection settings" data-testid="prompt-pane">
-      {character}
-      {authorsNote}
+  const modelCard: PromptCardSpec = {
+    id: "model", icon: "plug", title: inStory ? "Story Setup & Model" : "Model",
+    summary: story ? `${story.name}${model ? ` · ${model}` : ""}${status && status.kind !== "saved" ? " · no key saved" : ""}` : "No connection",
+    body: <>
       {inStory && (
         <>
           <p className="follows-story" data-testid="follows-story">Inherits <strong>{storyName}</strong>. Overrides apply to this chat.</p>
@@ -135,54 +160,62 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
         </Row>
         <Row wide>
           <span className="hint" data-testid="story-connection">
-            {story ? <>{providers.find((p) => p.id === story.providerId)?.name ?? story.providerId}{needsKey(story.providerId) ? ` · ${(session.setup.modelOverride ?? storySetup?.modelOverride) || story.model || "no model set"}` : ""}
+            {story ? <>{providers.find((p) => p.id === story.providerId)?.name ?? story.providerId}{needsKey(story.providerId) ? ` · ${model || "no model set"}` : ""}
               {status && status.kind !== "saved" ? " · no key saved" : ""}. </> : "No connection. "}
             <button className="link" onClick={onOpenSettings}>Edit Connections</button>
           </span>
         </Row>
       </Group>}
+      {story && (
+        <Group title={`Sampling — ${story.name}`} help={`Changes apply wherever "${story.name}" is used, starting with the next reply. Blank uses the model's default.`}>
+          <ParamRows params={story.params} onChange={(params) => void c.save({ ...story, params })} />
+          {presetOverrides.length > 0 && (
+            <Row wide><span className="hint warn-text" data-testid="preset-overrides">The preset “{preset.name}” sets {presetOverrides.map(([k, v]) => `${k} ${v}`).join(", ")}, which win over these for the story.</span></Row>
+          )}
+        </Group>
+      )}
+    </>,
+  };
 
-      <Group title="Preset" help="Choose whether block edits apply to this chat or the shared preset. Manage presets in Library → Presets."
-        testId="prompt-preset">
-        {!inStory && <Row label="Preset">
-          <select aria-label="Session preset" value={session.setup.presetId ?? ""}
-            onChange={(e) => (e.target.value ? setLayer({ presetId: e.target.value }, []) : setLayer({}, ["presetId"]))}>
-            <option value="">Default ({defaultPresetName})</option>
-            {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </Row>}
-        {preset && <Row wide><PromptBlocks key={preset.id} preset={preset} layer={session.setup} above={aboveSetup} level="chat"
-          onChange={(setup) => onChangeSession({ ...session, setup })} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} /></Row>}
-        <Row wide>
-          <span className="preview-cta">
-            <Button onClick={() => void runPreview()} disabled={previewing}><Icon name="eye" size={14} />{previewing ? "Building…" : "Preview Prompt"}</Button>
-            <Help text="Shows exactly what the next reply would send (with what is in your message box as the last message), without sending anything. Agents that run just before the reply are not included." />
-          </span>
-        </Row>
-        {previewError && <Row wide><span className="error-text">{previewError}</span></Row>}
-      </Group>
+  const presetCard: PromptCardSpec = {
+    id: "preset", icon: "preset", title: "Preset", summary: `${preset.name} · ${blocksOn} of ${preset.blocks.length} blocks on`,
+    body: <Group testId="prompt-preset">
+      {!inStory && <Row label="Preset">
+        <select aria-label="Session preset" value={session.setup.presetId ?? ""}
+          onChange={(e) => (e.target.value ? setLayer({ presetId: e.target.value }, []) : setLayer({}, ["presetId"]))}>
+          <option value="">Default ({defaultPresetName})</option>
+          {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </Row>}
+      <Row wide><PromptBlocks key={preset.id} preset={preset} layer={session.setup} above={aboveSetup} level="chat"
+        onChange={(setup) => onChangeSession({ ...session, setup })} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} /></Row>
+    </Group>,
+  };
 
-      {(inStory || session.cast.some((member) => member.role === "narrator" && member.presence !== "off")) && <NarratorPromptGroup level="chat" layer={session.setup} above={aboveSetup.narratorPrompt} onChange={(setup) => onChangeSession({ ...session, setup })} />}
+  const narratorCard: PromptCardSpec | null = narratorOn ? {
+    id: "narrator", icon: "scroll", title: "Narrator in the Prompt", summary: "How the narrator is sent",
+    body: <NarratorPromptGroup level="chat" layer={session.setup} above={aboveSetup.narratorPrompt} onChange={(setup) => onChangeSession({ ...session, setup })} />,
+  } : null;
 
-      {lore}
+  const all = [modelCard, presetCard, ...(narratorCard ? [narratorCard] : []), ...cards];
 
-      {memory}
+  return (
+    <div className="pane prompt-pane" aria-label="Connection settings" data-testid="prompt-pane">
+      <div className="prompt-top">
+        <Button variant="prominent" className="preview-cta" onClick={() => void runPreview()} disabled={previewing}><Icon name="eye" size={14} />{previewing ? "Building…" : "Preview Prompt"}</Button>
+        <span className="prompt-top-meta" title="Largest prompt + reply this preset allows">{preset.contextSize ? `Context · ${Math.round(preset.contextSize / 1024)}k` : "No context limit"}</span>
+        <Help text="Shows exactly what the next reply would send (with what is in your message box as the last message), without sending anything. Agents that run just before the reply are not included." />
+      </div>
+      {previewError && <p className="error-text">{previewError}</p>}
+
+      {authorsNote && <div className="prompt-card prompt-card-note" data-testid="prompt-card-authors-note" title={authorsNoteSummary}>{authorsNote}</div>}
+      {all.map((card) => <PromptCard key={card.id} card={card} open={open.includes(card.id)} onToggle={() => toggle(card.id)} />)}
 
       {shown && (
         <PromptSheet title="Prompt Preview" testId="prompt-preview" trackers={trackers} parts={shown.parts} budget={shown.budget} notes={shown.notes} sent={shown.sent}
           meta={<>Next reply · preset <strong>{shown.presetName}</strong>{shown.model ? <> · {shown.model}</> : null}</>}
           onClose={() => setShown(null)} onRefresh={() => void runPreview()} refreshing={previewing} />
       )}
-
-      {story && (
-        <Group title={`Sampling — ${story.name}`} help={`Changes apply wherever "${story.name}" is used, starting with the next reply. Blank uses the model's default.`}>
-          <ParamRows params={story.params} onChange={(params) => void c.save({ ...story, params })} />
-          {presetOverrides.length > 0 && preset && (
-            <Row wide><span className="hint warn-text" data-testid="preset-overrides">The preset “{preset.name}” sets {presetOverrides.map(([k, v]) => `${k} ${v}`).join(", ")}, which win over these for the story.</span></Row>
-          )}
-        </Group>
-      )}
-
     </div>
   );
 }

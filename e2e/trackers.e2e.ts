@@ -226,3 +226,15 @@ test("Scene: Characters with the Fantasy set and Scene: World fill the panel (pe
   await expect(changes.locator(".chg-who", { hasText: "Lyra" })).toContainText("values filled in");
   await expect(changes.locator(".chg-who", { hasText: "Lyra" })).not.toHaveAttribute("open");
 });
+
+test("a person kept by two trackers is one row, with both trackers' values inside (D-105)", async ({ page }) => {
+  await page.goto("/");
+  await makeTracker(page, "Temp");
+  await setTracker(page, "Scene: Characters");
+  await setTracker(page, "Temp");
+  await send(page, "We walk into the forest.");
+  const who = page.getByTestId("who-block");
+  await expect(who.filter({ hasText: "Lyra" })).toHaveCount(1);
+  const lyra = await openPerson(page, "Lyra");
+  await expect(lyra).toContainText("Level"); // Temp's field, inside the same sheet as Scene: Characters' values
+});

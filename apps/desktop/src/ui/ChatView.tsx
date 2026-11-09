@@ -43,7 +43,7 @@ import { AuthorsNoteGroup, noteMarkAt } from "./AuthorsNote.tsx";
 import { QuickConnect } from "./QuickConnect.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { useDraft, useSendKey } from "./ux.tsx";
-import { CASCADE, enter } from "./motion.ts";
+import { CASCADE, enter, popIn } from "./motion.ts";
 import { BranchMenu, ForkMarker, subtreeOf, TreeSheet, useBranches } from "./Branches.tsx";
 import type { ReactNode } from "react";
 
@@ -168,6 +168,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const liveText = useSmoothText(pending?.text ?? "", prefs.smoothText && !!pending, prefs.smoothSpeed);
   const [sceneKey, setSceneKey] = useState(0);
   const [tab, setTab] = useBackState<InspectorTab>("scene"); // inspector tabs are moves for M4/M5 (D-097)
+  /** Memory opens as a window from the top bar (D-105). */
+  const [memoryOpen, setMemoryOpen] = useState(false);
   // the Director (D-092) can leave the inspector for its own window; remembered across chats
   const [directorOut, setDirectorOut] = useState(() => { try { return localStorage.getItem("director.out") === "1"; } catch { return false; } });
   // whether its window is open is remembered too: the chat is drawn again when you come back to it, and a closed
@@ -747,6 +749,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               load={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, branchId: currentId }); }} />}
           </>}
           trailing={<>
+            <button type="button" className={`memory-chip${memoryOpen ? " on" : ""}`} aria-expanded={memoryOpen} aria-haspopup="dialog" data-testid="open-memory"
+              onClick={() => setMemoryOpen((v) => !v)} title="Memory: chapters that keep long chats in mind">
+              <Icon name="book" size={13} />Memory{(session.setup.memory?.on ?? storySetup?.memory?.on) && <span className="memory-chip-dot" aria-label="on" />}
+            </button>
             {onToggleAgent && onOpenAgent && (
               <AgentsPanel svc={svc} agents={agents} trackers={trackers} session={session} storySetup={storySetup}
                 latest={lastAi ? agentResults.get(lastAi.id) : undefined} latestBefore={latestParentId ? agentResults.get(latestParentId) : undefined} latestId={(lastAi ?? last)?.id ?? null} turn={turn} connection={connection}
@@ -1017,22 +1023,27 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           prompt={<PromptPane c={connection} providers={providers} session={session} storySetup={storySetup} storyName={storyInfo?.name} director={storyInfo?.role === "director"} setupProps={setupProps} onChangeSession={onChangeSession} onOpenSettings={onOpenSettings}
             presets={presets} defaultPresetId={defaultPresetId} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} trackers={trackers}
             authorsNote={noteAbove && <AuthorsNoteGroup level="chat" inStory={!!storySetup} layer={session.setup} above={noteAbove} onChange={(setup) => onChangeSession({ ...session, setup })} />}
-            lore={<>
-              <SessionLorebooks session={session} all={lorebooks} load={loadLorebooks} onChangeSession={onChangeSession} onOpen={onOpenLorebook} />
-              <SessionRegex rows={regexRows} regexOff={session.setup.regexOff ?? []} onOpenLibrary={() => onOpenRegex?.()}
-                onChange={(regexOff) => { void onChangeSession({ ...session, setup: { ...session.setup, regexOff } }); setRegexTick((t) => t + 1); }} />
-              <SessionQuickReplies chatId={session.id} storyId={session.storyId} storyName={storyInfo?.name}
-                cast={castIds.map((id) => ({ id, name: characters[id]?.name ?? "Character" })).filter((c, i, a) => a.findIndex((x) => x.id === c.id) === i)}
-                onOpenLibrary={() => onOpenQuickReply?.()} onError={(e) => onError?.(e)} />
-            </>}
-            memory={<MemoryLink session={session} storySetup={storySetup} onOpen={() => setTab("memory")} />}
-            character={onSaveCharacter && onOpenCharacter ? (
-              <PromptCharacter cards={session.cast.filter((m) => m.characterId && characters[m.characterId]).map((m) => ({ character: characters[m.characterId!]!, variantId: m.variantId, tracked: isTracked(m, characters[m.characterId!]!) }))}
-                avatars={avatars} onSave={onSaveCharacter} onOpenEditor={onOpenCharacter} />
-            ) : undefined}
+            authorsNoteSummary={note?.text?.trim() ? `On · ${note.depth} message${note.depth === 1 ? "" : "s"} back` : "Off · a standing direction for the AI"}
+            cards={[
+              { id: "lorebooks", icon: "book", title: "Lorebooks", summary: lorebookSummary(session),
+                body: <SessionLorebooks session={session} all={lorebooks} load={loadLorebooks} onChangeSession={onChangeSession} onOpen={onOpenLorebook} /> },
+              { id: "regex", icon: "sliders", title: "Regex", summary: regexSummary(regexRows),
+                body: regexRows && regexRows.length === 0
+                  ? <p className="hint prompt-card-empty">No regex scripts apply to this chat. <button type="button" className="link" onClick={() => onOpenRegex?.()}>Library → Regex</button></p>
+                  : <SessionRegex rows={regexRows} regexOff={session.setup.regexOff ?? []} onOpenLibrary={() => onOpenRegex?.()}
+                      onChange={(regexOff) => { void onChangeSession({ ...session, setup: { ...session.setup, regexOff } }); setRegexTick((t) => t + 1); }} /> },
+              { id: "quick-replies", icon: "send", title: "Quick Replies", summary: "Buttons above the message box",
+                body: <SessionQuickReplies chatId={session.id} storyId={session.storyId} storyName={storyInfo?.name}
+                  cast={castIds.map((id) => ({ id, name: characters[id]?.name ?? "Character" })).filter((c, i, a) => a.findIndex((x) => x.id === c.id) === i)}
+                  onOpenLibrary={() => onOpenQuickReply?.()} onError={(e) => onError?.(e)} /> },
+            ]}
             preview={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, userText: input, branchId: currentId }); }} />}
-          memory={<MemoryPane key={`${session.id}:${currentId ?? ""}`} svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession}
-            refreshKey={sceneKey} lastReplyId={lastAi?.id ?? null} draft={input} />}
+          character={onSaveCharacter && onOpenCharacter && session.cast.some((m) => m.characterId && characters[m.characterId]) ? (
+            <div className="pane character-pane" data-testid="character-pane">
+              <PromptCharacter standalone cards={session.cast.filter((m) => m.characterId && characters[m.characterId]).map((m) => ({ character: characters[m.characterId!]!, variantId: m.variantId, tracked: isTracked(m, characters[m.characterId!]!) }))}
+                avatars={avatars} onSave={onSaveCharacter} onOpenEditor={onOpenCharacter} />
+            </div>
+          ) : <div className="pane" data-testid="character-pane"><p className="pane-note">No character card in this chat.</p></div>}
           director={directorOut
             ? <div className="director-away mem-card"><p className="mem-text">The Director is in its own window.</p>
               <div className="mem-actions"><Button small onClick={() => setDirectorShown(true)}>Show it</Button><Button small onClick={() => popDirector(false)} data-testid="director-dock">Dock here</Button></div></div>
@@ -1040,6 +1051,12 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           reply={<ReplyPane providers={providers} svc={svc} session={session} storySetup={storySetup} messageId={replyFor ?? lastAi?.id ?? null} trackers={trackers} connection={connection}
             refreshKey={sceneKey} busy={busy} running={manual && manual.messageId === (replyFor ?? lastAi?.id) ? manual.agentId : null} onRun={runAgentsOn} />}
         />
+      )}
+      {memoryOpen && headId !== undefined && (
+        <MemoryWindow onClose={() => setMemoryOpen(false)}>
+          <MemoryPane key={`${session.id}:${currentId ?? ""}`} svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession}
+            refreshKey={sceneKey} lastReplyId={lastAi?.id ?? null} draft={input} />
+        </MemoryWindow>
       )}
       {directorOut && directorShown && headId !== undefined && (
         <DirectorWindow onClose={() => setDirectorShown(false)}>
@@ -1051,12 +1068,38 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
 }
 
 /** The Prompt tab's pointer to the Memory tab (D-084): memory has its own tab now. */
-function MemoryLink({ session, storySetup, onOpen }: { session: Session; storySetup?: SetupLayer | undefined; onOpen: () => void }) {
-  const on = session.setup.memory?.on ?? storySetup?.memory?.on ?? false;
+/** Lorebooks card summary (D-105): what this chat itself changes; the card's and the Defaults' books are listed inside. */
+function lorebookSummary(session: Session): string {
+  const l = session.setup.lorebooks;
+  const added = l?.add.length ?? 0, off = l?.remove.length ?? 0;
+  if (!added && !off) return "From the card and Defaults";
+  return [added ? `${added} added here` : "", off ? `${off} off here` : ""].filter(Boolean).join(" · ");
+}
+
+function regexSummary(rows: Array<{ on: boolean }> | null): string {
+  if (!rows) return "…";
+  if (!rows.length) return "None apply";
+  const off = rows.filter((r) => !r.on).length;
+  return `${rows.length} script${rows.length === 1 ? "" : "s"}${off ? ` · ${off} off here` : " · all on"}`;
+}
+
+/** Memory, out of the inspector's tabs (D-105): a window under the top bar; Escape or a click outside closes it. */
+function MemoryWindow({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { popIn(ref.current); ref.current?.focus(); }, []);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape" && !(e.target as HTMLElement).closest?.("input, textarea, select")) onClose(); };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [onClose]);
   return (
-    <Group title="Memory" testId="memory-link">
-      <Row label={on ? "On" : "Off"}><button type="button" className="link" onClick={onOpen} data-testid="open-memory-tab">Open the Memory Tab ›</button></Row>
-    </Group>
+    <div className="memory-window-scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="memory-window" ref={ref} tabIndex={-1} role="dialog" aria-label="Memory" data-testid="memory-window">
+        <div className="memory-window-bar"><b>Memory</b><span className="pane-note">This chat</span>
+          <IconButton label="Close Memory" onClick={onClose}><Icon name="close" size={14} /></IconButton></div>
+        <div className="memory-window-body">{children}</div>
+      </div>
+    </div>
   );
 }
 
