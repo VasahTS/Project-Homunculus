@@ -4035,9 +4035,10 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .prompt-card-chev { display: grid; color: var(--label-3); transition: transform var(--dur-fast) var(--ease-out); }
 .prompt-card.open .prompt-card-chev { transform: rotate(90deg); }
 .prompt-card-body { display: grid; gap: 12px; padding: 0 12px 12px; }
-.prompt-card-body > .group-section > .group-head > .label-row:only-child { display: none; }
-.prompt-card-body > .group-section > .group-head:has(> .label-row:only-child) { display: none; }
-.prompt-card-body > .group-section > .group-head > .label-row { color: var(--label-3); }
+/* the card already names these groups: hide their own title (keep links such as "Library → Regex") */
+:is([data-testid="prompt-card-lorebooks"], [data-testid="prompt-card-regex"], [data-testid="prompt-card-quick-replies"]) .prompt-card-body > .group-section > .group-head > .label-row { visibility: hidden; }
+[data-testid="prompt-card-lorebooks"] .prompt-card-body > .group-section > .group-head { display: none; }
+.prompt-card-body > .group-section > .group-head > .label-row { color: var(--label-2); }
 .prompt-card-empty { margin: 0; }
 .prompt-card-note { padding: 4px 4px 6px; }
 .prompt-card-note > .an-group { margin: 0; }
