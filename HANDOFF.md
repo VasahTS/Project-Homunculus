@@ -24,6 +24,12 @@
 
 **Session notes:** Glaze reference clone was at hydall/Glaze f1fe39e. The dev machine can't reach janitorai.com ("Access Restricted"); test live only on Daniel's PC. Writing files to his PC: a re-used upload path once wrote the **old** file — use a fresh output path per write and check the size after.
 
+## Scene trackers: switches no longer undo each other; picker redesign waits for a draft (2026-11-08, night) — CLAUDE
+
+- Daniel: "trackers are very hard to pick: switching one on jumps straight to the scene, I can't pick others first; sometimes it bugs and I can't switch at all."
+- **Fixed now (bug, no UI change):** `App.tsx` tracker switches/field sets were saved from the chat as it was rendered, so two quick clicks built both saves from the same old chat and the second undid the first. Now they run one after another on the chat as it is saved (`changeTrackers`).
+- **Waiting for Daniel (draft before code):** canvas "Homunculus 2 — Scene Trackers Picker" — A: check the trackers, then **Start Following N** (nothing applies before); afterwards a "Trackers N" button opens the list as a full-width sheet (switches apply at once, field set as a second line). B: trackers in use as chips with "+ Add". Causes noted there: one switch makes `enabled > 0`, so the empty state's list vanishes; the 290 px gear popover puts the field-set select over the names.
+
 ## Assistant: presets — create, and edit as copies (2026-11-08, night) — CLAUDE — D-103
 
 - Daniel: "let the assistant create presets and edit existing ones (by making copies)". Library prompt presets are now an Assistant write kind: `create` (from Homunculus Default, or `from: "preset:id"`), and `change` on a preset saves an **edited copy** ("Name (copy)") — the original is never touched. Card: "copy of “X” · summary", Undo / Open.

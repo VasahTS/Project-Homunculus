@@ -197,6 +197,8 @@ export function App() {
   // the lorebook editor saves by itself (D-028), also when it closes; its last save must see the view as it is now
   const setView = (next: View | ((current: View) => View)) => { setHomeOpen(false); return typeof next === "function" ? setViewNow(next) : navigate(() => setViewNow(next)); };
   const viewRef = useRef(view);
+  /** Tracker switch saves, one after another (see changeTrackers). */
+  const trackerWrites = useRef<Promise<void>>(Promise.resolve());
   // the way back to the session lasts while you stay in Lorebooks
   useEffect(() => { if (view.kind !== "lorebooks") setLoreBack(null); }, [view.kind]);
   viewRef.current = view;
@@ -868,26 +870,29 @@ export function App() {
   /** A story chat inherits its story's layer (D-031); a 1:1 chat has none. */
   const storyLayerOf = (x: Session | undefined): SetupLayer | undefined => (x?.storyId ? stories.find((st) => st.id === x.storyId)?.setup : undefined);
 
-  const toggleTracker = async (id: string, on: boolean) => {
-    if (!active) return;
-    await svc.store.saveSession(withTracker(active, id, on, storyLayerOf(active)));
-    await refresh(svc);
+  /**
+   * Tracker switches change the chat one after another, each on the chat as it is saved now: two quick clicks used to
+   * build both saves from the same old chat, so the second undid the first ("sometimes I can't switch at all").
+   */
+  const changeTrackers = (change: (s: Session, above: SetupLayer | undefined) => Session) => {
+    const id = active?.id;
+    if (!id) return Promise.resolve();
+    const run = trackerWrites.current.then(async () => {
+      const now = await svc.store.getSession(id);
+      if (!now) return;
+      await svc.store.saveSession(change(now, storyLayerOf(now)));
+      await refresh(svc);
+    });
+    trackerWrites.current = run.catch(() => {});
+    return run;
   };
+
+  const toggleTracker = (id: string, on: boolean) => changeTrackers((s, above) => withTracker(s, id, on, above));
 
   /** Several trackers at once, in one save (D-079: "Follow this scene" in an empty Scene tab). */
-  const toggleTrackers = async (ids: string[], on: boolean) => {
-    if (!active) return;
-    let next = active;
-    for (const id of ids) next = withTracker(next, id, on, storyLayerOf(active));
-    await svc.store.saveSession(next);
-    await refresh(svc);
-  };
+  const toggleTrackers = (ids: string[], on: boolean) => changeTrackers((s, above) => ids.reduce((next, id) => withTracker(next, id, on, above), s));
 
-  const pickFieldSet = async (id: string, setId: string | null) => {
-    if (!active) return;
-    await svc.store.saveSession(withFieldSet(active, id, setId, storyLayerOf(active)));
-    await refresh(svc);
-  };
+  const pickFieldSet = (id: string, setId: string | null) => changeTrackers((s, above) => withFieldSet(s, id, setId, above));
 
   const importFiles = async (files: File[]) => {
     const imported: string[] = [];
