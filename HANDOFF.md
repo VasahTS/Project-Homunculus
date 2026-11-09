@@ -24,6 +24,11 @@
 
 **Session notes:** Glaze reference clone was at hydall/Glaze f1fe39e. The dev machine can't reach janitorai.com ("Access Restricted"); test live only on Daniel's PC. Writing files to his PC: a re-used upload path once wrote the **old** file — use a fresh output path per write and check the size after.
 
+## Right panel revamp — draft waiting for Daniel (2026-11-09) — CLAUDE
+
+- Tracker picker A is built (D-104). Daniel then asked for a revamp of the chat's right panel ("things blend in, everything looks like the same option, easy to get lost"), plus: the character gets its own tab like SillyTavern (editing it inside Prompt is cramped), one person per row even with several trackers, and no one-value tabs.
+- Drafts on the canvas "Homunculus 2 — Scene Trackers Picker", second row: Scene (one row per person, one tab per tracker), Character tab, Prompt as cards that say what is set. Open question: Director under "···". **No code until he approves.**
+
 ## Scene trackers: switches no longer undo each other; picker redesign waits for a draft (2026-11-08, night) — CLAUDE
 
 - Daniel: "trackers are very hard to pick: switching one on jumps straight to the scene, I can't pick others first; sometimes it bugs and I can't switch at all."
