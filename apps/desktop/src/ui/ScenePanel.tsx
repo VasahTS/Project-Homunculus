@@ -303,30 +303,12 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
     onChanged();
   };
 
-  const switches = (
-    <div className="tracker-switch-list" data-testid="tracker-toggles">
-      {trackers.map((t) => {
-        const on = isOnIn(session, t.agent.id, storySetup);
-        const schema = schemaOf(t);
-        return (
-          <div key={t.agent.id} className="tracker-switch">
-            <span className="tracker-switch-name">{t.agent.name}</span>
-            {on && t.sets.length > 1 && (
-              <select className="set-select" aria-label={`${t.agent.name} field set`} value={schema.id} title="Which field set this session uses. Values of fields with the same name carry over."
-                onChange={(e) => onPickSet(t.agent.id, e.target.value === t.agent.state?.schemaId ? null : e.target.value)}>
-                {t.sets.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            )}
-            <IconButton label={`Edit ${t.agent.name}`} className="small" onClick={() => { setMenu(false); onEditTracker(t.agent.id); }}><Icon name="pencil" size={13} /></IconButton>
-            <Switch label={t.agent.name} checked={on} onChange={(v) => onToggle(t.agent.id, v)} />
-          </div>
-        );
-      })}
-      <button className="link tracker-new" onClick={() => { setMenu(false); onNewTracker(); }}>+ New Tracker</button>
-    </div>
-  );
+  // D-104: the trackers of this chat. With none on, a checklist where nothing applies until "Start Following"; with some
+  // on, the "Trackers N" button opens the same list as a sheet the width of the panel (switches apply at once).
+  const setOf = (t: Tracker) => schemaOf(t).id;
+  const pickSet = (t: Tracker, id: string) => onPickSet(t.agent.id, id === t.agent.state?.schemaId ? null : id);
 
-  return (
+    return (
     <div className="pane scene-pane quiet" aria-label="Scene" data-testid="scene">
       <header className="q-top">
         <span className="grow">{busy ? <span className="updating-chip" data-testid="scene-busy"><span className="spinner" aria-hidden />Updating…</span> : "Scene"}</span>
@@ -336,24 +318,26 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
           </IconButton>
         )}
         {enabled.length > 0 && (
-          <span className="menu-anchor">
-            <IconButton label="Trackers" aria-expanded={menu} aria-haspopup="true" onClick={() => setMenu((v) => !v)}><Icon name="gear" size={14} /></IconButton>
-            {menu && <Popover onClose={() => setMenu(false)}><div className="popover-title">Trackers in this session</div>{switches}</Popover>}
-          </span>
+          <button type="button" className={`tracker-menu-btn${menu ? " on" : ""}`} aria-expanded={menu} aria-haspopup="dialog" data-testid="scene-trackers"
+            onClick={() => setMenu((v) => !v)}>Trackers <span className="n">{enabled.length}</span><span className="chev" aria-hidden><Icon name="chevron" size={11} /></span></button>
         )}
         <Help text="Tracked values for the selected message. Click a value to edit it. Your edits override tracker values for that message." />
       </header>
 
       {error && <div className="error-bar inline" role="alert">{error}</div>}
 
+      {enabled.length > 0 && menu && (
+        <TrackerSheet trackers={trackers} isOn={(t) => isOnIn(session, t.agent.id, storySetup)} setOf={setOf}
+          onToggle={(t, on) => onToggle(t.agent.id, on)} onPickSet={pickSet} onClose={() => setMenu(false)}
+          onEdit={(t) => { setMenu(false); onEditTracker(t.agent.id); }} onNew={() => { setMenu(false); onNewTracker(); }} />
+      )}
+
       {enabled.length === 0 && (
-        <section className="q-empty">
-          {/* UX review item 9 (D-079): an empty state with one clear action, the single switches under it */}
-          <h3 className="q-empty-title">Follow this scene</h3>
-          <p className="pane-note">{trackers.length ? "Trackers update scene details after each reply." : "No trackers yet."}</p>
-          {trackers.length > 0 && onToggleAll && <Button variant="prominent" onClick={() => onToggleAll(trackers.map((t) => t.agent.id), true)} data-testid="scene-follow-all">Switch On All {trackers.length}</Button>}
-          {trackers.length ? <details className="q-empty-pick"><summary>Or Pick Which Ones</summary><div className="q-group">{switches}</div></details> : <button className="link" onClick={onNewTracker}>Create One</button>}
-        </section>
+        <TrackerPicker key={session.id} trackers={trackers} setOf={setOf} onNew={onNewTracker}
+          onStart={(ids, sets) => {
+            if (onToggleAll) onToggleAll(ids, true); else for (const id of ids) onToggle(id, true);
+            for (const t of trackers) { const want = sets[t.agent.id]; if (want && want !== setOf(t)) pickSet(t, want); }
+          }} />
       )}
 
       {view && enabled.length > 0 && (
@@ -724,6 +708,114 @@ function RunInfo({ t, runs, messageId, busy, running, onRun }: { t: Tracker; run
       <button className="link" disabled={!messageId || busy} onClick={onRun}>
         {running === t.agent.id ? "running…" : last ? "Run again" : "Run now"}
       </button>
+    </div>
+  );
+}
+
+/** The field sets of a tracker as small choices (D-104); shown only when it has more than one. */
+function SetPills({ t, value, onPick }: { t: Tracker; value: string; onPick: (id: string) => void }) {
+  if (t.sets.length < 2) return null;
+  return (
+    <div className="set-pills" role="radiogroup" aria-label={`${t.agent.name} field set`}>
+      <span className="set-pills-label">Field set</span>
+      {t.sets.map((x) => (
+        <button key={x.id} type="button" role="radio" aria-checked={x.id === value} className={x.id === value ? "on" : ""} onClick={() => onPick(x.id)}>{x.name}</button>
+      ))}
+    </div>
+  );
+}
+
+/** With no tracker on: tick the ones this chat should follow (and their field sets), then start. Nothing applies before. */
+function TrackerPicker({ trackers, setOf, onStart, onNew }: {
+  trackers: Tracker[]; setOf: (t: Tracker) => string; onNew: () => void;
+  onStart: (ids: string[], sets: Record<string, string>) => void;
+}) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [sets, setSets] = useState<Record<string, string>>({});
+  const n = picked.length;
+  if (!trackers.length) {
+    return (
+      <section className="q-empty">
+        <h3 className="q-empty-title">Follow this scene</h3>
+        <p className="pane-note">No trackers yet. A tracker keeps scene details up to date after each reply.</p>
+        <button type="button" className="link" onClick={onNew}>Create One</button>
+      </section>
+    );
+  }
+  return (
+    <section className="q-empty tracker-picker" data-testid="scene-picker">
+      <h3 className="q-empty-title">Follow this scene</h3>
+      <p className="pane-note">Pick the trackers for this chat, then start. You can change them any time.</p>
+      <div className="tracker-pick-head">
+        <span>Trackers · {trackers.length}</span>
+        <span className="grow" />
+        <button type="button" className="link" onClick={() => setPicked(trackers.map((t) => t.agent.id))}>Select All</button>
+        {n > 0 && <button type="button" className="link" onClick={() => setPicked([])}>Clear</button>}
+      </div>
+      <div className="tracker-pick-list" data-testid="tracker-toggles">
+        {trackers.map((t) => {
+          const on = picked.includes(t.agent.id);
+          return (
+            <div key={t.agent.id} className={`tracker-pick${on ? " on" : ""}`}>
+              <button type="button" role="checkbox" aria-checked={on} aria-label={t.agent.name} className="tracker-pick-row"
+                onClick={() => setPicked(on ? picked.filter((x) => x !== t.agent.id) : [...picked, t.agent.id])}>
+                <span className="tick" aria-hidden>{on && <Icon name="check" size={11} />}</span>
+                <span className="tracker-pick-text"><b>{t.agent.name}</b>{t.agent.help && <small>{t.agent.help}</small>}</span>
+              </button>
+              {on && <SetPills t={t} value={sets[t.agent.id] ?? setOf(t)} onPick={(id) => setSets({ ...sets, [t.agent.id]: id })} />}
+            </div>
+          );
+        })}
+      </div>
+      <button type="button" className="link" onClick={onNew}>+ New Tracker</button>
+      <Button variant="prominent" disabled={!n} onClick={() => onStart(trackers.filter((t) => picked.includes(t.agent.id)).map((t) => t.agent.id), sets)} data-testid="scene-start">
+        {n ? `Start Following ${n} Tracker${n === 1 ? "" : "s"}` : "Pick at Least One"}
+      </Button>
+      <p className="pane-note center">They update the scene after each reply.</p>
+    </section>
+  );
+}
+
+/** The trackers of this chat over the Scene, the width of the panel: switches apply at once (D-104). */
+function TrackerSheet({ trackers, isOn, setOf, onToggle, onPickSet, onEdit, onNew, onClose }: {
+  trackers: Tracker[]; isOn: (t: Tracker) => boolean; setOf: (t: Tracker) => string;
+  onToggle: (t: Tracker, on: boolean) => void; onPickSet: (t: Tracker, id: string) => void;
+  onEdit: (t: Tracker) => void; onNew: () => void; onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { popIn(ref.current); ref.current?.focus(); }, []);
+  useEffect(() => {
+    const key = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const down = (e: MouseEvent) => {
+      const target = e.target as Element;
+      if (!ref.current?.contains(target) && !target.closest?.("[data-testid=scene-trackers]")) onClose();
+    };
+    document.addEventListener("keydown", key);
+    document.addEventListener("mousedown", down);
+    return () => { document.removeEventListener("keydown", key); document.removeEventListener("mousedown", down); };
+  }, [onClose]);
+  return (
+    <div className="tracker-sheet" ref={ref} tabIndex={-1} role="dialog" aria-label="Trackers in this chat">
+      <div className="tracker-sheet-head"><b>Trackers in this chat</b><span className="pane-note">Switches apply at once</span></div>
+      <div className="tracker-sheet-list" data-testid="tracker-toggles">
+        {trackers.map((t) => {
+          const on = isOn(t);
+          return (
+            <div key={t.agent.id} className="tracker-sheet-row">
+              <div className="tracker-sheet-line">
+                <span className="tracker-switch-name">{t.agent.name}</span>
+                <IconButton label={`Edit ${t.agent.name}`} className="small" onClick={() => onEdit(t)}><Icon name="pencil" size={13} /></IconButton>
+                <Switch label={t.agent.name} checked={on} onChange={(v) => onToggle(t, v)} />
+              </div>
+              {on && <SetPills t={t} value={setOf(t)} onPick={(id) => onPickSet(t, id)} />}
+            </div>
+          );
+        })}
+      </div>
+      <div className="tracker-sheet-foot">
+        <button type="button" className="link" onClick={onNew}>+ New Tracker</button>
+        <Button variant="prominent" onClick={onClose}>Done</Button>
+      </div>
     </div>
   );
 }

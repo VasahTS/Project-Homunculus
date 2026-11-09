@@ -1123,3 +1123,14 @@ Daniel (translated): "let the assistant create presets and edit existing ones (b
 - Checks: typecheck; unit tests `assistant/preset-tools.test.ts` (7) plus the guide-fields contract.
 
 Signed: **CLAUDE**.
+
+## D-104 — Picking a chat's trackers: a checklist, then a sheet; the Assistant plans for the Scene's layout (2026-11-08)
+
+Daniel (translated): "trackers are super hard to pick; when you select one it jumps straight to the scene, you can't even pick others before; sometimes it bugs and I can't switch at all — make it simple and easy." He approved the draft (canvas "Homunculus 2 — Scene Trackers Picker", option A; "both are good").
+- **None on:** "Follow this scene" is a checklist — each tracker with its one-line help, a tick box, and (once ticked, when it has several) its field sets as small choices; Select All / Clear; **Start Following N Trackers** applies them in one go. Nothing switches on before. "Switch On All" and the folded "Or Pick Which Ones" are gone.
+- **Some on:** the ⚙ is now a **Trackers N** button; it opens "Trackers in this chat" in place, the panel's width (no 290 px popover): name, Edit, switch (applies at once), field sets as a second line, + New Tracker, Done. Escape or a click outside closes it.
+- Quick switches were saved from the chat as rendered, so the second undid the first; they now run one after another on the saved chat (`App.tsx` `changeTrackers`).
+- **Assistant tracker guide:** how the Scene lays fields out (short globals in "header"; other globals become one tab per section whenever a tracker has header fields — so no one-value sections, long texts in one "block" section) and that each tracker with perCharacter fields lists the cast again: read the trackers already used for people first, never repeat their fields, keep HUD trackers global, add presence only when none keeps it. This answers "my friend's tracker split into tabs" (Fichas da Ordem: NEX alone in a tab, the case in another, because Scene: World has header fields).
+- Checks: typecheck, unit tests, click tests trackers / cast / round3 / background / inspector-overflow / tracker-persona (e2e `setTracker` follows the new flow).
+
+Signed: **CLAUDE**.

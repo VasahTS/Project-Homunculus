@@ -127,7 +127,7 @@ test("editing a tracker keeps its saved values; deleting it switches it off ever
   await send(page, "Hello");
   const place = await fv(page.getByTestId("scene-header"), "place").innerText();
 
-  await page.getByTestId("scene").getByRole("button", { name: "Trackers" }).click();
+  await page.getByTestId("scene-trackers").click();
   await page.getByTestId("tracker-toggles").getByRole("button", { name: "Edit Temp" }).click();
   await page.getByTestId("field-label").filter({ hasText: "Place" }).click(); // a field opens in place (D-026)
   await page.getByLabel("Field 1 name").fill("Location"); // rename the field: the value must stay
@@ -181,9 +181,9 @@ test("Scene: Characters with the Fantasy set and Scene: World fill the panel (pe
   const scene = page.getByTestId("scene");
   await setTracker(page, "Scene: Characters");
   await setTracker(page, "Scene: World");
-  // the field set of a tracker is picked in the ⚙ Trackers menu
-  await scene.getByRole("button", { name: "Trackers" }).click();
-  await scene.getByLabel("Scene: Characters field set").selectOption({ label: "Fantasy" });
+  // the field set of a tracker is picked in the Trackers sheet (D-104)
+  await scene.getByTestId("scene-trackers").click();
+  await scene.getByRole("radiogroup", { name: "Scene: Characters field set" }).getByRole("radio", { name: "Fantasy" }).click();
   await page.keyboard.press("Escape");
   await send(page, "We walk into the forest.");
 

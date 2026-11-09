@@ -3980,3 +3980,40 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
   .inspector-tabs > .inspector-overlay-close { order: 2; float: none; flex: none; }
   .inspector-tabs > .segmented button { padding-inline: 7px; }
 }
+
+/* D-104 — the Scene's trackers: a checklist before any is on, a full-width sheet after (no 290 px popover). */
+.tracker-menu-btn { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; padding: 4px 9px; border: 1px solid var(--separator); border-radius: calc(7px * var(--round)); background: var(--fill); color: var(--label); font: inherit; font-size: var(--size-small); cursor: pointer; }
+.tracker-menu-btn:hover, .tracker-menu-btn.on { background: var(--fill-hover); }
+.tracker-menu-btn .n { color: var(--label-2); }
+.tracker-menu-btn .chev { display: inline-flex; transform: rotate(90deg); transition: transform .16s; color: var(--label-2); }
+.tracker-menu-btn.on .chev { transform: rotate(-90deg); }
+.tracker-picker { justify-items: stretch; }
+.tracker-picker .link { justify-self: start; }
+.tracker-pick-head { display: flex; align-items: center; gap: 14px; margin-top: 6px; color: var(--label-3); font-size: var(--size-small); }
+.tracker-pick-head .grow { flex: 1; }
+.tracker-pick-head .link, .tracker-picker > .link { color: var(--label-2); }
+.tracker-pick-list, .tracker-sheet-list { display: grid; border-top: 1px solid var(--separator); }
+.tracker-pick { border-bottom: 1px solid var(--separator); }
+.tracker-pick-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 11px 6px; border: 0; background: none; color: var(--label); font: inherit; text-align: left; cursor: pointer; }
+.tracker-pick-row:hover { background: var(--fill); }
+.tracker-pick-row .tick { flex: none; width: 16px; height: 16px; margin-top: 1px; display: grid; place-items: center; border: 1px solid var(--label-3); border-radius: calc(4px * var(--round)); color: var(--accent-ink); }
+.tracker-pick.on .tick { background: var(--accent); border-color: var(--accent); }
+.tracker-pick-text { display: grid; gap: 3px; min-width: 0; }
+.tracker-pick-text b { font-weight: 500; }
+.tracker-pick-text small { color: var(--label-3); font-size: var(--size-small); line-height: 1.45; }
+.tracker-pick .set-pills { padding: 0 6px 11px 34px; }
+.tracker-picker [data-testid="scene-start"] { width: 100%; justify-content: center; margin-top: 6px; }
+.pane-note.center { text-align: center; }
+.set-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.set-pills-label { color: var(--label-3); font-size: var(--size-small); margin-right: 2px; }
+.set-pills button { padding: 3px 9px; border: 1px solid var(--separator); border-radius: calc(6px * var(--round)); background: none; color: var(--label-2); font: inherit; font-size: var(--size-small); cursor: pointer; }
+.set-pills button:hover { color: var(--label); }
+.set-pills button.on { background: var(--fill-selected); border-color: var(--label-3); color: var(--label); }
+.tracker-sheet { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 14px; padding: 12px 10px 8px; background: var(--surface); border: 1px solid var(--glass-edge); border-radius: calc(10px * var(--round)); outline: none; transform-origin: top center; }
+.tracker-sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.tracker-sheet-head .pane-note { margin: 0; }
+.tracker-sheet-list { overflow: auto; max-height: min(60vh, 520px); }
+.tracker-sheet-row { display: grid; gap: 8px; padding: 9px 4px; border-bottom: 1px solid var(--separator); }
+.tracker-sheet-line { display: flex; align-items: center; gap: 8px; }
+.tracker-sheet-line .tracker-switch-name { flex: 1; min-width: 0; font-weight: 500; }
+.tracker-sheet-foot { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 0; }

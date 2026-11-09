@@ -59,23 +59,25 @@ export async function send(page: Page, text: string) {
   await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible({ timeout: 15_000 });
 }
 
-/** Switches a tracker on or off in the Scene panel (the list is in the panel until one is on, then under the ⚙ "Trackers" button). */
+/**
+ * Switches a tracker on or off in the Scene panel (D-104): with none on, tick it in the checklist and Start Following;
+ * with some on, the "Trackers N" button opens the sheet with the switches.
+ */
 export async function setTracker(page: Page, name: string, on = true) {
   const scene = page.getByTestId("scene");
-  const sw = scene.getByRole("switch", { name, exact: true });
-  // wait until the panel is drawn: either the list of trackers or the ⚙ button
-  await scene.locator('[data-testid="scene-follow-all"], button[aria-label="Trackers"], [data-testid="tracker-toggles"]').first().waitFor();
-  // D-079: with none on, the single switches are folded under "Or Pick Which Ones"; with some on, they are under ⚙.
-  // The panel can change between the two while it reloads, so retry until the switch shows.
-  await expect(async () => {
-    if (await sw.isVisible()) return;
-    const pick = scene.getByText("Or Pick Which Ones");
-    if (await pick.isVisible()) await pick.click();
-    else if (await scene.getByRole("button", { name: "Trackers" }).isVisible()) await scene.getByRole("button", { name: "Trackers" }).click();
-    await expect(sw).toBeVisible({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
-  if ((await sw.getAttribute("aria-checked")) !== String(on)) await sw.click();
-  if (await scene.getByRole("dialog").isVisible()) await page.keyboard.press("Escape");
+  // wait until the panel is drawn: either the checklist or the Trackers button
+  await scene.locator('[data-testid="scene-picker"], [data-testid="scene-trackers"]').first().waitFor();
+  if (await scene.getByTestId("scene-picker").isVisible()) {
+    if (!on) return;
+    const box = scene.getByRole("checkbox", { name, exact: true });
+    if ((await box.getAttribute("aria-checked")) !== "true") await box.click();
+    await scene.getByTestId("scene-start").click();
+  } else {
+    const sw = scene.getByRole("switch", { name, exact: true });
+    if (!(await sw.isVisible())) await scene.getByTestId("scene-trackers").click();
+    if ((await sw.getAttribute("aria-checked")) !== String(on)) await sw.click();
+    if (await scene.getByRole("dialog", { name: "Trackers in this chat" }).isVisible()) await page.keyboard.press("Escape");
+  }
   // the tracker's tab appears (or goes away)
   if (on) await expect(scene.locator(`[data-testid="tracker-card"][aria-label="${name}"]`)).toHaveCount(1);
 }

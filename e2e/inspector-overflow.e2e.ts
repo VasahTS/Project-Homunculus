@@ -71,7 +71,8 @@ for (const width of [1440, 1000, 620, 390]) {
 test("scrolling Scene section tabs keeps world values and run controls in the inspector", async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 900 });
   await page.goto("/");
-  await page.getByTestId("scene-follow-all").click();
+  await page.getByTestId("scene").getByRole("button", { name: "Select All" }).click();
+  await page.getByTestId("scene-start").click();
   await send(page, "We reach the mill before sunset. Lyra checks the old map.");
   await page.getByTestId("scene-tab-scene-world-quests").click();
   await expect(page.getByTestId("run-status").filter({ hasText: "updated" })).toHaveCount(3);
