@@ -24,6 +24,14 @@
 
 **Session notes:** Glaze reference clone was at hydall/Glaze f1fe39e. The dev machine can't reach janitorai.com ("Access Restricted"); test live only on Daniel's PC. Writing files to his PC: a re-used upload path once wrote the **old** file — use a fresh output path per write and check the size after.
 
+## Assistant: presets — create, and edit as copies (2026-11-08, night) — CLAUDE — D-103
+
+- Daniel: "let the assistant create presets and edit existing ones (by making copies)". Library prompt presets are now an Assistant write kind: `create` (from Homunculus Default, or `from: "preset:id"`), and `change` on a preset saves an **edited copy** ("Name (copy)") — the original is never touched. Card: "copy of “X” · summary", Undo / Open.
+- Files: `assistant/tools.ts` (`presetOf`, `presetBlocksAfter`, `copyPreset`), `assistant/guides.ts` (preset guide, core rules, draft kinds), `schemas/assistant.ts` (`AssistantKind` + preset), `ui/Assistant.tsx` (kind name, draft regex), `App.tsx` (Open → Library → Presets), `engine.ts` (tool group help). Test: `assistant/preset-tools.test.ts`.
+- **Written straight into Daniel's `Homunculus-dev` folder, not pushed** (this session could not attach the GitHub repo for pushing). Commit them on `dev` from there.
+- **To try:** Assistant → "make a copy of <preset> with shorter replies and a post-history reminder" → the card shows the copy; Open; check the original is unchanged; pick the copy in a chat's Prompt tab. Then "create a preset for narrated stories".
+- Changelog line for the next release: "**Assistant and presets:** the Assistant can now make prompt presets, and edit your presets — always as a copy, so the original and every chat using it stay as they are."
+
 ## Text layout in the character editor (2026-11-08, evening) — CLAUDE — D-102
 
 - Daniel: "implement that text editor we talked about". **Library → Characters → Edit → Text** (4th layout): the whole card as one document with fixed titles; Ctrl+F / Ctrl+H (Aa, W, .* with $1, in all fields or this field, Replace All = one Ctrl+Z); **Compare…** with Before This Edit / Last Saved / Original Import / Main Version / History, Put Back per change.

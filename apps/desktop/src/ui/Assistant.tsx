@@ -929,7 +929,7 @@ function RequestView({ chat, messageId, settings, svc, onClose }: { chat: Assist
 
 // ------------------------------------------------------------------ drafts in replies ("Draft first")
 
-const KIND_NAME: Record<AssistantKind, string> = { persona: "Persona", character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator" };
+const KIND_NAME: Record<AssistantKind, string> = { persona: "Persona", character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator", preset: "Preset" };
 
 /** A reply's text with its draft blocks drawn as draft cards (Save to library, Copy, Show JSON). */
 /** Flint's sources row (D-067): site letters + "N read · M found"; open = the list of pages. */
@@ -969,7 +969,7 @@ function ReplyText({ text, live, results, onSaveDraft }: { text: string; live: b
   }
   const rest = text.slice(at);
   // a draft block still being written: show it as a draft that is not ready yet
-  const open = /```homunculus-(character|lorebook|tracker|kit|narrator|persona)[^\n]*\n([\s\S]*)$/.exec(rest);
+  const open = /```homunculus-(character|lorebook|tracker|kit|narrator|persona|preset)[^\n]*\n([\s\S]*)$/.exec(rest);
   if (open) { if (open.index) parts.push({ md: rest.slice(0, open.index) }); parts.push({ kind: open[1] as AssistantKind, json: open[2]!, closed: false }); }
   else if (rest) parts.push({ md: rest });
   return <div className="asst-text">{parts.map((p, i) => ("md" in p ? (p.md.trim() ? <MessageText key={i} text={p.md} /> : null)

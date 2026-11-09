@@ -2,14 +2,18 @@
 // The instructions are short; a **guide** per kind is given only when the Assistant asks for it (`guide`), once per
 // chat. Each guide lists exactly the fields `create` / `change` accept for that kind (tests check the names against
 // the app's data shapes, so they never go stale).
-import { LoreEntry } from "@homunculus/schemas";
+import { LoreEntry, PresetBlock } from "@homunculus/schemas";
 
 // Import payloads stay owned by the importer; every other entry option is editable. CODEX, 2026-11-03.
 export const LORE_ENTRY_FIELDS = Object.keys(LoreEntry.shape).filter(k => k !== "original");
 
+/** What a preset write accepts (D-103). Regex scripts and the imported original are kept from the base, never written. */
+export const PRESET_FIELDS = ["from", "name", "description", "blocks", "contextSize", "params", "formats", "prompts", "squashSystem"];
+export const PRESET_BLOCK_FIELDS = Object.keys(PresetBlock.shape);
+
 /** The app's own rules, always sent first (an assistant's instructions come after and cannot remove them). */
 // Keep the tracker help/note distinction present even in chats with an older guide. CODEX, 2026-11-03.
-export const CORE_RULES = `You work inside Homunculus 2, a desktop app for roleplay and narrated stories, and you build and improve the user's material — characters, personas, lorebooks, trackers, Kits (story starters) and narrators — with your tools.
+export const CORE_RULES = `You work inside Homunculus 2, a desktop app for roleplay and narrated stories, and you build and improve the user's material — characters, personas, lorebooks, trackers, Kits (story starters), narrators and prompt presets — with your tools.
 
 How you work:
 - The user's library can be large. Never try to read everything: use \`find\` (names and one line each) to locate things, then \`read\` only the items and fields you need.
@@ -17,7 +21,8 @@ How you work:
 - Before writing a kind of item the first time in a chat, call \`guide\` for that kind.
 - Tracker fields: fields[].help tells the tracker AI what to write and when to leave the field empty; fields[].note explains the value's meaning and consequences to the story AI. Put filling instructions in help, never only in note. These are separate from the tracker's top-level help (a short description for the user). Choose each field's display for its scope; consult the tracker guide for exact presentation and control options.
 - New items: \`create\`. Changes to existing items: \`change\` (only the fields that change). The user approves changes; never assume they were applied.
-- Writable kinds are character, lorebook, tracker, kit, narrator and persona. NPCs, presets and existing stories can be read with tools; edit those in the app UI. Do not claim to have changed an unsupported kind.
+- Writable kinds are character, lorebook, tracker, kit, narrator, persona and preset. NPCs and existing stories can be read with tools; edit those in the app UI. Do not claim to have changed an unsupported kind.
+- Presets are never changed in place: \`change\` on a preset saves an edited copy as a new item and the original stays as it is (chats keep using the original until the user picks the copy). Say so to the user. \`create\` with data.from = "preset:id" also starts from an existing preset.
 - You never delete. If something should go, use \`propose_trash\` and say why.
 - Files the user attached: read only the parts you need with \`read_file\`; turn a card or lorebook file into a library item with \`import_file\`, then change it.
 - When several items must work together (a Kit with several characters), read them, make them consistent, and say in one or two sentences what you had to settle. Do not change the picked items unless asked.
@@ -161,18 +166,41 @@ Creating a persona does not select it as the default or change any story. The us
 - mayAddNpcs: whether the narrator may bring in new people (default true). turnInstruction: short instructions sent last on every story reply; an empty string disables them. Unchanged values are preserved when editing the card.
 Good narrators: few strong rules over many vague ones; say what NOT to do (speak for {{user}}, summarize, rush).`,
   },
+  // Presets are written as new items or edited copies, never in place (D-103). CLAUDE, 2026-11-08.
+  preset: {
+    kind: "preset",
+    fields: [...PRESET_FIELDS, ...PRESET_BLOCK_FIELDS],
+    text: `A prompt preset: the ordered recipe of what is sent to the AI on every story reply. Shared by every chat and story that uses it, so you never edit one in place:
+- create: a new preset. Without "from" it starts as a copy of Homunculus Default (its blocks, formats and samplers) and needs a name. With from: "preset:id" it starts as a copy of that preset; name is optional ("Name (copy)").
+- change on preset:id: saves an EDITED COPY with only the fields you send changed; the original is untouched. Tell the user the copy's name and that they pick it in a chat's Prompt tab, a story's setup or Settings → Defaults.
+Fields (all optional on a copy):
+- name; description (one line for the user, not sent).
+- blocks: the prompt in order. A block: { id, name, enabled, role: "system"|"user"|"assistant", content, marker, position: "list"|"depth", depth, order, triggers, noOverride }.
+  - Text blocks: content is sent as written; macros like {{char}}, {{user}}, {{original}} work.
+  - marker: the app fills the block — charDescription, charPersonality, scenario, personaDescription, dialogueExamples, chatHistory (the conversation; required, never remove it), worldInfoBefore, worldInfoAfter, scene (trackers' values), agentPrompts. A marker block has no content; each marker once.
+  - position "list" = where it sits in the list (blocks after chatHistory come after the conversation, e.g. post-history instructions). "depth" = inserted inside the chat, depth messages before the end; at the same depth, higher order comes first.
+  - triggers: only for these generations — normal, swipe, continue, impersonate, letThemAct, quiet (empty = always). noOverride: a card's own system prompt / post-history instructions may not replace this block (ids "main" and "jailbreak" are the ones cards replace).
+  - Writing blocks: a full list replaces them all (keep every block you are not removing, with its id). Or edit: { add: [{ ...block, after: "<block id>" | "start" }], update: [{ id, ...only what changes }], remove: [ids], order: [every id, in the new order] }. add without after goes to the end. Read the preset first for its block ids.
+- contextSize: largest prompt + reply in tokens (null = no limit).
+- params: samplers that win over the connection's — temperature, topP, maxTokens, frequencyPenalty, presencePenalty, topK, minP, repetitionPenalty. Partial; null removes one (the connection's is used).
+- formats: how marker text is wrapped — description, personality, scenario, persona, examples, worldInfo; each contains its value macro ({{description}}, {{personality}}, {{scenario}}, {{persona}}, {{mesExamples}}, {{worldInfo}}). Partial.
+- prompts: short texts — newChat (before the chat), newExampleChat (replaces <START>), continueNudge, impersonation, prefill (the reply starts with it). Partial; "" = not added.
+- squashSystem: join system messages that follow each other into one.
+Regex scripts and the imported SillyTavern original are copied as they are; you cannot write them.
+Good presets: few clear blocks; rules in Main Prompt, reminders the model must see last after Chat History or at a small depth; don't repeat what the card's markers already send.`,
+  },
 };
 
 /** Added to the instructions while "Draft first" is on (the tools that save are not offered then). */
 export const DRAFT_RULES = `DRAFT FIRST is on: the user wants to go back and forth before anything is saved.
-- Do not save. Show each item as a draft in a fenced block whose language is \`homunculus-<kind>\` (character, lorebook, tracker, kit, narrator, persona) containing JSON with the fields from \`guide\`, e.g.
+- Do not save. Show each item as a draft in a fenced block whose language is \`homunculus-<kind>\` (character, lorebook, tracker, kit, narrator, persona, preset) containing JSON with the fields from \`guide\`, e.g.
 \`\`\`homunculus-character
 { "name": "Kessa", "description": "…", "firstMessages": ["…"] }
 \`\`\`
-- One block per item. To revise an existing library item, put "id": "kind:id" in the JSON and only the fields that change.
+- One block per item. To revise an existing library item, put "id": "kind:id" in the JSON and only the fields that change (for a preset, saving makes an edited copy).
 - A new item may have "folder": "RPG/Iron Party" (where it is saved).
 - After a revision, show the whole updated draft again (not a diff), so the newest block is always complete.
 - The user saves a draft with the button under it. If they ask you to save, tell them to use that button or switch "Draft first" off.`;
 
 /** Draft blocks in a reply: kind + the JSON text. */
-export const DRAFT_BLOCK = /```homunculus-(character|lorebook|tracker|kit|narrator|persona)[^\n]*\n([\s\S]*?)```/g;
+export const DRAFT_BLOCK = /```homunculus-(character|lorebook|tracker|kit|narrator|persona|preset)[^\n]*\n([\s\S]*?)```/g;

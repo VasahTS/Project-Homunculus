@@ -1932,7 +1932,7 @@ export function App() {
             listModels={listModels} onManageConnections={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }}
             userName={personas.find((p) => p.id === defaultPersonaId)?.name ?? ""}
             onChanged={() => void refresh(svc)}
-            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "persona") setView({ kind: "personas", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
+            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "persona") setView({ kind: "personas", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else if (kind === "preset") setView({ kind: "presets", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
             onStartKit={(id) => { const k = kits.find((x) => x.id === id); if (k) { setMode("play"); void startFromKit(k); } }} />
         ) : libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
           counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, agents: agents.length, trash: trash.length }}

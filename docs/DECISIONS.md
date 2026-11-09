@@ -1111,3 +1111,15 @@ Daniel (10/30, translated): "a mode that shows all fields at once, to edit raw w
 - Checks: typecheck; unit `textDoc.test.ts` (7); click tests `e2e/text-mode.e2e.ts` (3) plus the character editor, lorebook, Home and back/forward suites.
 
 Signed: **CLAUDE**.
+
+## D-103 — The Assistant creates presets and edits them as copies (2026-11-08)
+
+Daniel (translated): "let the assistant create presets and edit existing ones (by making copies)." Presets here are the Library's prompt presets (D-021), not the Assistant's own presets (style, rules, notes, memory).
+- **`preset` is a write kind** (`AssistantKind`). `create` makes a new preset that starts like Homunculus Default (as Library → Presets → New does), or, with `data.from = "preset:id"`, a copy of an existing one (name optional: "Name (copy)", "Name (copy 2)"…). Homunculus Default can be the base even when it was deleted (the built-in copy).
+- **`change` on a preset never touches it:** it saves an **edited copy** with only the sent fields changed, as a new item — the "created" card says "copy of “X” · <summary>", with Undo (to the Trash) and Open (Library → Presets). When the assistant's new items wait for approval, the copy waits too. The original stays exactly as it was, so the chats, stories and defaults that use it are unaffected; the tool result tells the model to say so and where the user picks the copy (a chat's Prompt tab, a story's setup, Settings → Defaults). A "Draft first" preset draft with an id saves the same way.
+- **Fields:** name, description, blocks, contextSize (null = no limit), params (partial; null removes a sampler), formats, prompts (partial), squashSystem. Blocks: a full list, or `{ add (with after: id | "start"), update (by id, or a unique name), remove, order (every id once) }`. The copy keeps everything else of its base: regex scripts and the imported SillyTavern `original` (for export) — the Assistant cannot write those (regex from a model would still need the user's approval, D-060).
+- **Refused, never ignored:** removing the Chat History block (no conversation would be sent), content on a marker block, a marker used twice, unknown fields, an incomplete `order`, a duplicate block id. Presets cannot be proposed for the Trash (the user removes them in the Library; a copy is undone on its card).
+- Code: `assistant/tools.ts` (`presetOf`, `presetBlocksAfter`, `copyPreset`), `assistant/guides.ts` (preset guide, core rules, drafts), Open route in `App.tsx`. No schema change for stored data, no migration.
+- Checks: typecheck; unit tests `assistant/preset-tools.test.ts` (7) plus the guide-fields contract.
+
+Signed: **CLAUDE**.

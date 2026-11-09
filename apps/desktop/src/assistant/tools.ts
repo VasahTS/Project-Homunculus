@@ -6,13 +6,13 @@
 //
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
-import { CastMember, Character, CharacterVariant, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
-import { characterNoteOf, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec } from "@homunculus/core";
+import { CastMember, Character, CharacterVariant, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
+import { characterNoteOf, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
 import { readPart } from "./files.ts";
-import { GUIDES, LORE_ENTRY_FIELDS } from "./guides.ts";
+import { GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIELDS } from "./guides.ts";
 import { WebLimitedError, WebSession } from "./web.ts";
 import { readScope, readText, withReadRanges, type ReadScope } from "./reads.ts";
 
@@ -23,7 +23,7 @@ const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => ty
 const one = (s: string, n = 90) => { const t = s.replace(/\s+/g, " ").trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
 export const READ_KINDS: AssistantReadKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story"];
-const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona"];
+const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset"];
 /** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
 export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
 const inFolders = (k: string): k is FolderKind => (FOLDER_KINDS as string[]).includes(k);
@@ -148,9 +148,9 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: { id: { type: "string" }, fields: { type: "array", items: { type: "string" } }, offset: { type: "integer", minimum: 0, description: "Zero-based source UTF-16 offset for text; entry index for fields [entries]. Use the server's next arguments." } }, required: ["id"] } },
   { name: "guide", description: "How to write one kind of item well, and the exact fields `create`/`change` accept. Call once per kind per chat before writing it.",
     parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, "") }, required: ["kind"] } },
-  { name: "create", description: "Create a new item. `data` uses the fields from `guide`. Saved right away (the user can undo) unless the user asked to approve new items.",
+  { name: "create", description: "Create a new item. `data` uses the fields from `guide`. Saved right away (the user can undo) unless the user asked to approve new items. A preset may start from an existing one with data.from = \"preset:id\".",
     parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, ""), data: { type: "object" }, folder: { type: "string", description: "Put it in this folder, e.g. \"RPG/Iron Party\" (made if missing; optional)." } }, required: ["kind", "data"] } },
-  { name: "change", description: "Propose changes to an existing item: only the fields that change, with their new values. The user approves or discards it. `summary`: one line on what and why.",
+  { name: "change", description: "Propose changes to an existing item: only the fields that change, with their new values. The user approves or discards it. `summary`: one line on what and why. On a preset it never edits the preset: it saves an edited copy (the original stays as it is).",
     parameters: { type: "object", properties: { id: { type: "string" }, changes: { type: "object" }, summary: { type: "string" } }, required: ["id", "changes"] } },
   { name: "propose_trash", description: "Propose moving an item to the Trash (the user decides). You never delete.",
     parameters: { type: "object", properties: { id: { type: "string" }, reason: { type: "string" } }, required: ["id", "reason"] } },
@@ -340,7 +340,7 @@ async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, q
 const pick = (data: Obj, keys: string[]) => Object.fromEntries(Object.entries(data).filter(([k]) => keys.includes(k)));
 /** "folder" is accepted with every kind that can be in folders (where to put a new item). */
 // Guide metadata includes nested names: accepting them at the root acknowledged ignored writes. CODEX.
-const ROOT_FIELDS: Record<string, string[]> = { lorebook: ["name", "description", "entries"], tracker: ["name", "help", "prompt", "messages", "characters", "presence", "fields"] };
+const ROOT_FIELDS: Record<string, string[]> = { lorebook: ["name", "description", "entries"], tracker: ["name", "help", "prompt", "messages", "characters", "presence", "fields"], preset: PRESET_FIELDS };
 const unknownKeys = (data: Obj, kind: string) => Object.keys(data).filter((k) => !(ROOT_FIELDS[kind] ?? GUIDES[kind]!.fields).includes(k) && !(k === "folder" && inFolders(kind)));
 
 // ------------------------------------------------------------------ character versions (variants), D-064
@@ -557,6 +557,157 @@ function narratorAfter(n: Narrator, changes: Obj): Narrator {
   return narratorOf(data, n.id);
 }
 
+// ------------------------------------------------------------------ presets (D-103)
+// The Assistant makes presets and edits them only as copies: one preset is shared by many chats and stories, and an
+// imported SillyTavern preset is the user's original, so a change saves an edited copy and the original stays untouched.
+// The copy keeps everything the base had (samplers, formats, regex scripts, the imported original for export).
+
+type PresetSub = "params" | "formats" | "prompts";
+const PRESET_SUB: Record<PresetSub, string[]> = {
+  params: Object.keys(Preset.shape.params.unwrap().shape),
+  formats: Object.keys(Preset.shape.formats.unwrap().shape),
+  prompts: Object.keys(Preset.shape.prompts.unwrap().shape),
+};
+
+/** The preset a copy starts from ("preset:id" or a plain id). Homunculus Default is there even when it was deleted. */
+async function presetBase(store: SqlStore, ref: string): Promise<Preset> {
+  const r = splitRef(ref);
+  if (r && r.kind !== "preset") throw new Error(`“${ref}” is not a preset. Use find with kind "preset".`);
+  const id = (r?.id ?? ref).trim();
+  const p = id ? (await store.presets.get(id)) ?? (id === DEFAULT_PRESET.id ? DEFAULT_PRESET : undefined) : undefined;
+  if (!p) throw new Error(`No preset “${ref}”. Use find with kind "preset".`);
+  return Preset.parse(p);
+}
+
+/** "Name (copy)", "Name (copy 2)"… not used by another preset. */
+function copyName(name: string, taken: string[]): string {
+  const used = new Set(taken.map((t) => t.trim().toLowerCase()));
+  const root = name.replace(/\s*\(copy(?: \d+)?\)$/i, "");
+  for (let i = 1; ; i++) { const n = `${root} (copy${i > 1 ? ` ${i}` : ""})`; if (!used.has(n.toLowerCase())) return n; }
+}
+
+function presetBlockOf(raw: unknown, base?: PresetBlock): PresetBlock {
+  if (!isObj(raw)) throw new Error("Each preset block must be an object.");
+  const bad = Object.keys(raw).filter((k) => !PRESET_BLOCK_FIELDS.includes(k) && k !== "after");
+  if (bad.length) throw new Error(`Unknown preset block field(s): ${bad.join(", ")}. Call guide("preset").`);
+  const { after: _after, ...data } = raw;
+  const merged: Obj = { ...base, ...data };
+  if (data.marker === null) delete merged.marker;
+  if (!str(merged.id).trim()) delete merged.id;
+  const b = PresetBlock.parse({ id: "new", ...merged }); // callers give new blocks their id
+  if (b.marker && typeof data.content === "string" && data.content.trim())
+    throw new Error(`Block “${b.name || b.id}” is filled by the app (marker ${b.marker}); its content is not used. Write the text in a block without a marker.`);
+  return b;
+}
+
+/** Block id for a new block: the one given when free, else one made from its name. */
+function freeBlockId(want: string, name: string, taken: Set<string>, newId: () => string): string {
+  if (want && !taken.has(want)) return want;
+  if (want) throw new Error(`There is already a block with id “${want}”. Use blocks.update to change it.`);
+  const slug = name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+  if (slug && !taken.has(slug)) return slug;
+  return newId();
+}
+
+/**
+ * The blocks after a preset write: a full list replaces them all; { add, update, remove, order } edits them by id
+ * (or a unique name). Never silently drops or ignores anything.
+ */
+export function presetBlocksAfter(before: PresetBlock[], raw: unknown, newId: () => string): PresetBlock[] {
+  if (Array.isArray(raw)) {
+    const taken = new Set<string>(), out: PresetBlock[] = [];
+    for (const x of raw) {
+      if (isObj(x) && x.after !== undefined) throw new Error("\"after\" is only for blocks.add. In a full list, the order of the list is the order of the blocks.");
+      const b = presetBlockOf(x);
+      const id = freeBlockId(isObj(x) ? str(x.id).trim() : "", b.name, taken, newId);
+      taken.add(id); out.push({ ...b, id });
+    }
+    return out;
+  }
+  if (!isObj(raw) || Object.keys(raw).some((k) => !["add", "update", "remove", "order"].includes(k)))
+    throw new Error('Preset blocks are a full list, or { add: [...], update: [...], remove: [...], order: [...] }. Call guide("preset").');
+  for (const k of ["add", "update", "remove", "order"]) if (raw[k] !== undefined && !Array.isArray(raw[k])) throw new Error(`blocks.${k} must be a list.`);
+  let blocks = [...before];
+  const target = (key: string) => {
+    const byId = blocks.filter((b) => b.id === key);
+    const found = byId.length ? byId : blocks.filter((b) => b.name.trim().toLowerCase() === key.trim().toLowerCase());
+    if (!key || found.length !== 1) throw new Error(`Preset block “${key}” is ${found.length ? "ambiguous (several have that name)" : "missing"}. Use the block's id from read.`);
+    return found[0]!;
+  };
+  for (const u of (raw.update ?? []) as unknown[]) {
+    if (!isObj(u)) throw new Error("A block update must be an object.");
+    const old = target(str(u.id) || str(u.name));
+    const { id: _id, ...rest } = u;
+    if (!str(u.id)) delete rest.name; // the name only found the block; renaming needs the id
+    blocks = blocks.map((b) => (b === old ? { ...presetBlockOf(rest, old), id: old.id } : b));
+  }
+  for (const key of (raw.remove ?? []) as unknown[]) {
+    if (typeof key !== "string") throw new Error("blocks.remove takes block ids.");
+    const old = target(key); blocks = blocks.filter((b) => b !== old);
+  }
+  for (const a of (raw.add ?? []) as unknown[]) {
+    if (!isObj(a)) throw new Error("An added block must be an object.");
+    const b = presetBlockOf(a);
+    const id = freeBlockId(str(a.id).trim(), b.name, new Set(blocks.map((x) => x.id)), newId);
+    const after = a.after;
+    if (after !== undefined && typeof after !== "string") throw new Error("\"after\" is a block id, or \"start\".");
+    const at = after === undefined ? blocks.length : after === "start" ? 0 : blocks.indexOf(target(after)) + 1;
+    blocks.splice(at, 0, { ...b, id });
+  }
+  if (raw.order !== undefined) {
+    const order = strs(raw.order);
+    const ids = blocks.map((b) => b.id);
+    if (order.length !== ids.length || new Set(order).size !== order.length || order.some((x) => !ids.includes(x)))
+      throw new Error(`blocks.order must list every block id once (after the other edits): ${ids.join(", ")}.`);
+    blocks = order.map((x) => blocks.find((b) => b.id === x)!);
+  }
+  return blocks;
+}
+
+/** A partial params / formats / prompts object merged into the base's. null clears a sampler. */
+function presetSub(kind: PresetSub, raw: unknown, base: Obj): Obj {
+  if (raw === undefined) return base;
+  if (!isObj(raw)) throw new Error(`Preset ${kind} must be an object.`);
+  const bad = Object.keys(raw).filter((k) => !PRESET_SUB[kind].includes(k));
+  if (bad.length) throw new Error(`Unknown preset ${kind} field(s): ${bad.join(", ")}. Call guide("preset").`);
+  const out: Obj = { ...base };
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === null) { if (kind !== "params") throw new Error(`Preset ${kind}.${k} is text; use "" for nothing.`); delete out[k]; }
+    else out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * A new preset from the Assistant's data. With `from`, a copy of that preset with the data's fields changed; without,
+ * a new preset that starts like Homunculus Default (as "New preset" in the Library does).
+ */
+async function presetOf(store: SqlStore, data: Obj, id: string, newId: () => string): Promise<{ preset: Preset; base?: Preset }> {
+  if (data.from !== undefined && typeof data.from !== "string") throw new Error("\"from\" is a preset id (preset:id).");
+  const base = str(data.from).trim() ? await presetBase(store, str(data.from)) : undefined;
+  const start = base ?? DEFAULT_PRESET;
+  const blocks = data.blocks === undefined ? structuredClone(start.blocks) : presetBlocksAfter(start.blocks, data.blocks, newId);
+  if (start.blocks.some((b) => b.marker === "chatHistory") && !blocks.some((b) => b.marker === "chatHistory"))
+    throw new Error("The preset would have no Chat History block (marker chatHistory), so no conversation would be sent. Keep that block.");
+  const markers = blocks.map((b) => b.marker).filter(Boolean);
+  if (new Set(markers).size !== markers.length) throw new Error("Each marker can be used by one block only.");
+  if (data.contextSize !== undefined && data.contextSize !== null && (typeof data.contextSize !== "number" || !Number.isInteger(data.contextSize) || data.contextSize <= 0))
+    throw new Error("contextSize is a whole number of tokens, or null for no limit.");
+  if (data.squashSystem !== undefined && typeof data.squashSystem !== "boolean") throw new Error("squashSystem is true or false.");
+  const name = str(data.name).trim() || (base ? copyName(base.name, (await store.presets.list()).map((p) => p.name)) : "");
+  if (!name) throw new Error("A preset needs a name.");
+  const { contextSize: _cs, ...rest } = start;
+  const contextSize = data.contextSize === undefined ? start.contextSize : data.contextSize;
+  const preset = Preset.parse({
+    ...structuredClone(rest), id, name, blocks,
+    description: typeof data.description === "string" ? data.description : base ? start.description : "",
+    ...(typeof contextSize === "number" ? { contextSize } : {}),
+    params: presetSub("params", data.params, start.params), formats: presetSub("formats", data.formats, start.formats), prompts: presetSub("prompts", data.prompts, start.prompts),
+    squashSystem: typeof data.squashSystem === "boolean" ? data.squashSystem : start.squashSystem,
+  });
+  return { preset, ...(base ? { base } : {}) };
+}
+
 /** Cast as the Assistant writes it — "character:id", or { "id", "version" } for one of its versions — as cast members. */
 async function castOf(store: SqlStore, list: unknown): Promise<Story["cast"]> {
   if (!Array.isArray(list)) throw new Error("Kit cast must be a list.");
@@ -604,7 +755,7 @@ export async function createItem(store: SqlStore, kind: AssistantKind, data: Obj
   const bad = unknownKeys(data, kind);
   if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
   const name = str(data.name).trim();
-  if (!name) throw new Error(`A ${kind} needs a name.`);
+  if (!name && !(kind === "preset" && str(data.from).trim())) throw new Error(`A ${kind} needs a name.`);
   const made = await createOnly(store, kind, data, name, newId, w);
   const folder = str(data.folder);
   if (splitPath(folder).length && inFolders(kind)) {
@@ -654,14 +805,20 @@ async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name:
       const n = await write(w, `narrator:${narrator.id}`, () => store.saveNarrator(narrator));
       return { id: n.id, name: n.name, detail: n.about || "narrator" };
     }
+    case "preset": {
+      const { preset, base } = await presetOf(store, data, newId(), newId);
+      const p = await write(w, `preset:${preset.id}`, () => store.savePreset(preset));
+      return { id: p.id, name: p.name, detail: `${base ? `copy of “${base.name}” · ` : ""}${p.blocks.length} blocks` };
+    }
   }
 }
 
 // Preparing an approval card never writes, but must use the same parsers as immediate creation. CODEX.
 async function validateNew(store: SqlStore, kind: AssistantKind, data: Obj): Promise<void> {
-  const name = str(data.name).trim(); if (!name) throw new Error(`A ${kind} needs a name.`);
+  const name = str(data.name).trim(); if (!name && !(kind === "preset" && str(data.from).trim())) throw new Error(`A ${kind} needs a name.`);
   const newId = () => crypto.randomUUID();
   switch (kind) {
+    case "preset": await presetOf(store, data, newId(), newId); break;
     case "character": characterOf(data, newId); break;
     case "persona": personaOf(data, newId); break;
     case "tracker": trackerOf(data); break;
@@ -694,6 +851,7 @@ export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
 // One proposal contract for tool calls and draft saves. Invalid edits return to the model before user approval. CODEX.
 export async function prepareChange(store: SqlStore, kind: AssistantKind, itemId: string, changes: Obj, newId: () => string, summary = ""): Promise<Extract<AssistantResult, { type: "change" }>> {
   if (!WRITE_KINDS.includes(kind)) throw new Error(`Can't change a “${kind}”.`);
+  if (kind === "preset") throw new Error("Presets are never changed in place: `change` on a preset saves an edited copy.");
   if ("folder" in changes) throw new Error("Use `move` to put an item in a folder.");
   const bad = unknownKeys(changes, kind).filter(k => !(kind === "character" && k === "picture"));
   if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
@@ -717,6 +875,10 @@ export async function saveDraftItem(store: SqlStore, kind: AssistantKind, data: 
     const ref = splitRef(str(data.id));
     if (!ref || ref.kind !== kind) throw new Error(`Draft type “${kind}” does not match target “${str(data.id)}”.`);
     const { id: _id, ...changes } = data;
+    if (kind === "preset") {
+      const made = await createItem(store, kind, { ...changes, from: str(data.id) }, newId);
+      return { type: "created", kind, itemId: made.id, name: made.name, detail: `${made.detail} · from a draft`, undone: false };
+    }
     const change = await prepareChange(store, kind, ref.id, changes, newId, "Saved from a draft");
     const status = await applyChange(store, change, newId);
     return { ...change, status: status === "applied" ? "applied" : "stale" };
@@ -775,7 +937,7 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
   return "applied";
 }
 
-const TRASH_KIND: Partial<Record<AssistantKind, "character" | "lorebook" | "kit" | "narrator" | "persona">> = { character: "character", lorebook: "lorebook", kit: "kit", narrator: "narrator", persona: "persona" };
+const TRASH_KIND: Partial<Record<AssistantKind, "character" | "lorebook" | "kit" | "narrator" | "persona" | "preset">> = { character: "character", lorebook: "lorebook", kit: "kit", narrator: "narrator", persona: "persona", preset: "preset" };
 
 export async function applyTrash(store: SqlStore, kind: AssistantKind, id: string): Promise<void> {
   const t = TRASH_KIND[kind];
@@ -872,6 +1034,37 @@ async function runWeb(name: "web_search" | "web_fetch", a: Obj, ctx: ToolContext
   };
 }
 
+// ------------------------------------------------------------------ preset copies (D-103)
+
+const PRESET_PICK = " Chats and stories keep the preset they use; the user picks this one in a chat's Prompt tab, a story's setup or Settings → Defaults.";
+
+/** The name a new preset will get (a copy without a name is "Name (copy)"). */
+async function newPresetName(store: SqlStore, data: Obj): Promise<string> {
+  if (str(data.name).trim() || !str(data.from).trim()) return str(data.name).trim();
+  return copyName((await presetBase(store, str(data.from))).name, (await store.presets.list()).map((p) => p.name));
+}
+
+/** `change` on a preset: an edited copy, saved like a new item (Undo on its card), or waiting when new items wait. */
+async function copyPreset(ctx: ToolContext, id: string, changes: Obj, summary: string, w: Writes): Promise<ToolOutcome> {
+  if ("from" in changes) throw new Error("\"from\" is for create. `change` already copies the preset you name.");
+  if ("folder" in changes) throw new Error("Presets can't be in folders.");
+  const bad = unknownKeys(changes, "preset");
+  if (bad.length) throw new Error(`Unknown field(s) for a preset: ${bad.join(", ")}. Call guide("preset").`);
+  if (!Object.keys(changes).length) throw new Error("No changes given.");
+  const base = await presetBase(ctx.store, id);
+  const data: Obj = { ...changes, from: `preset:${base.id}` };
+  const note = summary.trim() ? ` · ${one(summary, 80)}` : "";
+  if (!ctx.saveNew) {
+    await validateNew(ctx.store, "preset", data);
+    const name = await newPresetName(ctx.store, data);
+    ctx.results.push({ type: "new", id: ctx.newId(), kind: "preset", name, data: { ...data, name }, status: "waiting" });
+    return { result: `Prepared an edited copy “${name}”; the user approves it before it is saved. preset:${base.id} stays unchanged.`, label: `Prepared an edited copy of “${base.name}”` };
+  }
+  const made = await createItem(ctx.store, "preset", data, ctx.newId, w);
+  ctx.results.push({ type: "created", kind: "preset", itemId: made.id, name: made.name, detail: `${made.detail}${note}`, undone: false });
+  return { result: `Saved the edited copy as preset:${made.id} (“${made.name}”). The original preset:${base.id} is unchanged.${PRESET_PICK}`, label: `Saved an edited copy of “${base.name}”` };
+}
+
 // ------------------------------------------------------------------ running a tool
 
 export async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise<ToolOutcome> {
@@ -931,24 +1124,27 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
           const bad = unknownKeys(data, kind);
           if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
           await validateNew(ctx.store, kind, data);
-          ctx.results.push({ type: "new", id: ctx.newId(), kind, name: str(data.name) || kind, data, status: "waiting" });
-          return { result: "Prepared; the user will approve it before it is saved.", label: `Prepared a new ${kind}: ${str(data.name)}` };
+          const name = kind === "preset" ? await newPresetName(ctx.store, data) : str(data.name);
+          ctx.results.push({ type: "new", id: ctx.newId(), kind, name: name || kind, data: kind === "preset" ? { ...data, name } : data, status: "waiting" });
+          return { result: "Prepared; the user will approve it before it is saved.", label: `Prepared a new ${kind}: ${name}` };
         }
         const made = await createItem(ctx.store, kind, data, ctx.newId, w);
         ctx.results.push({ type: "created", kind, itemId: made.id, name: made.name, detail: made.detail, undone: false });
-        return { result: `Created ${kind}:${made.id} (${made.detail}).`, label: `Created ${kind} “${made.name}”` };
+        return { result: `Created ${kind}:${made.id} (${made.detail}).${kind === "preset" ? PRESET_PICK : ""}`, label: `Created ${kind} “${made.name}”` };
       }
       case "change": {
         const r = splitRef(str(a.id));
         if (!r || !WRITE_KINDS.includes(r.kind as AssistantKind)) return { result: `Can't change “${str(a.id)}”.`, label: "change", error: true };
         const kind = r.kind as AssistantKind;
         const changes = isObj(a.changes) ? a.changes : {};
+        if (kind === "preset") return await copyPreset(ctx, r.id, changes, str(a.summary), w);
         const proposal = await prepareChange(ctx.store, kind, r.id, changes, ctx.newId, str(a.summary));
         ctx.results.push(proposal);
         return { result: "Proposed. It waits for the user's OK — don't assume it was applied.", label: `Proposed changes to “${proposal.name}”` };
       }
       case "propose_trash": {
         const r = splitRef(str(a.id));
+        if (r?.kind === "preset") return { result: "Presets can't be proposed for the Trash; the user removes them in Library → Presets. A copy you made can be undone on its card.", label: "propose_trash", error: true };
         if (!r || !WRITE_KINDS.includes(r.kind as AssistantKind)) return { result: `Can't move “${str(a.id)}”.`, label: "propose_trash", error: true };
         const item = await getItem(ctx.store, r.kind, r.id);
         if (!item) throw new Error(`No ${r.kind} with id “${r.id}”.`);
