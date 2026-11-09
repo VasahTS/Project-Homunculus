@@ -95,6 +95,7 @@ test("recall accepts custom models and non-streamed Jev on another provider", as
   await mem.getByTestId("memory-write-now").click();
   await expect(mem.getByTestId("memory-chapter")).toHaveCount(1);
   await send(page, "We leave the mill.");
+  await openTab(page, "memory"); // sending clicked outside the window (D-105)
   await mem.getByTestId("memory-write-now").click();
   await expect(mem.getByTestId("memory-chapter")).toHaveCount(2);
 

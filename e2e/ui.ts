@@ -52,6 +52,9 @@ export async function openSession(page: Page, index = 0) {
  */
 export async function openTab(page: Page, tab: "scene" | "character" | "prompt" | "memory" | "director" | "reply") {
   if (tab === "memory") {
+    // in narrow windows the inspector lies over the top bar: close it to reach the Memory button
+    const closeInspector = page.getByRole("button", { name: "Close Inspector" });
+    if (!(await page.getByTestId("memory-window").isVisible()) && await closeInspector.isVisible()) await closeInspector.click();
     if (!(await page.getByTestId("memory-window").isVisible())) await page.getByTestId("open-memory").click();
     await expect(page.getByTestId("memory-window")).toBeVisible();
     return;

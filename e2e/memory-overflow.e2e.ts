@@ -32,7 +32,8 @@ async function storyMemory(page: Page, name: string) {
 }
 
 async function fits(page: Page) {
-  const overflow = await page.locator(".inspector-body").evaluate(body => {
+  // D-105: Memory is a window of its own; everything must fit inside it
+  const overflow = await page.getByTestId("memory-window").evaluate(body => {
     const left = body.getBoundingClientRect().left;
     const right = left + body.clientWidth;
     const selectors = [".mem-pane", ".mem-head", ".mem-stats", ".mem-stat", ".mem-head-foot", ".mem-head-foot button", ".mem-tabs", ".mem-view", ".mem-card", ".mem-empty", ".mem-fold", ".mem-fold-head", ".mem-fold-head b", ".mem-fold-value", ".mem-fold-chev", ".mem-fold-body", ".mem-setting", ".mem-setting-label", ".mem-setting-value", ".mem-setting-value > *", ".mem-writer-field", ".mem-writer-model", ".mem-writer-model > *", ".mem-choice", ".mem-choice-body", ".mem-terms", ".mem-terms dd", ".memory-chapter", ".memory-chapter-head", ".memory-chapter-title", ".memory-chapter-body", ".memory-chapter-body > *", ".mem-peek", ".mem-peek pre"];
@@ -57,6 +58,7 @@ for (const width of [1440, 1000, 620, 390]) {
       await storyMemory(page, name);
       if (width < 600) await page.getByRole("button", { name: "Hide Sidebar", exact: true }).click();
       await page.setViewportSize({ width, height: 1000 });
+      await openTab(page, "memory"); // a click outside (Hide Sidebar) closes the window
       await expect(page.getByTestId("memory-stats")).toContainText("0chapters");
       await page.getByTestId("memory-pane").screenshot({ path: test.info().outputPath(`${name.replace(/ .*/, "").toLowerCase()}-${width}.png`) });
       await fits(page);
@@ -68,6 +70,7 @@ test("a chapter's long title, summary editor and prompt preview stay inside Memo
   await prepare(page);
   await storyMemory(page, "Long memory model");
   for (const text of ["We reach the mill.", "Lyra finds the map.", "We stop beside the door."]) await send(page, text);
+  await openTab(page, "memory");
   await page.getByTestId("memory-fold-auto").getByRole("button").first().click();
   await page.getByLabel("Newest messages kept word for word").fill("1");
   await page.getByLabel("Newest messages kept word for word").press("Enter");
@@ -80,7 +83,6 @@ test("a chapter's long title, summary editor and prompt preview stay inside Memo
   await expect(page.getByTestId("memory-chapter")).toHaveCount(1);
   await page.getByTestId("memory-chapter").getByRole("button").first().click();
   await page.getByTestId("memory-peek").click();
-  await page.getByRole("button", { name: "Hide Sidebar", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 1000 });
   await fits(page);
   await expect(page.getByLabel("Chapter 1 title")).toHaveValue(title);
@@ -93,6 +95,7 @@ for (const width of [1440, 390]) {
     await storyMemory(page, "Long memory model");
     if (width < 600) await page.getByRole("button", { name: "Hide Sidebar", exact: true }).click();
     await page.setViewportSize({ width, height: 1000 });
+    await openTab(page, "memory");
     for (const id of ["auto", "layers", "placement", "writer"]) {
       await page.getByTestId(`memory-fold-${id}`).getByRole("button").first().click();
       await fits(page);

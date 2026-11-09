@@ -40,6 +40,7 @@ test("memory chapters stay independent across branches with the same history", a
   await expect(messages.last().getByTestId("memory-covered-tag")).toHaveCount(0);
   await page.getByTestId("message").last().getByRole("button", { name: "Branch from Here" }).click();
   await expect(page.getByTestId("branch-button")).toContainText("Branch 2");
+  await openTab(page, "memory");
   await expect(memory.getByTestId("memory-chapter")).toHaveCount(1);
   await memory.getByTestId("memory-peek").click();
   await memory.getByRole("button", { name: /Chapter 1 · Offline chapter/ }).click();
@@ -53,6 +54,7 @@ test("memory chapters stay independent across branches with the same history", a
   await page.getByTestId("branch-row").filter({ hasText: "Main" }).locator(".branch-t").click();
   await expect(page.getByTestId("branch-button")).toContainText("Main");
   await expect(markers).toHaveCount(4);
+  await openTab(page, "memory"); // the branch menu was a click outside the window (D-105)
   await memory.getByTestId("memory-peek").click();
   await expect(memory.getByTestId("memory-peek-text")).toContainText("The offline test AI summarized");
   await expect(memory.getByTestId("memory-peek-text")).not.toContainText("Only the fork knows this.");

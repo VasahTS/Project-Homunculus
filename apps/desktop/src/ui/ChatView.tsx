@@ -170,6 +170,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const [tab, setTab] = useBackState<InspectorTab>("scene"); // inspector tabs are moves for M4/M5 (D-097)
   /** Memory opens as a window from the top bar (D-105). */
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const memoryButton = useRef<HTMLButtonElement>(null);
   // the Director (D-092) can leave the inspector for its own window; remembered across chats
   const [directorOut, setDirectorOut] = useState(() => { try { return localStorage.getItem("director.out") === "1"; } catch { return false; } });
   // whether its window is open is remembered too: the chat is drawn again when you come back to it, and a closed
@@ -749,7 +750,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               load={() => { const r = connection.forRequest(); return svc.chat.turns.previewPrompt(session.id, headId ?? null, r.connection, { connections: r.connections, branchId: currentId }); }} />}
           </>}
           trailing={<>
-            <button type="button" className={`memory-chip${memoryOpen ? " on" : ""}`} aria-expanded={memoryOpen} aria-haspopup="dialog" data-testid="open-memory"
+            <button type="button" ref={memoryButton} className={`memory-chip${memoryOpen ? " on" : ""}`} aria-expanded={memoryOpen} aria-haspopup="dialog" data-testid="open-memory"
               onClick={() => setMemoryOpen((v) => !v)} title="Memory: chapters that keep long chats in mind" aria-label="Memory">
               <Icon name="book" size={13} /><span className="memory-chip-label">Memory</span>{(session.setup.memory?.on ?? storySetup?.memory?.on) && <span className="memory-chip-dot" aria-label="on" />}
             </button>
@@ -1053,7 +1054,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         />
       )}
       {memoryOpen && headId !== undefined && (
-        <MemoryWindow onClose={() => setMemoryOpen(false)}>
+        <MemoryWindow anchor={memoryButton} onClose={() => setMemoryOpen(false)}>
           <MemoryPane key={`${session.id}:${currentId ?? ""}`} svc={svc} session={session} headId={headId ?? null} branchId={currentId} connection={connection} storySetup={storySetup} onChangeSession={onChangeSession}
             refreshKey={sceneKey} lastReplyId={lastAi?.id ?? null} draft={input} />
         </MemoryWindow>
@@ -1084,19 +1085,39 @@ function regexSummary(rows: Array<{ on: boolean }> | null): string {
 }
 
 /**
- * Memory, out of the inspector's tabs (D-105): a floating window over the right panel. It does not block the chat (you can
- * keep writing while it is open, as with the old tab); its button, ✕ or Escape close it.
+ * Memory, out of the inspector's tabs (D-105): a window that hangs from its button in the top bar. A click anywhere else
+ * closes it (Daniel, 11/09), as do its button, ✕ and Escape.
  */
-function MemoryWindow({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function MemoryWindow({ children, onClose, anchor }: { children: React.ReactNode; onClose: () => void; anchor: React.RefObject<HTMLButtonElement | null> }) {
   const ref = useRef<HTMLDivElement>(null);
+  // hangs from its button, right edges aligned (Daniel: "it opens too far in the corner"), always inside the window
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  useLayoutEffect(() => {
+    const place = () => {
+      const b = anchor.current?.getBoundingClientRect();
+      const w = Math.min(460, window.innerWidth - 32);
+      if (!b) { setAt({ top: 64, left: Math.max(16, (window.innerWidth - w) / 2) }); return; }
+      setAt({ top: Math.round(b.bottom + 8), left: Math.round(Math.min(Math.max(16, b.right - w), window.innerWidth - w - 16)) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [anchor]);
   useLayoutEffect(() => { popIn(ref.current); ref.current?.focus(); }, []);
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === "Escape" && !(e.target as HTMLElement).closest?.("input, textarea, select")) onClose(); };
+    const down = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (ref.current?.contains(t) || anchor.current?.contains(t)) return;
+      onClose();
+    };
     document.addEventListener("keydown", key);
-    return () => document.removeEventListener("keydown", key);
-  }, [onClose]);
+    document.addEventListener("mousedown", down);
+    return () => { document.removeEventListener("keydown", key); document.removeEventListener("mousedown", down); };
+  }, [onClose, anchor]);
   return (
-    <div className="memory-window" ref={ref} tabIndex={-1} role="dialog" aria-label="Memory" data-testid="memory-window">
+    <div className="memory-window" ref={ref} tabIndex={-1} role="dialog" aria-label="Memory" data-testid="memory-window"
+      style={at ? { top: at.top, left: at.left, maxHeight: `calc(100vh - ${at.top + 130}px)` } : { visibility: "hidden" }}>
       <div className="memory-window-bar"><b>Memory</b><span className="pane-note">This chat's memory</span>
         <IconButton label="Close Memory" onClick={onClose}><Icon name="close" size={14} /></IconButton></div>
       <div className="memory-window-body">{children}</div>
