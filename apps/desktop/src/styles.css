@@ -4112,3 +4112,4 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 @container chatbar (max-width: 760px) { .story-page-btn { display: none; } }
 .sortable-item > .stack, .quick-blocks .stack { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .quick-block { min-width: 0; }
+@container chatbar (max-width: 460px) { .toolbar-name, .toolbar-sub > .play-wrap, .toolbar-leading > .back-btn { min-width: 0; } }

@@ -96,7 +96,8 @@ for (const look of ["Mono", "Observatory"]) for (const width of [1440, 1200]) {
     found.push(...await audit(page, "chat"));
     for (const tab of ["scene", "character", "prompt", "director", "reply"] as const) { await openTab(page, tab); found.push(...await audit(page, `tab ${tab}`)); }
     await openTab(page, "memory"); found.push(...await audit(page, "memory")); await page.keyboard.press("Escape");
-    await page.locator(".who-picker > button").first().click().catch(() => {}); found.push(...await audit(page, "who picker")); await page.keyboard.press("Escape");
+    if (await page.locator(".who-picker > button").first().isVisible()) await page.locator(".who-picker > button").first().click();
+    found.push(...await audit(page, "who picker")); await page.keyboard.press("Escape");
     await openLibrary(page, "Characters"); found.push(...await audit(page, "characters"));
     await page.getByTestId("character-list").getByRole("button").first().click(); found.push(...await audit(page, "character sheet"));
     await openLibrary(page, "Stories"); found.push(...await audit(page, "stories"));
