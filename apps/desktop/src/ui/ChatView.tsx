@@ -750,8 +750,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           </>}
           trailing={<>
             <button type="button" className={`memory-chip${memoryOpen ? " on" : ""}`} aria-expanded={memoryOpen} aria-haspopup="dialog" data-testid="open-memory"
-              onClick={() => setMemoryOpen((v) => !v)} title="Memory: chapters that keep long chats in mind">
-              <Icon name="book" size={13} />Memory{(session.setup.memory?.on ?? storySetup?.memory?.on) && <span className="memory-chip-dot" aria-label="on" />}
+              onClick={() => setMemoryOpen((v) => !v)} title="Memory: chapters that keep long chats in mind" aria-label="Memory">
+              <Icon name="book" size={13} /><span className="memory-chip-label">Memory</span>{(session.setup.memory?.on ?? storySetup?.memory?.on) && <span className="memory-chip-dot" aria-label="on" />}
             </button>
             {onToggleAgent && onOpenAgent && (
               <AgentsPanel svc={svc} agents={agents} trackers={trackers} session={session} storySetup={storySetup}
@@ -1083,7 +1083,10 @@ function regexSummary(rows: Array<{ on: boolean }> | null): string {
   return `${rows.length} script${rows.length === 1 ? "" : "s"}${off ? ` · ${off} off here` : " · all on"}`;
 }
 
-/** Memory, out of the inspector's tabs (D-105): a window under the top bar; Escape or a click outside closes it. */
+/**
+ * Memory, out of the inspector's tabs (D-105): a floating window under the top bar. It does not block the chat (you can
+ * keep writing while it is open, as with the old tab); its button, ✕ or Escape close it.
+ */
 function MemoryWindow({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => { popIn(ref.current); ref.current?.focus(); }, []);
@@ -1093,12 +1096,10 @@ function MemoryWindow({ children, onClose }: { children: React.ReactNode; onClos
     return () => document.removeEventListener("keydown", key);
   }, [onClose]);
   return (
-    <div className="memory-window-scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="memory-window" ref={ref} tabIndex={-1} role="dialog" aria-label="Memory" data-testid="memory-window">
-        <div className="memory-window-bar"><b>Memory</b><span className="pane-note">This chat</span>
-          <IconButton label="Close Memory" onClick={onClose}><Icon name="close" size={14} /></IconButton></div>
-        <div className="memory-window-body">{children}</div>
-      </div>
+    <div className="memory-window" ref={ref} tabIndex={-1} role="dialog" aria-label="Memory" data-testid="memory-window">
+      <div className="memory-window-bar"><b>Memory</b><span className="pane-note">This chat's memory</span>
+        <IconButton label="Close Memory" onClick={onClose}><Icon name="close" size={14} /></IconButton></div>
+      <div className="memory-window-body">{children}</div>
     </div>
   );
 }

@@ -182,7 +182,6 @@ test("the chat's character is edited in its own Character tab (D-105)", async ({
   await openTab(page, "character");
   const pc = page.getByTestId("prompt-character");
   await expect(pc).toContainText("Lyra");
-  await pc.getByRole("button", { name: /^Personality/ }).click();
   await pc.getByLabel("Personality").fill("Dry humor. Hates goblins.");
   await pc.getByLabel("Personality").blur();
   await expect(pc).toContainText("saved");

@@ -34,7 +34,7 @@ test("Characters: 'Don't Track' is the card's default; the chat can change it; t
   const pc = page.getByTestId("prompt-character");
   await expect(pc).toContainText("Not tracked in the Scene");
   await expect(pc.getByTestId("prompt-untracked-note")).toContainText("Included in the prompt");
-  await expect(pc.getByRole("button", { name: /^Description/ })).toContainText("→ Char Description");
+  await expect(pc.locator(".pc-sfield-head").first()).toHaveAttribute("title", /Char Description/);
 
   await openTab(page, "scene");
   await setTracker(page, "Scene: Characters");

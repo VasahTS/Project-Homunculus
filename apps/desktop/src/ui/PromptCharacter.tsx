@@ -105,6 +105,30 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor, standalo
         )}
         <button type="button" className="link quiet" onClick={() => { flush(); onOpenEditor(card.character.id); }}>Full Editor</button>
       </div>
+      {standalone ? (
+        <div className="pc-sheet">
+          {card.tracked === false && <p className="hint pc-note" data-testid="prompt-untracked-note">Included in the prompt, outside the tracked cast.</p>}
+          <p className="hint pc-note">Edits save by themselves to {version ? `the “${version}” version` : "the main version"}, for every chat that uses it.</p>
+          {FIELDS.map((f) => {
+            const v = draft[f.key];
+            const shownField = v.trim() !== "" || editing.includes(f.key);
+            return (
+              <div key={f.key} className={`pc-sfield${shownField ? "" : " empty"}`} data-testid="prompt-character-field">
+                <div className="pc-sfield-head" title={`${f.help} Sent in the preset's “${f.to}” block.`}>
+                  <label htmlFor={`pc-${f.key}`}>{f.label}</label>
+                  {shownField ? <span className="pc-sfield-meta">{v.trim() ? `~${Math.round(v.length / 4)} tok` : ""}</span>
+                    : <button type="button" className="link quiet" onClick={() => toggle(f.key)} aria-label={`Add ${f.label}`}>Add</button>}
+                </div>
+                {shownField && (
+                  <textarea id={`pc-${f.key}`} className="prose-input pc-stext" aria-label={f.label} value={v} autoFocus={!v.trim()}
+                    rows={Math.min(f.key === "description" ? 14 : 8, Math.max(3, v.split("\n").length + Math.ceil(v.length / 70)))}
+                    onChange={(e) => change(f.key, e.target.value)} onBlur={flush} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <Collapse open={open}>
         <div className="group pc-fields">
           {card.tracked === false && <p className="hint pc-note" data-testid="prompt-untracked-note">Included in the prompt, outside the tracked cast.</p>}
@@ -116,13 +140,9 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor, standalo
               <div key={f.key} className={`pc-field${on ? " on" : ""}`} data-testid="prompt-character-field">
                 <button type="button" className="pc-field-head" onClick={() => toggle(f.key)} aria-expanded={on} title={f.help}>
                   <span className="pc-label">{f.label}<span className="pc-to" title={`Sent in the preset's “${f.to}” block`}> → {f.to}</span></span>
-                  {!on && !standalone && <span className={`pc-line${v.trim() ? "" : " empty"}`}>{v.trim() ? v.replace(/\s+/g, " ") : "Empty"}</span>}
-                  {!on && standalone && !v.trim() && <span className="pc-line empty">Empty</span>}
+                  {!on && <span className={`pc-line${v.trim() ? "" : " empty"}`}>{v.trim() ? v.replace(/\s+/g, " ") : "Empty"}</span>}
                   <span className="pc-edit" aria-hidden>{on ? "Done" : <Icon name="pencil" size={12} />}</span>
                 </button>
-                {!on && standalone && v.trim() && (
-                  <button type="button" className="pc-preview" onClick={() => toggle(f.key)} aria-label={`Edit ${f.label}`}>{v}</button>
-                )}
                 {on && (
                   <textarea className="prose-input pc-text" autoFocus aria-label={f.label} value={v} rows={Math.min(14, Math.max(3, Math.ceil(v.length / 60)))}
                     onChange={(e) => change(f.key, e.target.value)} onBlur={flush} />
@@ -132,6 +152,7 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor, standalo
           })}
         </div>
       </Collapse>
+      )}
     </section>
   );
 }
