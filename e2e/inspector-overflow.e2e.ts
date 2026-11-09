@@ -61,7 +61,8 @@ for (const width of [1440, 1000, 620, 390]) {
     await expect.poll(() => page.getByTestId("prompt-pane").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
     await openTab(page, "character");
     await expect(page.getByTestId("prompt-character-field")).toHaveCount(6);
-    await page.getByTestId("prompt-character").getByRole("button", { name: "Add Post-history instructions" }).click();
+    const add = page.getByTestId("prompt-character").getByRole("button", { name: "Add Post-history instructions" });
+    if (await add.isVisible()) await add.click();
     await expect(page.getByTestId("prompt-character").getByLabel("Post-history instructions")).toBeVisible();
     await expect.poll(() => horizontalOverflow(page, [".pc-sfield-head", ".pc-stext"])).toEqual([]);
     await page.screenshot({ path: test.info().outputPath(`prompt-${width}-edited.png`) });

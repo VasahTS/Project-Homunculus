@@ -28,11 +28,13 @@ test("editing a summarized message sends its correction instead of the old chapt
   await expect(memory.getByRole("button", { name: "Write Chapter Now" })).toBeEnabled();
   await memory.getByRole("button", { name: "Write Chapter Now" }).click();
   await expect(memory.getByTestId("memory-chapter")).toHaveCount(1);
+  await page.getByRole("button", { name: "Close Memory" }).click(); // the window floats over the panel (D-105)
   const message = page.getByTestId("message").first();
   await message.getByRole("button", { name: "Edit", exact: true }).click();
   await message.getByLabel("Edit the message").fill("Corrected opening after the summary.");
   await message.getByTestId("save-edit").click();
   await expect(message.locator(".text")).toHaveText("Corrected opening after the summary.");
+  await openTab(page, "memory");
   await expect(memory.getByTestId("memory-chapter")).toContainText("Not sent");
   await openTab(page, "prompt");
   await page.getByRole("button", { name: "Preview Prompt" }).click();

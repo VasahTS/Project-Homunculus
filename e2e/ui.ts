@@ -56,6 +56,8 @@ export async function openTab(page: Page, tab: "scene" | "character" | "prompt" 
     await expect(page.getByTestId("memory-window")).toBeVisible();
     return;
   }
+  // the Memory window floats over the inspector: close it before using a tab
+  if (await page.getByTestId("memory-window").isVisible()) await page.getByRole("button", { name: "Close Memory" }).click();
   await page.getByTestId(`tab-${tab}`).click();
   if (tab !== "prompt") return;
   const closed = page.getByTestId("prompt-pane").locator('[data-testid="prompt-card-toggle"][aria-expanded="false"]');

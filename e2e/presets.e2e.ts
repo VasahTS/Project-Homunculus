@@ -63,8 +63,8 @@ test("blocks can be dragged into a new order, in the editor and in the Prompt ta
   // drag "Main Prompt" by its handle below "Char Description" (the 3rd row)
   const grip = page.getByTestId("prompt-preset").getByRole("button", { name: "Reorder Main Prompt" });
   const target = quick.nth(2);
-  await target.scrollIntoViewIfNeeded();
-  await grip.scrollIntoViewIfNeeded();
+  // D-105: the list sits in the Preset card; keep it mid-panel so the drag does not scroll the panel near an edge
+  await target.evaluate((el) => el.scrollIntoView({ block: "center" }));
   const g = (await grip.boundingBox())!;
   const t = (await target.boundingBox())!;
   await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);

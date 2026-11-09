@@ -1084,7 +1084,7 @@ function regexSummary(rows: Array<{ on: boolean }> | null): string {
 }
 
 /**
- * Memory, out of the inspector's tabs (D-105): a floating window under the top bar. It does not block the chat (you can
+ * Memory, out of the inspector's tabs (D-105): a floating window over the right panel. It does not block the chat (you can
  * keep writing while it is open, as with the old tab); its button, ✕ or Escape close it.
  */
 function MemoryWindow({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
