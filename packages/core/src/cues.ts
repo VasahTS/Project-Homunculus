@@ -167,7 +167,13 @@ export function periodOf(hour: number): "morning" | "afternoon" | "evening" | "n
 function readSignal(s: CueSignal, input: CueRunInput): { value: unknown; detail?: string } {
   switch (s.kind) {
     case "words": {
-      const { total, hits } = countWords(recent(input.history, s.last, s.from), s.words, s);
+      const texts = recent(input.history, s.last, s.from);
+      if (s.measure === "streak") {
+        let streak = 0;
+        for (const text of [...texts].reverse()) { if (countWords([text], s.words, s).total >= s.perMessage) streak++; else break; }
+        return { value: streak, detail: `${streak} in a row` };
+      }
+      const { total, hits } = countWords(texts, s.words, s);
       return { value: total, ...(total ? { detail: hitsText(hits) } : {}) };
     }
     case "messages":

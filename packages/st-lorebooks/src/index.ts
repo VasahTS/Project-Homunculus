@@ -314,8 +314,10 @@ export interface ImportedLorebook { lorebook: Omit<LorebookInput, "id">; warning
 
 const SECONDARY_LOGIC: Record<string, LoreLogic> = { "and any": "andAny", "and all": "andAll", "not any": "notAny", "not all": "notAll" };
 
+/** Fields only JanitorAI writes (its export also carries an empty `extensions`, so that alone says nothing). */
+const JANITOR_FIELDS = ["minMessages", "inclusionGroup", "inclusionGroupRaw", "keysRaw", "keywordsRaw", "keyMatchPriority", "placementPosition", "activationMode", "prioritizeInclusion"];
 /** Is this one entry written by SillyTavern (World Info or card book) rather than JanitorAI? */
-const isStEntry = (e: Obj) => "uid" in e || isObj(e.extensions);
+const isStEntry = (e: Obj) => !JANITOR_FIELDS.some((k) => k in e) && ("uid" in e || isObj(e.extensions));
 
 /** One JanitorAI lorebook-script entry → ours. */
 export function entryFromJanitor(e: Obj, index: number): LoreEntry {
@@ -326,20 +328,23 @@ export function entryFromJanitor(e: Obj, index: number): LoreEntry {
   const logic = SECONDARY_LOGIC[logicText] ?? LOGIC[num(e.selectiveLogic) ?? 0] ?? "andAny";
   const rawProb = num(e.probability ?? e.chance);
   const probability = rawProb === undefined ? 100 : Math.max(0, Math.min(100, rawProb <= 1 && rawProb > 0 && !Number.isInteger(rawProb) ? rawProb * 100 : rawProb));
-  const pos = e.position;
+  const pos = e.placementPosition ?? e.position;
   const before = typeof pos === "string" ? ["before_char", "before_character", "before"].includes(pos) : typeof pos === "number" ? pos === 0 : false;
+  const firstText = (...xs: unknown[]) => xs.map((x) => str(x).trim()).find(Boolean) ?? "";
+  const delay = nullableNum(e.minMessages ?? e.min_messages ?? e.delay);
   const scan = num(e.depth ?? e.scanDepth ?? e.scan_depth);
   const groups = Array.isArray(e.inclusionGroup) ? strings(e.inclusionGroup) : strings(e.inclusionGroup ?? e.group);
   return LoreEntry.parse({
     id: str(e.id, String(index)) || String(index),
-    title: str(e.comment ?? e.title ?? e.name),
+    title: firstText(e.name, e.title, e.comment),
     keys,
     secondaryKeys: strings(e.keysecondary ?? e.secondaryKeys ?? e.secondary_keys ?? e.keySecondary),
     logic,
     content: str(e.content ?? e.text),
     enabled: e.enabled !== false && e.disable !== true,
     constant: e.constant === true || (none && e.constant !== false),
-    order: Math.round(num(e.priority ?? e.insertion_order ?? e.order) ?? 100),
+    // JanitorAI writes both `insertion_order` (100, 200…) and `priority` (1, 2…); the first is SillyTavern's order
+    order: Math.round(num(e.insertion_order ?? e.order ?? e.priority) ?? 100),
     position: before ? "before" : "after",
     probability,
     group: groups.join(","),
@@ -348,7 +353,7 @@ export function entryFromJanitor(e: Obj, index: number): LoreEntry {
     scanDepth: scan === undefined ? null : Math.max(0, Math.round(scan)),
     caseSensitive: nullableBool(e.caseSensitive ?? e.case_sensitive),
     matchWholeWords: nullableBool(e.matchWholeWords ?? e.match_whole_words),
-    delay: nullableNum(e.minMessages ?? e.min_messages ?? e.delay),
+    delay: delay ? delay : null,
     displayIndex: index,
     original: e,
   } satisfies LoreEntryInput);
@@ -366,7 +371,10 @@ export function splitRegexKey(key: string): { words: string[]; whole: boolean; c
   let whole = false;
   const bounded = /^\\b\(\??:?(.+)\)\\b$/s.exec(body) ?? /^\\b(.+)\\b$/s.exec(body);
   if (bounded) { body = bounded[1]!; whole = true; } else { const group = /^\(\??:?(.+)\)$/s.exec(body); if (group) body = group[1]!; }
-  const parts = body.split("|").map((p) => p.replace(/\\s[+*]?/g, " ").replace(/\\(['’-])/g, "$1").trim());
+  const raw = body.split("|").map((p) => p.replace(/\\s[+*]?/g, " ").replace(/\\(['’-])/g, "$1"));
+  // a space at an end means something ("dom " is not "domestic"); such a list stays a regex
+  if (raw.some((p) => p !== p.trim())) return null;
+  const parts = raw;
   if (!parts.length || parts.some((p) => !p || !/^[\p{L}\p{N}' ’-]+$/u.test(p))) return null;
   return { words: parts, whole, caseSensitive: !flags.includes("i") };
 }

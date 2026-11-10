@@ -38,6 +38,12 @@ export const CueWords = z.object({
   caseSensitive: z.boolean().default(false),
   /** Skip a match right after not / never / no… ("she did not kiss him"). */
   ignoreNegated: z.boolean().default(false),
+  /**
+   * matches = how many times the words show up · streak = how many of the newest messages in a row each have at least
+   * `perMessage` of them ("the scene has been hot for 4 messages").
+   */
+  measure: z.enum(["matches", "streak"]).default("matches"),
+  perMessage: z.number().int().min(1).max(100).default(1),
 });
 export type CueWords = z.infer<typeof CueWords>;
 

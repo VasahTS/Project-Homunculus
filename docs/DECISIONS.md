@@ -1238,5 +1238,6 @@ Daniel (translated): "research how JanitorAI's scripts work and make a detailed 
 - **Not yet (needs the draft):** Library → Cues, the editor, Try It, Setup rows, the Reply tab group, values in Scene, examples, the Assistant writing cues and converting JanitorAI scripts, and moving the agents' "No AI call" mode: `cueFromTextAgent` gives the same prompt (tested), but existing text agents are converted only when the Cues screen exists, so nothing loses its editor.
 - Tests: `packages/core/test/cues.test.ts` (engine, turn, swipes, branches, preview, character-tied, agent conversion with an identical prompt, lorebook entries → cue, speed), `packages/st-lorebooks/test/janitor.test.ts`.
 - Checked on Daniel's yhul lorebook (20 entries, kept out of the repo): as a cue it activates the same entries as the lorebook in 1000 random chats. A text's own chance is rolled after "one of", as the lorebook rolls a group's winner.
+- Checked on JanitorAI's real export (an empty `extensions` on every entry; `name`, `insertion_order`, `probability` 0–100, `depth` = messages read). Words signals can also count a **streak** (newest messages in a row with at least N matches), the one reading yhul's Scene Direction script needed; as a cue it reaches the script's phase in 1000 random chats. Third-party texts (yhul's) stay out of the repo.
 
 Signed: **CLAUDE**.

@@ -45,6 +45,31 @@ describe("JanitorAI lorebook scripts", () => {
     expect(() => importStLorebook(bytes({ title: "Engine", script: "context.character.personality += 'x';" }), "e.json")).toThrow(/converted to cues/);
   });
 
+  it("JanitorAI's real export shape: an empty `extensions`, name + empty comment, priority + insertion_order", () => {
+    // the shape of a lorebook script exported from JanitorAI (2026-11), with made-up text
+    const real = [{
+      activationMode: "standard", activationScript: "", case_sensitive: false, category: "other", comment: "", constant: false,
+      content: "Rules for rough scenes.", enabled: true, extensions: {}, groupWeight: 100, id: "392a29a5-8f76-4b26-8ed9-1aae6578e379",
+      inclusionGroup: ["comprehension-intimacy"], inclusionGroupRaw: "comprehension-intimacy", insertion_order: 300,
+      key: ["/rough|grip|pin/i"], keyMatchPriority: false, keysecondary: ["/love|gentle/i"], keysecondaryRaw: "/love|gentle/i",
+      keysRaw: "/rough|grip|pin/i", matchWholeWords: false, minMessages: 0, name: " ROUGH SCENES", placement: "default",
+      placementPosition: "after", prioritizeInclusion: false, priority: 3, probability: 90, selectiveLogic: 0, tags: ["relationship"], depth: 4,
+    }, {
+      comment: "behavioral-core", constant: true, content: "Always on.", extensions: {}, id: "aaf8", insertion_order: 1200, key: ["None."],
+      keysRaw: "None.", minMessages: 0, name: "CORE", placement: "personality", placementPosition: "after", priority: 12, probability: 100,
+    }, {
+      content: "Limits.", extensions: {}, id: "9398", insertion_order: 1300, key: ["/bdsm|dom |sub /i"], keysecondary: ["/vanilla|no kink/i"],
+      keysRaw: "/bdsm|dom |sub /i", name: "LIMITS", selectiveLogic: 2, minMessages: 3, probability: 70,
+    }];
+    const { lorebook } = importStLorebook(bytes(real), "real.json", { splitRegex: true });
+    const [rough, core, limits] = lorebook.entries!;
+    expect(rough).toMatchObject({ title: "ROUGH SCENES", keys: ["rough", "grip", "pin"], secondaryKeys: ["love", "gentle"], order: 300, probability: 90,
+      group: "comprehension-intimacy", scanDepth: 4, matchWholeWords: false, delay: null, position: "after" });
+    expect(core).toMatchObject({ title: "CORE", keys: [], constant: true, order: 1200 });
+    // a space inside a key means something ("dom " is not "domestic"): that list stays a regex
+    expect(limits).toMatchObject({ keys: ["/bdsm|dom |sub /i"], logic: "notAny", delay: 3, probability: 70, scanDepth: null });
+  });
+
   it("a pasted SillyTavern entries array still reads as SillyTavern", () => {
     const { lorebook } = importStLorebook(bytes([{ uid: 5, key: ["castle"], keysecondary: [], content: "A castle.", position: 4, depth: 2, comment: "Castle" }]), "st.json");
     expect(lorebook.entries![0]).toMatchObject({ id: "5", keys: ["castle"], position: "atDepth", depth: 2, title: "Castle" });
