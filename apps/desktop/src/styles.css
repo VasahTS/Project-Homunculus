@@ -4198,3 +4198,15 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .asst-range input { width: 72px; }
 /* a chip the Assistant took from the screen you came from (D-110) */
 .asst-chip.auto { box-shadow: inset 0 0 0 1px var(--label-3); background: transparent; }
+/* Try It on an Assistant change (D-111): asks first, then before | after */
+.asst-trial { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-control); background: var(--fill); font-size: 13px; min-width: 0; }
+.asst-trial p { margin: 0; }
+.asst-trial select { max-width: 100%; margin: 0 2px; }
+.asst-trial-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.asst-trial-head { display: flex; align-items: baseline; gap: 8px; }
+.asst-trial-diff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; background: var(--separator); border: 1px solid var(--separator); }
+.asst-trial-diff > div { background: var(--window); padding: 10px 12px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.asst-trial-diff h4 { margin: 0; font: 500 11px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--label-3); }
+.asst-trial-diff .msg-format { font-family: var(--font-prose); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 720px) { .asst-trial-diff { grid-template-columns: minmax(0, 1fr); } }
+.asst-res-group { display: grid; gap: 6px; min-width: 0; }

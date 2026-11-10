@@ -107,6 +107,9 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
 test("Folders and versions (D-064): the Assistant puts a character in a party folder (Undo, Redo) and proposes a new version", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  // D-110: the chat on screen came along as context; start from an empty box
+  const chips = page.getByTestId("assistant-composer").locator(".asst-chip button");
+  while (await chips.count()) await chips.first().click();
   await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();

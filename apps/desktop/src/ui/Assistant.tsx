@@ -1,7 +1,7 @@
 // Homunculus 2 — the Assistant mode: its sidebar, the conversation, Add context and Customize (D-062).
 // Author: CLAUDE, 2026-11-01. Draft: docs/drafts/library-assistant/index.html (round 3); plan: docs/UI-PLAN.md.
 import { useBackState } from "./back-button.ts";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useDraft, useSendKey } from "./ux.tsx";
 import { createAssistantRuntime } from "../assistant/runtime.ts";
 import { deleteMessage, forkAt, pathsOf, selectPath, versionsOf } from "../assistant/history.ts";
@@ -14,7 +14,7 @@ import { AssistantDetails } from "./AssistantDetails.tsx";
 import { AssistantMark } from "./AssistantMark.tsx";
 import { saveExport } from "../files.ts";
 import type { RichTurn } from "@homunculus/core";
-import { applyChange, applyTrash, approveNew, redoMove, saveDraftItem, undoCreate, undoMove } from "../assistant/tools.ts";
+import { applyChange, applyTrash, approveNew, redoMove, saveDraftItem, trialKind, trialSides, undoCreate, undoMove } from "../assistant/tools.ts";
 import { DRAFT_BLOCK, GUIDES } from "../assistant/guides.ts";
 import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
@@ -31,6 +31,9 @@ import { SidebarChats } from "./SidebarChats.tsx";
 import { usePrefs } from "../prefs.ts";
 
 export type AppMode = "play" | "assistant";
+
+/** What Try It needs from the Assistant view (D-111): the app's services, the connections and the chats in context. */
+const TrialCtx = createContext<{ svc: AppServices; connection: ConnectionState; contextChats: string[] } | null>(null);
 
 /** A thing of the app the user can add as context (from App's lists). */
 export interface LibraryEntry { kind: AssistantReadKind; id: string; name: string; line: string; avatar?: Avatar | undefined }
@@ -419,7 +422,10 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const empty = messages.length === 0 && !live;
   if (st.page === "customize") return <AssistantCustomizePage key={st.custTab} initialTab={st.custTab} svc={svc} connection={connection} lead={lead} onClose={() => { st.setPage("chat"); void loadSettings(svc.store).then(setSettings); }} />;
 
+  // chats the user put in context (any message of this chat) come first in Try It's list (D-111)
+  const contextChats = [...new Set([...messages.flatMap((x) => x.attachments), ...atts].flatMap((a) => (a.type === "item" && a.kind === "chat" ? [a.id] : [])))];
   return (
+    <TrialCtx.Provider value={{ svc, connection, contextChats }}>
     <div className={`asst-wrap${details ? " with-details" : ""}`}>
     <section className="asst" data-testid="assistant">
       <header className="asst-top">{lead}
@@ -484,6 +490,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       onSettings={(n) => { setSettings(n); void saveSettings(svc.store, n); }} onChat={updateChat} onCompact={() => void compactNow()} compacting={compacting}
       onCustomize={(tab) => st.setPage("customize", tab)} onClose={() => setDetails(false)} />}
     </div>
+    </TrialCtx.Provider>
   );
 }
 
@@ -584,7 +591,8 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
         {stepsOpen && <div className="asst-qlist">{m.steps.map((s, i) => <div key={i} className={s.error ? "bad" : ""}>{s.label}{s.helperSteps?.length ? <details><summary>Helper reading steps ({s.helperSteps.length})</summary>{s.helperSteps.map((h, j) => <details key={j}><summary>{h.label}</summary><pre className="asst-pre">{h.args}{"\n\n"}{h.result}</pre></details>)}</details> : null}</div>)}</div>}
         {m.text ? <ReplyText text={m.text} live={live} results={m.results} onSaveDraft={onSaveDraft} /> : live && !m.steps.length && !m.reasoning ? <div className="asst-typing" aria-label="Thinking"><i /><i /><i /></div> : null}
         {!live && <WebSourcesRow steps={m.steps} />}
-        {m.results.map((r, i) => <ResultCard key={i} r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} />)}
+        {m.results.map((r, i) => <div key={i} className="asst-res-group"><ResultCard r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} />
+          {!live && trialKind(r) && <TrialCard r={r} />}</div>)}
         {waiting > 1 && !live && <div className="asst-decide"><Button small variant="prominent" onClick={onApplyAll} data-testid="assistant-apply-all">Apply all {waiting}</Button></div>}
         {m.error && <p className="asst-error" role="alert">{m.error === "Stopped" || /abort/i.test(m.error) ? "Stopped." : m.error}</p>}
         {!live && <div className="asst-acts left">
@@ -700,6 +708,105 @@ function OpsField({ name, before, after }: { name: string; before: unknown; afte
           {r.fields.map(([k, b, a]) => <ChangeField key={k} name={k} before={b} after={a} />)}
         </div>
       ))}</div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ Try It (D-111)
+
+/**
+ * After a change to a card, narrator or lorebook (or a preset copy): offers to write a chat's latest reply twice, as
+ * things are and with the change, side by side. Asks first and says what it costs (Daniel: "not needed most of the time,
+ * great for testing more technical things"). Nothing is saved.
+ */
+function TrialCard({ r }: { r: AssistantResult }) {
+  const ctx = useContext(TrialCtx);
+  const kind = trialKind(r);
+  const [stage, setStage] = useState<"offer" | "hidden" | "running" | "done" | "error">("offer");
+  const [chats, setChats] = useState<Array<{ id: string; title: string; from: string }>>([]);
+  const [chatId, setChatId] = useState("");
+  const [out, setOut] = useState<{ before: string; after: string; model: string; parentN: number } | null>(null);
+  const [err, setErr] = useState("");
+  const abort = useRef<AbortController | null>(null);
+  useEffect(() => () => abort.current?.abort(), []);
+  useEffect(() => {
+    if (!ctx || !kind) return;
+    let live = true;
+    void (async () => {
+      const store = ctx.svc.store;
+      const [sessions, chars, stories] = await Promise.all([store.listSessions(), store.listCharacters(), store.stories.list()]);
+      const itemId = r.type === "change" || r.type === "created" ? r.itemId : "";
+      const uses = (x: (typeof sessions)[number]) => kind === "character" ? x.cast.some((c) => c.characterId === itemId)
+        : kind === "narrator" ? stories.some((st) => st.id === x.storyId && st.narrator.kind === "vault" && st.narrator.id === itemId) : false;
+      const rank = (x: (typeof sessions)[number]) => (ctx.contextChats.includes(x.id) ? 0 : uses(x) ? 1 : 2);
+      const list = sessions.map((x, i) => ({ x, i })).sort((a, b) => rank(a.x) - rank(b.x) || a.i - b.i).slice(0, 15).map(({ x }) => ({
+        id: x.id, title: x.title,
+        from: x.storyId ? stories.find((st) => st.id === x.storyId)?.name ?? "Story" : chars.find((c) => c.id === x.cast[0]?.characterId)?.name ?? "",
+      }));
+      if (!live) return;
+      setChats(list);
+      setChatId((c) => c || list[0]?.id || "");
+    })();
+    return () => { live = false; };
+  }, [ctx, kind, r]);
+  if (!ctx || !kind || stage === "hidden") return null;
+  const conn = ctx.connection.forRequest();
+  const model = conn.connection.model || "the chat's model";
+  const run = async () => {
+    const sides = await trialSides(ctx.svc.store, r);
+    if (!sides || !chatId) return;
+    abort.current?.abort();
+    const ac = new AbortController();
+    abort.current = ac;
+    setStage("running"); setErr("");
+    try {
+      const store = ctx.svc.store;
+      const last = await store.latestMessage(chatId);
+      if (!last) throw new Error("That chat has no messages yet.");
+      // the latest reply is written again; after your own message, the reply that would come next
+      const parentId = last.speaker.kind === "user" ? last.id : last.parentId;
+      const parentN = parentId ? (await store.pathTo(parentId)).length : 0;
+      const opts = { connections: conn.connections, signal: ac.signal };
+      const before = await ctx.svc.chat.turns.trialReply(chatId, parentId, conn.connection, { ...opts, ...(sides.before ? { overrides: sides.before } : {}) });
+      const after = await ctx.svc.chat.turns.trialReply(chatId, parentId, conn.connection, { ...opts, ...(sides.after ? { overrides: sides.after } : {}) });
+      setOut({ before: before.text, after: after.text, model: after.model, parentN });
+      setStage("done");
+    } catch (e) {
+      if (ac.signal.aborted) { setStage(out ? "done" : "offer"); return; }
+      setErr(e instanceof Error ? e.message : String(e));
+      setStage("error");
+    }
+  };
+  const what = kind === "preset" ? "this preset copy" : "this change";
+  const chatPick = (
+    <select aria-label="Chat to try it in" value={chatId} onChange={(e) => setChatId(e.target.value)} data-testid="trial-chat">
+      {chats.map((c) => <option key={c.id} value={c.id}>{c.title}{c.from ? ` · ${c.from}` : ""}</option>)}
+    </select>
+  );
+  return (
+    <div className="asst-trial" data-testid="assistant-trial">
+      {(stage === "offer" || stage === "error") && <>
+        <p>Test {what}? The latest reply of {chats.length ? chatPick : "a chat"} written twice: as things are, and with {kind === "preset" ? "the copy" : "the change"}.</p>
+        <div className="asst-trial-acts">
+          <Button small variant="prominent" disabled={!chatId} onClick={() => void run()} data-testid="trial-run">Try It</Button>
+          <Button small variant="plain" onClick={() => setStage("hidden")}>Not Now</Button>
+          <span className="hint">2 calls · {model} · nothing is saved</span>
+        </div>
+        {stage === "error" && <p className="asst-error" role="alert">{err}</p>}
+      </>}
+      {stage === "running" && <div className="asst-trial-acts"><span className="hint">Writing the reply twice…</span><Button small variant="plain" onClick={() => abort.current?.abort()}>Stop</Button></div>}
+      {stage === "done" && out && <>
+        <div className="asst-trial-head"><b>Try It</b><span className="hint">reply to #{out.parentN} · {chats.find((c) => c.id === chatId)?.title}</span></div>
+        <div className="asst-trial-diff">
+          <div><h4>Before</h4><MessageText text={out.before || "(empty)"} /></div>
+          <div><h4>After</h4><MessageText text={out.after || "(empty)"} /></div>
+        </div>
+        <div className="asst-trial-acts">
+          <Button small onClick={() => void run()}>Try Again</Button>
+          {chats.length > 1 && chatPick}
+          <span className="hint">{out.model} · 2 calls · nothing was saved</span>
+        </div>
+      </>}
     </div>
   );
 }

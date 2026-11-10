@@ -7,7 +7,7 @@
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
 import { CastMember, Character, CharacterVariant, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
-import { characterNoteOf, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec } from "@homunculus/core";
+import { characterNoteOf, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec, type TrialOverrides } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
@@ -1088,6 +1088,35 @@ async function copyPreset(ctx: ToolContext, id: string, changes: Obj, summary: s
   const made = await createItem(ctx.store, "preset", data, ctx.newId, w);
   ctx.results.push({ type: "created", kind: "preset", itemId: made.id, name: made.name, detail: `${made.detail}${note}`, undone: false });
   return { result: `Saved the edited copy as preset:${made.id} (“${made.name}”). The original preset:${base.id} is unchanged.${PRESET_PICK}`, label: `Saved an edited copy of “${base.name}”` };
+}
+
+// ------------------------------------------------------------------ Try It (D-111)
+
+/** What Try It compares for a card: the stored items on one side, the card's change on the other. null = no Try It. */
+export interface TrialSides { before?: TrialOverrides; after?: TrialOverrides; itemId: string; kind: "character" | "narrator" | "lorebook" | "preset" }
+export function trialKind(r: AssistantResult): TrialSides["kind"] | null {
+  if (r.type === "change" && (r.status === "waiting" || r.status === "applied") && !("picture" in r.after) && !("variants" in r.after)) {
+    if (r.kind === "character" || r.kind === "narrator") return r.kind;
+    if (r.kind === "lorebook" && r.status === "waiting") return "lorebook";
+  }
+  if (r.type === "created" && r.kind === "preset" && !r.undone) return "preset";
+  return null;
+}
+export async function trialSides(store: SqlStore, r: AssistantResult): Promise<TrialSides | null> {
+  const kind = trialKind(r);
+  if (!kind) return null;
+  if (r.type === "created") return { kind, itemId: r.itemId, after: { presetId: r.itemId } };
+  if (r.type !== "change") return null;
+  const item = await getItem(store, r.kind, r.itemId);
+  if (!item) return null;
+  // waiting: as stored | with the change; applied: with the old values | as stored
+  const waiting = r.status === "waiting";
+  const with_ = waiting ? r.after : r.before;
+  let o: TrialOverrides;
+  if (kind === "character") { const c = Character.parse(item); o = { characters: [Character.parse({ ...c, ...charFields(with_, c) })] }; }
+  else if (kind === "narrator") { const n = Narrator.parse(item); o = { narrators: [{ ...narratorAfter(n, with_), builtin: n.builtin }] }; }
+  else { const book = Lorebook.parse(item); o = { lorebooks: [Lorebook.parse({ ...book, ...pick(with_, ["name", "description"]), entries: with_.entries === undefined ? book.entries : loreEntriesAfter(book.entries, with_.entries, () => crypto.randomUUID()) })] }; }
+  return waiting ? { kind, itemId: r.itemId, after: o } : { kind, itemId: r.itemId, before: o };
 }
 
 // ------------------------------------------------------------------ running a tool

@@ -1235,6 +1235,30 @@ export class TurnPipeline {
     return { ...built, presetId: preset.id, presetName: preset.name, model: main.model, sent };
   }
 
+  /**
+   * Try It (D-111): the next reply as it would be written with some items replaced, without saving anything. The
+   * Assistant runs it twice (as things are, and with its change) so the user sees the difference. `overrides` replace
+   * stored items for this one call only; `presetId` swaps the chat's preset. Agents that need their own call don't run.
+   */
+  async trialReply(sessionId: string, parentId: string | null, connection: ConnectionConfig, options: {
+    overrides?: TrialOverrides; connections?: Record<string, ConnectionConfig>; branchId?: string | null; signal?: AbortSignal; onToken?: (soFar: string) => void;
+  } = {}): Promise<{ text: string; model: string; tokensIn: number }> {
+    const store = options.overrides ? overlayStore(this.store, options.overrides) : this.store;
+    const pipe = options.overrides ? new TurnPipeline(this.core, store, this.options) : this;
+    const session = await store.getSession(sessionId);
+    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    const built = await pipe.previewPrompt(sessionId, parentId, connection, { ...(options.connections ? { connections: options.connections } : {}), branchId: options.branchId ?? null });
+    const setup = await pipe.setupFor(session);
+    const preset = await pipe.presetFor(setup.presetId, setup);
+    const main = withPresetParams(chatModel((setup.connectionId ? options.connections?.[setup.connectionId] : undefined) ?? connection, setup), preset);
+    const turns = toTurns(preset.squashSystem ? squashSystem(built.parts) : built.parts);
+    let text = "";
+    for await (const chunk of this.core.connections.stream(main, turns, options.signal)) {
+      if (typeof chunk === "string") { text += chunk; options.onToken?.(text); }
+    }
+    return { text: text.trim(), model: main.model, tokensIn: estimateTokens(turns.map((t) => (typeof t.content === "string" ? t.content : "")).join("\n")) };
+  }
+
   /** The lorebooks a session gets, where each comes from, and which ones this session switched off (Prompt tab). */
   async lorebooksOf(sessionId: string): Promise<SessionLorebook[]> {
     const session = await this.store.getSession(sessionId);
@@ -1658,4 +1682,43 @@ export function authorsNoteGoes(interval: number, history: Message[]): boolean {
   if (interval <= 0) return false;
   const yours = history.filter((m) => m.speaker.kind === "user" && m.kind !== "event").length;
   return yours > 0 && yours % interval === 0;
+}
+
+
+/** Items Try It uses in place of the stored ones (D-111). */
+export interface TrialOverrides { characters?: Character[]; lorebooks?: Lorebook[]; narrators?: Array<{ id: string } & Record<string, unknown>>; presetId?: string }
+
+/** A collection that answers with the replacement when there is one. */
+function overlayCollection<C extends object>(col: C, byId: Map<string, unknown>): C {
+  return new Proxy(col, {
+    get(t, p) {
+      const col_ = t as unknown as { get(id: string): Promise<unknown>; list(): Promise<Array<{ id: string }>> };
+      if (p === "get") return async (id: string) => byId.get(id) ?? col_.get(id);
+      if (p === "list") return async () => (await col_.list()).map((x) => (byId.get(x.id) as { id: string } | undefined) ?? x);
+      const v = Reflect.get(t, p, t);
+      return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(t) : v;
+    },
+  });
+}
+
+/** The store as it would be with the replacements: reads only; nothing is ever written through it for Try It. */
+export function overlayStore(store: SqlStore, o: TrialOverrides): SqlStore {
+  const chars = new Map((o.characters ?? []).map((c) => [c.id, c] as const));
+  const books = new Map((o.lorebooks ?? []).map((b) => [b.id, b] as const));
+  const narrators = new Map((o.narrators ?? []).map((n) => [n.id, n] as const));
+  return new Proxy(store, {
+    get(t, p) {
+      if (p === "getCharacter") return async (id: string) => chars.get(id) ?? t.getCharacter(id);
+      if (p === "listCharacters") return async () => (await t.listCharacters()).map((c) => chars.get(c.id) ?? c);
+      if (p === "lorebooksForUse") return async (ids: string[]) => (await t.lorebooksForUse(ids)).map((b) => books.get(b.id) ?? b);
+      if (p === "lorebooks") return overlayCollection(t.lorebooks, books);
+      if (p === "narrators") return overlayCollection(t.narrators, narrators);
+      if (p === "getSession" && o.presetId) return async (id: string) => {
+        const s = await t.getSession(id);
+        return s ? { ...s, setup: { ...s.setup, presetId: o.presetId } } : s;
+      };
+      const v = Reflect.get(t, p, t);
+      return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(t) : v;
+    },
+  });
 }
