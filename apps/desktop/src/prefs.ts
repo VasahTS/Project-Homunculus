@@ -16,6 +16,8 @@ export type AutoBackup = "off" | "daily" | "weekly";
 /** Quick Replies (D-090): a bar of buttons above the box (like SillyTavern), one button that opens a list, or none. */
 export type QuickReplyStyle = "bar" | "drawer" | "off";
 const QR_STYLES: QuickReplyStyle[] = ["bar", "drawer", "off"];
+/** Settings → Chat → Recent chats (0 = all). */
+export const RECENT_CHATS = [3, 5, 10, 20, 0];
 
 export interface AppPrefs {
   // General
@@ -48,6 +50,8 @@ export interface AppPrefs {
   /** How many of the newest messages the chat draws (SillyTavern's "# Msg. to Load"); 0 = all. Older ones wait behind "Show earlier". */
   messagesToShow: number;
   quickReplies: QuickReplyStyle;
+  /** How many chats the sidebar's Recent lists outside pins and folders; 0 = all (D-108). */
+  recentChats: number;
   // Appearance
   lineSpacing: number;
   /** Interface size in percent (the whole window zooms, like a browser). Daniel, 2026-11-08. */
@@ -70,7 +74,7 @@ export interface AppPrefs {
 export const DEFAULT_PREFS: AppPrefs = {
   openAt: automated ? "last" : "home", replyNotice: true, replySound: "off", soundVolume: 60, customSound: "", customSoundName: "", systemNotify: false, spoilerFree: false,
   showTime: true, showNumber: true, showTokens: true, showModel: false, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
-  smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50, quickReplies: "bar",
+  smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50, quickReplies: "bar", recentChats: 10,
   lineSpacing: 1.72, uiScale: 100, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
   autoBackup: "off", keepBackups: 10, emptyTrashDays: 0, homeOffered: true, skipOpening: false, openingSound: true,
 };
@@ -150,6 +154,7 @@ export function cleanPrefs(saved: unknown): AppPrefs {
   out.emptyTrashDays = Math.max(0, Math.round(out.emptyTrashDays));
   if (!OPEN_AT.includes(out.openAt)) out.openAt = DEFAULT_PREFS.openAt;
   if (!QR_STYLES.includes(out.quickReplies)) out.quickReplies = DEFAULT_PREFS.quickReplies;
+  if (!RECENT_CHATS.includes(out.recentChats)) out.recentChats = DEFAULT_PREFS.recentChats;
   return out;
 }
 

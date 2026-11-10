@@ -59,6 +59,7 @@ import { QuickRepliesPage } from "./ui/QuickReplies.tsx";
 import { loadQuickReplies } from "./quickReplies.ts";
 import { loadMessageLook } from "./messageLook.ts";
 import { getPrefs, loadPrefs, stepScale, usePrefs } from "./prefs.ts";
+import { loadChatOrganization } from "./chatOrganization.ts";
 import { playReplySound } from "./sounds.ts";
 import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
@@ -421,6 +422,7 @@ export function App() {
     servicesReady.then(async (s) => {
       await renameOldStoryChats(s);
       const p = await loadPrefs(s.store);
+      void loadChatOrganization(s.store);
       // Settings → Data (D-082): items in the Trash longer than chosen leave for good (ones still in use stay)
       if (p.emptyTrashDays > 0) await s.store.emptyTrashOlderThan(Date.now() - p.emptyTrashDays * 86_400_000).catch(() => 0);
       const { ss } = await refresh(s);
@@ -1909,7 +1911,11 @@ export function App() {
           characters={characters}
           avatars={avatars}
           lastLines={lastLines}
+          lastTimes={lastTimes}
           branchCounts={branchCounts}
+          onRenameSession={(id, title) => void renameChat(id, title)}
+          onTrashSession={(id) => void trashChat(id)}
+          onOpenCharacter={(id) => setView({ kind: "characters", id })}
           activeSessionId={view.kind === "session" && !active?.storyId ? activeId : null}
           activeStoryId={view.kind === "story" ? view.id : view.kind === "session" ? active?.storyId ?? null : null}
           activeChatId={view.kind === "session" && active?.storyId ? activeId : null}

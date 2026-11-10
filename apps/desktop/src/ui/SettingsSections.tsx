@@ -2,7 +2,7 @@
 // Built from the approved canvas draft "Homunculus 2 — Settings & card reading" (11/03). CLAUDE, 2026-11-03.
 import { useEffect, useRef, useState } from "react";
 import { isDesktop } from "../db.ts";
-import { setPrefs, UI_SCALES, usePrefs, type AppPrefs, type ReplySound } from "../prefs.ts";
+import { RECENT_CHATS, setPrefs, UI_SCALES, usePrefs, type AppPrefs, type ReplySound } from "../prefs.ts";
 import { playSound, SOUND_LABELS } from "../sounds.ts";
 import { askSystemNotifications } from "../systemNotify.ts";
 import { Button, Group, Row, Segmented, Switch } from "./kit.tsx";
@@ -118,6 +118,13 @@ export function ChatSection() {
         <Row label="Model thinking">
           <Segmented small label="Model thinking" value={p.thinking} onChange={(thinking) => set({ thinking })}
             options={[{ value: "hidden", label: "Hidden" }, { value: "folded", label: "Folded" }, { value: "open", label: "Open" }]} />
+        </Row>
+      </Group>
+      <Group icon="folder" title="Sidebar">
+        <Row label="Recent chats" help="How many chats the sidebar lists outside pins and folders. The search still finds every chat.">
+          <select aria-label="Recent chats" value={p.recentChats} onChange={(e) => set({ recentChats: Number(e.target.value) })} data-testid="recent-chats">
+            {RECENT_CHATS.map((n) => <option key={n} value={n}>{n === 0 ? "All" : `${n} chats`}</option>)}
+          </select>
         </Row>
       </Group>
       <Group icon="bolt" title="Quick Replies" help="Manage sets in Library → Quick Replies.">

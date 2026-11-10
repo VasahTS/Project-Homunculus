@@ -27,6 +27,8 @@ import { QuickConnectMenu, type QuickConnectTarget } from "./QuickConnect.tsx";
 import type { ConnectionConfig, ModelInfo } from "@homunculus/core";
 import { Modal } from "./Vault.tsx";
 import { MessageText, openLink } from "./MessageText.tsx";
+import { SidebarChats } from "./SidebarChats.tsx";
+import { usePrefs } from "../prefs.ts";
 
 export type AppMode = "play" | "assistant";
 
@@ -95,6 +97,9 @@ export function AssistantSidebar({ st, onMode, status, onSettings }: { st: Assis
   // what is inside arrives one after another when the sidebar appears; the brand and the mode switch stay put (D-072)
   const navRef = useRef<HTMLElement>(null);
   useEnter(navRef, "open", ":scope > :not(.slide-pill):not(.sidebar-brand):not(.mode-switch)", { ...CASCADE, y: 8, stagger: 40, max: 12 });
+  // a boolean, so token updates don't redraw the sidebar
+  const running = useSyncExternalStore(st.runtime.subscribe, () => !!st.runtime.getSnapshot().live);
+  const prefs = usePrefs();
   const shown = q.trim() ? st.chats.filter((c) => `${c.title} ${c.summary}`.toLowerCase().includes(q.trim().toLowerCase()) || hits.has(c.id)) : st.chats;
   return (
     <nav className="sidebar glass asst-side" aria-label="Assistant" data-region="sidebar" data-testid="assistant-sidebar" ref={navRef}>
@@ -107,15 +112,26 @@ export function AssistantSidebar({ st, onMode, status, onSettings }: { st: Assis
           : <button className="side-item" onClick={() => setSearching(true)}><span className="side-icon"><Icon name="search" /></span><span className="side-text"><strong>Search</strong></span></button>}</li>
         <li><button className={`side-item${st.page === "customize" ? " on" : ""}`} onClick={() => st.setPage("customize")} data-testid="assistant-customize"><span className="side-icon"><Icon name="gear" /></span><span className="side-text"><strong>Customize</strong></span></button></li>
       </ul>
-      <div className="side-head"><span>Recents</span></div>
-      <ul className="side-list" data-testid="assistant-chats">
-        {shown.length === 0 && <li className="hint side-empty">{q ? "No chat matches." : "Your chats will show here."}</li>}
-        {shown.map((c) => (
-          <li key={c.id}><button className={`side-item${st.page === "chat" && st.activeId === c.id ? " on" : ""}`} onClick={() => st.setActiveId(c.id)}>
-            <span className="side-text"><strong>{c.title}</strong><span>{(q.trim() && hits.get(c.id)) || c.summary || new Date(c.updatedAt).toLocaleDateString()}</span></span>
-          </button></li>
-        ))}
-      </ul>
+      {q.trim() ? <>
+        <div className="side-head"><span>Chats</span></div>
+        <ul className="side-list" data-testid="assistant-chats">
+          {shown.length === 0 && <li className="hint side-empty">No chat matches.</li>}
+          {shown.map((c) => (
+            <li key={c.id}><button className={`side-item${st.page === "chat" && st.activeId === c.id ? " on" : ""}`} onClick={() => st.setActiveId(c.id)}>
+              <span className="side-text"><strong>{c.title}</strong><span>{hits.get(c.id) || c.summary || new Date(c.updatedAt).toLocaleDateString()}</span></span>
+            </button></li>
+          ))}
+        </ul>
+      </> : (
+        // D-108: the same Pinned → folders → Recent as Play
+        <SidebarChats scope="assistant" testId="assistant-chats" limit={prefs.recentChats} activeId={st.page === "chat" ? st.activeId : null}
+          chats={st.chats.map((c) => ({ id: c.id, title: c.title, line: c.summary, when: c.updatedAt,
+            busy: running && st.runtime.runningId.current === c.id ? <span className="side-writing" data-testid="side-writing"><i aria-hidden />working…</span> : undefined }))}
+          onOpen={(id) => st.setActiveId(id)}
+          onRename={st.svc ? (id, title) => void (async () => { const full = await loadChat(st.svc!.store, id); if (full) { await saveChat(st.svc!.store, { ...full, title }); await st.reload(); } })() : undefined}
+          onTrash={st.svc ? (id) => void deleteChat(st.svc!.store, id).then(() => { if (st.activeId === id) st.setActiveId(null); void st.reload(); }) : undefined}
+          trashLabel="Delete Chat" empty="Your chats will show here." />
+      )}
       {/* D-077: Settings at the bottom, as in Play */}
       <div className="side-bottom">
         <ul className="side-list">

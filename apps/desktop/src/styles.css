@@ -4132,3 +4132,58 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .pc.standalone .pc-title strong { overflow-wrap: anywhere; }
 .pc.standalone .pc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-left: 72px; min-width: 0; }
 .pc.standalone .pc-actions .link-select { max-width: 100%; }
+
+/* ---------------------------------------------------------------- sidebar chats: Pinned → folders → Recent (D-108)
+   One line per chat (Daniel: "smaller, so the UI isn't busy"): the name, where it is from in grey, the time; "⋯" on hover. */
+.sc { display: grid; gap: 0; min-width: 0; }
+.sc-head { gap: 6px; }
+.sc-head .icon-btn { width: 22px; height: 22px; color: var(--label-3); }
+.sc-head .icon-btn:hover { color: var(--label); }
+.sc-head.drop, .sc-list.drop { background: var(--fill); }
+.sc-list { gap: 0; }
+.sc-li { position: relative; display: flex; align-items: center; min-width: 0; }
+.sc-li > .sc-row { flex: 1; }
+.side-item.sc-row { min-height: 26px; height: 26px; padding: 0 26px 0 8px; gap: 6px; }
+.sc-t { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.sc-from { font-size: 11px; color: var(--label-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 0; min-width: 18px; }
+.sc-when { font: 10.5px var(--font-figures, var(--font-mono)); color: var(--label-3); flex: none; margin-left: auto; }
+.sc-from + .sc-when { margin-left: 0; }
+.sc-busy { flex: 1 1 0; min-width: 0; display: flex; justify-content: flex-end; overflow: hidden; }
+.sc-busy .side-writing { font-size: 11px; white-space: nowrap; }
+.sc-pin { color: var(--label-3); display: inline-flex; flex: none; }
+.sc-row .side-fork { flex: none; font-size: 10.5px; }
+.sc-more.icon-btn { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; display: none; color: var(--label-2); }
+.sc-li:hover > .sc-more, .sc-li.menu-open > .sc-more, .sc-li:focus-within > .sc-more,
+.sc-folder-head:hover > .sc-more, .sc-folder-head.menu-open > .sc-more, .sc-folder-head:focus-within > .sc-more { display: inline-grid; }
+.sc-li:hover .sc-when, .sc-li.menu-open .sc-when, .sc-li:focus-within .sc-when { visibility: hidden; }
+.sc-input { width: 100%; height: 26px; margin: 1px 0; font-size: 12.5px; padding: 0 8px; }
+.sc-showmore { border: 0; background: none; color: var(--label-3); font: inherit; font-size: 11.5px; padding: 3px 8px; text-align: left; cursor: pointer; }
+.sc-showmore:hover { color: var(--label); }
+/* folders */
+.sc-folders { gap: 0; }
+.sc-folder { display: grid; min-width: 0; }
+.sc-folder.drop > .sc-folder-head { background: var(--fill-selected); box-shadow: inset 0 0 0 1px var(--glass-edge); }
+.sc-folder-head { position: relative; display: flex; align-items: center; min-width: 0; }
+.sc-folder-row { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 26px 0 6px; border: 0; background: none; color: var(--label-2);
+  font: inherit; text-align: left; cursor: pointer; border-radius: var(--radius-control); }
+.sc-folder-row:hover { background: var(--fill); color: var(--label); }
+.sc-chev { display: inline-flex; color: var(--label-3); transition: transform .15s; flex: none; }
+.sc-chev.open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .sc-chev { transition: none; } }
+.sc-fn { font-size: 12px; font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-count { font: 10.5px var(--font-figures, var(--font-mono)); color: var(--label-3); flex: none; }
+.sc-folder-head:hover .sc-count, .sc-folder-head.menu-open .sc-count { visibility: hidden; }
+.sc-inside { margin-left: 12px; padding-left: 2px; border-left: 1px solid var(--separator); gap: 0; }
+.sc-drop-hint { font-size: 11.5px; color: var(--label-3); padding: 4px 8px; }
+/* menus */
+.sc-menu { position: absolute; right: 2px; top: calc(100% + 2px); z-index: 40; display: grid; min-width: 200px; padding: 4px; border-radius: calc(10px * var(--round));
+  background: var(--pop, var(--surface)); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--glass-edge); }
+.sc-menu button { border: 0; background: transparent; color: inherit; font: inherit; font-size: 12.5px; text-align: left; padding: 5px 8px; border-radius: calc(6px * var(--round));
+  cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sc-menu button small { display: block; font-size: 11px; color: var(--label-3); }
+.sc-menu button:has(small) { display: grid; justify-content: start; gap: 1px; }
+.sc-menu button:hover:not(:disabled) { background: var(--fill); }
+.sc-menu button:disabled { color: var(--label-3); cursor: default; }
+.sc-menu hr { border: 0; border-top: 1px solid var(--separator); margin: 4px 2px; }
+.sc-menu .sc-menu-back { justify-content: flex-start; gap: 6px; color: var(--label-2); font-size: 11.5px; }
+.sc-menu-back svg { transform: rotate(180deg); }

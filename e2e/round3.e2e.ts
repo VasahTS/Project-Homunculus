@@ -81,12 +81,15 @@ test("a chat exports as Markdown, JSONL, text and the Homunculus file, from its 
   await expect(page.getByTestId("notice")).toContainText("Exported");
 });
 
-test("the sidebar: Characters is a place, Recent keeps the last 5 chats", async ({ page }) => {
+test("the sidebar: Characters is a place, Recent keeps the last 10 chats in one-line rows", async ({ page }) => {
   await page.goto("/");
-  for (let i = 0; i < 5; i++) await newChatWith(page);
-  await expect(page.getByTestId("session-list").getByRole("button")).toHaveCount(5); // D-078: 5 (was 3)
+  for (let i = 0; i < 10; i++) await newChatWith(page);
+  const rows = page.getByTestId("session-list").locator(".sc-row");
+  await expect(rows).toHaveCount(10); // D-108: 10 one-line rows (was 5)
+  await page.getByTestId("session-list").getByRole("button", { name: /^Show \d+ more$/ }).click();
+  await expect(rows).toHaveCount(11);
   await page.getByPlaceholder("Search").first().fill("Lyra");
-  await expect(page.getByTestId("session-list").getByRole("button")).toHaveCount(6); // a search lists every match
+  await expect(page.getByTestId("session-list").getByRole("button")).toHaveCount(11); // a search lists every match
 });
 
 test("a story's chats are at the bottom of its page; Save as Kit; a Kit starts a new story with its own copy", async ({ page }) => {

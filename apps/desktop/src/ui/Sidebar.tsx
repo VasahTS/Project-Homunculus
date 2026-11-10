@@ -3,7 +3,7 @@
 // tabs inside them), Stories and Chats are the lists below, each row with its last line so same-named chats differ.
 // 2026-10-29 (round 3, D-036): the long list of chats left the sidebar (Daniel: "it will get really clogged when there are
 // many characters"): Characters is a place (the cards, in folders; a character's chats are on its sheet), and
-// "Recent" keeps the last chats at hand (5 since D-078).
+// "Recent" keeps the last chats at hand (10, one line each, with pins and folders since D-108).
 // 2026-10-29: a chat writing a reply in the background says so ("writing…"), and its story too, even folded.
 // Floats in the functional (glass) layer. Two levels at most. Nothing critical at the bottom.
 import { ModeSwitch, type AppMode } from "./Assistant.tsx";
@@ -16,14 +16,16 @@ import { Help } from "./Help.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
 import { CASCADE, useEnter, useSlidingPill } from "./motion.ts";
 import { turns, useTurns, type LiveTurn } from "../turns.ts";
+import { usePrefs } from "../prefs.ts";
+import { SidebarChats } from "./SidebarChats.tsx";
 
 export interface SidebarSearchItem { id: string; name: string; kind: string; onOpen: () => void }
 
 export type LibraryArea = "characters" | LibraryCategory;
 export type Place = NavigationPlace | "settings" | null;
 
-export function Sidebar({ sessions, stories, characters, avatars, lastLines, branchCounts = {}, activeSessionId, activeStoryId, activeChatId = null, place, status,
-  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, onOpenStory, onNewStory, onOpenCharacters, onOpenCardBrowser, onOpenLibrary, onOpenVault, onOpenSettings, onOpenHome }: {
+export function Sidebar({ sessions, stories, characters, avatars, lastLines, lastTimes = {}, branchCounts = {}, activeSessionId, activeStoryId, activeChatId = null, place, status,
+  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, onRenameSession, onTrashSession, onOpenCharacter, onOpenStory, onNewStory, onOpenCharacters, onOpenCardBrowser, onOpenLibrary, onOpenVault, onOpenSettings, onOpenHome }: {
   navigation: NavigationProfile;
   searchItems: SidebarSearchItem[];
   /** Play / Assistant (D-062): the switch at the top. */
@@ -36,6 +38,12 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
   avatars: Record<string, Avatar>;
   /** The newest line of each session (by session id), shown under its name. */
   lastLines: Record<string, string>;
+  /** When each session was last written in (the row's "5h"). */
+  lastTimes?: Record<string, number>;
+  onRenameSession?: (id: string, title: string) => void;
+  onTrashSession?: (id: string) => void;
+  /** A 1:1 chat's "Open <name>'s Sheet". */
+  onOpenCharacter?: (characterId: string) => void;
   /** Branches per session, for the "⑂ 3" next to a chat's name (D-032). */
   branchCounts?: Record<string, number>;
   activeSessionId: string | null;
@@ -56,6 +64,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
   onOpenHome?: () => void;
 }) {
   const live = useTurns();
+  const prefs = usePrefs();
   /** What a chat with a turn running shows instead of its last line. */
   const working = (id: string) => {
     const t: LiveTurn | undefined = live.get(id);
@@ -81,9 +90,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
   // the last 3 chats (any), or every chat that matches the search
   const searching = q.trim() !== "";
   const storyName = (s: Session) => stories.find((st) => st.id === s.storyId)?.name;
-  const chats = searching
-    ? sessions.filter((s) => match(s.title) || match(lead(s)?.name ?? "") || match(storyName(s) ?? ""))
-    : sessions.slice(0, navigation.recentLimit);
+  const chats = searching ? sessions.filter((s) => match(s.title) || match(lead(s)?.name ?? "") || match(storyName(s) ?? "")) : [];
   // stories: the one played most recently first, then new ones
   const lastPlayed = (st: Story) => { const i = sessions.findIndex((s) => s.storyId === st.id); return i < 0 ? Infinity : i; };
   const shownStories = stories.filter((st) => match(st.name)).sort((a, b) => lastPlayed(a) - lastPlayed(b) || b.createdAt - a.createdAt);
@@ -181,26 +188,39 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, bra
       </ul>
       </>}
 
-      <div className="side-head">
-        <span className="label-row" title="Your last chats. Every chat with a character is on its sheet (Characters); a story's chats are on its page.">{searching ? "Chats" : "Recent"}</span>
-      </div>
-      <ul className="side-list side-recent" data-testid="session-list">
-        {chats.map((s) => {
-          const c = lead(s);
-          const st = storyName(s);
-          return (
-            <li key={s.id}>
-              <button className={`side-item side-chat${s.id === activeSessionId || s.id === activeChatId ? " on" : ""}`} onClick={() => onOpenSession(s.id)}
-                aria-current={s.id === activeSessionId || s.id === activeChatId ? "page" : undefined}>
-                <span className="side-text"><strong>{s.title}{(branchCounts[s.id] ?? 1) > 1 && <span className="side-fork" title={`${branchCounts[s.id]} branches`}><Icon name="branch" size={11} />{branchCounts[s.id]}</span>}</strong>
-                  {working(s.id) ?? <span className="side-line">{st ?? c?.name ?? "—"} · {lastLines[s.id] || "—"}</span>}</span>
-              </button>
-            </li>
-          );
-        })}
-        {sessions.length === 0 && <li className="side-empty">No chats yet. Open Characters and start one.</li>}
-        {searching && chats.length === 0 && <li className="side-empty">No chat matches.</li>}
-      </ul>
+      {searching ? <>
+        <div className="side-head"><span className="label-row">Chats</span></div>
+        <ul className="side-list side-recent" data-testid="session-list">
+          {chats.map((s) => {
+            const c = lead(s);
+            const st = storyName(s);
+            return (
+              <li key={s.id}>
+                <button className={`side-item side-chat${s.id === activeSessionId || s.id === activeChatId ? " on" : ""}`} onClick={() => onOpenSession(s.id)}
+                  aria-current={s.id === activeSessionId || s.id === activeChatId ? "page" : undefined}>
+                  <span className="side-text"><strong>{s.title}{(branchCounts[s.id] ?? 1) > 1 && <span className="side-fork" title={`${branchCounts[s.id]} branches`}><Icon name="branch" size={11} />{branchCounts[s.id]}</span>}</strong>
+                    {working(s.id) ?? <span className="side-line">{st ?? c?.name ?? "—"} · {lastLines[s.id] || "—"}</span>}</span>
+                </button>
+              </li>
+            );
+          })}
+          {chats.length === 0 && <li className="side-empty">No chat matches.</li>}
+        </ul>
+      </> : (
+        // D-108: Pinned → your folders → Recent, one line per chat
+        <SidebarChats scope="play" testId="session-list" limit={prefs.recentChats} activeId={activeSessionId ?? activeChatId}
+          chats={sessions.map((s) => ({ id: s.id, title: s.title, from: storyName(s) ?? lead(s)?.name, line: lastLines[s.id], when: lastTimes[s.id] ?? s.createdAt,
+            branches: branchCounts[s.id], busy: working(s.id) ?? undefined }))}
+          onOpen={onOpenSession} onRename={onRenameSession} onTrash={onTrashSession}
+          source={(id) => {
+            const s = sessions.find((x) => x.id === id);
+            if (!s) return null;
+            if (s.storyId) return { label: "Open the Story Page", run: () => onOpenStory(s.storyId!) };
+            const c = lead(s);
+            return c && onOpenCharacter ? { label: `Open ${c.name}'s Sheet`, run: () => onOpenCharacter(c.id) } : null;
+          }}
+          empty="No chats yet. Open Characters and start one." />
+      )}
 
       <div className="side-bottom">
         <ul className="side-list" data-testid="app-list">
