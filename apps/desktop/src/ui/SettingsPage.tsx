@@ -331,7 +331,7 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
           </Row>}
           {keyed && <Row label="This Model Can See Pictures" help={d.vision !== "auto" ? "The Assistant sends pictures to it as they are (Yes) or has them described (No)." : info?.vision === true ? "Auto: the service says it can." : info?.vision === false ? "Auto: the service says it can't." : "Auto: as the service's model list says (Browse once to check)."}>
             {/* D-115: a model that can't see pictures gets them described by the vision model (Assistant → Customize → Pictures) */}
-            <Segmented small label="This model can see pictures" value={d.vision} onChange={(vision) => set({ vision })}
+            <Segmented small label="Can see pictures" value={d.vision} onChange={(vision) => set({ vision })}
               options={[{ value: "auto", label: "Auto" }, { value: "yes", label: "Yes" }, { value: "no", label: "No" }]} />
           </Row>}
           <Row wide><span className="hint">{providers.find((p) => p.id === d.providerId)?.help}</span></Row>
