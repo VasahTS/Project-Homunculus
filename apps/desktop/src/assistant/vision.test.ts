@@ -125,7 +125,7 @@ describe("pictures for a model that can't see them (D-115)", () => {
     await runAssistant({ core, store, chat: chatWith(userMsg("look", [pic("p1")])), main: glm, connections: {}, onUpdate: () => {} });
     expect(hasImage(seen[1]!)).toBe(false);
     expect(textOf(seen[1]!)).toContain("not sent: this model can't see pictures");
-    expect(textOf(seen[1]!)).toContain("For Pictures, Use");
+    expect(textOf(seen[1]!)).toContain("Customize → Pictures");
   });
 
   it("a main model that sees pictures gets them as they are, even with a vision model set", async () => {

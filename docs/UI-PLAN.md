@@ -6,7 +6,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
-## Pictures for any model (Vision helper) and From a comic — CLAUDE, 2026-11-10 · ✅ text approved ("pode começar"); engine in the app (D-115); screens wait for the draft
+## Pictures for any model (Vision helper) and From a comic — CLAUDE, 2026-11-10 · ✅ text and draft approved ("rascunhos aprovados"); in the app (D-115, D-116)
 
 Daniel (translated): "I use GLM 5.3 90% of the time and it has no vision; once you send an image you can't use a model without vision any more" → a dedicated vision model describes pictures for the main model. And: "sometimes I want to turn doujinshi / short comics into cards / stories: read the pictures in order, understand them, ask questions like who {{user}} is, make drafts and build something coherent for the app." His reality: ≤ 10 pages, text in English, "good enough"; but "our base must be solid so we don't fight it", and planned for a larger scale. Both live **inside the Assistant**.
 
@@ -31,7 +31,7 @@ Daniel (translated): "I use GLM 5.3 90% of the time and it has no vision; once y
 - **Limits said plainly:** out-of-order balloons (the transcription is editable under See Details); similar-looking characters (merge / split); some providers refuse or soften adult content (the provider's reason + pick another vision connection, e.g. a local Qwen-VL); an unreadable page is marked in the strip (Skip / Read Again).
 
 **Base (so we don't fight the model):** separate saved steps; a structured middle format; the vision model is swappable; stable cast ids; every fact keeps its pages; V1 is the small case of V2 (one picture → description; N pictures → reading), same engine.
-**Draft:** `docs/drafts/vision-comic/index.html` (claude.ai artifact RSGGRBxmEHqFYKorUkHAQp), boards 1–3 (pictures) and 4–7 (comic). 🟡 waiting for Daniel; screens are coded after he approves it.
+**Draft:** `docs/drafts/vision-comic/index.html` (claude.ai artifact RSGGRBxmEHqFYKorUkHAQp), boards 1–3 (pictures) and 4–7 (comic). ✅ approved 11/10 and built (D-116). One place differs: the app has no Settings → Assistant tab, so **For Pictures, Use** lives in **Assistant → Customize → Assistants → Pictures (all assistants)**.
 
 ---
 

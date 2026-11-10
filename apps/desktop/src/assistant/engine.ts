@@ -7,7 +7,7 @@
 // - pictures are sent only with the newest two user messages (older ones become "[image … sent earlier]");
 //   a main model that can't see pictures gets what the vision model saw instead (D-115, vision.ts);
 // - tool results of earlier replies are cut to their first lines (Flint's "microcompaction"): the model can read again.
-import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult } from "@homunculus/schemas";
+import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult, type PictureDescription } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
 import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES, GUIDES, WEB_RULES } from "./guides.ts";
 import { excerptRead, isRead, retainedReads } from "./reads.ts";
@@ -17,6 +17,7 @@ import { decodeHistory, encodeHistory } from "./history.ts";
 import { consultLibrary, excerptHelper, HELPER_RULES, HELPER_SPEC, type HelperUsage } from "./helper.ts";
 import { describePicture, emptyVisionUsage, LOOK_SPEC, lookAtPicture, NO_VISION_RULES, pictureRoute, pictureText, READ_COMIC_SPEC, seesPictures, VISION_RULES, visionConnection } from "./vision.ts";
 import { naturalCompare, readComic, readingText, ReadingOrder } from "./comic.ts";
+import { ASK_SPEC, questionText, UNDERSTANDING_SPEC, understoodText, WAITING_TOOLS } from "./cards.ts";
 export { TOOL_SPECS };
 
 const SETTINGS_KEY = "assistant.settings";
@@ -184,6 +185,8 @@ function userContent(m: AssistantMessage, withImages: boolean, pictures: Picture
 function resultLines(m: AssistantMessage): string[] {
   return m.results.flatMap((r) => {
     if (r.type === "memory") return [];
+    if (r.type === "understood") return [understoodText(r)];
+    if (r.type === "question") return [questionText(r)];
     if (r.type === "moved") return [`[Result: ${r.items.map((i) => `${i.kind}:${i.itemId}`).join(", ")} — move to ${JSON.stringify(r.folder)} ${r.undone ? "undone" : "moved"}]`];
     const ref = `${r.kind}:${"itemId" in r && r.itemId ? r.itemId : "unsaved"}`;
     const status = r.type === "created" ? r.undone ? "undone" : "created" : r.status === "applied" ? "approved/applied" : r.status;
@@ -225,7 +228,9 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
       }
     }
     const outcomes = afterLastUser ? [] : resultLines(m);
-    if (m.text || m.error || outcomes.length) out.push({ role: "assistant", content: [m.text || (m.error ? `(failed: ${m.error})` : ""), ...outcomes].filter(Boolean).join("\n") });
+    // a reply that ended on a card (ask, show_understanding) kept its last round's text as the reply: not sent twice
+    const said = m.rounds.length && m.rounds.at(-1)!.text === m.text ? "" : m.text;
+    if (said || m.error || outcomes.length) out.push({ role: "assistant", content: [said || (m.error ? `(failed: ${m.error})` : ""), ...outcomes].filter(Boolean).join("\n") });
   }
   return out;
 }
@@ -258,7 +263,7 @@ export async function runAssistant(o: {
   const visionUsage = emptyVisionUsage(vision?.model ?? "");
   let base: AssistantChat = o.chat;
   const hasPictures = o.chat.messages.some((m) => m.attachments.some((a) => a.type === "image"));
-  const tools = [...toolsFor(settings, o.chat.draftFirst, web, assistant.toolHelper?.enabled), ...(route === "describe" ? [LOOK_SPEC] : []), ...(hasPictures ? [READ_COMIC_SPEC] : [])];
+  const tools = [...toolsFor(settings, o.chat.draftFirst, web, assistant.toolHelper?.enabled), ...(route === "describe" ? [LOOK_SPEC] : []), ...(hasPictures ? [READ_COMIC_SPEC] : []), ASK_SPEC, UNDERSTANDING_SPEC];
   const helper = assistant.toolHelper;
   const helperBase = helper?.connectionId ? o.connections[helper.connectionId] : undefined;
   const helperConn = helperBase ? { ...helperBase, ...(helper?.model ? { model: helper.model } : {}) } : undefined;
@@ -282,7 +287,8 @@ export async function runAssistant(o: {
     if (a.type === "image") images.set(a.id, { name: a.name, mime: a.mime, base64: a.base64 });
   }
   const ctx: ToolContext = {
-    store: o.store, saveNew: assistant.saveNew, newId, files, images, results: reply.results, guides, signal: o.signal,
+    // D-115: material made from a comic always waits for the user's OK (the draft's Keep / Edit / Discard)
+    store: o.store, saveNew: assistant.saveNew && !o.chat.messages.some((m) => m.attachments.some((a) => a.type === "image" && a.comicPage)), newId, files, images, results: reply.results, guides, signal: o.signal,
     web: o.web ?? webSession, webBudget: { searches: 0, chars: 0 },
     onStatus: (label) => { const last = reply.steps.at(-1); if (last && !last.result) { last.label = label; push(); } },
     remember: async (text) => {
@@ -317,16 +323,16 @@ export async function runAssistant(o: {
     const img = images.get(id);
     if (!img) return { result: `No picture “${id}” in this chat.`, label: "look_at_image", error: true };
     if (!question.trim()) return { result: "Ask a question about the picture.", label: "look_at_image", error: true };
-    return { result: await lookAtPicture({ core: o.core, store: o.store, conn: vision, picture: img, question, usage: visionUsage, signal: o.signal }), label: `Looked at ${img.name}` };
+    return { result: await lookAtPicture({ core: o.core, store: o.store, conn: vision, picture: img, question, usage: visionUsage, signal: o.signal }), label: `Looked at ${img.name}: “${question.trim().slice(0, 80)}”` };
   };
   // D-115: comic pages are read by the model that can see them (the vision model, or the main one when it can)
   ctx.readComic = async (a) => {
     const reader = route === "describe" ? vision : route === "send" ? conn : undefined;
-    if (!reader) return { result: "This model can't see pictures and no vision model is set (Settings → Assistant → For Pictures, Use). Tell the user.", label: "read_comic", error: true };
+    if (!reader) return { result: "This model can't see pictures and no vision model is set (Assistant → Customize → Pictures). Tell the user.", label: "read_comic", error: true };
     const order = ReadingOrder.safeParse(a.order);
     if (!order.success) return { result: "Give order: \"manga\" or \"western\" (ask the user when you don't know).", label: "read_comic", error: true };
     const all = base.messages.flatMap((m) => m.attachments.flatMap((x) => x.type === "image" ? [x] : []));
-    const picked = a.images?.length ? a.images.map((id) => all.find((x) => x.id === id)) : (all.some((x) => x.comicPage) ? all.filter((x) => x.comicPage) : all).slice().sort((x, y) => naturalCompare(x.name, y.name));
+    const picked = a.images?.length ? a.images.map((id) => all.find((x) => x.id === id)) : all.some((x) => x.comicPage) ? all.filter((x) => x.comicPage) /* in the order the user set in Import From a Comic */ : all.slice().sort((x, y) => naturalCompare(x.name, y.name));
     const missing = a.images?.filter((id, i) => !picked[i]) ?? [];
     if (missing.length) return { result: `No picture ${missing.map((m) => `“${m}”`).join(", ")} in this chat.`, label: "read_comic", error: true };
     const pages = picked.filter((x): x is NonNullable<typeof x> => !!x && !(a.skip ?? []).includes(x.id));
@@ -398,6 +404,7 @@ export async function runAssistant(o: {
         reply.steps[reply.steps.length - 1] = { ...reply.steps.at(-1)!, id: c.id, name: c.name, args: c.arguments, result: out.result, label: out.label, error: out.error ?? false, ms: now() - s0 };
         push();
       }
+      if (calls.some((c) => WAITING_TOOLS.includes(c.name)) && reply.steps.some((s) => WAITING_TOOLS.includes(s.name) && !s.error)) { reply.text = text; break; }
       if (looping && repeats.size && [...repeats.values()].some((n) => n >= 4)) { reply.text = "(Stopped: the same tool call kept repeating.)"; break; }
       chat = { ...chat, messages: [...base.messages, reply] };
     }
@@ -451,6 +458,8 @@ export async function compactChat(o: { core: HomunculusCore; store: SqlStore; ch
       lines.push(`ASSISTANT: ${m.text}`);
       for (const s of m.steps) lines.push(`  (tool ${s.name}: ${s.label})`);
       for (const r of m.results) if (r.type === "moved") lines.push(`  [moved ${r.items.map((i) => `${i.kind}:${i.itemId}`).join(", ")} to the folder “${r.folder || "(top)"}”${r.undone ? " — undone" : ""}]`);
+      else if (r.type === "understood") lines.push(`  ${understoodText(r).replace(/\n/g, "\n  ")}`);
+      else if (r.type === "question") lines.push(`  ${questionText(r)}`);
       else if (r.type !== "memory") lines.push(`  [${r.type} ${r.kind} “${r.name}”${"itemId" in r && r.itemId ? ` ${r.kind}:${r.itemId}` : ""}${"status" in r ? ` — ${r.status}` : ""}]`);
     }
   }
@@ -471,6 +480,32 @@ export function needsCompaction(chat: AssistantChat): boolean {
   const last = [...chat.messages].reverse().find((m) => m.role === "assistant" && m.used)?.used;
   const used = last?.lastPrompt ?? (last?.parts ? Object.values(last.parts).reduce((a, b) => a + b, 0) : 0);
   return used > 0.8 * (chat.contextLength ?? 75_000);
+}
+
+/** Puts a picture's description on its attachment, in every branch that shares the message (D-115). */
+export function withPictureDescription(chat: AssistantChat, attachmentId: string, description: PictureDescription | undefined): AssistantChat {
+  const fix = (m: AssistantMessage): AssistantMessage => m.attachments.some((a) => a.id === attachmentId)
+    ? { ...m, attachments: m.attachments.map((a) => (a.type === "image" && a.id === attachmentId ? { ...a, description } : a)) } : m;
+  return { ...chat, messages: chat.messages.map(fix), branches: chat.branches?.map((b) => ({ ...b, messages: b.messages.map(fix) })), historyMessages: chat.historyMessages?.map(fix), updatedAt: Date.now() };
+}
+
+/** "Retry" under a picture the vision model couldn't describe: describes it again and saves the chat. */
+export async function describeAgain(o: { core: HomunculusCore; store: SqlStore; chat: AssistantChat; attachmentId: string; connections: Record<string, ConnectionConfig> }): Promise<AssistantChat> {
+  const settings = await loadSettings(o.store);
+  const vision = visionConnection(settings, o.connections);
+  if (!vision) throw new Error("Choose a model for pictures first (Assistant → Customize → Pictures).");
+  const m = o.chat.messages.find((x) => x.attachments.some((a) => a.id === o.attachmentId));
+  const a = m?.attachments.find((x) => x.id === o.attachmentId);
+  if (!m || !a || a.type !== "image") throw new Error("That picture is no longer in this chat.");
+  const text = await describePicture({ core: o.core, store: o.store, conn: vision, picture: a, question: m.text, usage: emptyVisionUsage(vision.model) });
+  const next = withPictureDescription(o.chat, a.id, { text, model: vision.model, edited: false, at: Date.now() });
+  await saveChat(o.store, next);
+  return next;
+}
+
+/** How pictures reach the model a chat uses now (the composer and the messages show it). */
+export async function pictureRouteFor(store: SqlStore, conn: ConnectionConfig, settings: AssistantSettings, connections: Record<string, ConnectionConfig>): Promise<PictureRoute> {
+  return pictureRoute(await seesPictures(store, conn), visionConnection(settings, connections));
 }
 
 /** Changes a result card in a saved chat (after Apply / Discard / Undo). */

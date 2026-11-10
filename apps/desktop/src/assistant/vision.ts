@@ -165,7 +165,7 @@ export const READ_COMIC_SPEC: ToolSpec = {
 export const VISION_RULES = `## Pictures
 You can't see pictures. A vision model looks at each picture the user attaches and writes what it sees; it reaches you as [Image id: name — what the vision model saw: …]. Treat that as the picture the user showed you: don't say you can't see it. When you need a detail the description doesn't give, call look_at_image with the image id and a precise question; never guess what a picture shows.`;
 export const NO_VISION_RULES = `## Pictures
-You can't see pictures and no vision model is set, so attached pictures reach you only by name. Say so plainly once, and tell the user they can pick a model that describes pictures in Settings → Assistant → For Pictures, Use.`;
+You can't see pictures and no vision model is set, so attached pictures reach you only by name. Say so plainly once, and tell the user they can pick a model that describes pictures in Assistant → Customize → Pictures.`;
 
 const SHORT = 900;
 /** The line that replaces a picture in a request to a main model that can't see it. */

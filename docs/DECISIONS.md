@@ -1274,3 +1274,17 @@ Daniel (translated): "I use GLM 5.3 90% of the time and it has no vision; once y
 
 Signed: **CLAUDE**.
 
+
+## D-116 — Pictures and comics on screen (2026-11-10)
+
+Daniel: "rascunhos aprovados" (drafts approved) and "do everything; I'll test the whole feature when I'm back". Built from `docs/drafts/vision-comic/` on top of D-115.
+- **Where the vision model is chosen:** Assistant → Customize → Assistants → **Pictures (all assistants)** (connection + model; empty = pictures go as they are). The draft put it in Settings → Assistant, which doesn't exist; Customize is where the Assistant's models already live. A connection's editor (Settings → Connections) has **This Model Can See Pictures: Auto · Yes · No**, its hint saying what the service's list said.
+- **On a message:** under each picture "Described by <model> · See Description" (or "Edited by you"); See Description opens the text, editable, saved on the attachment in every branch that shares the message (`withPictureDescription`); "Describing…" while the reply runs; "Couldn't Describe · Retry" (`describeAgain`) when the vision model gave nothing. The reply shows the engine's `activity` ("Describing picture 1 of 2…", "Reading pages… 3 of 10") in place of the typing dots; the usage line adds "Pictures <model>: N calls · M saved · $". The request view (Request) shows what the model really got (descriptions, not pictures).
+- **In the box:** a picture with a model known blind and no vision model → "<model> can't see pictures. Describe them with: [Choose…]" (saves the setting).
+- **Import From a Comic** ("+" in the box; `ui/ComicImport.tsx`): a folder, pictures or a CBZ / ZIP (`zip.ts`: stored + deflate, DecompressionStream); big pages scaled to 2400 px (tall strips to 1200 px wide) as JPEG; a strip in natural file-name order; click = Skip, drag or Alt+←/→ = move; title; Reading Order Manga · Western; footer "N pages · K calls · about US$ x with <model>" (price from the cached model list when known). Start Reading sends one message "<title> · N pages · <order> order" with the pages as `comicPage` attachments (shown as a small strip); read_comic uses that order.
+- **Decision cards** (`assistant/cards.ts`, `ui/AssistantCards.tsx`): tool `show_understanding` → **What I Understood** (Synopsis, Cast with faces, lines and page tags, Relationships, Setting, Key Scenes, Not sure; a pencil per part and per person; Merge…; See Details = the read_comic reading; Looks Right sends "Looks right." and marks the card). Tool `ask` → **questions with buttons**, one at a time ("1 of 3", Back, Other…), cast faces on people; the answers go back as one message. Both end the reply. The model reads the card as corrected ("corrected by the user", merges) from the next message on (`understoodText`). This is also step 5's choice buttons of "The Assistant, smarter".
+- **New items made from a comic** always wait (Keep / Edit / Discard), shown open field by field with page tags (`create` takes `sources`, kept on the card, never saved in the item); **Use a Panel as Portrait…** picks a page and crops it (the crop sheet) — saved as the picture on Keep. The persona suggestion is a new persona the same way; the story is a Kit.
+- Offline test AI scripts the whole flow (describe; read → What I Understood → questions → card + persona) for click tests (`e2e/assistant-vision.e2e.ts`). Unit tests: `assistant/cards.test.ts` (+ the ZIP reader).
+
+Signed: **CLAUDE**.
+

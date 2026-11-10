@@ -18,6 +18,7 @@ import { ABOUT_TOPICS, aboutText } from "./about.ts";
 import { CUE_FIELDS, GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIELDS } from "./guides.ts";
 import { WebLimitedError, WebSession } from "./web.ts";
 import { readScope, readText, withReadRanges, type ReadScope } from "./reads.ts";
+import { questionFrom, understoodFrom } from "./cards.ts";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -165,7 +166,8 @@ export const TOOL_SPECS: ToolSpec[] = [
   { name: "guide", description: "How to write one kind of item well, and the exact fields `create`/`change` accept. Call once per kind per chat before writing it.",
     parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, "") }, required: ["kind"] } },
   { name: "create", description: "Create a new item. `data` uses the fields from `guide`. Saved right away (the user can undo) unless the user asked to approve new items. A preset may start from an existing one with data.from = \"preset:id\".",
-    parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, ""), data: { type: "object" }, folder: { type: "string", description: "Put it in this folder, e.g. \"RPG/Iron Party\" (made if missing; optional)." } }, required: ["kind", "data"] } },
+    parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, ""), data: { type: "object" }, folder: { type: "string", description: "Put it in this folder, e.g. \"RPG/Iron Party\" (made if missing; optional)." },
+      sources: { type: "object", description: "Optional, for material read from a comic or a file: where each field came from, e.g. {\"description\": \"p. 1–8\", \"first_mes\": \"p. 2\"}. Shown to the user as tags; never saved." } }, required: ["kind", "data"] } },
   { name: "change", description: "Propose changes to an existing item: only the fields that change, with their new values. The user approves or discards it. `summary`: one line on what and why. On a preset it never edits the preset: it saves an edited copy (the original stays as it is).",
     parameters: { type: "object", properties: { id: { type: "string" }, changes: { type: "object" }, summary: { type: "string" } }, required: ["id", "changes"] } },
   { name: "propose_trash", description: "Propose moving an item to the Trash (the user decides). You never delete.",
@@ -1070,7 +1072,10 @@ export async function approveNew(store: SqlStore, r: Extract<AssistantResult, { 
   const data = isObj(r.data) ? r.data : {};
   if ((r.kind === "character" || r.kind === "lorebook") && isObj(data.importFile))
     return importItem(store, r.kind, { name: str(data.importFile.name), text: str(data.importFile.text) }, newId);
-  return createItem(store, r.kind, data, newId);
+  const made = await createItem(store, r.kind, data, newId);
+  // D-115: a picture chosen on the card (Use a Panel as Portrait)
+  if (r.picture && (r.kind === "character" || r.kind === "persona")) await store.setAvatar(made.id, r.picture);
+  return made;
 }
 
 // ------------------------------------------------------------------ the web (D-067)
@@ -1266,7 +1271,8 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
           if (bad.length) throw new Error(`Unknown field(s) for a ${kind}: ${bad.join(", ")}. Call guide("${kind}").`);
           await validateNew(ctx.store, kind, data);
           const name = kind === "preset" ? await newPresetName(ctx.store, data) : str(data.name);
-          ctx.results.push({ type: "new", id: ctx.newId(), kind, name: name || kind, data: kind === "preset" ? { ...data, name } : data, status: "waiting" });
+          const sources = isObj(a.sources) ? Object.fromEntries(Object.entries(a.sources).filter(([, v]) => typeof v === "string" && v.trim()).map(([k, v]) => [k, String(v).trim()])) : {};
+          ctx.results.push({ type: "new", id: ctx.newId(), kind, name: name || kind, data: kind === "preset" ? { ...data, name } : data, status: "waiting", ...(Object.keys(sources).length ? { sources } : {}) });
           return { result: "Prepared; the user will approve it before it is saved.", label: `Prepared a new ${kind}: ${name}` };
         }
         const made = await createItem(ctx.store, kind, data, ctx.newId, w);
@@ -1324,6 +1330,16 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         if (str(a.variant) && !v) throw new Error(`No version “${str(a.variant)}” of ${c.name}. Its versions: ${c.variants.map((x) => x.label).join(", ") || "none"}.`);
         ctx.results.push({ type: "change", id: ctx.newId(), kind: "character", itemId: c.id, name: c.name, summary: `Use “${img.name}” as the picture${v ? ` of ${v.label}` : ""}`, before: { picture: "" }, after: { picture: JSON.stringify({ mime: img.mime, base64: img.base64, ...(v ? { variantId: v.id } : {}) }) }, status: "waiting" });
         return { result: "Proposed; the user decides.", label: `Proposed a picture for “${c.name}${v ? ` · ${v.label}` : ""}”` };
+      }
+      case "show_understanding": {
+        const card = understoodFrom(a, ctx.newId());
+        ctx.results.push(card);
+        return { result: "Shown to the user as a card. End your reply now (one short line at most); they will confirm or correct it.", label: "What I understood" };
+      }
+      case "ask": {
+        const card = questionFrom(a, ctx.newId());
+        ctx.results.push(card);
+        return { result: "Shown to the user with buttons. End your reply now; their answers come as their next message.", label: `Asked ${card.questions.length === 1 ? "a question" : `${card.questions.length} questions`}` };
       }
       case "look_at_image": {
         if (!ctx.look) return { result: "No vision model is set; you can't look at pictures in this chat.", label: "look_at_image", error: true };

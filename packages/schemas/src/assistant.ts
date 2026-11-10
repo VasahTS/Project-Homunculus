@@ -108,7 +108,39 @@ export const AssistantResult = z.discriminatedUnion("type", [
     status: z.enum(["waiting", "applied", "discarded", "stale"]).default("waiting"),
   }),
   z.object({ type: z.literal("trash"), id: Id, kind: AssistantKind, itemId: Id, name: z.string(), reason: z.string().default(""), status: z.enum(["waiting", "applied", "discarded"]).default("waiting") }),
-  z.object({ type: z.literal("new"), id: Id, kind: AssistantKind, name: z.string(), data: z.unknown(), status: z.enum(["waiting", "applied", "discarded"]).default("waiting"), itemId: Id.optional() }),
+  z.object({
+    type: z.literal("new"), id: Id, kind: AssistantKind, name: z.string(), data: z.unknown(), status: z.enum(["waiting", "applied", "discarded"]).default("waiting"), itemId: Id.optional(),
+    /** Where each field came from ("p. 3–5" for a comic, D-115); shown as tags, never saved in the item. */
+    sources: z.record(z.string(), z.string()).optional(),
+    /** A picture chosen on the card (Use a Panel as Portrait); saved as the item's picture on Save. */
+    picture: z.object({ mime: z.string(), base64: z.string() }).optional(),
+  }),
+  /** "What I Understood" (D-115): the story as the Assistant read it, for the user to correct before anything is made. */
+  z.object({
+    type: z.literal("understood"), id: Id, title: z.string().default(""),
+    synopsis: z.string().default(""), relationships: z.string().default(""), setting: z.string().default(""), scenes: z.string().default(""),
+    /** What it is unsure of. */
+    unsure: z.string().default(""),
+    cast: z.array(z.object({
+      id: z.string(), name: z.string().default(""), looks: z.string().default(""), personality: z.string().default(""),
+      /** One real line, word for word, and where it is. */
+      line: z.string().default(""), pages: z.string().default(""),
+    })).default([]),
+    /** Parts the user corrected ("synopsis", "cast"…), and people they merged ("D into A"). */
+    edited: z.array(z.string()).default([]),
+    merged: z.array(z.string()).default([]),
+    confirmed: z.boolean().default(false),
+  }),
+  /** Questions with buttons (D-115, "The Assistant, smarter" step 5): one at a time; the answers go back as one message. */
+  z.object({
+    type: z.literal("question"), id: Id,
+    questions: z.array(z.object({
+      question: z.string(),
+      options: z.array(z.object({ label: z.string(), detail: z.string().default(""), cast: z.string().default("") })).default([]),
+    })).default([]),
+    answers: z.array(z.string()).default([]),
+    done: z.boolean().default(false),
+  }),
   z.object({ type: z.literal("memory"), text: z.string() }),
   /** Items put in a folder (applied at once; Undo puts each back and removes the folders it made, if empty). D-064. */
   z.object({

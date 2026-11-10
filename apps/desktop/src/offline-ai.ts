@@ -13,7 +13,31 @@ async function* offlineAssistant(turns: RichTurn[]): AsyncGenerator<StreamChunk>
   const last = turns.at(-1)!;
   const text = (t: RichTurn) => (typeof t.content === "string" ? t.content : t.content.map((p) => (p.type === "text" ? p.text : "")).join(" "));
   await new Promise((r) => setTimeout(r, 120));
+  const call = (name: string, args: unknown) => ({ toolCalls: [{ id: `off_${Date.now()}`, name, arguments: JSON.stringify(args) }] });
+  // D-115: the comic flow, scripted (read → What I Understood → questions → one card + persona)
+  if (last.role === "tool" && typeof last.content === "string" && /^Read \d+ (comic )?pages?/.test(last.content)) {
+    yield "Here is what I understood — correct anything that's off.";
+    yield call("show_understanding", OFFLINE_UNDERSTANDING); return;
+  }
   if (last.role === "tool") { yield "Done (offline test AI) — have a look at the card below."; return; }
+  const said = text(last);
+  const comic = /· \d+ pages? · (manga|western) order/.exec(said);
+  if (comic) { yield call("read_comic", { order: comic[1] }); return; }
+  if (/^Looks right/.test(said)) {
+    yield call("ask", { questions: [
+      { question: "Who is {{user}} in this story?", options: [{ label: "Mei", detail: "you play the art student", cast: "A" }, { label: "Ren", detail: "you play the senior", cast: "B" }, { label: "Someone New", detail: "you join as a new person" }, { label: "Only Watching", detail: "the card plays everyone" }] },
+      { question: "What should I make?", options: [{ label: "The Card", detail: "one card with the main cast" }, { label: "The Card and a Story", detail: "plus a Kit to start stories from" }] },
+      { question: "Where does it start?", options: [{ label: "The Beginning", detail: "the door jams (p. 2)" }, { label: "After the End", detail: "what happens next" }] },
+    ] }); return;
+  }
+  if (/Who is \{\{user\}\}/.test(said)) {
+    yield "Here is the card. You play Ren, so he isn't in it; I made him a persona suggestion.";
+    yield { toolCalls: [
+      { id: `off_c${Date.now()}`, name: "create", arguments: JSON.stringify({ kind: "character", data: { name: "After Hours", description: "## Synopsis\nMei, an art student, is locked in the studio on a rainy night with {{user}}.\n\n## Characters\n### Mei\nShort brown hair, paint-stained apron. Shy; ironic when nervous.\n\n## Minor Characters\nKaho, Mei's roommate.\n\n## Setting\nA university art studio at night.", firstMessages: ["*The handle doesn't move.* \"It's jammed. Of course it's jammed.\""], exampleMessages: "<START>\n{{char}}: \"It's not like I ran away. I just… left fast.\"" }, sources: { description: "p. 1–8", firstMessages: "p. 2", exampleMessages: "p. 3" } }) },
+      { id: `off_p${Date.now()}`, name: "create", arguments: JSON.stringify({ kind: "persona", data: { name: "Ren", description: "Tall, glasses, long coat; calm and direct." }, sources: { description: "p. 2, 5" } }) },
+    ] };
+    return;
+  }
   const ask = text(last);
   if (/DRAFT FIRST is on/.test(text(turns[0]!)) && /character/i.test(ask)) {
     const name = /colder|again|change/i.test(ask) ? "Kessa (colder)" : "Kessa";
@@ -22,7 +46,6 @@ async function* offlineAssistant(turns: RichTurn[]): AsyncGenerator<StreamChunk>
     return;
   }
   const added = [...ask.matchAll(/\[Added: (\w+):([^ \]]+) · ([^\]]+)\]/g)];
-  const call = (name: string, args: unknown) => ({ toolCalls: [{ id: `off_${Date.now()}`, name, arguments: JSON.stringify(args) }] });
   const web = /search the web for (.+)/i.exec(ask);
   if (web) { yield call("web_search", { query: web[1]!.trim() }); return; }
   if (/tracker/i.test(ask)) { yield call("create", { kind: "tracker", data: { name: "World", help: "Time, weather and place", fields: [{ label: "Time of day", type: "text" }, { label: "Weather", type: "text" }, { label: "Place", type: "text" }] } }); return; }
@@ -36,6 +59,31 @@ async function* offlineAssistant(turns: RichTurn[]): AsyncGenerator<StreamChunk>
   if (char && /version/i.test(ask)) { yield call("change", { id: `character:${char[2]}`, changes: { variants: { add: [{ label: "Modern AU", description: `${char[3]} runs a bookshop in the city.` }] } }, summary: "A modern version" }); return; }
   if (char && /describ|improve|better/i.test(ask)) { yield call("change", { id: `character:${char[2]}`, changes: { description: `${char[3]} has kept the northern woods for eleven winters.` }, summary: "A more concrete description" }); return; }
   yield "Offline test AI here: I can't really think, but try “make a world tracker”, or add characters and ask for a Kit.";
+}
+
+const OFFLINE_UNDERSTANDING = {
+  title: "After Hours", synopsis: "Mei, an art student, gets locked in the studio on a rainy night with Ren, the senior she has avoided since the year-end party.",
+  cast: [{ id: "A", name: "Mei", looks: "Short brown hair, paint-stained apron.", personality: "Shy; ironic when nervous.", line: "It's not like I ran away. I just… left fast.", pages: "p. 3" },
+    { id: "B", name: "Ren", looks: "Tall, glasses, long coat.", personality: "Calm and direct.", line: "You left your sketchbook. I kept it.", pages: "p. 5" }],
+  relationships: "Mei and Ren: awkward → honest → close (p. 6–8).", setting: "A university art studio at night, rain on the skylight.", scenes: "The door jams (p. 2) · the sketchbook (p. 5) · the confession (p. 7)",
+  unsure: "The balloon in the last panel of page 6 has no tail; I gave it to Ren.",
+};
+
+/** The offline AI as a vision model (D-115): a made-up description, or a made-up reading of the comic pages it got. */
+async function* offlineVision(turns: RichTurn[]): AsyncGenerator<StreamChunk> {
+  const system = typeof turns[0]?.content === "string" ? turns[0].content : "";
+  const user = turns.at(-1)!;
+  const parts = Array.isArray(user.content) ? user.content : [];
+  const words = parts.map((p) => (p.type === "text" ? p.text : "")).join(" ");
+  await new Promise((r) => setTimeout(r, 150));
+  if (system.startsWith("You read comic pages")) {
+    const m = /pages (\d+)–(\d+) of/.exec(words);
+    const first = Number(m?.[1] ?? 1), last = Number(m?.[2] ?? 1);
+    const pages = Array.from({ length: last - first + 1 }, (_, i) => ({ page: first + i, cast: ["A", "B"], panels: [{ action: `Panel on page ${first + i}.`, lines: [{ speaker: "A", kind: "speech", text: `Offline line ${first + i}.` }] }] }));
+    yield JSON.stringify({ cast: [{ id: "A", name: "Mei", looks: "short brown hair", notes: "shy" }, { id: "B", name: "Ren", looks: "tall, glasses", notes: "calm" }], pages, summary: `Up to page ${last} (offline test AI).` });
+    return;
+  }
+  yield `(Offline test AI) A picture. ${/It asks you a question/.test(system) ? "It can't really look, but says: nothing to see." : "Made-up description: a dark window with a grey Send button."}`;
 }
 
 let calls = 0; // varies the reply on every call, so swipes look different
@@ -94,6 +142,7 @@ export const offlineAiModule: HomunculusModule = {
       },
       async *stream(req) {
         if (req.tools?.length && req.rich) { yield* offlineAssistant(req.rich); return; }
+        if (req.rich?.some((t) => Array.isArray(t.content) && t.content.some((p) => p.type === "image"))) { yield* offlineVision(req.rich); return; }
         const lastTurn = req.messages.at(-1)?.content ?? "";
         if (/Answer with ONLY/.test(lastTurn)) {
           // a little delay, like a real agent call (click tests can make it longer to watch the "updating" state)

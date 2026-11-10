@@ -125,13 +125,13 @@ describe("reading a comic (D-115)", () => {
     const visionCalls = seen.filter((r) => r.connection.model === "gemini-flash");
     expect(visionCalls).toHaveLength(1); // no single-picture descriptions
     expect(imagesIn(visionCalls[0]!)).toBe(3);
-    expect(visionCalls[0]!.rich![1]!.content).toEqual(expect.arrayContaining([{ type: "image", mime: "image/png", base64: "P1" }]));
+    expect((visionCalls[0]!.rich![1]!.content as Array<{ type: string; base64?: string }>).filter((p) => p.type === "image").map((p) => p.base64)).toEqual(["P3", "P1", "P2"]);
     const main1 = seen.find((r) => r.connection.model === "glm-5.3")!;
     expect(imagesIn(main1)).toBe(0);
     expect(textOf(main1)).toContain("[Comic page c1: page 1.png — read the pages with read_comic]");
     const step = done.messages.at(-1)!.steps[0]!;
     expect(step.error).toBe(false);
-    expect(step.result).toContain("Read 3 pages (1=c1, 2=c2, 3=c3) in manga order.");
+    expect(step.result).toContain("Read 3 pages (1=c3, 2=c1, 3=c2) in manga order."); // the order the pages were imported in
     expect(done.messages.at(-1)!.used!.vision).toMatchObject({ calls: 1 });
   });
 

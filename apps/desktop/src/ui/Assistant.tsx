@@ -8,7 +8,7 @@ import { deleteMessage, forkAt, pathsOf, selectPath, versionsOf } from "../assis
 import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
-import { compactChat, connectionFor, deleteChat, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, webOn, webSources, type ChatRow } from "../assistant/engine.ts";
+import { compactChat, connectionFor, deleteChat, describeAgain, pictureRouteFor, withPictureDescription, type PictureRoute, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, webOn, webSources, type ChatRow } from "../assistant/engine.ts";
 import { libraryCounts } from "../assistant/tools.ts";
 import { AssistantDetails } from "./AssistantDetails.tsx";
 import { AssistantMark } from "./AssistantMark.tsx";
@@ -20,12 +20,17 @@ import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
 import { readFileBytes } from "../files.ts";
 import { bytesToBase64 } from "@homunculus/st-cards";
-import { Button, Icon, IconButton, type ICONS } from "./kit.tsx";
+import { AutoText, Button, Icon, IconButton, type ICONS } from "./kit.tsx";
 import { CASCADE, slideIn, useEnter } from "./motion.ts";
 import { AssistantCustomizePage } from "./AssistantCustomize.tsx";
 import { QuickConnectMenu, type QuickConnectTarget } from "./QuickConnect.tsx";
 import type { ConnectionConfig, ModelInfo } from "@homunculus/core";
 import { Modal } from "./Vault.tsx";
+import { NewItemCard, QuestionCard, UnderstoodCard, type PagePicture } from "./AssistantCards.tsx";
+import { ComicImport } from "./ComicImport.tsx";
+import { cachedModels } from "./ModelPicker.tsx";
+import { keyNameOf } from "../connection.ts";
+import { visionConnection } from "../assistant/vision.ts";
 import { MessageText, openLink } from "./MessageText.tsx";
 import { SidebarChats } from "./SidebarChats.tsx";
 import { usePrefs } from "../prefs.ts";
@@ -183,6 +188,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const [savingHistory, setSavingHistory] = useState(false);
   const [undoMessage, setUndoMessage] = useState<{ chatId: string; branch: string; message: AssistantMessage; index: number } | null>(null);
   const [picking, setPicking] = useState(false);
+  const [comic, setComic] = useState(false);
   const [settings, setSettings] = useState<AssistantSettings | null>(null);
   const [details, setDetailsRaw] = useState<boolean>(() => { try { return localStorage.getItem("homunculus.assistant.details") !== "off"; } catch { return true; } });
   const setDetails = (on: boolean) => { setDetailsRaw(on); try { localStorage.setItem("homunculus.assistant.details", on ? "on" : "off"); } catch { /* private window */ } };
@@ -231,6 +237,16 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const r0 = connection.forRequest();
   const effective = resolved && r0.connection ? connectionFor(picks, resolved.assistant, r0.connection, r0.connections) : null;
   const lastUsed = [...(chat?.messages ?? [])].reverse().find((m) => m.role === "assistant" && m.used)?.used;
+  // D-115: how pictures reach the model this chat uses (described, sent, or only named)
+  const [route, setRoute] = useState<PictureRoute>("send");
+  const effectiveKey = effective ? `${effective.providerId}|${effective.baseUrl ?? ""}|${effective.model}|${effective.vision ?? ""}` : "";
+  useEffect(() => {
+    if (!effective || !settings) return;
+    let on = true;
+    void pictureRouteFor(svc.store, effective, settings, r0.connections).then((x) => { if (on) setRoute(x); }).catch(() => undefined);
+    return () => { on = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [svc, effectiveKey, settings]);
   const profileOf = (id: string | null | undefined) => (id ? connection.byId.get(id) : undefined);
   const modelLabel = effective?.model || profileOf(picks.connectionId ?? resolved?.assistant.connectionId ?? connection.defaultId)?.name || "No connection";
   const modelFrom = `${profileOf(picks.connectionId ?? resolved?.assistant.connectionId ?? connection.defaultId)?.name ?? "No connection"} · ${picks.connectionId !== undefined || picks.model ? "this chat" : resolved?.assistant.model || resolved?.assistant.connectionId ? `${resolved?.assistant.name}'s model` : "the stories' connection"}`;
@@ -312,6 +328,34 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     }
   };
 
+  /** Import From a Comic's footer: who reads the pages, in how many calls, about how much (D-115). */
+  const comicCost = (n: number) => {
+    const reader = route === "send" ? effective : settings ? visionConnection(settings, r0.connections) : undefined;
+    if (!reader) return "choose a model for pictures first (Assistant → Customize → Pictures)";
+    const calls = Math.ceil(n / 10);
+    const profile = reader.profileId ? connection.byId.get(reader.profileId) : undefined;
+    const info = profile ? (cachedModels(keyNameOf(profile)) ?? cachedModels(`${reader.providerId}|${reader.baseUrl ?? ""}`))?.find((x) => x.id === reader.model) : undefined;
+    const cost = info?.price?.input !== undefined ? (n * 1500 * (info.price.input ?? 0) + n * 400 * (info.price.output ?? 0)) / 1e6 : undefined;
+    return `${calls} call${calls === 1 ? "" : "s"}${cost !== undefined ? ` · about US$ ${cost < 0.01 ? cost.toFixed(3) : cost.toFixed(2)}` : ""} with ${shortModel(reader.model) || profile?.name || "the model"}`;
+  };
+  /** A message from a card (Looks Right, the answers): its text only; what is in the box stays there. */
+  const sendText = async (body: string) => {
+    if (busy || !chat || !body.trim()) return;
+    const now = Date.now();
+    const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: body.trim(), reasoning: "", attachments: [], steps: [], rounds: [], results: [], createdAt: now };
+    const fresh = (await loadChat(svc.store, chat.id)) ?? chat;
+    await runFrom({ ...fresh, messages: [...fresh.messages, user], updatedAt: now });
+  };
+  /** Import From a Comic → Start Reading: the pages as one message, read by the Assistant (D-115). */
+  const sendComic = async (title: string, pages: PagePicture[], order: "manga" | "western") => {
+    if (busy) return;
+    if (!connection.forRequest().connection) { setError("Set up a connection first (Settings → Connections)."); return; }
+    const now = Date.now();
+    const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: `${title || "A comic"} · ${pages.length} page${pages.length === 1 ? "" : "s"} · ${order} order`, reasoning: "",
+      attachments: pages.map((p) => ({ type: "image" as const, id: p.id, name: p.name, mime: p.mime, base64: p.base64, comicPage: true })), steps: [], rounds: [], results: [], createdAt: now };
+    const base = chat ?? AssistantChat.parse({ id: crypto.randomUUID(), createdAt: now, updatedAt: now, ...draft });
+    await runFrom({ ...base, title: base.messages.length ? base.title : title || base.title, messages: [...base.messages, user], updatedAt: now });
+  };
   const send = async (override?: string) => {
     const body = (override ?? text).trim();
     if (busy || (chat?.id ?? null) !== st.activeId || (!body && !atts.length)) return;
@@ -418,8 +462,25 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     }
   };
 
+  const visionProfile = settings?.vision.connectionId ? connection.byId.get(settings.vision.connectionId) : undefined;
+  const visionName = settings?.vision.model || visionProfile?.model || visionProfile?.name || "";
+  const pictureCtl = (m: AssistantMessage): PictureCtl => ({
+    route, visionName,
+    // the chat on screen gets the descriptions when the reply ends: until then the newest message's pictures read "Describing…"
+    describing: !!live && runningId.current === chat?.id && m.id === [...messages].reverse().find((x) => x.role === "user")?.id,
+    onSave: (id, t) => { if (chat && !busy) updateChat(withPictureDescription(chat, id, { text: t, model: "", edited: true, at: Date.now() })); },
+    onRetry: async (id) => {
+      if (!chat) return;
+      const next = await describeAgain({ core: svc.core, store: svc.store, chat, attachmentId: id, connections: connection.forRequest().connections });
+      if (selectedId.current === next.id) setChat(next);
+    },
+  });
   const messages = chat?.messages ?? [];
   const empty = messages.length === 0 && !live;
+  // D-115: the comic's pages, its reading (See Details) and its cast (faces on the question buttons)
+  const comicPages: PagePicture[] = messages.flatMap((x) => x.attachments.flatMap((a) => (a.type === "image" && a.comicPage ? [{ id: a.id, name: a.name, mime: a.mime, base64: a.base64 }] : [])));
+  const lastReading = [...messages].reverse().flatMap((x) => [...x.steps].reverse()).find((st) => st.name === "read_comic" && !st.error)?.result;
+  const castIds = [...messages].reverse().flatMap((x) => x.results).find((x): x is Extract<AssistantResult, { type: "understood" }> => x.type === "understood")?.cast.map((c) => c.id);
   if (st.page === "customize") return <AssistantCustomizePage key={st.custTab} initialTab={st.custTab} svc={svc} connection={connection} lead={lead} onClose={() => { st.setPage("chat"); void loadSettings(svc.store).then(setSettings); }} />;
 
   // chats the user put in context (any message of this chat) come first in Try It's list (D-111)
@@ -463,8 +524,8 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
         ) : (
           <div className="asst-col asst-msgs" data-testid="assistant-messages">
             {chat?.compact && <div className="asst-compacted">Older messages are sent as a summary · <button className="link" onClick={() => setDetails(true)}>Details</button></div>}
-            {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} onBranch={() => branchFrom(m)} onDelete={() => void removeMessage(m)} /> : (
-              <Reply key={m.id} m={m} onSaveDraft={(kind, data) => saveDraft(m, kind, data)} onAct={(ri, w) => void act(m, ri, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit}
+            {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} pictures={pictureCtl(m)} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} onBranch={() => branchFrom(m)} onDelete={() => void removeMessage(m)} /> : (
+              <Reply key={m.id} m={m} cards={{ busy, pages: comicPages, reading: lastReading, faces: castIds, onChange: (ri, next) => void decide(m, ri, next), onSend: (t) => void sendText(t) }} onSaveDraft={(kind, data) => saveDraft(m, kind, data)} onAct={(ri, w) => void act(m, ri, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit}
                 emoji={settings?.assistants.find((a) => a.name === m.used?.assistant)?.emoji}
                 onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} onBranch={!busy ? () => branchFrom(m) : undefined} onDelete={!busy ? () => void removeMessage(m) : undefined} versions={answerVersions(m)} />
             )))}
@@ -476,15 +537,19 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       <div className="asst-bottom"><div className="asst-col">
         {undoMessage && chat?.id === undoMessage.chatId && (chat.activeBranchId ?? "main") === undoMessage.branch && <div className="asst-deleted" role="status">Message deleted from this branch. <button className="link" disabled={busy} onClick={() => void undoDelete()}>Undo</button></div>}
         {error && <p className="asst-error" role="alert">{error}</p>}
-        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty, autoKeys }} />
+        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty, autoKeys,
+          onComic: () => setComic(true),
+          pictureNote: route === "drop" && settings ? { model: effective?.model ?? "", options: connection.profiles.filter((p) => p.id !== effective?.profileId).map((p) => ({ id: p.id, name: p.name })),
+            onChoose: (id) => { const n = { ...settings, vision: { connectionId: id, model: "" } }; setSettings(n); void saveSettings(svc.store, n); } } : undefined }} />
         {summary}
       </div></div>
       <input ref={fileInput} type="file" multiple hidden accept=".json,.jsonl,.md,.markdown,.txt,.csv,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" data-testid="assistant-file"
         onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; if (fs.length) void addFiles(fs); }} />
+      {comic && <ComicImport onClose={() => setComic(false)} onStart={(t, p, o) => { setComic(false); void sendComic(t, p, o); }} costHint={comicCost} />}
       {picking && <ContextPicker library={library} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
         onClose={() => setPicking(false)}
         onAdd={(items) => { setAtts((a) => [...a.filter((x) => x.type !== "item"), ...items]); setPicking(false); }} />}
-      {viewing && chat && settings && <RequestView chat={chat} messageId={viewing} settings={settings} svc={svc} onClose={() => setViewing(null)} />}
+      {viewing && chat && settings && <RequestView chat={chat} messageId={viewing} settings={settings} svc={svc} route={route} onClose={() => setViewing(null)} />}
     </section>
     {details && settings && <AssistantDetails chat={chat} live={runningId.current === st.activeId ? live : null} settings={settings} modelName={modelLabel} modelFrom={modelFrom}
       onSettings={(n) => { setSettings(n); void saveSettings(svc.store, n); }} onChat={updateChat} onCompact={() => void compactNow()} compacting={compacting}
@@ -494,8 +559,11 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   );
 }
 
-function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false, autoKeys }: {
+function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false, autoKeys, pictureNote, onComic }: {
   autoKeys?: Set<string>;
+  /** The model can't see pictures and no vision model is chosen (D-115): a note on each picture, with a way to choose one. */
+  pictureNote?: { model: string; options: Array<{ id: string; name: string }>; onChoose: (connectionId: string) => void };
+  onComic?: () => void;
   text: string; setText: (t: string) => void; atts: AssistantAttachment[]; setAtts: (f: (a: AssistantAttachment[]) => AssistantAttachment[]) => void;
   busy: boolean; onSend: () => void; onStop: () => void; onPick: () => void; onFiles: () => void; onDropFiles: (f: File[]) => void; picksBar: ReactNode; autoFocus?: boolean;
 }) {
@@ -514,6 +582,14 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
               <button type="button" aria-label={`Remove ${a.name}`} onClick={() => setAtts((x) => x.filter((y) => y.id !== a.id))}>✕</button>
             </span>
           ))}
+          {pictureNote && atts.some((a) => a.type === "image") && (
+            <span className="asst-pic-note" data-testid="assistant-picture-note">{shortModel(pictureNote.model)} can't see pictures. Describe them with:
+              <select aria-label="Model for pictures" value="" onChange={(e) => e.target.value && pictureNote.onChoose(e.target.value)}>
+                <option value="">Choose…</option>
+                {pictureNote.options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </span>
+          )}
         </div>
       )}
       <textarea rows={2} value={text} autoFocus={autoFocus} placeholder="What shall we make? A character, a Kit, a lorebook…" aria-label="Message to the Assistant"
@@ -530,6 +606,9 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
             <button type="button" className="asst-pop-item" onClick={() => { close(); onFiles(); }} aria-label="Attach">
               <span className="asst-pop-emoji"><Icon name="paperclip" size={14} /></span><span><b>Attach a File…</b><small>.json, .jsonl, .md, .txt, PNG cards, pictures</small></span>
             </button>
+            {onComic && <button type="button" className="asst-pop-item" data-testid="assistant-import-comic" onClick={() => { close(); onComic(); }}>
+              <span className="asst-pop-emoji"><Icon name="book" size={14} /></span><span><b>Import From a Comic…</b><small>Pages → one card (and a story)</small></span>
+            </button>}
           </>}
         </Pop>
         {picksBar}
@@ -540,15 +619,27 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
   );
 }
 
-function UserBubble({ m, busy, onEdit, onView, onBranch, onDelete }: { m: AssistantMessage; busy: boolean; onEdit: (t: string) => void; onView: () => void; onBranch: () => void; onDelete: () => void }) {
+/** What a message's pictures need from the view (D-115). */
+interface PictureCtl { route: PictureRoute; describing: boolean; visionName: string; onSave: (attachmentId: string, text: string) => void; onRetry: (attachmentId: string) => Promise<void> }
+
+function UserBubble({ m, busy, onEdit, onView, onBranch, onDelete, pictures }: { m: AssistantMessage; busy: boolean; onEdit: (t: string) => void; onView: () => void; onBranch: () => void; onDelete: () => void; pictures?: PictureCtl }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.text);
+  const [seeing, setSeeing] = useState<string | null>(null);
+  const pages = m.attachments.filter((a) => a.type === "image" && a.comicPage);
+  const seen = m.attachments.find((a) => a.id === seeing);
   return (
     <div className="asst-me" data-message-id={m.id}>
       {m.attachments.length > 0 && <div className="asst-ctx end">{m.attachments.map((a) => (
-        a.type === "image" ? <img key={a.id} className="asst-thumb" src={`data:${a.mime};base64,${a.base64}`} alt={a.name} />
+        a.type === "image" ? (a.comicPage ? null : <PictureThumb key={a.id} a={a} ctl={pictures} open={seeing === a.id} onToggle={() => setSeeing(seeing === a.id ? null : a.id)} />)
           : <span key={a.id} className="asst-chip"><span className="asst-k" aria-hidden>{a.type === "item" ? <KindMark kind={a.kind} /> : <Icon name="file" size={14} />}</span><span className="asst-chip-name">{a.name}</span></span>
-      ))}</div>}
+      ))}
+        {pages.length > 0 && <div className="asst-pages" data-testid="assistant-comic-pages" title={pages.map((p) => p.name).join(", ")}>
+          {pages.slice(0, 12).map((p) => p.type === "image" && <img key={p.id} src={`data:${p.mime};base64,${p.base64}`} alt={p.name} />)}
+          {pages.length > 12 && <span className="asst-pages-more">+{pages.length - 12}</span>}
+        </div>}
+      </div>}
+      {seen?.type === "image" && pictures && <DescriptionBox a={seen} visionName={pictures.visionName} onSave={(t) => pictures.onSave(seen.id, t)} onClose={() => setSeeing(null)} />}
       {editing ? (
         <div className="asst-edit">
           <textarea value={draft} rows={3} autoFocus aria-label="Edit message" onChange={(e) => setDraft(e.target.value)}
@@ -568,7 +659,44 @@ function UserBubble({ m, busy, onEdit, onView, onBranch, onDelete }: { m: Assist
   );
 }
 
-function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false, onSaveDraft, onBranch, onDelete, versions }: {
+/** A picture on a message, with who described it (D-115): "Described by … · See Description", "Describing…", "Couldn't Describe · Retry". */
+function PictureThumb({ a, ctl, open, onToggle }: { a: Extract<AssistantAttachment, { type: "image" }>; ctl?: PictureCtl; open: boolean; onToggle: () => void }) {
+  const [retrying, setRetrying] = useState(false);
+  const [failed, setFailed] = useState("");
+  const d = a.description;
+  let line: ReactNode = null;
+  if (d) line = <>{d.edited ? "Edited by you" : `Described by ${shortModel(d.model) || ctl?.visionName || "the vision model"}`} · <button type="button" className="asst-desc-btn" aria-expanded={open} onClick={onToggle} data-testid="assistant-see-description">{open ? "Hide Description" : "See Description"}</button></>;
+  else if (ctl?.route === "describe" && (ctl.describing || retrying)) line = <>Describing…</>;
+  else if (ctl?.route === "describe") line = <><span className="warn" title={failed || "The vision model gave no description (it may have refused the picture)."}>Couldn't Describe</span> · <button type="button" className="asst-desc-btn" data-testid="assistant-describe-retry"
+    onClick={() => { setRetrying(true); setFailed(""); void ctl.onRetry(a.id).catch((e) => setFailed(e instanceof Error ? e.message : String(e))).finally(() => setRetrying(false)); }}>Retry</button></>;
+  return (
+    <span className="asst-pic">
+      <img className="asst-thumb" src={`data:${a.mime};base64,${a.base64}`} alt={a.name} />
+      {line && <span className="asst-desc-line" data-testid="assistant-picture-line">{line}</span>}
+    </span>
+  );
+}
+
+/** What the vision model saw, editable; an edited description is what the model reads from then on and is never rewritten. */
+function DescriptionBox({ a, onSave, onClose, visionName }: { a: Extract<AssistantAttachment, { type: "image" }>; onSave: (text: string) => void; onClose: () => void; visionName: string }) {
+  const [text, setText] = useState(a.description?.text ?? "");
+  const changed = text.trim() !== (a.description?.text ?? "").trim();
+  return (
+    <div className="asst-desc" data-testid="assistant-description">
+      <div className="asst-desc-h"><b>{a.description?.edited ? "Your description" : `What ${shortModel(a.description?.model ?? "") || visionName || "the vision model"} saw`}</b><span>{a.description?.edited ? "Edited by you" : "The model reads this"}</span></div>
+      <AutoText value={text} onChange={(e) => setText(e.target.value)} aria-label="Picture description" />
+      <div className="asst-desc-acts">
+        <Button small variant="prominent" disabled={!changed || !text.trim()} onClick={() => onSave(text.trim())} data-testid="assistant-description-save">Save</Button>
+        <Button small variant="plain" onClick={onClose}>Close</Button>
+        <span className="hint">{changed ? "Your edit is what the model reads from now on; it is never written again." : a.description?.edited ? "Saved. The model reads your version." : ""}</span>
+      </div>
+    </div>
+  );
+}
+
+function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false, onSaveDraft, onBranch, onDelete, versions, cards }: {
+  /** Decision cards (D-115): edits on a card, answers sent as a message. */
+  cards?: Omit<CardCtl, "onChange"> & { onChange: (i: number, next: AssistantResult) => void };
   onBranch?: () => void; onDelete?: () => void; versions?: { index: number; total: number; pick: (i: number) => void };
   onSaveDraft?: ((kind: AssistantKind, data: Record<string, unknown>) => Promise<void>) | undefined;
   m: AssistantMessage; live?: boolean; onAct: (i: number, what: "apply" | "discard" | "undo" | "restore") => void; onApplyAll: () => void;
@@ -589,9 +717,10 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
         {thinkOpen && <div className="asst-qlist">{m.reasoning}</div>}
         {m.steps.length > 0 && <button type="button" className="asst-quiet" onClick={() => setStepsOpen(!stepsOpen)} aria-expanded={stepsOpen} data-testid="assistant-steps">{stepLine} ›</button>}
         {stepsOpen && <div className="asst-qlist">{m.steps.map((s, i) => <div key={i} className={s.error ? "bad" : ""}>{s.label}{s.helperSteps?.length ? <details><summary>Helper reading steps ({s.helperSteps.length})</summary>{s.helperSteps.map((h, j) => <details key={j}><summary>{h.label}</summary><pre className="asst-pre">{h.args}{"\n\n"}{h.result}</pre></details>)}</details> : null}</div>)}</div>}
-        {m.text ? <ReplyText text={m.text} live={live} results={m.results} onSaveDraft={onSaveDraft} /> : live && !m.steps.length && !m.reasoning ? <div className="asst-typing" aria-label="Thinking"><i /><i /><i /></div> : null}
+        {live && m.activity && <div className="asst-activity" role="status" data-testid="assistant-activity"><span className="asst-typing" aria-hidden><i /><i /><i /></span>{m.activity}</div>}
+        {m.text ? <ReplyText text={m.text} live={live} results={m.results} onSaveDraft={onSaveDraft} /> : live && !m.activity && !m.steps.length && !m.reasoning ? <div className="asst-typing" aria-label="Thinking"><i /><i /><i /></div> : null}
         {!live && <WebSourcesRow steps={m.steps} />}
-        {m.results.map((r, i) => <div key={i} className="asst-res-group"><ResultCard r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} />
+        {m.results.map((r, i) => <div key={i} className="asst-res-group"><ResultCard r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} ctl={cards && { ...cards, onChange: (next) => cards.onChange(i, next) }} />
           {!live && trialKind(r) && <TrialCard r={r} />}</div>)}
         {waiting > 1 && !live && <div className="asst-decide"><Button small variant="prominent" onClick={onApplyAll} data-testid="assistant-apply-all">Apply all {waiting}</Button></div>}
         {m.error && <p className="asst-error" role="alert">{m.error === "Stopped" || /abort/i.test(m.error) ? "Stopped." : m.error}</p>}
@@ -608,8 +737,16 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
   );
 }
 
-function ResultCard({ r, onAct, onOpen, onStartKit }: { r: AssistantResult; onAct: (w: "apply" | "discard" | "undo" | "restore") => void; onOpen: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void }) {
+/** What the decision cards need from the view (D-115). */
+interface CardCtl { busy: boolean; pages: PagePicture[]; reading?: string; faces?: string[]; onChange: (next: AssistantResult) => void; onSend: (text: string) => void }
+
+function ResultCard({ r, onAct, onOpen, onStartKit, ctl }: { r: AssistantResult; onAct: (w: "apply" | "discard" | "undo" | "restore") => void; onOpen: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void; ctl?: CardCtl }) {
   const [open, setOpen] = useState(false);
+  const noop = () => {};
+  if (r.type === "understood") return <UnderstoodCard r={r} reading={ctl?.reading} busy={!ctl || ctl.busy} onChange={ctl?.onChange ?? noop} onSend={ctl?.onSend ?? noop} />;
+  if (r.type === "question") return <QuestionCard r={r} faces={ctl?.faces} busy={!ctl || ctl.busy} onChange={ctl?.onChange ?? noop} onSend={ctl?.onSend ?? noop} />;
+  if (r.type === "new" && ctl && (r.sources || (ctl.pages.length > 0 && (r.kind === "character" || r.kind === "persona" || r.kind === "kit"))) && r.status !== "applied")
+    return <NewItemCard r={r} pages={ctl.pages} onAct={onAct} onChange={ctl.onChange} renderValue={(k, v) => <DraftField name={k} value={v} bare />} />;
   if (r.type === "memory") return <div className="asst-memory">✓ Remembered: {r.text}</div>;
   if (r.type === "moved") return (
     <div className={`asst-res${open ? " open" : ""}`} data-testid="assistant-result">
@@ -1034,6 +1171,7 @@ function usageLine(m: AssistantMessage): string {
   parts.push(u.tokensIn || u.tokensOut ? `${fmtK(u.tokensIn ?? 0)} in · ${fmtK(u.tokensOut ?? 0)} out` : "tokens not reported");
   if (u.cost) parts.push(`$${u.cost.toFixed(4)}`);
   if (u.calls && u.calls > 1) parts.push(`${u.calls} calls`);
+  if (u.vision) parts.push(`Pictures${u.vision.model ? ` ${shortModel(u.vision.model)}` : ""}: ${u.vision.calls} call${u.vision.calls === 1 ? "" : "s"}${u.vision.cached ? ` · ${u.vision.cached} saved` : ""}${u.vision.cost ? ` · $${u.vision.cost.toFixed(4)}` : ""}`);
   if (u.helper) parts.push(`Helper ${u.helper.model}: ${u.helper.calls} calls · ${fmtK(u.helper.tokensIn)} in · ${fmtK(u.helper.tokensOut)} out${u.helper.cost ? ` · $${u.helper.cost.toFixed(4)}` : " · cost not reported"}`);
   return parts.join(" · ");
 }
@@ -1051,6 +1189,8 @@ function chatMarkdown(c: AssistantChat): string {
       if (m.steps.length) out.push(m.steps.map((s) => `- ${s.label}`).join("\n"), "");
       if (m.text) out.push(m.text, "");
       for (const r of m.results) if (r.type === "moved") out.push(`> Moved to ${r.folder || "no folder"}: ${r.items.map((i) => i.name).join(", ")}${r.undone ? " — undone" : ""}`);
+      else if (r.type === "understood") out.push(`> What I understood: ${r.synopsis}`);
+      else if (r.type === "question") out.push(...r.questions.map((q, j) => `> ${q.question} → ${r.answers[j] ?? "(not answered)"}`));
       else if (r.type !== "memory") out.push(`> ${r.type === "created" ? "Created" : r.type === "change" ? "Change" : r.type === "trash" ? "Trash proposal" : "New"}: ${r.kind} “${r.name}”${"status" in r ? ` — ${r.status}` : ""}`);
       out.push("");
     }
@@ -1059,11 +1199,11 @@ function chatMarkdown(c: AssistantChat): string {
 }
 
 /** What the model received for one message (rebuilt from the saved chat, pictures left out). Flint: "what the model received". */
-function RequestView({ chat, messageId, settings, svc, onClose }: { chat: AssistantChat; messageId: string; settings: AssistantSettings; svc: AppServices; onClose: () => void }) {
+function RequestView({ chat, messageId, settings, svc, onClose, route = "send" }: { chat: AssistantChat; messageId: string; settings: AssistantSettings; svc: AppServices; onClose: () => void; route?: PictureRoute }) {
   const [counts, setCounts] = useState("…");
   useEffect(() => { void libraryCounts(svc.store).then(setCounts); }, [svc]);
   const i = chat.messages.findIndex((m) => m.id === messageId);
-  const turns = toTurns({ ...chat, messages: chat.messages.slice(0, i + 1) }, settings, counts);
+  const turns = toTurns({ ...chat, messages: chat.messages.slice(0, i + 1) }, settings, counts, route);
   const tools = toolsFor(settings, chat.draftFirst, webOn(chat, settings), resolveFor(chat, settings).assistant.toolHelper?.enabled);
   const show = (c: RichTurn["content"]) => (typeof c === "string" ? c : c.map((p) => (p.type === "text" ? p.text : `[image ${p.mime}, ${Math.round(p.base64.length * 0.75 / 1024)} KB]`)).join("\n"));
   return (
@@ -1159,8 +1299,13 @@ function DraftCard({ kind, json, ready, results, onSave }: { kind: AssistantKind
   );
 }
 
-function DraftField({ name, value }: { name: string; value: unknown }) {
+function DraftField({ name, value, bare = false }: { name: string; value: unknown; bare?: boolean }) {
   const label = name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+  if (bare) {
+    if (Array.isArray(value)) return <>{value.map((v, i) => <div key={i} className="asst-draft-v"><MessageText text={typeof v === "string" ? v : v && typeof v === "object" ? String((v as Record<string, unknown>).text ?? (v as Record<string, unknown>).title ?? (v as Record<string, unknown>).label ?? (v as Record<string, unknown>).name ?? (v as Record<string, unknown>).id ?? JSON.stringify(v)) : String(v)} /></div>)}</>;
+    if (value && typeof value === "object") return <div className="asst-draft-chips">{Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== "" && v != null).map(([k, v]) => <span key={k}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</span>)}</div>;
+    return <div className="asst-draft-v"><MessageText text={String(value ?? "")} /></div>;
+  }
   if (Array.isArray(value)) {
     const items = value.map((v) => (typeof v === "string" ? v : v && typeof v === "object" ? String((v as Record<string, unknown>).title ?? (v as Record<string, unknown>).label ?? (v as Record<string, unknown>).name ?? JSON.stringify(v)) : String(v)));
     return <div className="asst-draft-f"><span>{label} <small>({items.length})</small></span>{typeof value[0] === "string" && name !== "tags" && name !== "keys"
