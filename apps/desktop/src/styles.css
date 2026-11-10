@@ -4113,3 +4113,12 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .sortable-item > .stack, .quick-blocks .stack { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .quick-block { min-width: 0; }
 @container chatbar (max-width: 460px) { .toolbar-name, .toolbar-sub > .play-wrap, .toolbar-leading > .back-btn { min-width: 0; } }
+/* Character tab header (Daniel 11/10: "some cards look oddly formatted"): name and details take the width; the
+   character choice and Full Editor sit on a line of their own under them, never squeezing the name into a column */
+.pc-actions { display: contents; }
+.pc.standalone .pc-head { flex-wrap: wrap; row-gap: 8px; align-items: flex-start; }
+.pc.standalone .pc-toggle { flex: 1 1 100%; align-items: center; gap: 12px; }
+.pc.standalone .pc-title { gap: 3px; }
+.pc.standalone .pc-title strong { overflow-wrap: anywhere; }
+.pc.standalone .pc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-left: 72px; min-width: 0; }
+.pc.standalone .pc-actions .link-select { max-width: 100%; }

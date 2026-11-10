@@ -96,14 +96,18 @@ export function PromptCharacter({ cards, avatars, onSave, onOpenEditor, standalo
         <button type="button" className="pc-toggle" onClick={() => { if (!standalone) setOpen(!open); }} aria-expanded={open} data-testid="prompt-character-toggle">
           {!standalone && <span className="chev" aria-hidden><Icon name="chevron" size={12} /></span>}
           <AvatarDot name={shown.name} avatar={pic} size={standalone ? 56 : 24} />
-          <span className="pc-title"><strong>{shown.name}</strong><small>{card.tracked === false ? "Not tracked in the Scene · " : ""}{version ? `${version} version` : "Main version"} · ~{tokens} tokens{state === "saving" ? " · saving…" : state === "saved" ? " · saved" : ""}</small></span>
+          <span className="pc-title"><strong>{shown.name}</strong><small>{!standalone && card.tracked === false ? "Not tracked in the Scene · " : ""}{version ? `${version} version` : "Main version"} · ~{tokens} tokens{state === "saving" ? " · saving…" : state === "saved" ? " · saved" : ""}</small>
+            {standalone && card.tracked === false && <small>Not tracked in the Scene</small>}</span>
         </button>
-        {cards.length > 1 && (
-          <select className="link-select" aria-label="Which character" value={card.character.id} onChange={(e) => setWhich(e.target.value)}>
-            {cards.map((c) => <option key={c.character.id} value={c.character.id}>{effectiveCharacter(c.character, c.variantId).name}</option>)}
-          </select>
-        )}
-        <button type="button" className="link quiet" onClick={() => { flush(); onOpenEditor(card.character.id); }}>Full Editor</button>
+        {/* standalone (D-105): the choices go on their own line under the name, so a long name never gets squeezed */}
+        <span className="pc-actions">
+          {cards.length > 1 && (
+            <select className="link-select" aria-label="Which character" value={card.character.id} onChange={(e) => setWhich(e.target.value)}>
+              {cards.map((c) => <option key={c.character.id} value={c.character.id}>{effectiveCharacter(c.character, c.variantId).name}</option>)}
+            </select>
+          )}
+          <button type="button" className="link quiet" onClick={() => { flush(); onOpenEditor(card.character.id); }}>Full Editor</button>
+        </span>
       </div>
       {standalone ? (
         <div className="pc-sheet">
