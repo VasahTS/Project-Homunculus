@@ -4221,3 +4221,14 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .sc-dots { display: inline-flex; gap: 2px; align-items: center; }
 .sc-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; display: block; }
 .side-hit mark { background: var(--accent-soft); color: var(--label); border-radius: 2px; }
+/* D-112: tracker values keep their shape — one layout per group, the "changed" dot beside the label, long list items one per line */
+.q-k .q-chg { margin: 0; vertical-align: middle; }
+.q-tile-k .q-chg, .q-person-name .q-chg { margin: 0 0 0 6px; vertical-align: 1px; }
+.q-row-top .q-chg { align-self: center; margin: 0; }
+.q-kv.stack { gap: 2px; }
+.q-kv.stack .q-k { line-height: 18px; }
+.item-chip { border-radius: calc(6px * var(--round)); }
+.chips-read.lines { display: grid; gap: 3px; }
+.chips-read.lines .item-chip { position: relative; padding: 0 0 0 12px; border-radius: 0; background: transparent; font-size: inherit; }
+.chips-read.lines .item-chip::before { content: ""; position: absolute; left: 2px; top: 0.62em; width: 4px; height: 4px; border-radius: 50%; background: var(--label-2); }
+.fv-edit.fv-edit-list { display: block; min-height: 2.6em; white-space: pre-wrap; }

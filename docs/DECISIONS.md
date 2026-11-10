@@ -1215,3 +1215,13 @@ Daniel (translated): "ask before doing it; not needed most of the time, but grea
 
 Signed: **CLAUDE**.
 
+
+## D-112 — Tracker values keep their shape: one layout per group, the dot beside the label, lists one item per line (2026-11-10)
+
+Daniel (translated): "something in another update broke the trackers — look at how Face and Hair are shown differently; remove the update icon in front of the text, it breaks the formatting; in Row it shows these borders that break when the content is long, and it is horrible to edit. It is not only Face × Hair; find the cause and fix it."
+- Cause: D-105 put a long text value (over 60 characters) under its label but left short ones beside it, row by row, so one group mixed two layouts (Face above, Hair beside). The "changed with this message" dot sat in front of the value, and the value is a block, so the dot took a line of its own. Lists showed every item as a pill, which turns into a blob when an item wraps, and were edited in a one-line box with commas.
+- Now: the rows of a group share one layout — label beside the value, or, when any value of the group is long (text over 60 characters, a list with an item over 24 or over 40 in all), every label above its value. Same in Now, a person's sheet, the short sheet and a tracker's tab.
+- The dot sits after the label (a row's label, a tile's name, a person's name, after a list row's cells); never in front of a value. Leads lose it (they have no label).
+- List items: chips with small corners; when an item is long, the list reads one item per line with a small bullet. Editing a list is a growing box, one item per line (Shift+Enter for the next, Enter saves); commas stay inside an item.
+
+Signed: **CLAUDE**.

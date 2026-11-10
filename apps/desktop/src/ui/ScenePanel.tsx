@@ -364,7 +364,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
           {now.length > 0 && (
             <section data-testid="scene-header" aria-label="Now">
               <div className="q-gh">Now</div>
-              <div className="q-group">{now.map((r) => <KeyValue key={r.label} label={r.label} cells={r.cells} disabled={disabled} serif />)}</div>
+              <div className="q-group">{now.map((r) => <KeyValue key={r.label} label={r.label} cells={r.cells} disabled={disabled} serif stack={now.some((x) => x.cells.some(isLong))} />)}</div>
             </section>
           )}
 
@@ -412,7 +412,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
                   {g.list ? <ListGroup c={g.list} disabled={disabled} /> : bySectionOf(g.cells.filter((c) => !isEmpty(c.f, c.value))).map(([sec, cells]) => (
                     <div key={sec || "-"} className="q-tab-section">
                       {sec && <div className="q-gh">{sec}</div>}
-                      <div className="q-group">{cells.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>
+                      <div className="q-group">{cells.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} stack={cells.some(isLong)} />)}</div>
                     </div>
                   ))}
                 </div>
@@ -476,15 +476,18 @@ function bySectionOf(cells: Cell[]): Array<[string, Cell[]]> {
   return out;
 }
 
-/** One "label · value" row of a group. Several cells = one row ("14:30, afternoon"). Long text sits under its label (D-105). */
-function KeyValue({ label, cells, disabled, serif = false }: { label: string; cells: Cell[]; disabled: boolean; serif?: boolean }) {
+/**
+ * One "label · value" row of a group. Several cells = one row ("14:30, afternoon"). The rows of one group share one
+ * layout (D-112): label on the left, or, when any value of the group is long, every label above its value. The "changed
+ * with this message" dot sits after the label, never in front of the value (it broke the value's line).
+ */
+function KeyValue({ label, cells, disabled, serif = false, stack }: { label: string; cells: Cell[]; disabled: boolean; serif?: boolean; stack?: boolean }) {
   const changed = cells.some((c) => wasChanged(c.was, c.value));
-  const long = cells.length === 1 && cells[0]!.f.type === "text" && formatFieldValue(cells[0]!.f, cells[0]!.value).length > 60;
+  const stacked = stack ?? cells.some(isLong);
   return (
-    <div className={`q-kv${label ? "" : " solo"}${long ? " stack" : ""}`}>
-      {label && <span className="q-k">{label}{cells.some((c) => c.f.help) && <Help text={userMacro(cells.find((c) => c.f.help)!.f.help)} />}</span>}
+    <div className={`q-kv${label ? "" : " solo"}${stacked && label ? " stack" : ""}`}>
+      {label && <span className="q-k">{label}{changed && <span className="q-chg" title="Changed with this message" />}{cells.some((c) => c.f.help) && <Help text={userMacro(cells.find((c) => c.f.help)!.f.help)} />}</span>}
       <span className={`q-v${serif ? " serif" : ""}`}>
-        {changed && <span className="q-chg" title="Changed with this message" />}
         {cells.filter((c) => !isEmpty(c.f, c.value) || cells.length === 1).map((c, i) => (
           <Val key={`${c.t.agent.id}:${c.f.key}`} c={c} disabled={disabled} sep={i > 0} />
         ))}
@@ -540,9 +543,9 @@ function RowsView({ f, rows, was, disabled, onCommit }: { f: TrackerField; rows:
       {rows.map((r, i) => (
         <div key={i} className="row-line q-row">
           <div className="q-row-top">
-            {wasChanged(was[i], r) && <span className="q-chg" title="Changed with this message" />}
             {title && cellOf(title, r, i, "q-row-title")}
             {side.map((c) => cellOf(c, r, i, "q-row-side"))}
+            {wasChanged(was[i], r) && <span className="q-chg" title="Changed with this message" />}
             <button className="q-row-remove" disabled={disabled} aria-label={`Remove ${f.label} ${i + 1}`} title="Remove this row" onClick={() => onCommit(rows.filter((_, j) => j !== i))}>
               <Icon name="close" size={11} />
             </button>
@@ -581,8 +584,8 @@ function PersonCard({ p, avatar, handle, edge, open, disabled, onToggle, onRemov
           aria-label={`${p.name}${p.you ? " (you)" : ""}${changed ? ", changed with this message" : ""}. ${open ? "Fold" : "Show details"}`}>
           {p.pair ? <span className="pair-icon" aria-hidden>⇄</span> : <AvatarDot name={p.name} avatar={avatar} size={32} />}
           <span className="q-person-text">
-            <span className="q-person-name">{p.name}{p.you && <span className="q-you"> (you)</span>}</span>
-            {line && !open && <span className="q-person-line">{changed && <span className="q-chg" />}{line}</span>}
+            <span className="q-person-name">{p.name}{p.you && <span className="q-you"> (you)</span>}{changed && <span className="q-chg" title="Changed with this message" />}</span>
+            {line && !open && <span className="q-person-line">{line}</span>}
           </span>
           <span className={`q-chev${open ? " open" : ""}`} aria-hidden><Icon name="chevron" size={14} /></span>
         </button>
@@ -659,7 +662,6 @@ function PersonDetails({ p, disabled, avatar, withTitle = false }: { p: Person; 
       {subtitle.map((c) => <div key={`${c.t.agent.id}:${c.f.key}`} className="q-sub" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
       {lead.map((c) => (
         <div key={`${c.t.agent.id}:${c.f.key}`} className={c.f.type === "list" ? "q-lead-list" : "q-lead"} data-testid="field-value" data-field={c.f.key}>
-          {wasChanged(c.was, c.value) && <span className="q-chg" />}
           <EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} />
         </div>
       ))}
@@ -670,13 +672,13 @@ function PersonDetails({ p, disabled, avatar, withTitle = false }: { p: Person; 
             <div className="q-group q-tiles">
               {s.tiles.map((c) => (
                 <div key={`${c.t.agent.id}:${c.f.key}`} className="q-tile" data-testid="field-value" data-field={c.f.key}>
-                  <span className="q-tile-v">{wasChanged(c.was, c.value) && <span className="q-chg" />}<EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} />{c.mine && <span className="edited-mark" title="You changed this value at this message"> ✎</span>}</span>
-                  <span className="q-tile-k">{userMacro(c.f.label)}</span>
+                  <span className="q-tile-v"><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} />{c.mine && <span className="edited-mark" title="You changed this value at this message"> ✎</span>}</span>
+                  <span className="q-tile-k">{userMacro(c.f.label)}{wasChanged(c.was, c.value) && <span className="q-chg" title="Changed with this message" />}</span>
                 </div>
               ))}
             </div>
           )}
-          {s.rows.length > 0 && <div className="q-group" style={s.tiles.length ? { marginTop: 8 } : undefined}>{s.rows.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>}
+          {s.rows.length > 0 && <div className="q-group" style={s.tiles.length ? { marginTop: 8 } : undefined}>{s.rows.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} stack={s.rows.some(isLong)} />)}</div>}
           {s.lists.map((c) => (
             <div key={`${c.t.agent.id}:${c.f.key}`}>
               <div className="q-gh">{userMacro(c.f.label)}</div>
@@ -721,7 +723,7 @@ function BriefDetails({ p, disabled, onFull }: { p: Person; disabled: boolean; o
     <section className="q-page q-inline q-brief" data-testid="person-brief" aria-label={p.name}>
       {sub.map((c) => <div key={`${c.t.agent.id}:${c.f.key}`} className="q-sub" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
       {lead.map((c) => <div key={`${c.t.agent.id}:${c.f.key}`} className="q-lead" data-testid="field-value" data-field={c.f.key}><EditableValue f={c.f} value={c.value} disabled={disabled} label={userMacro(c.f.label)} bare onCommit={c.commit} /></div>)}
-      {rest.length > 0 && <div className="q-group">{rest.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} />)}</div>}
+      {rest.length > 0 && <div className="q-group">{rest.map((c) => <KeyValue key={`${c.t.agent.id}:${c.f.key}`} label={userMacro(c.f.label)} cells={[c]} disabled={disabled} stack={rest.some(isLong)} />)}</div>}
       <p className="q-brief-foot">
         <button type="button" className="link" data-testid="full-sheet" onClick={onFull}>Full Sheet ›</button>
         <span className="hint">kept as it was when they left</span>
@@ -729,6 +731,16 @@ function BriefDetails({ p, disabled, onFull }: { p: Person; disabled: boolean; o
     </section>
   );
 }
+
+/** Too long for the narrow value column beside a label: long text, or a list with long or many items (D-112). */
+const isLong = (c: Cell) => {
+  if (isEmpty(c.f, c.value)) return false;
+  if (c.f.type === "list") return Array.isArray(c.value) && (longList(c.value as ListItem[]) || formatFieldValue(c.f, c.value).length > 40);
+  return c.f.type === "text" && formatFieldValue(c.f, c.value).length > 60;
+};
+
+/** A list whose items read better one per line than as chips. */
+const longList = (items: ListItem[]) => items.some((it) => String(it?.name ?? "").length > 24);
 
 /** Short values sit three to a line: numbers, bars, and fields shown as tiles. */
 const isTile = (f: TrackerField) => f.display === "tile" || ((!f.display || f.display === "auto") && (f.type === "number" || f.type === "meter"));
@@ -909,7 +921,7 @@ function ReadValue({ f, value, empty, placeholder }: { f: TrackerField; value: u
   if (f.type === "number") return <span className="tabular num-read">{String(value)}</span>;
   if (f.type === "list") {
     const items = Array.isArray(value) ? (value as ListItem[]) : [];
-    return <span className="chips-read">{items.map((it, i) => <span key={i} className="item-chip">{it.name}{it.qty !== undefined && it.qty !== 1 ? <span className="muted"> ×{it.qty}</span> : null}</span>)}</span>;
+    return <span className={`chips-read${longList(items) ? " lines" : ""}`}>{items.map((it, i) => <span key={i} className="item-chip">{it.name}{it.qty !== undefined && it.qty !== 1 ? <span className="muted"> ×{it.qty}</span> : null}</span>)}</span>;
   }
   return <span className="text-read">{formatFieldValue(f, value)}</span>;
 }
@@ -958,8 +970,10 @@ function Editor({ f, raw, label, placeholder, onDone }: { f: TrackerField; raw: 
       onChange={(e) => setText(e.target.value)} onBlur={() => finish(true)} onKeyDown={keys} />;
   }
   if (f.type === "list") {
-    return <input ref={(el) => { ref.current = el; }} className="fv-edit" aria-label={`${label} value`} value={text} placeholder="Items separated by commas; ×2 for a quantity"
-      onChange={(e) => setText(e.target.value)} onBlur={() => finish(true)} onKeyDown={keys} />;
+    // one item per line (D-112): long items stay whole and an item may hold commas; Shift+Enter starts the next item
+    return <textarea ref={(el) => { ref.current = el; }} className="fv-edit fv-edit-list" aria-label={`${label} value`} rows={1} value={text}
+      placeholder="One item per line (Shift+Enter); ×2 for a quantity" title="One item per line · Shift+Enter for the next item · Enter saves"
+      onChange={(e) => { setText(e.target.value); grow(e.target); }} onBlur={() => finish(true)} onKeyDown={keys} />;
   }
   return <textarea ref={(el) => { ref.current = el; }} className="fv-edit" aria-label={`${label} value`} rows={1} value={text} placeholder={placeholder}
     onChange={(e) => { setText(e.target.value); grow(e.target); }} onBlur={() => finish(true)} onKeyDown={keys} />;
@@ -1009,10 +1023,12 @@ const grow = (el: HTMLTextAreaElement) => { el.style.height = "auto"; el.style.h
 /** Field labels and hints may say {{user}} / {{char}}; show names instead. */
 const userMacro = (t: string) => applyBasicMacros(t, { char: "the character", user: DEFAULT_USER_NAME });
 
-const listText = (items: ListItem[]) => (Array.isArray(items) ? items : []).map((i) => (i.qty !== undefined && i.qty !== 1 ? `${i.name} ×${i.qty}` : i.name)).join(", ");
+/** A list as the editor shows it: one item per line (D-112). */
+const listText = (items: ListItem[]) => (Array.isArray(items) ? items : []).map((i) => (i.qty !== undefined && i.qty !== 1 ? `${i.name} ×${i.qty}` : i.name)).join("\n");
 
+/** One item per line; commas stay inside an item. */
 function parseList(text: string): ListItem[] {
-  return text.split(",").map((s) => s.trim()).filter(Boolean).map((s) => {
+  return text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).map((s) => {
     const m = /^(.*?)\s*[×x]\s*(\d+(?:\.\d+)?)$/.exec(s);
     return m && m[1] ? { name: m[1], qty: Number(m[2]) } : { name: s };
   });
