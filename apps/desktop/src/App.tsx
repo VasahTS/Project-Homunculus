@@ -1302,6 +1302,7 @@ export function App() {
 
   // ---- chats: search, export, open at a message (round 3, D-036)
   const searchChats = (ids: string[]) => (q: string) => svc.store.searchMessages(ids, q);
+  const chatSearch = (q: string) => svc.store.searchMessages(sessions.map((x) => x.id), q);
   const exportSession = async (sessionId: string, format: ChatExportFormat, endId?: string) => {
     try {
       const file = await exportChat(svc.store, sessionId, format, endId);
@@ -1976,6 +1977,8 @@ export function App() {
           lastTimes={lastTimes}
           branchCounts={branchCounts}
           onRenameSession={(id, title) => void renameChat(id, title)}
+          searchChats={chatSearch}
+          onOpenChatAt={(id, messageId) => openChat(id, messageId)}
           onTrashSession={(id) => void trashChat(id)}
           onOpenCharacter={(id) => setView({ kind: "characters", id })}
           activeSessionId={view.kind === "session" && !active?.storyId ? activeId : null}

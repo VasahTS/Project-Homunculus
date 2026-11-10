@@ -144,7 +144,7 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
           </>}
         </button>
         <IconButton label={`More for ${c.title}`} className="sc-more" aria-expanded={open} aria-haspopup="menu"
-          onClick={() => setMenu(open ? null : { chatId: c.id })}><Icon name="dots" size={13} /></IconButton>
+          onClick={() => setMenu(open ? null : { chatId: c.id })}><span className="sc-dots" aria-hidden="true"><i /><i /><i /></span></IconButton>
         {open && (
           <div className="sc-menu" role="menu" aria-label={menu?.sub ? "Move to Folder" : c.title}>
             {!menu?.sub ? <>
@@ -198,7 +198,7 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
               <span className="sc-count">{inside.length}</span>
             </button>
             <IconButton label={`More for the folder ${folder.name}`} className="sc-more" aria-expanded={open} aria-haspopup="menu"
-              onClick={() => setMenu(open ? null : { folderId: folder.id })}><Icon name="dots" size={13} /></IconButton>
+              onClick={() => setMenu(open ? null : { folderId: folder.id })}><span className="sc-dots" aria-hidden="true"><i /><i /><i /></span></IconButton>
             {open && (
               <div className="sc-menu" role="menu" aria-label={folder.name}>
                 <button type="button" role="menuitem" onClick={() => { setMenu(null); setRenaming({ folderId: folder.id, text: folder.name }); }}>Rename</button>

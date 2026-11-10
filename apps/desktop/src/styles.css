@@ -4216,3 +4216,8 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .asst-trial-diff .msg-format { font-family: var(--font-prose); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 720px) { .asst-trial-diff { grid-template-columns: minmax(0, 1fr); } }
 .asst-res-group { display: grid; gap: 6px; min-width: 0; }
+
+/* "⋯" drawn as three dots (the icon's zero-length strokes vanished in the desktop window), D-108 */
+.sc-dots { display: inline-flex; gap: 2px; align-items: center; }
+.sc-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; display: block; }
+.side-hit mark { background: var(--accent-soft); color: var(--label); border-radius: 2px; }

@@ -82,3 +82,14 @@ test("the Assistant's chats have the same pins and folders", async ({ page }) =>
   await (await menuOf(page, /world tracker/i)).getByRole("menuitem", { name: "Pin" }).click();
   await expect(page.getByTestId("assistant-chats-pinned")).toContainText(/world tracker/i);
 });
+
+test("the sidebar search finds chats by what was said in them and opens the chat there", async ({ page }) => {
+  await page.goto("/");
+  await newChatWith(page);
+  await page.getByPlaceholder("Search chats and messages").fill("mill");
+  const hit = page.getByTestId("session-list").locator(".side-hit").first();
+  await expect(hit).toBeVisible();
+  await expect(hit.locator("mark")).toHaveText(/mill/i);
+  await page.getByTestId("session-list").getByRole("button").first().click();
+  await expect(page.getByTestId("messages")).toBeVisible();
+});

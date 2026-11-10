@@ -8,7 +8,7 @@
 // Floats in the functional (glass) layer. Two levels at most. Nothing critical at the bottom.
 import { ModeSwitch, type AppMode } from "./Assistant.tsx";
 import type { LibraryCategory, NavigationPlace, NavigationProfile } from "../theme/navigation.ts";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Avatar, Character, Session, Story } from "@homunculus/schemas";
 import { variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
@@ -25,7 +25,7 @@ export type LibraryArea = "characters" | LibraryCategory;
 export type Place = NavigationPlace | "settings" | null;
 
 export function Sidebar({ sessions, stories, characters, avatars, lastLines, lastTimes = {}, branchCounts = {}, activeSessionId, activeStoryId, activeChatId = null, place, status,
-  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, onRenameSession, onTrashSession, onOpenCharacter, onOpenStory, onNewStory, onOpenCharacters, onOpenCardBrowser, onOpenLibrary, onOpenVault, onOpenSettings, onOpenHome }: {
+  navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, searchChats, onOpenChatAt, onRenameSession, onTrashSession, onOpenCharacter, onOpenStory, onNewStory, onOpenCharacters, onOpenCardBrowser, onOpenLibrary, onOpenVault, onOpenSettings, onOpenHome }: {
   navigation: NavigationProfile;
   searchItems: SidebarSearchItem[];
   /** Play / Assistant (D-062): the switch at the top. */
@@ -38,6 +38,10 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
   avatars: Record<string, Avatar>;
   /** The newest line of each session (by session id), shown under its name. */
   lastLines: Record<string, string>;
+  /** Looks inside the chats' messages (the sidebar search). */
+  searchChats?: (q: string) => Promise<Record<string, { count: number; hits: Array<{ id: string; content: string }> }>>;
+  /** Opens a chat at a message (a search hit). */
+  onOpenChatAt?: (sessionId: string, messageId: string) => void;
   /** When each session was last written in (the row's "5h"). */
   lastTimes?: Record<string, number>;
   onRenameSession?: (id: string, title: string) => void;
@@ -89,8 +93,28 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
   const match = (text: string) => text.toLowerCase().includes(q.trim().toLowerCase());
   // the last 3 chats (any), or every chat that matches the search
   const searching = q.trim() !== "";
+  // the search also looks inside the chats' messages (Daniel: "search the chat's name and what is in it"), D-108
+  const [hits, setHits] = useState<Record<string, { count: number; hits: Array<{ id: string; content: string }> }>>({});
+  // App hands a new function every render: keep the latest in a ref so typing is the only thing that searches
+  const searchRef = useRef(searchChats);
+  searchRef.current = searchChats;
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2 || !searchRef.current) { setHits({}); return; }
+    let live = true;
+    const t = setTimeout(() => { void searchRef.current?.(term).then((r) => { if (live) setHits(r); }).catch(() => {}); }, 200);
+    return () => { live = false; clearTimeout(t); };
+  }, [q]);
   const storyName = (s: Session) => stories.find((st) => st.id === s.storyId)?.name;
-  const chats = searching ? sessions.filter((s) => match(s.title) || match(lead(s)?.name ?? "") || match(storyName(s) ?? "")) : [];
+  const chats = searching ? sessions.filter((s) => match(s.title) || match(lead(s)?.name ?? "") || match(storyName(s) ?? "") || hits[s.id]) : [];
+  /** The words around the first match in a message, with the match marked. */
+  const snippet = (text: string) => {
+    const flat = text.replace(/\s+/g, " ");
+    const i = flat.toLowerCase().indexOf(q.trim().toLowerCase());
+    if (i < 0) return <>{flat.slice(0, 80)}</>;
+    const start = Math.max(0, i - 24);
+    return <>{start > 0 ? "…" : ""}{flat.slice(start, i)}<mark>{flat.slice(i, i + q.trim().length)}</mark>{flat.slice(i + q.trim().length, i + q.trim().length + 60)}…</>;
+  };
   // stories: the one played most recently first, then new ones
   const lastPlayed = (st: Story) => { const i = sessions.findIndex((s) => s.storyId === st.id); return i < 0 ? Infinity : i; };
   const shownStories = stories.filter((st) => match(st.name)).sort((a, b) => lastPlayed(a) - lastPlayed(b) || b.createdAt - a.createdAt);
@@ -121,7 +145,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
       {mode && onMode && <ModeSwitch mode={mode} onMode={onMode} />}
       <label className="search-box side-search">
         <Icon name="search" size={13} />
-        <input aria-label="Search everything" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input aria-label="Search everything" placeholder="Search chats and messages" value={q} onChange={(e) => setQ(e.target.value)} />
       </label>
 
       <ul className="side-list side-places" data-testid="place-list">
@@ -140,6 +164,28 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
         })}
       </ul>
 
+      {searching && <>
+        <div className="side-head"><span className="label-row">Chats</span></div>
+        <ul className="side-list side-recent" data-testid="session-list">
+          {chats.map((s) => {
+            const c = lead(s);
+            const st = storyName(s);
+            return (
+              <li key={s.id}>
+                <button className={`side-item side-chat${s.id === activeSessionId || s.id === activeChatId ? " on" : ""}`}
+                  onClick={() => { const h = hits[s.id]?.hits[0]; if (h && onOpenChatAt && !match(s.title)) onOpenChatAt(s.id, h.id); else onOpenSession(s.id); }}
+                  aria-current={s.id === activeSessionId || s.id === activeChatId ? "page" : undefined}>
+                  <span className="side-text"><strong>{s.title}{(branchCounts[s.id] ?? 1) > 1 && <span className="side-fork" title={`${branchCounts[s.id]} branches`}><Icon name="branch" size={11} />{branchCounts[s.id]}</span>}</strong>
+                    {working(s.id) ?? (hits[s.id]?.hits[0]
+                      ? <span className="side-line side-hit">{hits[s.id]!.count > 1 ? `${hits[s.id]!.count} matches · ` : ""}{snippet(hits[s.id]!.hits[0]!.content)}</span>
+                      : <span className="side-line">{st ?? c?.name ?? "—"} · {lastLines[s.id] || "—"}</span>)}</span>
+                </button>
+              </li>
+            );
+          })}
+          {chats.length === 0 && <li className="side-empty">No chat matches.</li>}
+        </ul>
+      </>}
       {searching && <section className="side-search-results" aria-label="Matching library items and characters">
         <div className="side-head">Characters and Library</div>
         <ul className="side-list">{searchItems.filter((item) => match(item.name)).map((item) => <li key={item.id}>
@@ -188,25 +234,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
       </ul>
       </>}
 
-      {searching ? <>
-        <div className="side-head"><span className="label-row">Chats</span></div>
-        <ul className="side-list side-recent" data-testid="session-list">
-          {chats.map((s) => {
-            const c = lead(s);
-            const st = storyName(s);
-            return (
-              <li key={s.id}>
-                <button className={`side-item side-chat${s.id === activeSessionId || s.id === activeChatId ? " on" : ""}`} onClick={() => onOpenSession(s.id)}
-                  aria-current={s.id === activeSessionId || s.id === activeChatId ? "page" : undefined}>
-                  <span className="side-text"><strong>{s.title}{(branchCounts[s.id] ?? 1) > 1 && <span className="side-fork" title={`${branchCounts[s.id]} branches`}><Icon name="branch" size={11} />{branchCounts[s.id]}</span>}</strong>
-                    {working(s.id) ?? <span className="side-line">{st ?? c?.name ?? "—"} · {lastLines[s.id] || "—"}</span>}</span>
-                </button>
-              </li>
-            );
-          })}
-          {chats.length === 0 && <li className="side-empty">No chat matches.</li>}
-        </ul>
-      </> : (
+      {!searching && (
         // D-108: Pinned → your folders → Recent, one line per chat
         <SidebarChats scope="play" testId="session-list" limit={prefs.recentChats} activeId={activeSessionId ?? activeChatId}
           chats={sessions.map((s) => ({ id: s.id, title: s.title, from: storyName(s) ?? lead(s)?.name, line: lastLines[s.id], when: lastTimes[s.id] ?? s.createdAt,
