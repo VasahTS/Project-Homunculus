@@ -4,7 +4,7 @@
 
 - Daniel: the preset's Memory list was one line per memory, hard to read and edit. Rules and memories now wrap and grow (`AutoText` in `ui/kit.tsx`); Enter adds, Shift+Enter is a new line; a memory shows its date and tokens.
 - **To try:** Assistant → Customize → Presets → My preferences → Memory: long memories show in full; click one and edit; empty one and leave the box to remove it.
-- **Waiting for Daniel (text, `docs/UI-PLAN.md`, top):** "Sidebar chats: a recent-chats limit, pins and chat folders" and "The Assistant, smarter" (six steps). No code before he approves; then drafts.
+- **Text approved (11/10); draft waiting for Daniel:** `docs/drafts/chat-folders/index.html` (artifact REifEvD8i36E36pQN8ahWT) — compact Recent (10) with pins and folders in Play and Assistant; Assistant steps 1+2 (reads chats, knows the screen) and Try It that asks first. Code after he approves the draft.
 - Checks: typecheck; unit tests; click tests `assistant` (3).
 
 ## ▶ Where the JanitorAI session stopped (2026-11-08, 09:45) — CLAUDE — read this first to continue

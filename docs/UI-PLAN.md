@@ -6,7 +6,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
-## Sidebar chats: a recent-chats limit, pins and chat folders (Play and Assistant) — CLAUDE, 2026-11-10 · 🟡 text, waiting for Daniel
+## Sidebar chats: a recent-chats limit, pins and chat folders (Play and Assistant) — CLAUDE, 2026-11-10 · ✅ text approved; 🟡 draft waiting for Daniel
 
 Daniel (translated): "a limit for the latest chats, with folders for these chats too, to organize; look at Flint again". Answers: chats of a **Story** can go in a folder too, **saying where they are from**; the **Assistant's** Recents get the same.
 
@@ -24,9 +24,10 @@ Daniel (translated): "a limit for the latest chats, with folders for these chats
 - **States:** no folders → the sidebar looks as today plus "+" at Recent; an empty folder → "Drag chats here"; 50+ chats → "Show N more" everywhere, search unchanged; a chat sent to the Trash leaves its folder (comes back to it on Restore).
 - **Out on purpose:** Flint's per-folder instructions and folders of files (they belong to its agents, not to roleplay); folders inside folders.
 
-**Open questions:** (1) Recent default stays 5? (2) Pinned also in the Home screen's "Continue"? 
+**Daniel's answers (11/10):** Recent default **10**, but **smaller rows so the UI is not busy** → rows become one line (26 px): the chat's name, where it is from in grey, the time ("⋯" on hover); the last line moves to the tooltip.
+**Draft:** `docs/drafts/chat-folders/index.html` (claude.ai artifact REifEvD8i36E36pQN8ahWT), boards 1–4.
 
-## The Assistant, smarter — CLAUDE, 2026-11-10 · 🟡 text, waiting for Daniel
+## The Assistant, smarter — CLAUDE, 2026-11-10 · ✅ text approved; 🟡 draft (steps 1–2, Try It) waiting for Daniel
 
 Daniel liked all six suggestions (10/11). Today the Assistant reads 9 Library kinds, writes 7, searches the web, has preset memory and compaction; it **cannot see chats**, does not know what is on screen, does not test what it changes, and cannot touch Stories (write), NPCs (write), agents, regex, Quick Replies or the Director. Order proposed (one step at a time, each with its own draft):
 
@@ -37,7 +38,8 @@ Daniel liked all six suggestions (10/11). Today the Assistant reads 9 Library ki
 5. **Plan and questions with buttons** — for work with several steps, a small checklist on top of the reply ticking as it goes; when it needs a choice, a card with 2–4 options (+ "Other…") instead of a paragraph (Flint `ChatTasks`, `CoworkAskCard`).
 6. **Recipes** — a request you repeat saved as a button with `{{fields}}` ("Turn {{card}} into a Kit with one NPC per character"), in Customize → Recipes and in "/" in the box (Flint's prompt library).
 
-**Open questions:** (1) Start with 1+2 together? (2) Should the Assistant run **Try It** by itself (costs calls), or only when you click?
+**Daniel's answers (11/10):** start with **1 + 2 together**. **Try It asks first**: after a change to a card, preset, narrator or lorebook it offers "Try It" with its cost (calls, connection, nothing saved); "not needed most of the time, great for testing more technical things". Asking it directly ("test it") skips the question.
+**Draft:** same file, boards 5–8 (opened from a chat, Add context → Chats, Try It asking first, the plan and choice buttons of step 5).
 
 ---
 
