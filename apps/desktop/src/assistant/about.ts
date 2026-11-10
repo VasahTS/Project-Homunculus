@@ -79,12 +79,12 @@ Agents do one job around each reply. Each has: when it runs (before the reply / 
 - Switched on per story/chat in the chat's ✦ panel (Setup), or for every chat. Library → Agents edits them; Try It previews one without applying anything.`),
 
   T("cue", "Cues", `
-A cue is a rule that reacts to the chat with no AI call (Library → Cues): instant and free, run before every reply. Agents think; cues react.
+A cue is a rule that reacts to the chat with no AI call (Library → Cues): instant and free, run before every reply. Agents think; lorebooks hold facts; cues hold the rules that steer the writing. Cues are where JanitorAI scripts end up — lorebook scripts and code scripts alike — so one bot's rules live in one place, with no lorebook needed. One cue can have several parts (groups), each writing on its own.
 - Reads: word counts in the last messages (or how many messages in a row had them), messages so far, chance, the real clock, a tracker field, the kind of generation.
 - Remembers: values with rules (set / add / reset), pinned to each message, so swipes never count twice and each branch keeps its own. Values marked "Show in Scene" show (and can be edited) in the Scene tab.
 - Writes: groups of texts — all that match, the first, random by weight, or in rotation; don't repeat, chance, cooldown, a wrap; each text can have its own word trigger, tests and chance. Placed like lorebook entries (in the chat at a depth, around the character…) or with the agents' prompts.
 - On: in every chat (Library → Cues), per story or chat (Setup → Cues), or by itself where a tied character is. The Reply tab shows what each cue read, remembered and wrote; Try It in the editor shows it for any message without saving.
-- JanitorAI: lorebook scripts import as a cue or a lorebook; advanced (JavaScript) scripts are converted by the Assistant (guide "cue").`),
+- JanitorAI: a lorebook script imports as one cue (exact); an advanced (JavaScript) script is converted by the Assistant (guide "cue"); a script and its lorebook become one cue with two parts.`),
 
   T("regex", "Regex scripts", `
 SillyTavern-compatible find/replace scripts. Each has a pattern (/pattern/flags), a replacement ($1, {{match}}, macros), targets (user messages, AI replies, slash text, lorebook text, reasoning) and when it acts:

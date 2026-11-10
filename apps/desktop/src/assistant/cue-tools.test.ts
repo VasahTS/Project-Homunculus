@@ -79,4 +79,37 @@ describe("Assistant cues (D-113)", () => {
       expect((await store.cues.get(card.itemId))!.groups[0]!.items.length).toBe(2);
     }
   });
+
+  it("import_file as cue converts a JanitorAI lorebook script exactly; with into, it joins an existing cue (one cue, two parts)", async () => {
+    const { store, ctx } = await setup();
+    const entry = (name: string, keys: string[], group: string, depth?: number) => ({ name, content: `${name} text`, key: keys, keysRaw: keys.join(","), enabled: true, probability: 100, minMessages: 0, inclusionGroup: group ? [group] : [], inclusionGroupRaw: group, insertion_order: 100, matchWholeWords: true, ...(depth ? { depth } : {}) });
+    const book = JSON.stringify([entry("Rough", ["rough"], "intimacy", 3), entry("Oral", ["mouth"], "intimacy", 2), { ...entry("Pacing", ["None."], "", undefined), constant: true }]);
+    ctx.files.set("lb", { name: "rules.json", text: book, mime: "application/json" });
+    const out = await runTool("import_file", args({ file: "lb", as: "cue" }), ctx);
+    expect(out.error, out.result).toBeFalsy();
+    const card = ctx.results.at(-1) as Extract<AssistantResult, { type: "created" }>;
+    const cue = (await store.cues.get(card.itemId))!;
+    const items = cue.groups[0]!.items;
+    expect(items.map((i) => [i.title, i.oneOf, i.words?.last ?? null])).toEqual([["Rough", "intimacy", 3], ["Oral", "intimacy", 2], ["Pacing", "", null]]);
+    // a script cue made first, then the lorebook script joins it
+    await runTool("create", args({ kind: "cue", data: { name: "Bot rules", groups: [{ key: "rules", pick: "rotate", items: [{ text: "Slow down." }] }] } }), ctx);
+    const script = ctx.results.at(-1) as Extract<AssistantResult, { type: "created" }>;
+    const joined = await runTool("import_file", args({ file: "lb", as: "cue", into: `cue:${script.itemId}` }), ctx);
+    expect(joined.error, joined.result).toBeFalsy();
+    const change = ctx.results.at(-1) as Extract<AssistantResult, { type: "change" }>;
+    expect(change).toMatchObject({ type: "change", kind: "cue", itemId: script.itemId });
+    expect(await applyChange(store, change, () => crypto.randomUUID())).toBe("applied");
+    const merged = (await store.cues.get(script.itemId))!;
+    expect(merged.groups.map((g) => [g.key, g.items.length])).toEqual([["rules", 1], ["rules2", 3]]);
+    // code is not imported: it is converted by mapping
+    ctx.files.set("js", { name: "script.js", text: "if (context.chat.last_messages) {}", mime: "text/javascript" });
+    expect((await runTool("import_file", args({ file: "js", as: "cue" }), ctx)).error).toBe(true);
+  });
+
+  it("the rules say what cues are for: one place for writing rules, a script and its lorebook become one cue", () => {
+    expect(CORE_RULES).toMatch(/one bot's rules sit in ONE place/);
+    expect(GUIDES.cue!.text).toMatch(/What cues are for/);
+    expect(GUIDES.cue!.text).toMatch(/into "cue:<that id>"/);
+    expect(aboutText("cue")).toMatch(/no lorebook needed/);
+  });
 });

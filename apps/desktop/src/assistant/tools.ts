@@ -12,6 +12,7 @@ import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
 import { readPart } from "./files.ts";
+import { cueFromJanitorText } from "../cues.ts";
 import { agentRows, chatRows, directorRows, getAppItem, quickReplyRows, readChat, regexRows } from "./appReads.ts";
 import { ABOUT_TOPICS, aboutText } from "./about.ts";
 import { CUE_FIELDS, GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIELDS } from "./guides.ts";
@@ -167,8 +168,8 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: { id: { type: "string" }, reason: { type: "string" } }, required: ["id", "reason"] } },
   { name: "read_file", description: "Read part of a file the user attached (id from the message). JSON: a `path` like \"data.description\" or \"entries.12\"; text/JSONL: `lines` like \"1-40\"; or `offset` for the next chunk.",
     parameters: { type: "object", properties: { file: { type: "string" }, path: { type: "string" }, lines: { type: "string" }, offset: { type: "number" } }, required: ["file"] } },
-  { name: "import_file", description: "Turn an attached SillyTavern card or lorebook file into a library item (as the app's own import does). Then use `change` to edit it.",
-    parameters: { type: "object", properties: { file: { type: "string" }, as: { type: "string", enum: ["character", "lorebook"] } }, required: ["file", "as"] } },
+  { name: "import_file", description: "Turn an attached file into a library item exactly as the app's own import does: a SillyTavern card (as character), a lorebook (as lorebook), or a JanitorAI lorebook script (as cue — its entries become one group of texts; with `into` = \"cue:id\" that group is added to that cue instead, waiting for the user's OK). Then use `change` to edit it.",
+    parameters: { type: "object", properties: { file: { type: "string" }, as: { type: "string", enum: ["character", "lorebook", "cue"] }, into: { type: "string", description: "as cue only: \"cue:id\" of an existing cue to add the converted group to (files that work together become one cue)." } }, required: ["file", "as"] } },
   { name: "move", description: "Put items in a folder: \"RPG/Iron Party\" = the folder Iron Party inside RPG (missing folders are made); \"\" = out of any folder. Applied at once; the user can undo.",
     parameters: { type: "object", properties: { items: { type: "array", items: { type: "string" }, description: "\"kind:id\" of each item." }, folder: { type: "string" } }, required: ["items", "folder"] } },
   { name: "set_picture", description: "Propose an attached image as a character's picture (or one version's, with `variant`).",
@@ -1022,6 +1023,44 @@ async function importItem(store: SqlStore, kind: "character" | "lorebook", file:
   return { id: c.id, name: c.name, detail: `imported from ${file.name}${book ? ` · lorebook “${book.name}”` : ""}${imp.warnings.length ? ` · ${imp.warnings.join(" ")}` : ""}` };
 }
 
+/**
+ * A JanitorAI lorebook script (or any lorebook file) as a cue, with the app's own converter (`cueFromJanitorText`, the
+ * same as Library → Cues → Import): inclusion groups, each entry's scan depth, chance and always-on entries are kept,
+ * which a hand copy loses. With `into`, the converted group joins an existing cue (a change the user approves).
+ */
+async function importCueFile(ctx: ToolContext, f: { text: string; name: string }, into: string, w: Writes): Promise<ToolOutcome> {
+  if (!/^\s*[[{]/.test(f.text)) return { result: "This file is code, not a lorebook script: convert it by mapping what it does to cue fields (guide \"cue\"), with `create` or `change`.", label: "import_file", error: true };
+  const taken = (await ctx.store.cues.list()).map((c) => c.namespace);
+  const { cue, notes } = cueFromJanitorText(f.text, f.name, taken, true);
+  const made = Cue.parse(cue);
+  const texts = made.groups.reduce((n, g) => n + g.items.length, 0);
+  const noteText = notes.length ? ` Notes: ${notes.join(" ")}` : "";
+  if (into) {
+    const r = splitRef(into);
+    if (!r || r.kind !== "cue") return { result: "`into` must be \"cue:id\".", label: "import_file", error: true };
+    const base = await ctx.store.cues.get(r.id);
+    if (!base) throw new Error(`No cue with id “${r.id}”.`);
+    const keys = new Set(base.groups.map((g) => g.key));
+    const groups = made.groups.map((g) => {
+      let key = g.key, n = 2;
+      while (keys.has(key)) key = `${g.key}${n++}`;
+      keys.add(key);
+      return { ...g, key, name: g.name || made.name };
+    });
+    const proposal = await prepareChange(ctx.store, "cue", base.id, { groups: [...base.groups, ...groups] }, ctx.newId, `Add “${made.name}” (${texts} texts from ${f.name})`);
+    ctx.results.push(proposal);
+    return { result: `Proposed: ${texts} texts from ${f.name} join cue:${base.id} as group(s) ${groups.map((g) => g.key).join(", ")}. It waits for the user's OK.${noteText}`, label: `Proposed adding “${f.name}” to “${base.name}”` };
+  }
+  if (!ctx.saveNew) {
+    const data: Obj = Object.fromEntries(CUE_FIELDS.filter((k) => k in made).map((k) => [k, (made as unknown as Obj)[k]]));
+    ctx.results.push({ type: "new", id: ctx.newId(), kind: "cue", name: made.name, data, status: "waiting" });
+    return { result: `Prepared a cue with ${texts} texts; the user will approve it before it is saved.${noteText}`, label: `Prepared a new cue: ${made.name}` };
+  }
+  const saved = await write(w, `cue:${made.id}`, () => ctx.store.saveCue({ ...made, source: { kind: "imported", from: f.name } }));
+  ctx.results.push({ type: "created", kind: "cue", itemId: saved.id, name: saved.name, detail: `${texts} texts · off until switched on · imported from ${f.name}`, undone: false });
+  return { result: `Imported as cue:${saved.id} (${texts} texts, group “${saved.groups[0]?.key}”; off until switched on).${noteText}`, label: `Imported “${saved.name}”` };
+}
+
 /** New-item cards already hold arbitrary data; imports retain the attached source until the user's OK. */
 export async function approveNew(store: SqlStore, r: Extract<AssistantResult, { type: "new" }>, newId: () => string) {
   const data = isObj(r.data) ? r.data : {};
@@ -1258,6 +1297,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       case "import_file": {
         const f = ctx.files.get(str(a.file));
         if (!f) return { result: `No attached file “${str(a.file)}”.`, label: "import_file", error: true };
+        if (str(a.as) === "cue") return await importCueFile(ctx, f, str(a.into), w);
         const kind = str(a.as) === "character" ? "character" : "lorebook";
         if (!ctx.saveNew) {
           const bytes = new TextEncoder().encode(f.text);
