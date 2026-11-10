@@ -10,7 +10,7 @@ import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
 import { builtinAssistant, listChats, loadChat, loadSettings, saveSettings } from "../assistant/engine.ts";
 import { CORE_RULES } from "../assistant/guides.ts";
-import { Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
+import { AutoText, Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { AssistantMark } from "./AssistantMark.tsx";
 import { ModelPicker, modelMeta } from "./ModelPicker.tsx";
 import { ConfirmButton } from "./Help.tsx";
@@ -144,6 +144,8 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
   const [sel, setSel] = useState(s.defaultPresetId || s.presets[0]?.id || "");
   const p = s.presets.find((x) => x.id === sel) ?? s.presets[0];
   const set = (patch: Partial<AssistantPreset>) => p && put({ ...s, presets: s.presets.map((x) => (x.id === p.id ? { ...x, ...patch } : x)) });
+  const addRule = () => { if (p && rule.trim()) { set({ rules: [...p.rules, { id: crypto.randomUUID(), text: rule.trim(), on: true }] }); setRule(""); } };
+  const addMemory = () => { if (p && mem.trim()) { set({ memory: [...p.memory, { id: crypto.randomUUID(), text: mem.trim(), from: "", at: Date.now() }] }); setMem(""); } };
   const [rule, setRule] = useState("");
   const [mem, setMem] = useState("");
   const add = (base?: AssistantPreset) => {
@@ -174,15 +176,17 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
 
         <h4 className="cust-sub">Rules <small className="hint">included in the prompt</small></h4>
         {p.rules.map((r) => (
-          <div key={r.id} className="cust-row">
-            <input value={r.text} aria-label="Rule" onChange={(e) => set({ rules: p.rules.map((x) => (x.id === r.id ? { ...x, text: e.target.value } : x)) })}
+          <div key={r.id} className={`cust-item-row${r.on ? "" : " off"}`}>
+            <AutoText value={r.text} aria-label="Rule" onChange={(e) => set({ rules: p.rules.map((x) => (x.id === r.id ? { ...x, text: e.target.value } : x)) })}
               onBlur={(e) => { if (!e.target.value.trim()) set({ rules: p.rules.filter((x) => x.id !== r.id) }); }} />
-            <Switch label="Rule on" checked={r.on} onChange={(on) => set({ rules: p.rules.map((x) => (x.id === r.id ? { ...x, on } : x)) })} />
-            <IconButton label="Delete rule" onClick={() => set({ rules: p.rules.filter((x) => x.id !== r.id) })}><Icon name="trash" size={14} /></IconButton>
+            <span className="cust-item-tools">
+              <Switch label="Rule on" checked={r.on} onChange={(on) => set({ rules: p.rules.map((x) => (x.id === r.id ? { ...x, on } : x)) })} />
+              <IconButton label="Delete rule" onClick={() => set({ rules: p.rules.filter((x) => x.id !== r.id) })}><Icon name="trash" size={14} /></IconButton>
+            </span>
           </div>
         ))}
-        <form className="cust-row add" onSubmit={(e) => { e.preventDefault(); if (rule.trim()) { set({ rules: [...p.rules, { id: crypto.randomUUID(), text: rule.trim(), on: true }] }); setRule(""); } }}>
-          <input value={rule} placeholder="Add a rule — e.g. “Lorebook keywords lowercase”" aria-label="New rule" onChange={(e) => setRule(e.target.value)} data-testid="assistant-new-rule" />
+        <form className="cust-row add" onSubmit={(e) => { e.preventDefault(); addRule(); }}>
+          <AutoText value={rule} placeholder="Add a rule — e.g. “Lorebook keywords lowercase”" aria-label="New rule" onChange={(e) => setRule(e.target.value)} onEnter={addRule} data-testid="assistant-new-rule" />
           <Button small type="submit" disabled={!rule.trim()}>Add</Button>
         </form>
 
@@ -204,14 +208,19 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
         <div className="cust-row plain"><span className="grow hint">Things it learned about you. Sent while this preset is used.</span><span className="hint">On</span><Switch label="Memory on" checked={p.memoryOn} onChange={(memoryOn) => set({ memoryOn })} /></div>
         <div className="cust-row plain"><span className="grow hint">Save memories when you say “remember…”.</span><Switch label="Assistant can add" checked={p.autoMemory} onChange={(autoMemory) => set({ autoMemory })} /></div>
         {p.memory.map((m) => (
-          <div key={m.id} className="cust-row">
-            <span className="grow"><input value={m.text} aria-label="Memory" onChange={(e) => set({ memory: p.memory.map((x) => (x.id === m.id ? { ...x, text: e.target.value } : x)) })} />
-              <small className="hint">{m.from ? `from “${m.from}” · ` : ""}{new Date(m.at).toLocaleDateString()}</small></span>
-            <IconButton label="Forget" onClick={() => set({ memory: p.memory.filter((x) => x.id !== m.id) })}><Icon name="trash" size={14} /></IconButton>
+          <div key={m.id} className="cust-item-row">
+            <span className="cust-item-body">
+              <AutoText value={m.text} aria-label="Memory" onChange={(e) => set({ memory: p.memory.map((x) => (x.id === m.id ? { ...x, text: e.target.value } : x)) })}
+                onBlur={(e) => { if (!e.target.value.trim()) set({ memory: p.memory.filter((x) => x.id !== m.id) }); }} />
+              <small className="hint">{m.from ? `from “${m.from}” · ` : ""}{new Date(m.at).toLocaleDateString()} · ~{Math.max(1, Math.round(m.text.length / 3.6))} tokens</small>
+            </span>
+            <span className="cust-item-tools">
+              <IconButton label="Forget" onClick={() => set({ memory: p.memory.filter((x) => x.id !== m.id) })}><Icon name="trash" size={14} /></IconButton>
+            </span>
           </div>
         ))}
-        <form className="cust-row add" onSubmit={(e) => { e.preventDefault(); if (mem.trim()) { set({ memory: [...p.memory, { id: crypto.randomUUID(), text: mem.trim(), from: "", at: Date.now() }] }); setMem(""); } }}>
-          <input value={mem} placeholder="Add something it should know about you" aria-label="New memory" onChange={(e) => setMem(e.target.value)} />
+        <form className="cust-row add" onSubmit={(e) => { e.preventDefault(); addMemory(); }}>
+          <AutoText value={mem} placeholder="Add something it should know about you" aria-label="New memory" onChange={(e) => setMem(e.target.value)} onEnter={addMemory} />
           <Button small type="submit" disabled={!mem.trim()}>Add</Button>
         </form>
 

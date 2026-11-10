@@ -2556,6 +2556,16 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .cust-row > input { flex: 1; min-width: 0; }
 .cust-row .grow { flex: 1; display: grid; gap: 2px; min-width: 0; }
 .cust-row.plain .grow { display: block; }
+/* rules and memories: the whole text wraps and grows; tools stay at the top right (D-107) */
+.auto-text { width: 100%; box-sizing: border-box; resize: none; overflow-y: auto; line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }
+.cust-row.add { align-items: flex-start; }
+.cust-row.add > .auto-text { flex: 1; min-width: 0; }
+.cust-item-row { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.cust-item-row > .auto-text, .cust-item-body { flex: 1; min-width: 0; }
+.cust-item-body { display: grid; gap: 3px; }
+.cust-item-body .hint { font-size: 11.5px; }
+.cust-item-tools { display: flex; align-items: center; gap: 4px; flex: none; min-height: 34px; }
+.cust-item-row.off > .auto-text { color: var(--label-3); }
 .cust-note { display: grid; gap: 6px; padding: 10px; border-radius: calc(12px * var(--round)); background: var(--fill); }
 .cust-actions { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--separator); }
 .cust-actions .grow { flex: 1; }

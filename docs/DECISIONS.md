@@ -1159,3 +1159,15 @@ Daniel (translated): "my preset is still broken; with some characters the prompt
 - **Audit** (`e2e/layout-audit.e2e.ts`): the chat and every inspector tab, Memory, the Who picker, Characters, Stories, the Library pages, Settings, a story's sheet, page, chat and Prompt tab — in Mono and Observatory at 1440 and 1200 px. It fails when two pieces of text (or an icon and text) are painted over each other, or text leaves its region. Plus `inspector-overflow.e2e.ts`: an imported preset with long block names stays inside the Preset card.
 
 Signed: **CLAUDE**.
+
+## D-107 — Assistant presets: rules and memories wrap and grow (2026-11-10)
+
+Daniel (translated, with a screenshot of Assistant → Customize → Presets → Memory): "things are one line only, hard to see and edit".
+- Rules and memories were single-line inputs, cut at the box's edge. They are now text boxes that wrap and grow with their text (up to half the window, then they scroll), refit when the panel's width changes, and keep their tools (switch, trash) at the top right. A switched-off rule is greyed.
+- A memory shows its date and its size in tokens under the text; emptying a rule or a memory and leaving the box removes it (as rules already did).
+- The "add" boxes grow too: **Enter adds**, **Shift+Enter** is a new line.
+- Shared as `AutoText` in `ui/kit.tsx` (the Director and the preset editor keep their own boxes for now).
+- Click test: `assistant.e2e.ts` (a long memory shows in full; Shift+Enter; Enter adds).
+
+Signed: **CLAUDE**.
+

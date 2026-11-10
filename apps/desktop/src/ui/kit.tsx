@@ -2,7 +2,7 @@
 // Look comes only from theme tokens (theme/tokens.css) via the classes in styles.css, so a new theme
 // or a restyle never touches the screens. Keep this list short: one button family, one switch, one
 // segmented control, grouped lists.
-import { createContext, useContext, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type TextareaHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Help } from "./Help.tsx";
 import { EASE_OUT, reducedMotion, useSlidingPill } from "./motion.ts";
 import { motionFactor } from "../theme/appearance.ts";
@@ -241,4 +241,27 @@ export function Collapse({ open, children, className = "" }: { open: boolean; ch
   }, [open]);
   if (!rendered) return null;
   return <div ref={ref} className={`collapse ${className}`.trim()} style={{ overflow: "hidden" }}>{children}</div>;
+}
+
+/**
+ * A text box that wraps and grows with its text (from one line up to `maxShare` of the window, then it scrolls), so
+ * a long line is read in full instead of being cut at the box's edge. `onEnter` makes Enter submit (Shift+Enter is
+ * a new line), for "add" rows. D-107, CLAUDE.
+ */
+export function AutoText({ value, onEnter, maxShare = 0.5, className = "", ...rest }: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value"> & {
+  value: string; onEnter?: () => void; maxShare?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * maxShare))}px`; };
+    fit();
+    // a narrower box wraps more lines: fit again when its width changes
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [value, maxShare]);
+  return <textarea ref={ref} rows={1} value={value} className={`auto-text ${className}`.trim()} {...rest}
+    onKeyDown={(e) => { if (onEnter && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onEnter(); } rest.onKeyDown?.(e); }} />;
 }

@@ -79,6 +79,20 @@ test("Assistant: switch mode, make a tracker, undo it; add context and make a Ki
   await page.getByTestId("assistant-new-rule").fill("Cards in English.");
   await page.getByTestId("assistant-new-rule").press("Enter");
   await expect(page.getByRole("textbox", { name: "Rule", exact: true })).toHaveValue("Cards in English.");
+  // memories and rules wrap and grow (D-107): a long memory shows in full, Shift+Enter is a new line, Enter adds
+  const longText = "Avoid the habitual “not X, but Y” pattern and similar contrastive framing. ".repeat(6).trim();
+  const newMemory = page.getByRole("textbox", { name: "New memory" });
+  await newMemory.fill("First line");
+  await newMemory.press("Shift+Enter");
+  await newMemory.pressSequentially("second line");
+  await expect(newMemory).toHaveValue("First line\nsecond line");
+  await newMemory.fill(longText);
+  await newMemory.press("Enter");
+  const memory = page.getByRole("textbox", { name: "Memory", exact: true }).last();
+  await expect(memory).toHaveValue(longText);
+  const fits = await memory.evaluate((el) => ({ grew: el.clientHeight > 40, all: el.scrollHeight <= el.clientHeight + 2 }));
+  expect(fits).toEqual({ grew: true, all: true });
+  await expect(newMemory).toHaveValue("");
   await page.getByTestId("cust-limits").click();
   await expect(page.getByTestId("assistant-customize-page")).toContainText("Try again when busy");
   await page.getByTestId("cust-usage").click();

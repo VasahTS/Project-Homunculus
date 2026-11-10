@@ -6,6 +6,41 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Sidebar chats: a recent-chats limit, pins and chat folders (Play and Assistant) — CLAUDE, 2026-11-10 · 🟡 text, waiting for Daniel
+
+Daniel (translated): "a limit for the latest chats, with folders for these chats too, to organize; look at Flint again". Answers: chats of a **Story** can go in a folder too, **saying where they are from**; the **Assistant's** Recents get the same.
+
+**From Flint (`web-app/src/components/shell/nav/ChatsNav.tsx` @ 3056ce0):** the sidebar's Chats are **Pinned** (top) → **one collapsible group per folder** (count, "…" menu, drop target) → **Ungrouped**; 12 rows per group, then "Show N more"; a filter All / Active (last hour or running); drag a row onto a group; a **collapsed group still shows the open chat and any chat that is writing**.
+
+**Proposal (Play sidebar; the Assistant's Recents identical):**
+- Order: **Pinned** → **your folders** → **Recent** (chats in no folder). Places, Stories and Settings stay as they are.
+- **Recent** shows the last N chats; **Settings → Chat → Recent chats: 3 / 5 / 10 / 20 / All** (today fixed at 5, `theme/navigation.ts`). Past N: "Show N more" (the search box still finds every chat).
+- **Pin** (right-click or "⋯" on a row → Pin): pinned chats sit on top, newest first, and never count against the limit.
+- **Folders:** "+ New Folder" at the Recent header; one level (like the other collections). A folder row: chevron, name, count; click folds it; its own "⋯" (Rename, Delete — the chats go back to Recent). Inside: newest first, 8 rows then "Show N more".
+- **Moving:** drag a chat onto a folder, or "⋯ → Move to Folder ▸" (folders + New Folder…); "Remove from Folder".
+- **Where a chat is from:** every row keeps its second line; a Story chat says the story ("Isekai RPG · last line"), a 1:1 chat the character. A folder is **only a sidebar grouping**: the chat still lives on its character's sheet / its story's page, as today (no third place where things "may be").
+- A folded folder still shows the open chat and any chat that is writing (from Flint).
+- Busy chats keep "writing…" / ■ wherever they are shown.
+- **States:** no folders → the sidebar looks as today plus "+" at Recent; an empty folder → "Drag chats here"; 50+ chats → "Show N more" everywhere, search unchanged; a chat sent to the Trash leaves its folder (comes back to it on Restore).
+- **Out on purpose:** Flint's per-folder instructions and folders of files (they belong to its agents, not to roleplay); folders inside folders.
+
+**Open questions:** (1) Recent default stays 5? (2) Pinned also in the Home screen's "Continue"? 
+
+## The Assistant, smarter — CLAUDE, 2026-11-10 · 🟡 text, waiting for Daniel
+
+Daniel liked all six suggestions (10/11). Today the Assistant reads 9 Library kinds, writes 7, searches the web, has preset memory and compaction; it **cannot see chats**, does not know what is on screen, does not test what it changes, and cannot touch Stories (write), NPCs (write), agents, regex, Quick Replies or the Director. Order proposed (one step at a time, each with its own draft):
+
+1. **Reads chats** — tools `chats` (list a character's / story's chats) and `read_chat` (search messages; read #30–#50; follows the branch on screen; long chats paged like `read`). In the UI: "Add context ▸ Chats" and a chat chip ("Taverna · 54 msgs"). Never writes messages.
+2. **Knows where you are** — opening the Assistant from a screen attaches it as a removable chip ("Lyra", "chat Taverna", "story Isekai RPG"); "this character" works. Details → "What it is using" lists it (Flint: "What Flint is using").
+3. **Tries what it changed** — after a change to a card, preset, narrator or lorebook, a **Try It** card on the change: one sample reply from the chat you pick, before | after side by side, nothing saved (reuses the agent Try It, D-053). The Assistant may also run it by itself and say what changed.
+4. **The rest of the app** — writes for Stories, NPCs, agents, regex scripts, Quick Replies and Director notes, with the same rules (change = waits for OK, never deletes, presets as copies).
+5. **Plan and questions with buttons** — for work with several steps, a small checklist on top of the reply ticking as it goes; when it needs a choice, a card with 2–4 options (+ "Other…") instead of a paragraph (Flint `ChatTasks`, `CoworkAskCard`).
+6. **Recipes** — a request you repeat saved as a button with `{{fields}}` ("Turn {{card}} into a Kit with one NPC per character"), in Customize → Recipes and in "/" in the box (Flint's prompt library).
+
+**Open questions:** (1) Start with 1+2 together? (2) Should the Assistant run **Try It** by itself (costs calls), or only when you click?
+
+---
+
 ## Home — CLAUDE, 2026-11-04 · ✅ draft H3 approved ("H3 is my favorite"); in the app (D-086)
 
 Drafts: canvas "Homunculus 2 — Home" (claude.ai artifact F6em97hJPej4Zr6Lzc9AtH), rows A–D, B2–B3, G1–G3, H1–H3, I1–I3 and the Icons board.
