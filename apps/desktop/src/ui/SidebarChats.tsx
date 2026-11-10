@@ -26,7 +26,9 @@ export interface SideChat {
 const FOLDER_ROWS = 8;
 const DRAG_TYPE = "application/x-homunculus-chat";
 
-export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, onTrash, trashLabel = "Move to Trash", source, testId, empty }: {
+export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, onTrash, trashLabel = "Move to Trash", source, testId, empty, recentHelp }: {
+  /** The tooltip of the Recent heading. */
+  recentHelp?: string;
   scope: ChatScope;
   /** Newest first. */
   chats: SideChat[];
@@ -212,7 +214,7 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
         </ul>
       </>}
       <div className={`side-head sc-head${dropOn === "recent" ? " drop" : ""}`} {...dropProps("recent", null)}>
-        <span>Recent</span>{!hasFolders && plus}
+        <span title={recentHelp}>Recent</span>{!hasFolders && plus}
       </div>
       <ul className={`side-list sc-list${dropOn === "recent" ? " drop" : ""}`} data-testid={testId} {...dropProps("recent", null)}>
         {recent.shown.map(row)}

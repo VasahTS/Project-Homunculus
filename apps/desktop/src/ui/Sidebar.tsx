@@ -219,7 +219,8 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
             const c = lead(s);
             return c && onOpenCharacter ? { label: `Open ${c.name}'s Sheet`, run: () => onOpenCharacter(c.id) } : null;
           }}
-          empty="No chats yet. Open Characters and start one." />
+          empty="No chats yet. Open Characters and start one."
+          recentHelp="Your last chats outside pins and folders. Every chat with a character is on its sheet (Characters); a story's chats are on its page." />
       )}
 
       <div className="side-bottom">
