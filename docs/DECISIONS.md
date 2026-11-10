@@ -1288,3 +1288,14 @@ Daniel: "rascunhos aprovados" (drafts approved) and "do everything; I'll test th
 
 Signed: **CLAUDE**.
 
+
+## D-117 — Tracker fields move between groups by dragging (2026-11-10)
+
+Daniel asked for tracker fields to change groups by dragging (his screenshot: a field dragged from one group stayed stuck in it and slid over the next group's header).
+
+- `SortableList` gains `connect` (`group`, `list`, `onTransfer`): lists of the same group take each other's rows. Each list's drop area is its whole box (header, rows, Add Field), marked with `sortZone(group, list)`, so a row can be dropped on a group's header, also while the group is folded.
+- While over another group: that group is tinted, a 2px accent line shows where the field lands, a copy of the row follows the pointer (the row itself is clipped by its own group's box) and the original stays dimmed in place. Back over its own group, it reorders as before. A folded group takes the field at its end and opens.
+- In the tracker editor the field takes the new group's name (`section`); a group left empty goes away, as with the up/down steps. The keyboard path is unchanged (the field's "group" choice and Move up/down across group edges). The live region says "<field> moved to <group>, position N".
+- Click test: `e2e/trackers.e2e.ts` "a field dragged onto another group…".
+
+Signed: **CLAUDE**.

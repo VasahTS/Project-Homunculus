@@ -478,6 +478,10 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .sortable.is-dragging { user-select: none; }
 .sortable.is-dragging, .sortable.is-dragging * { cursor: grabbing !important; }
 .sortable-item.dragging { z-index: 5; transition: none; }
+.sort-drop-line { position: fixed; z-index: 50; height: 2px; border-radius: 2px; background: var(--accent); pointer-events: none; box-shadow: 0 0 0 2px var(--accent-soft); }
+.sort-ghost { position: fixed; z-index: 51; pointer-events: none; background: var(--surface); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--glass-edge); border-radius: calc(8px * var(--round)); transform: scale(1.015); }
+.sortable-item.leaving > * { opacity: 0.35; box-shadow: none; transform: none; }
+.sort-drop-zone { background: var(--accent-soft); border-radius: calc(8px * var(--round)); transition: background var(--dur-fast) var(--ease-out); }
 .sortable-item.dragging > * { background: var(--surface); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--glass-edge); border-radius: calc(8px * var(--round)); transform: scale(1.015); transition: transform var(--dur-fast) var(--ease-out); }
 .grip { flex: none; width: 20px; height: 26px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--label-2); opacity: 0.55; border-radius: calc(5px * var(--round)); cursor: grab; touch-action: none; transition: opacity var(--dur-fast), background-color var(--dur-fast); }
 .grip:hover, .grip:focus-visible, .sortable-item.dragging .grip { opacity: 1; background: var(--fill); color: var(--label); }

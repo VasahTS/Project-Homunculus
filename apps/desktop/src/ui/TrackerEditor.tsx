@@ -10,7 +10,7 @@ import type { Avatar, FieldDisplay, FieldType, TrackerField, TrackerSchema } fro
 import { Collapse, FIELD_ICONS, Icon, isIconName } from "./kit.tsx";
 import { blankField, blankSet, checkDraft, copySet, isTempKey, type SetDraft, type TrackerDraft, type TrackerSample } from "../trackers.ts";
 import { ConfirmButton, Help } from "./Help.tsx";
-import { move, SortableList } from "./Sortable.tsx";
+import { move, SortableList, sortZone } from "./Sortable.tsx";
 import { TrackerPreview } from "./ScenePanel.tsx";
 import { SendToMenu, SetFileLinks } from "./FieldSetTools.tsx";
 
@@ -183,6 +183,22 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onExport, onCl
       : x === other ? { ...x, fields: dir < 0 ? [...x.fields, f] : [f, ...x.fields] } : x)).filter((x) => x.fields.length));
   };
 
+  /** Dragged into another group (2026-11-10): the field takes that group's name; an emptied group goes away. */
+  const transfer = (fromGroup: string, from: number, toGroup: string, to: number) => {
+    const g = groups.find((x) => x.name === fromGroup);
+    const f = g?.fields[from];
+    if (!g || !f || !groups.some((x) => x.name === toGroup)) return;
+    const moved = { ...f, section: toGroup };
+    writeGroups(groups.map((x) => {
+      if (x === g) return { ...x, fields: x.fields.filter((y) => y.key !== f.key) };
+      if (x.name !== toGroup) return x;
+      const fields = [...x.fields];
+      fields.splice(Math.min(to, fields.length), 0, moved);
+      return { ...x, fields };
+    }).filter((x) => x.fields.length));
+    setFolded((x) => x.filter((n) => n !== toGroup));
+  };
+
   const addSet = (copy: boolean) => {
     const s = copy ? copySet(current, `${current.name} (copy)`) : blankSet("New set");
     set({ sets: [...draft.sets, s] });
@@ -344,7 +360,7 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onExport, onCl
           </div>
 
           <div className="fields-head">
-            <h3 className="label-row grow">Groups and fields <Help text="Field order matches the Scene panel. Drag a handle to reorder. Click a field to edit it." /></h3>
+            <h3 className="label-row grow">Groups and fields <Help text="Field order matches the Scene panel. Drag a handle to reorder, or onto another group to move the field there. Click a field to edit it." /></h3>
             <button type="button" className="link quiet" data-testid="fields-open-all"
               onClick={() => { if (openKeys.length) setOpenKeys([]); else { setFolded([]); setOpenKeys(ordered.map((f) => f.key)); } }}>
               {openKeys.length ? "Fold All" : "Open All"}
@@ -356,7 +372,7 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onExport, onCl
             render={(g, handle) => {
               const isFolded = folded.includes(g.name);
               return (
-                <div className="te-group">
+                <div className="te-group" {...sortZone("tracker-fields", g.name)}>
                   <div className="te-group-head">
                     {handle}
                     <button type="button" className={`te-fold${isFolded ? " closed" : ""}`} aria-expanded={!isFolded} aria-label={`${isFolded ? "Show" : "Hide"} the fields of ${groupLabel(g.name)}`}
@@ -369,6 +385,7 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onExport, onCl
                   <Collapse open={!isFolded}>
                     <SortableList items={g.fields} id={(f) => f.key} name={(f) => f.label || "New field"} label={`Fields of ${groupLabel(g.name)}`}
                       className="te-fields" itemTestId="field"
+                      connect={{ group: "tracker-fields", list: g.name, listName: groupLabel, onTransfer: (from, to, at) => transfer(g.name, from, to, at) }}
                       onReorder={(from, to) => writeGroups(groups.map((x) => (x === g ? { ...x, fields: move(x.fields, from, to) } : x)))}
                       render={(f, fieldHandle) => {
                         const n = `Field ${number(f.key)}`;

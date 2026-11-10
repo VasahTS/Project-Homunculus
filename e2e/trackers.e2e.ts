@@ -238,3 +238,48 @@ test("a person kept by two trackers is one row, with both trackers' values insid
   const lyra = await openPerson(page, "Lyra");
   await expect(lyra).toContainText("Level"); // Temp's field, inside the same sheet as Scene: Characters' values
 });
+
+test("a field dragged onto another group moves there, even onto a folded group (2026-11-10)", async ({ page }) => {
+  await page.goto("/");
+  await openLibrary(page, "Trackers");
+  await page.getByTestId("tracker-list").getByText("Scene: Characters").click();
+  const group = (name: string) => page.getByTestId("field-group").filter({ has: page.getByLabel(`Group ${name} name`) });
+  const groupNames = async () => page.locator(".te-group-name").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+  const names = await groupNames();
+  expect(names.length).toBeGreaterThan(1);
+  const [from, to] = [names[0]!, names[1]!];
+  const first = group(from).getByTestId("field").last();
+  const label = (await first.getByTestId("field-label").innerText()).trim();
+  await group(to).getByTestId("field").nth(1).scrollIntoViewIfNeeded();
+  const before = await group(to).getByTestId("field").count();
+  const drag = async (target: Locator) => {
+    const g = (await group(from).getByRole("button", { name: `Reorder ${label}` }).boundingBox())!;
+    const t = (await target.boundingBox())!;
+    await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 14; i++) await page.mouse.move(g.x + g.width / 2, g.y + (t.y + t.height / 2 - g.y) * (i / 14));
+    await page.mouse.up();
+  };
+  // onto the second row of the other group: it lands there, with that group's name
+  await drag(group(to).getByTestId("field").nth(1));
+  await expect(group(to).getByTestId("field")).toHaveCount(before + 1);
+  await expect(group(to).getByTestId("field-label").nth(1)).toHaveText(label);
+  await expect(group(from).getByTestId("field-label").filter({ hasText: new RegExp(`^${label}$`) })).toHaveCount(0);
+  // its group in the field's settings says so too
+  await group(to).getByTestId("field-label").nth(1).click();
+  await expect(group(to).locator("select[title='The group this field is in']")).toHaveValue(to);
+  await group(to).getByTestId("field-label").nth(1).click();
+  // back onto the first group's header while it is folded: it goes in at the end and the group opens
+  await group(from).getByRole("button", { name: `Hide the fields of ${from}` }).click();
+  await group(from).scrollIntoViewIfNeeded();
+  const back = group(to).getByRole("button", { name: `Reorder ${label}` });
+  const g = (await back.boundingBox())!;
+  const head = (await group(from).locator(".te-group-head").boundingBox())!;
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 14; i++) await page.mouse.move(g.x + g.width / 2, g.y + (head.y + head.height / 2 - g.y) * (i / 14));
+  await page.mouse.up();
+  await expect(group(to).getByTestId("field")).toHaveCount(before);
+  await expect(group(from).getByTestId("field-label").last()).toHaveText(label);
+  await page.mouse.move(0, 0);
+});
