@@ -10,6 +10,7 @@ export * from "./agents.ts";
 export * from "./trackers.ts";
 export * from "./presets.ts";
 export * from "./lorebooks.ts";
+export * from "./cues.ts";
 export * from "./records.ts";
 export * from "./legacy.ts";
 export * from "./regex.ts";

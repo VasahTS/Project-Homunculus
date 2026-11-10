@@ -305,11 +305,143 @@ export function lorebookToCardBook(book: Lorebook): Obj {
 
 export interface ImportedLorebook { lorebook: Omit<LorebookInput, "id">; warnings: string[] }
 
-/** Reads a SillyTavern World Info file, a bare card book, or a whole card (its embedded book). */
-export function importStLorebook(bytes: Uint8Array, fileName: string): ImportedLorebook {
+// ---------------------------------------------------------------- JanitorAI lorebook scripts (D-113, phase 0)
+// JanitorAI exports a lorebook script as a bare array of entries (the "Lorebook" kind of script; it also accepts a pasted
+// SillyTavern `entries` array). Its own names: `depth` = how many messages are read, `minMessages` = SillyTavern's delay,
+// `inclusionGroup` (a list), `groupWeight`, `keyMatchPriority` (group scoring), `placement` into the card's personality or
+// scenario, the key "None." for an entry that is always on, and `priority` for the order. Unknown fields are kept in
+// each entry's `original`.
+
+const SECONDARY_LOGIC: Record<string, LoreLogic> = { "and any": "andAny", "and all": "andAll", "not any": "notAny", "not all": "notAll" };
+
+/** Is this one entry written by SillyTavern (World Info or card book) rather than JanitorAI? */
+const isStEntry = (e: Obj) => "uid" in e || isObj(e.extensions);
+
+/** One JanitorAI lorebook-script entry → ours. */
+export function entryFromJanitor(e: Obj, index: number): LoreEntry {
+  const rawKeys = strings(e.key ?? e.keys ?? e.keywords ?? e.keysRaw);
+  const none = rawKeys.length === 0 || rawKeys.every((k) => /^none\.?$/i.test(k.trim()));
+  const keys = none ? [] : rawKeys;
+  const logicText = str(e.secondaryLogic ?? e.logic).toLowerCase().replace(/[_-]/g, " ").trim();
+  const logic = SECONDARY_LOGIC[logicText] ?? LOGIC[num(e.selectiveLogic) ?? 0] ?? "andAny";
+  const rawProb = num(e.probability ?? e.chance);
+  const probability = rawProb === undefined ? 100 : Math.max(0, Math.min(100, rawProb <= 1 && rawProb > 0 && !Number.isInteger(rawProb) ? rawProb * 100 : rawProb));
+  const pos = e.position;
+  const before = typeof pos === "string" ? ["before_char", "before_character", "before"].includes(pos) : typeof pos === "number" ? pos === 0 : false;
+  const scan = num(e.depth ?? e.scanDepth ?? e.scan_depth);
+  const groups = Array.isArray(e.inclusionGroup) ? strings(e.inclusionGroup) : strings(e.inclusionGroup ?? e.group);
+  return LoreEntry.parse({
+    id: str(e.id, String(index)) || String(index),
+    title: str(e.comment ?? e.title ?? e.name),
+    keys,
+    secondaryKeys: strings(e.keysecondary ?? e.secondaryKeys ?? e.secondary_keys ?? e.keySecondary),
+    logic,
+    content: str(e.content ?? e.text),
+    enabled: e.enabled !== false && e.disable !== true,
+    constant: e.constant === true || (none && e.constant !== false),
+    order: Math.round(num(e.priority ?? e.insertion_order ?? e.order) ?? 100),
+    position: before ? "before" : "after",
+    probability,
+    group: groups.join(","),
+    groupWeight: Math.max(0, num(e.groupWeight ?? e.group_weight) ?? 100),
+    useGroupScoring: typeof e.keyMatchPriority === "boolean" ? e.keyMatchPriority : null,
+    scanDepth: scan === undefined ? null : Math.max(0, Math.round(scan)),
+    caseSensitive: nullableBool(e.caseSensitive ?? e.case_sensitive),
+    matchWholeWords: nullableBool(e.matchWholeWords ?? e.match_whole_words),
+    delay: nullableNum(e.minMessages ?? e.min_messages ?? e.delay),
+    displayIndex: index,
+    original: e,
+  } satisfies LoreEntryInput);
+}
+
+/**
+ * `/a|b|big c/i` → ["a", "b", "big c"], when the regex is only a list of plain words (with or without \b around it).
+ * Anything else (classes, quantifiers…) returns null and the key stays a regex.
+ */
+export function splitRegexKey(key: string): { words: string[]; whole: boolean; caseSensitive: boolean } | null {
+  const m = /^\/(.+)\/([a-z]*)$/s.exec(key.trim());
+  if (!m) return null;
+  let body = m[1]!;
+  const flags = m[2]!;
+  let whole = false;
+  const bounded = /^\\b\(\??:?(.+)\)\\b$/s.exec(body) ?? /^\\b(.+)\\b$/s.exec(body);
+  if (bounded) { body = bounded[1]!; whole = true; } else { const group = /^\(\??:?(.+)\)$/s.exec(body); if (group) body = group[1]!; }
+  const parts = body.split("|").map((p) => p.replace(/\\s[+*]?/g, " ").replace(/\\(['’-])/g, "$1").trim());
+  if (!parts.length || parts.some((p) => !p || !/^[\p{L}\p{N}' ’-]+$/u.test(p))) return null;
+  return { words: parts, whole, caseSensitive: !flags.includes("i") };
+}
+
+/** Splits every plain-word regex key of the entries into separate keys (the "Split regex keywords" option). */
+export function splitRegexKeys(entries: LoreEntry[]): { entries: LoreEntry[]; split: number } {
+  let split = 0;
+  const out = entries.map((e) => {
+    const fix = (list: string[]) => {
+      let whole: boolean | null = null, cs: boolean | null = null;
+      const keys = list.flatMap((k) => {
+        const r = splitRegexKey(k);
+        if (!r) return [k];
+        split++;
+        whole = whole === false ? false : r.whole;
+        cs = r.caseSensitive;
+        return r.words;
+      });
+      return { keys, whole, cs };
+    };
+    const before = split;
+    const a = fix(e.keys), b = fix(e.secondaryKeys);
+    if (split === before) return e;
+    const whole = a.whole ?? b.whole;
+    const cs = a.cs ?? b.cs;
+    return { ...e, keys: [...new Set(a.keys)], secondaryKeys: [...new Set(b.keys)],
+      ...(whole !== null ? { matchWholeWords: whole } : {}), ...(cs !== null ? { caseSensitive: cs } : {}) };
+  });
+  return { entries: out, split };
+}
+
+/** A JanitorAI lorebook script (array of entries, or its /script record) → a lorebook. */
+export function lorebookFromJanitor(list: Obj[], name: string, fileName: string): ImportedLorebook {
+  const warnings: string[] = [];
+  const entries: LoreEntry[] = [];
+  const seen = new Set<string>();
+  list.forEach((raw, i) => {
+    let e = isStEntry(raw) ? ("uid" in raw ? entryFromWorld(raw, String(i)) : entryFromCardBook(raw, i)) : entryFromJanitor(raw, i);
+    if (seen.has(e.id)) e = { ...e, id: `${e.id}-${i}` };
+    seen.add(e.id);
+    entries.push(e);
+  });
+  if (!entries.length) warnings.push("The script has no entries.");
+  if (list.some((e) => typeof e.placement === "string" && /personality|scenario/i.test(e.placement))) {
+    warnings.push("Entries JanitorAI put into the card's personality or scenario go after the character here.");
+  }
+  if (entries.some((e) => e.keys.some((k) => splitRegexKey(k)))) {
+    warnings.push("Some keys are regular expressions that only list words (like /kiss|hug/i). They work as they are; \"Split regex keywords\" turns them into separate keys you can edit.");
+  }
+  return { lorebook: { name, description: "", entries, source: { kind: "stFile", fileName } }, warnings };
+}
+
+/**
+ * Reads a SillyTavern World Info file, a bare card book, a whole card (its embedded book), or a JanitorAI lorebook script
+ * (a bare array of entries, or its record with the entries as a JSON text in `script`). `splitRegex`: plain-word regex keys
+ * become separate keys.
+ */
+export function importStLorebook(bytes: Uint8Array, fileName: string, options: { splitRegex?: boolean } = {}): ImportedLorebook {
+  const result = readLorebook(bytes, fileName);
+  if (!options.splitRegex) return result;
+  const { entries, split } = splitRegexKeys((result.lorebook.entries ?? []).map((e) => LoreEntry.parse(e)));
+  return { lorebook: { ...result.lorebook, entries }, warnings: split ? result.warnings.filter((w) => !w.includes("Split regex keywords")) : result.warnings };
+}
+
+function readLorebook(bytes: Uint8Array, fileName: string): ImportedLorebook {
   let json: unknown;
   try { json = JSON.parse(new TextDecoder().decode(bytes).replace(/^﻿/, "")); } catch { throw new Error(`"${fileName}" is not valid JSON.`); }
   const baseName = fileName.replace(/\.[^.]+$/, "").trim() || "Lorebook";
+  // JanitorAI: a bare array of entries, or a script record ({ title, script: "[…]" })
+  if (Array.isArray(json)) return lorebookFromJanitor(json.filter(isObj), baseName, fileName);
+  if (isObj(json) && typeof json.script === "string") {
+    let inner: unknown;
+    try { inner = JSON.parse(json.script); } catch { throw new Error(`"${fileName}" is a JanitorAI script with code, not a lorebook. Advanced scripts are converted to cues instead.`); }
+    if (Array.isArray(inner)) return lorebookFromJanitor(inner.filter(isObj), str(json.title ?? json.name).trim() || baseName, fileName);
+  }
   if (!isObj(json)) throw new Error(`"${fileName}" is not a lorebook.`);
   const warnings: string[] = [];
   // a whole character card: take its embedded book
@@ -447,7 +579,7 @@ export function createSillyTavernLorebooksModule(): HomunculusModule {
       api.registerLorebookImporter({
         id: "st-lorebook",
         name: "SillyTavern lorebook",
-        help: "SillyTavern World Info files (the JSON files in SillyTavern's data/default-user/worlds folder, or from the lorebook's Export button). A character card's JSON also works: its embedded lorebook is imported.",
+        help: "SillyTavern World Info files (the JSON files in SillyTavern's data/default-user/worlds folder, or from the lorebook's Export button). A character card's JSON also works: its embedded lorebook is imported. JanitorAI lorebook scripts (the exported list of entries) work too.",
         extensions: [".json"],
         async import(bytes, fileName) { return importStLorebook(bytes, fileName); },
       });

@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Cues: engine, turn and JanitorAI lorebook import (2026-11-10, morning) — CLAUDE — D-113
+
+- Daniel: "let's implement cues" (plan `claude/CUES-PLAN.md`, his five answers of 10/11). Built **phases 0 and 1** (no screens yet: UI follows "draft before code").
+- **Phase 0:** JanitorAI lorebook scripts import as lorebooks (`st-lorebooks`: `entryFromJanitor`, `lorebookFromJanitor`, `splitRegexKey(s)`, `importStLorebook(…, { splitRegex })`). Field names mapped from the plan's notes on yhul's export; **check with the real yhul JSON** (not in the repo) — especially `probability` (0–1 or 0–100) and `depth`.
+- **Phase 1:** `schemas/cues.ts` (Cue, signals, values, groups, report), `core/cues.ts` (pure engine + `cueTextsForPrompt`, `cueFromTextAgent`, `cueFromLoreEntries`, `cueNamespace`), `TurnPipeline.runCues` (step 2b; also in Preview Prompt / Try It without saving), `SqlStore.cues` + `saveCue` + `cuesForUse` (migration 11), `SetupLayer.cues` / `ResolvedSetup.cues`, `GenerationRecord.cues`, `HistoryKind` "cue".
+- **Not converted yet:** existing "No AI call" agents keep working as agents; the converter is ready and tested (same prompt) and runs when Library → Cues exists.
+- **Next:** draft for CUES-PLAN §7 (Library → Cues, editor sections, Try It, Setup → Cues, Reply tab "Cues · N", Show in Scene) with real data (the Scene direction example), then code; the import question "Lorebook · Cue" in the lorebook import.
+- Checks: typecheck; unit tests (+18).
+
 ## Sidebar folders, code-block wrap, a smarter Assistant (2026-11-10, night) — CLAUDE — D-108…D-111
 
 - **Sidebar (D-108):** Pinned → Folders → Recent (10, one-line rows) in Play and the Assistant; Settings → Chat → Sidebar → Recent chats. `ui/SidebarChats.tsx`, `chatOrganization.ts`.

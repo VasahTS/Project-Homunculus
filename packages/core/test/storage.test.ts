@@ -28,7 +28,7 @@ describe("migrations", () => {
     await migrate(db, coreMigrations.filter((m) => m.version <= 2));
     await db.execute("INSERT INTO messages (id, session_id, parent_id, speaker, content, meta, created_at) VALUES ('m1','s1',NULL,'{\"kind\":\"user\"}','hello','{}',1)");
     await db.execute("INSERT INTO state_deltas (message_id, delta) VALUES ('m1', '{\"clock\":{\"t\":\"18:00\"}}')");
-    expect(await migrate(db, coreMigrations)).toEqual([3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(await migrate(db, coreMigrations)).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11]);
     const store = new SqlStore(db);
     expect(await store.getMessage("m1")).toMatchObject({ content: "hello", kind: "user" });
     expect(await new WorldState(store, store).resolve("s1", "m1")).toEqual({ clock: { t: "18:00" } });

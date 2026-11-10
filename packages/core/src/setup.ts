@@ -27,6 +27,8 @@ export interface ResolvedSetup {
   /** Regex scripts switched off (D-060). */
   regexOff: string[];
   agents: string[];
+  /** Cues switched on (D-113); cues tied to a character in the chat are added by the turn, not here. */
+  cues: string[];
   agentOverrides: Record<string, AgentOverride>;
   storyStyle: Record<string, string>;
   turnOrder: TurnOrder;
@@ -71,7 +73,7 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
   const out: ResolvedSetup = {
     presetId: null, personaId: null, personaVariantId: null, connectionId: null, modelOverride: "", agentConnectionId: null,
     presetOverrides: Object.create(null), narratorPrompt: { ...NARRATOR_PROMPT_DEFAULTS },
-    lorebooks: [], agents: [], regexOff: [], agentOverrides: {}, storyStyle: {}, turnOrder: "natural",
+    lorebooks: [], agents: [], cues: [], regexOff: [], agentOverrides: {}, storyStyle: {}, turnOrder: "natural",
     trackersOnSwipe: true, limits: {}, extra: {}, authorsNote: { ...AUTHORS_NOTE_DEFAULTS }, memory: { ...MEMORY_DEFAULTS }, sources: {},
   };
   const scalars = ["presetId", "personaId", "personaVariantId", "connectionId", "modelOverride", "agentConnectionId", "turnOrder", "trackersOnSwipe"] as const;
@@ -90,7 +92,7 @@ export function resolveSetup(layers: SetupLayers, builtin: SetupLayer = BUILTIN_
       out.modelOverride = "";
       out.sources.modelOverride = level;
     }
-    for (const key of ["lorebooks", "agents"] as const) {
+    for (const key of ["lorebooks", "agents", "cues"] as const) {
       const o = layer[key];
       if (o && o.mode !== "keep") {
         const before = new Set(out[key]);

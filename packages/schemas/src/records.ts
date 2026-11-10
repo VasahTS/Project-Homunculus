@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { GenerationType, Id, Json } from "./common.ts";
 import { LoreReport } from "./lorebooks.ts";
+import { CueReport } from "./cues.ts";
 
 /**
  * World state is stored as small changes ("deltas") attached to messages (D-001).
@@ -126,6 +127,8 @@ export const GenerationRecord = z.object({
     ms: z.number().int().optional(),
     fallback: z.string().optional(),
   }).optional(),
+  /** What each cue read, remembered and wrote for this reply (D-113). */
+  cues: z.array(CueReport).optional(),
   /** Ids of agents that ran for this reply, by phase. */
   agents: z.record(z.string(), z.array(Id)).default({}),
   tokensIn: z.number().int().optional(),

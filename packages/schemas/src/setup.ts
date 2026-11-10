@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Id, Json } from "./common.ts";
 
 /**
- * How a list (agents, lorebooks) combines with the layer above:
+ * How a list (agents, lorebooks, cues) combines with the layer above:
  *  - keep:  use the list from above unchanged (same as leaving the field out)
  *  - only:  use exactly `add`, ignore the list from above
  *  - add:   the list from above + `add` − `remove`
@@ -95,6 +95,8 @@ export const SetupLayer = z.object({
   /** Agents, trackers and companions are all agents (BLUEPRINT §4). */
   agents: ListOverride.optional(),
   agentOverrides: z.record(z.string(), AgentOverride).optional(),
+  /** Cues (D-113): rules that react to the chat without an AI call. Off by default. */
+  cues: ListOverride.optional(),
   /** Story style variables: pov, tense, length, tone… (module story-style). */
   storyStyle: z.record(z.string(), z.string()).optional(),
   turnOrder: TurnOrder.optional(),

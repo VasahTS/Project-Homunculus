@@ -139,4 +139,12 @@ export const coreMigrations: Migration[] = [
       "CREATE TABLE kits (id TEXT PRIMARY KEY, name TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, trashed_at INTEGER)",
     ],
   },
+  {
+    version: 11,
+    name: "cues (D-113)",
+    statements: [
+      // rules that react to the chat without an AI call: one validated JSON document each (D-008)
+      "CREATE TABLE cues (id TEXT PRIMARY KEY, name TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, trashed_at INTEGER)",
+    ],
+  },
 ];

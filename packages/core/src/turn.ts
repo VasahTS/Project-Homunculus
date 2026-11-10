@@ -7,8 +7,9 @@
 //
 // Only step 5 is fatal: an agent failing never loses the reply.
 import { AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
-import type { Character, GenerationRecord, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, RegexScript, Session, Story } from "@homunculus/schemas";
-import { AgentRunner, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
+import type { Character, CueReport, GenerationRecord, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, RegexScript, Session, Story } from "@homunculus/schemas";
+import { AgentRunner, seededSequence, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
+import { cueTextsForPrompt, runCue, type CueMessage, type CueOutput } from "./cues.ts";
 import { extractInline, inlineInstruction, parseAnswer } from "./agents/outputs.ts";
 import { prepared } from "./agents/styles.ts";
 import { noteInjections } from "./agents/feedback.ts";
@@ -37,7 +38,7 @@ export interface AgentPreviewOptions {
 }
 
 /** The prompt plus what the lorebooks did for it. */
-export type AssembledPrompt = BuiltPrompt & { lore?: LoreReport; memory?: GenerationRecord["memory"] };
+export type AssembledPrompt = BuiltPrompt & { lore?: LoreReport; memory?: GenerationRecord["memory"]; cues?: CueReport[] };
 
 /** Where a lorebook of a session comes from (for the Prompt tab). */
 export type LoreSource = "default" | "story" | "session" | "character" | "persona";
@@ -180,6 +181,13 @@ export class TurnPipeline {
     const seed = parentId ?? session.id;
     const base = { session, branchId: req.branchId, setup, generationType: type, mainConnection: main, connections: req.connections, names, seed, results, signal: req.signal };
 
+    // 2b. cues (D-113): no AI call; their values go to the message being answered, so agents, lorebooks and macros see them
+    const swipe = siblings.filter((m) => m.speaker.kind !== "user").length;
+    const cues = await this.runCues({ session, setup, parentId, type, names, save: true, swipe }).catch((e) => {
+      void this.core.events.emit("core.error", { source: "cues", message: e instanceof Error ? e.message : String(e) });
+      return { texts: [] as CueOutput[], reports: [] as CueReport[] };
+    });
+
     // 3. before
     const injections: PromptInjection[] = [];
     let speakerOverride: string | undefined;
@@ -212,7 +220,7 @@ export class TurnPipeline {
       })
       : undefined;
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: chosen.character, persona: effPersona,
-      names, injections, inlineAgents, type, main, seed, recall, branchId: req.branchId });
+      names, injections, inlineAgents, type, main, seed, recall, branchId: req.branchId, cueTexts: cues.texts });
     const prompt = built.parts;
 
     // 5. main reply, with "parallel" agents alongside
@@ -281,6 +289,7 @@ export class TurnPipeline {
       ...(main.profileId ? { connectionId: main.profileId } : {}),
       presetId: preset.id, budget: built.budget, ...(built.notes.length ? { promptNotes: built.notes } : {}),
       ...(built.lore ? { lore: built.lore } : {}), ...(built.memory ? { memory: built.memory } : {}),
+      ...(cues.reports.length ? { cues: cues.reports } : {}),
       params: { ...(main.params ?? {}) }, prompt, ...usage, durationMs: Math.max(0, this.now() - started), createdAt: this.now(),
       agents: { before: outcomes.map((o) => o.agentId) },
       who: {
@@ -1224,11 +1233,16 @@ export class TurnPipeline {
     // agents that only add their own text cost nothing: the preview shows them (D-047); the others would need an AI call
     const textAgents = await this.runner.select(entries, { ...base, trigger: "turn.before" }, (a) => isTurn(a, "before") && a.runMode === "text" && a.output === "inject");
     const injections: PromptInjection[] = [];
+    // cues cost nothing either (D-113): run without saving anything
+    const siblings = parentId ? await this.store.childrenOf(sessionId, parentId) : [];
+    const cues = await this.runCues({ session, setup, parentId, type: "normal", names, save: false, swipe: siblings.filter((m) => m.speaker.kind !== "user").length })
+      .catch(() => ({ texts: [] as CueOutput[], reports: [] as CueReport[] }));
     for (const e of textAgents) injections.push(injectionOf({ agentId: e.config.id, kind: "inject", config: e.config, output: await this.runner.textAnswer(prepared(e.config, setup), { ...base, text: options.userText ?? "" }) }));
     // notes already written cost nothing either (D-057)
     if (parentId) injections.push(...await noteInjections(this.store, entries.map((e) => e.config), await this.store.pathTo(parentId)).catch(() => []));
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: speaking.character, persona: effPersona,
-      names, injections, inlineAgents, type: "normal", main, seed: parentId ?? session.id, branchId: options.branchId });
+      names, injections, inlineAgents, type: "normal", main, seed: parentId ?? session.id, branchId: options.branchId, cueTexts: cues.texts });
+    if (cues.reports.length) built.cues = cues.reports;
     const before = entries.filter((e) => isTurn(e.config, "before") && e.config.runMode !== "inline" && !(e.config.runMode === "text" && e.config.output === "inject"));
     if (before.length) built.notes.push(`Not in this preview: what ${before.map((e) => e.config.name).join(", ")} would add (they run just before the reply).`);
     const sent = (preset.squashSystem ? squashSystem(built.parts) : built.parts).length;
@@ -1410,6 +1424,8 @@ export class TurnPipeline {
     names: RunRequest["names"]; injections: PromptInjection[]; inlineAgents: AgentEntry[]; type: GenerationType; main: ConnectionConfig; seed: string;
     /** Smart recall's choice for this reply; without it memory sends every summary (also in Preview Prompt). */
     recall?: RecallResult | undefined;
+    /** What the cues wrote this turn (D-113). */
+    cueTexts?: CueOutput[];
   }): Promise<AssembledPrompt> {
     const sceneState = await this.core.state.resolve(a.session.id, a.parentId);
     const scene: Array<{ agentId: string; text: string }> = [];
@@ -1434,7 +1450,10 @@ export class TurnPipeline {
     const { memory, receipt, note } = await this.memoryFor(a.session.id, a.setup.memory, a.history, a.recall, a.branchId);
     // the Director's active notes (D-092), after the chat by default
     const director = await this.directorInjection(a.session, new Set(a.history.map((m) => m.id)), a.parentId).catch(() => undefined);
-    const withDirector = director ? [...a.injections, director] : a.injections;
+    // cue texts: the lorebook's places go with the lorebook's texts, the others as injections before the agents'
+    const cuePrompt = cueTextsForPrompt(a.cueTexts ?? [], lore?.prompt);
+    const own = [...cuePrompt.injections, ...a.injections];
+    const withDirector = director ? [...own, director] : own;
     const injections = memory.text ? [...withDirector, { agentId: "memory", text: memory.text, position: "depth" as const, depth: 100_000, role: "system" as const }] : withDirector;
     const built = buildPrompt({
       preset: a.preset, generationType: a.type, character: a.character,
@@ -1444,7 +1463,7 @@ export class TurnPipeline {
       injections,
       inline: a.inlineAgents.map((e) => ({ agentId: e.config.id, text: inlineInstruction(prepared(e.config, a.setup), a.names) })),
       reserve: a.main.params?.maxTokens ?? 1024,
-      ...(lore ? { worldInfo: lore.prompt } : {}),
+      ...(cuePrompt.worldInfo ? { worldInfo: cuePrompt.worldInfo } : {}),
       authorsNote: { ...a.setup.authorsNote, goes: authorsNoteGoes(a.setup.authorsNote.interval, a.history) },
       macros: { model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, custom, vars },
       regex: await this.regexFor(a.preset, a.character, a.setup),
@@ -1454,6 +1473,48 @@ export class TurnPipeline {
     const withNotes = memoryNote ? { ...built, notes: [...built.notes, memoryNote] } : built;
     const withMemory = memorySent && receipt ? { ...withNotes, memory: receipt } : withNotes;
     return lore ? { ...withMemory, lore: lore.report } : withMemory;
+  }
+
+  /**
+   * Step 2b: the cues (D-113). The ones switched on (Default → Story → chat) plus the ones tied to a character in the
+   * chat, minus the ones this chat switched off. Each starts from its values at the message before the one being
+   * answered and writes the new ones at that message: a swipe starts from the same place (a counter never adds twice),
+   * a branch has its own values, and an edited message is simply read again. `save: false` = Preview Prompt / Try It.
+   */
+  async runCues(a: { session: Session; setup: ResolvedSetup; parentId: string | null; type: GenerationType; names: RunRequest["names"]; save: boolean; swipe: number }):
+    Promise<{ texts: CueOutput[]; reports: CueReport[] }> {
+    if (!a.parentId) return { texts: [], reports: [] };
+    const off = new Set(a.session.setup.cues?.remove ?? []);
+    const cast = new Set(a.session.cast.flatMap((c) => (c.characterId && c.presence !== "off" ? [c.characterId] : [])));
+    const tied = (await this.store.cues.list()).filter((c) => c.characterIds.some((id) => cast.has(id))).map((c) => c.id);
+    const cues = await this.store.cuesForUse([...a.setup.cues, ...tied].filter((id) => !off.has(id)));
+    if (!cues.length) return { texts: [], reports: [] };
+    const path = await this.store.pathTo(a.parentId);
+    const history: CueMessage[] = path.filter((m) => m.visibility.ai === "full" && m.kind !== "event")
+      .map((m) => ({ from: m.speaker.kind === "user" ? "user" : "ai", text: applyBasicMacros(m.content, { char: a.names.char, user: a.names.user }) }));
+    const before = await this.core.state.resolve(a.session.id, (await this.store.parentOf(a.parentId)) ?? null);
+    const state = await this.core.state.resolve(a.session.id, a.parentId);
+    const role = (a.session.storyId ? (await this.store.getStory(a.session.storyId))?.userRole : undefined) ?? a.session.userRole;
+    const texts: CueOutput[] = [];
+    const reports: CueReport[] = [];
+    for (const cue of cues) {
+      const random = this.options.random && cue.randomness === "perSwipe" ? this.options.random
+        : seededSequence(`${a.parentId}|${cue.id}${cue.randomness === "perSwipe" ? `|${a.swipe}` : ""}`);
+      const r = runCue({
+        cue, history, previous: before[cue.namespace], state, type: a.type, role, random, now: this.now(),
+        expand: (text, own) => expandMacros(text, {
+          char: a.names.char, user: a.names.user, seed: `${a.parentId}|${cue.id}`, random,
+          state: { ...state, [cue.namespace]: { ...(state[cue.namespace] ?? {}), ...own } } as Record<string, Record<string, unknown>>,
+        }),
+      });
+      reports.push(r.report);
+      texts.push(...r.texts);
+      if (!Object.keys(r.values).length) continue;
+      // later cues (and conditions on "<namespace>.<key>") see these values
+      state[cue.namespace] = { ...(state[cue.namespace] ?? {}), ...r.values };
+      if (a.save) await this.core.state.applyDelta(a.parentId, { [cue.namespace]: r.values as Record<string, never> });
+    }
+    return { texts, reports };
   }
 
   /**

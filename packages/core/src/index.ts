@@ -13,6 +13,7 @@ export * from "./agents/feedback.ts";
 export * from "./presets.ts";
 export * from "./prompt-control.ts";
 export * from "./lorebook.ts";
+export * from "./cues.ts";
 export * from "./turn.ts";
 export * from "./trackers.ts";
 export * from "./field-sets.ts";

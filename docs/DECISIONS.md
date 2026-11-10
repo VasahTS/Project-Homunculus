@@ -1225,3 +1225,17 @@ Daniel (translated): "something in another update broke the trackers — look at
 - List items: chips with small corners; when an item is long, the list reads one item per line with a small bullet. Editing a list is a growing box, one item per line (Shift+Enter for the next, Enter saves); commas stay inside an item.
 
 Signed: **CLAUDE**.
+
+
+## D-113 — Cues: rules that react to the chat without an AI call (2026-11-10)
+
+Daniel (translated): "research how JanitorAI's scripts work and make a detailed plan" → plan approved with five answers (10/11): conversion by the Assistant instead of running JavaScript (a code mode only as an optional phase 5); a cue's values in the Scene tab when it makes sense ("Show in Scene", off by default); a cue can be tied to a character; on a swipe, same roll by default or roll again, chosen per cue, counters never add twice; the name is **Cues** ("Regex scripts" keeps its name). Then: "let's implement cues". Design principles he set: standalone (no lorebook needed, the lorebook gets nothing new), complete from the start ("residents, not hacks").
+- **What a cue is:** signals (words, messages, chance, clock, tracker, generation) → values with rules (set / add / reset, else keep / reset) → groups of texts (first / random by weight / rotate / all, don't repeat, chance, cooldown, wrap, each text with its own trigger) → placement (the lorebook's places + with the agents' prompts). Schema `schemas/cues.ts`; conditions are the lorebook's format plus at least / at most.
+- **Where it runs:** turn step 2b, before the "before" agents and the prompt; no AI call. Values are written into the world state (namespace `cue-…`) at the message being answered, computed from the state at the message before it: a swipe recomputes from the same place, a branch has its own values, an edited message is read again. Random rolls come from a sequence seeded by the message and the cue (plus the swipe number when the cue rolls again).
+- **Receipt:** `GenerationRecord.cues`; Preview Prompt and Try It run cues without saving anything.
+- **Switching on:** `SetupLayer.cues` (Default → Story → chat; off by default) plus cues tied to a character in the chat; a chat's `remove` switches any off.
+- **JanitorAI (phase 0):** a lorebook script (bare array of entries, or its record with `script` as JSON text) imports as a lorebook, JanitorAI's names mapped (`depth` → scan depth, `minMessages` → delay, `inclusionGroup` → group, `keyMatchPriority` → group scoring, key "None." → always on, `priority` → order, placement into personality/scenario → after the character). Option `splitRegex`: plain word-list regex keys become separate keys. Advanced (code) scripts are refused with a pointer to cues.
+- **Not yet (needs the draft):** Library → Cues, the editor, Try It, Setup rows, the Reply tab group, values in Scene, examples, the Assistant writing cues and converting JanitorAI scripts, and moving the agents' "No AI call" mode: `cueFromTextAgent` gives the same prompt (tested), but existing text agents are converted only when the Cues screen exists, so nothing loses its editor.
+- Tests: `packages/core/test/cues.test.ts` (engine, turn, swipes, branches, preview, character-tied, agent conversion with an identical prompt, lorebook entries → cue, speed), `packages/st-lorebooks/test/janitor.test.ts`.
+
+Signed: **CLAUDE**.

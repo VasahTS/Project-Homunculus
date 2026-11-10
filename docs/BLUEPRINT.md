@@ -246,6 +246,18 @@ A chat with an AI that **creates and edits library things for you**, in the styl
 
 **Needs first**: (a) ✅ **named connection profiles** (done 2026-10-28, D-020: address, key in the keychain, model, **reasoning effort**, limits, backup); (b) agent **tools** really working (slice 5; today they are only a contract); (c) `proposal` output with an approve/reject screen; (d) library item history (slice 1). **Suggested fit**: right after slice 5, together with slice 6 (trackers + Scene panel) — see §10.
 
+### 4.10 Cues — rules without an AI call (D-113, 2026-11-10)
+
+**Agents think, cues react.** Everything that calls an AI is an agent; everything that doesn't is a cue (the agents' old "No AI call" mode moves here). The model is JanitorAI's "advanced scripts" without code: what their JavaScript does by hand is a field. A cue is **standalone**: it needs no lorebook, and the lorebook does not change because of cues (a JanitorAI pack of script + lorebook becomes one cue).
+
+- **Reads (signals, computed every turn):** words (count in the last N messages, from you / the AI / both, whole words, ignore negated, `/regex/` allowed), messages, chance, clock (hour or part of the day), a tracker field, the kind of generation.
+- **Remembers (values):** each value's first passing rule does `set` / `add` / `reset`; no rule → keep (memory) or reset (worked out each turn). Values live in the world state under the cue's namespace (`cue-<name>`), written at the message being answered: swipes start from the same place (a counter never adds twice), branches have their own, Scene / macros / lorebook conditions / agents read them for free.
+- **Writes (groups of texts):** pick first / random by weight / rotate / all; don't repeat the last N; group chance; cooldown; wrap with `{{text}}`; each text has its own trigger (words + also needs + but not, chance, after N messages, tests, "one of" a shared name). Placement: the lorebook's places, plus "with the agents' prompts".
+- **Conditions:** the lorebook's format (`LoreCondition`) plus at least / at most; paths `signal.<k>`, `value.<k>`, `<namespace>.<field>`.
+- **Switching on:** `SetupLayer.cues` (Default → Story → chat), plus cues tied to a character in the chat; a chat's "remove" switches any off. Randomness: same roll on a swipe (default) or roll again.
+- **Receipt:** `GenerationRecord.cues` (signals with the words that matched, values before → after and why, texts picked and why, tokens). Preview Prompt and Try It run cues without saving.
+- Code: `schemas/cues.ts`, `core/cues.ts` (pure engine), `TurnPipeline.runCues` (turn step 2b), `SqlStore.cues` (table `cues`, migration 11). JanitorAI lorebook scripts import as lorebooks (`st-lorebooks`); `cueFromLoreEntries` and `cueFromTextAgent` make cues from entries and from text agents. Screens (Library → Cues, editor, Try It, Setup, Reply tab) follow `claude/CUES-PLAN.md` §7 after a draft.
+
 ---
 
 ## 5. The prompt
@@ -287,7 +299,8 @@ Providers charge less when the **start** of the prompt is the same as the previo
 
 ```
  1. The user sends (or swipe / continue / impersonate / let them act / auto-play)
- 2. resolveSetup(session)                  → preset, persona, agents, trackers, connections, limits
+ 2. resolveSetup(session)                  → preset, persona, agents, trackers, cues, connections, limits
+ 2b. CUES (no AI call, D-113)              → values written at the message answered; texts for the prompt
  3. BEFORE   (parallel, grouped by connection)
       intercept → the user's message rewritten (revision)
       inject (+ tools) → texts for the prompt; Pathfinder picks entries

@@ -3,7 +3,7 @@
 // reported clearly instead of breaking the UI later. Data from older versions is
 // upgraded on read (schemas/legacy.ts), so no data migration is needed (D-008).
 import {
-  AgentConfig, AgentNote, AgentRun, Avatar, Branch, type BranchInput, Character, Folder, type FolderInput, type FolderKind, Kit, Narrator, Npc, Story, ConnectionProfile, GenerationRecord, Lorebook, LoreSettings, Preset, QuickReplyData, RegexScript, HistoryEntry, Message, MessageKind,
+  AgentConfig, AgentNote, Cue, type CueInput, AgentRun, Avatar, Branch, type BranchInput, Character, Folder, type FolderInput, type FolderKind, Kit, Narrator, Npc, Story, ConnectionProfile, GenerationRecord, Lorebook, LoreSettings, Preset, QuickReplyData, RegexScript, HistoryEntry, Message, MessageKind,
   MessageRevision, MessageVisibility, Persona, Session, SetupLayer, StateDelta, TrackerSchema, TrashItem, upgradeSession,
   type HistoryKind, type TrashKind,
   type AgentConfigInput, type AgentRunInput, type LorebookInput, type LoreTimers, type ConnectionProfileInput, type PresetInput, type CharacterInput, type MessageInput, type PersonaInput,
@@ -101,6 +101,8 @@ export class SqlStore implements StateRepository, MessageTree {
   readonly npcs: DocTable<typeof Npc>;
   readonly folders: DocTable<typeof Folder>;
   readonly kits: DocTable<typeof Kit>;
+  /** Cues (D-113): one validated JSON document each. */
+  readonly cues: DocTable<typeof Cue>;
 
   constructor(private readonly db: SqlDriver) {
     this.personas = new DocTable(db, "personas", Persona, { named: true, trashable: true });
@@ -114,6 +116,7 @@ export class SqlStore implements StateRepository, MessageTree {
     this.npcs = new DocTable(db, "npcs", Npc, { named: true, trashable: true });
     this.folders = new DocTable(db, "folders", Folder, { named: true });
     this.kits = new DocTable(db, "kits", Kit, { named: true, trashable: true });
+    this.cues = new DocTable(db, "cues", Cue, { named: true });
   }
 
   // ------------------------------------------------------------ folders (round 3, D-036): a tree per kind
@@ -264,6 +267,22 @@ export class SqlStore implements StateRepository, MessageTree {
     const p = await this.presets.save(input);
     await this.recordHistory("preset", p.id, before, p);
     return p;
+  }
+
+  // ------------------------------------------------------------ cues (D-113)
+  /** Saves a cue (every version is kept, like the other library items). */
+  async saveCue(input: CueInput): Promise<Cue> {
+    const before = await this.cues.get(Cue.parse(input).id);
+    const c = await this.cues.save(input);
+    await this.recordHistory("cue", c.id, before, c);
+    return c;
+  }
+
+  /** The cues with these ids, in that order (unknown ids are skipped). */
+  async cuesForUse(ids: string[]): Promise<Cue[]> {
+    const out: Cue[] = [];
+    for (const id of [...new Set(ids)]) { const c = await this.cues.get(id); if (c) out.push(c); }
+    return out;
   }
 
   // ------------------------------------------------------------ lorebooks (slice 3)

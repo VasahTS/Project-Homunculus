@@ -120,7 +120,7 @@ export type PersonaInput = z.input<typeof Persona>;
 // ---------------------------------------------------------------- history and trash (BLUEPRINT §2.6) — 2026-10-28, slice 1
 
 /** Kinds of things that keep a history of saved versions. More kinds join as they get editors. */
-export const HistoryKind = z.enum(["character", "persona", "preset", "lorebook", "narrator", "npc"]);
+export const HistoryKind = z.enum(["character", "persona", "preset", "lorebook", "narrator", "npc", "cue"]);
 export type HistoryKind = z.infer<typeof HistoryKind>;
 
 /** One saved version of a library item (the whole item, as it was saved). */
