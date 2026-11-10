@@ -18,20 +18,20 @@ const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 type Order = "manga" | "western";
 
 /**
- * Big scans cost more and fill the database: pages are scaled down to 2400 px on the long side (a tall webtoon strip
- * keeps 1200 px of width) and saved as JPEG. Where a canvas can't be made the page stays as it was.
+ * Big scans cost more and fill the database: pages are scaled down to 1600 px on the long side (a tall webtoon strip
+ * keeps 1000 px of width; still readable balloons) and saved as JPEG. Where a canvas can't be made the page stays as it was.
  */
 async function fitPage(bytes: Uint8Array, mime: string): Promise<{ mime: string; base64: string }> {
   try {
     const bmp = await createImageBitmap(new Blob([bytes as BlobPart], { type: mime }));
     const tall = bmp.height / bmp.width > 3;
-    const scale = Math.min(1, tall ? 1200 / bmp.width : 2400 / Math.max(bmp.width, bmp.height));
-    if (scale >= 1 && bytes.length < 1_500_000) { bmp.close(); return { mime, base64: bytesToBase64(bytes) }; }
+    const scale = Math.min(1, tall ? 1000 / bmp.width : 1600 / Math.max(bmp.width, bmp.height));
+    if (scale >= 1 && bytes.length < 600_000) { bmp.close(); return { mime, base64: bytesToBase64(bytes) }; }
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
     canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
     bmp.close();
-    const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.88));
+    const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.85));
     if (!blob) throw new Error("no blob");
     return { mime: "image/jpeg", base64: bytesToBase64(new Uint8Array(await blob.arrayBuffer())) };
   } catch { return { mime, base64: bytesToBase64(bytes) }; }

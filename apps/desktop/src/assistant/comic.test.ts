@@ -77,7 +77,7 @@ describe("reading a comic (D-115)", () => {
   it("reads a long comic in batches, giving each batch the cast and story so far", async () => {
     const { store, core, seen } = await setup(reader);
     const r = await readComic({ core, store, conn: flash, pages: Array.from({ length: 25 }, (_, i) => page(i + 1)), order: "western", usage: emptyVisionUsage(), batchSize: 10 });
-    expect(seen.map(imagesIn)).toEqual([10, 10, 5]);
+    expect(seen.map(imagesIn)).toEqual([10, 11, 6]); // later batches see the page before them
     expect(textOf(seen[1]!)).toContain("pages 11–20 of 25");
     expect(textOf(seen[1]!)).toContain("The cast so far (keep these ids):\nA: short brown hair\nB — Ren: tall, glasses | calm"); // A is named from batch 2
     expect(textOf(seen[1]!)).toContain("The story so far:\nUp to page 10.");
@@ -96,8 +96,19 @@ describe("reading a comic (D-115)", () => {
     expect(textOf(seen[1]!)).toContain("Your previous answer could not be used");
     expect(r.pages).toHaveLength(2);
     const bad = await setup(() => ["nope"]);
-    await expect(readComic({ core: bad.core, store: bad.store, conn: flash, pages: [page(1)], order: "western", usage: emptyVisionUsage() })).rejects.toThrow(/Couldn't read pages 1–1/);
+    await expect(readComic({ core: bad.core, store: bad.store, conn: flash, pages: [page(1)], order: "western", usage: emptyVisionUsage() })).rejects.toThrow(/Couldn't read page 1/);
     expect(bad.seen).toHaveLength(2);
+  });
+
+  it("splits the pages when the service refuses a call, down to one page with the page before it", async () => {
+    // a service that refuses more than 3 pictures per call
+    const { store, core, seen } = await setup((req) => { if (imagesIn(req) > 3) throw new Error("413 Request Entity Too Large"); return reader(req); });
+    const r = await readComic({ core, store, conn: flash, pages: Array.from({ length: 6 }, (_, i) => page(i + 1)), order: "manga", usage: emptyVisionUsage() });
+    expect(r.pages.map((p) => p.page)).toEqual([1, 2, 3, 4, 5, 6]);
+    const ok = seen.filter((q) => imagesIn(q) <= 3);
+    expect(ok.map(imagesIn)).toEqual([3, 3, 2]); // pages 1–3; page 3 + pages 4–5; page 5 + page 6
+    expect(textOf(ok[1]!)).toContain("The FIRST picture is page 3, already read");
+    expect(textOf(ok[1]!)).toContain("pages 4–5 of 6");
   });
 
   it("writes the reading as text with pages, speakers by id and name, and kinds", async () => {

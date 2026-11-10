@@ -137,36 +137,66 @@ export async function readComic(o: {
   const pages: ComicPage[] = [];
   let summary = "";
   let calls = 0;
+  let lastError = "";
   o.onProgress?.(0, o.pages.length);
-  for (let start = 0; start < o.pages.length; start += size) {
-    o.signal?.throwIfAborted();
-    const batch = o.pages.slice(start, start + size);
-    const first = start + 1, last = start + batch.length;
+  /** One call for pages [from, to) (0-based), with the page before them as a picture for continuity. */
+  const readOnce = async (from: number, to: number): Promise<ComicBatch> => {
+    const batch = o.pages.slice(from, to);
+    const first = from + 1, last = to;
+    const before = from > 0 ? o.pages[from - 1] : undefined;
     const context = [
       ORDER_TEXT[o.order],
-      `These are pages ${first}–${last} of ${o.pages.length}, in order (the first picture is page ${first}).`,
+      before
+        ? `The FIRST picture is page ${from}, already read: it is only there so you see where the story is. Then come pages ${first}–${last} of ${o.pages.length}, in order: read only those.`
+        : `These are pages ${first}–${last} of ${o.pages.length}, in order (the first picture is page ${first}).`,
       cast.length ? `The cast so far (keep these ids):\n${castText(cast)}` : "Nobody has been seen yet: you start the cast at A.",
       summary ? `The story so far:\n${summary}` : "",
     ].filter(Boolean).join("\n\n");
-    const key = await visionKey(batch, o.conn.model, `comic-batch|${READ_PROMPT}\n${context}`);
-    let got = await cached<ComicBatch>(o.store, key);
-    if (got) o.usage.cached++;
-    else {
-      let lastError = "";
-      for (let attempt = 0; attempt < 2 && !got; attempt++) {
-        const text = attempt === 0 ? context : `${context}\n\nYour previous answer could not be used: ${lastError} Answer again with only the JSON, every page ${first}–${last} included.`;
-        const answer = await askVision({ core: o.core, conn: o.conn, system: READ_PROMPT, text, pictures: batch, usage: o.usage, signal: o.signal, maxTokens: 16_000 });
-        calls++;
-        try { got = checkBatch(jsonIn(answer), first, batch.length); }
-        catch (e) { if (o.signal?.aborted) throw e; lastError = e instanceof Error ? e.message : String(e); }
-      }
-      if (!got) throw new Error(`Couldn't read pages ${first}–${last}: ${lastError}`);
-      await keep(o.store, key, got);
+    const pictures = before ? [before, ...batch] : batch;
+    const key = await visionKey(pictures, o.conn.model, `comic-batch|${READ_PROMPT}\n${context}`);
+    const hit = await cached<ComicBatch>(o.store, key);
+    if (hit) { o.usage.cached++; return hit; }
+    let error = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const text = attempt === 0 ? context : `${context}\n\nYour previous answer could not be used: ${error} Answer again with only the JSON, every page ${first}–${last} included.`;
+      // the answer grows with the pages: asking for more than a model allows is itself an error some services give
+      const answer = await askVision({ core: o.core, conn: o.conn, system: READ_PROMPT, text, pictures, usage: o.usage, signal: o.signal, maxTokens: Math.min(16_000, 2000 + 1800 * batch.length) });
+      calls++;
+      try { const got = checkBatch(jsonIn(answer), first, batch.length); await keep(o.store, key, got); return got; }
+      catch (e) { if (o.signal?.aborted) throw e; error = e instanceof Error ? e.message : String(e); }
+    }
+    throw new Error(error);
+  };
+  /**
+   * Pages [from, to) in order. When the service refuses a call (too big, too many pictures, too many tokens) or the
+   * answer can't be used, the pages are split in two and read again — down to one page per call. Daniel, 11/10: a
+   * 6-page comic was refused as one call and the model fell back to looking at pages one by one.
+   */
+  const readRange = async (from: number, to: number): Promise<void> => {
+    o.signal?.throwIfAborted();
+    let got: ComicBatch | undefined;
+    try { got = await readOnce(from, to); }
+    catch (e) {
+      if (o.signal?.aborted || (e instanceof Error && e.name === "AbortError")) throw e;
+      lastError = e instanceof Error ? e.message : String(e);
+      if (to - from <= 1) throw new Error(`Couldn't read page ${to}: ${lastError}`);
+      const mid = from + Math.ceil((to - from) / 2);
+      await readRange(from, mid);
+      await readRange(mid, to);
+      return;
     }
     cast = mergeCast(cast, got.cast);
     pages.push(...got.pages);
     summary = got.summary.trim() || summary;
-    o.onProgress?.(last, o.pages.length);
+    o.onProgress?.(to, o.pages.length);
+  };
+  // batches also stay under a size most services accept (pictures are sent as base64 text)
+  const MAX_CHARS = 14_000_000;
+  for (let start = 0; start < o.pages.length;) {
+    let end = start, chars = 0;
+    while (end < o.pages.length && end - start < size && (end === start || chars + o.pages[end]!.base64.length <= MAX_CHARS)) chars += o.pages[end++]!.base64.length;
+    await readRange(start, end);
+    start = end;
   }
   const reading: ComicReading = { order: o.order, model: o.conn.model, files: o.pages.map((p) => p.name), cast, pages, summary, calls, at: (o.now ?? Date.now)() };
   await keep(o.store, whole, reading);
