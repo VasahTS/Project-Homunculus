@@ -102,16 +102,13 @@ test("choices are inert; changing the selected history marks the captured result
  expect(await count(page)).toBe(2);
 });
 
-test("text agents expand macros without a model request or saved agent requirement",async({page})=>{
+// D-113/D-114: agents without an AI call are cues now; their Try It (macros expanded, nothing saved, no model call) is
+// covered by e2e/cues.e2e.ts. A new agent makes its own call.
+test("a new agent makes its own call; text with no AI call is a cue",async({page})=>{
  await page.goto("/");await instrument(page);await openLibrary(page,"Agents");
  await page.getByRole("button",{name:"New Agent",exact:true}).click();const ed=page.getByTestId("agent-editor");
- await ed.getByLabel("Agent instructions").fill("Leave {{user}} room to answer {{char}}.");
- await ed.getByRole("button",{name:"Try It",exact:true}).click();const dialog=modal(page);
- await expect(dialog.getByTestId("agent-try-run")).toBeEnabled();
- await expect(dialog.getByLabel("Connection",{exact:true})).toBeDisabled();
- await dialog.getByTestId("agent-try-run").click();await expect(dialog.getByRole("status")).toHaveText("Test complete");
- await expect(dialog.getByRole("tabpanel")).toContainText("Leave User room to answer Lyra.");
- expect(await count(page)).toBe(0);await expect(dialog).toContainText("No AI call");
+ await expect(ed.getByTestId("agent-cue-hint")).toContainText("Library → Cues");
+ expect(await count(page)).toBe(0);
 });
 
 test("provider errors and malformed answers keep exact inputs/raw text available and allow retry",async({page})=>{

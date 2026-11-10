@@ -352,6 +352,7 @@ export function cueTextsForPrompt(texts: CueOutput[], lore: LoreForPrompt | unde
   if (!texts.length) return { worldInfo: lore, injections };
   const wi: Required<LoreForPrompt> = {
     before: [...(lore?.before ?? [])], after: [...(lore?.after ?? [])], depth: [...(lore?.depth ?? [])] as LoreDepthItem[],
+    cuesBefore: [...(lore?.cuesBefore ?? [])], cuesAfter: [...(lore?.cuesAfter ?? [])],
     examplesTop: [...(lore?.examplesTop ?? [])], examplesBottom: [...(lore?.examplesBottom ?? [])],
     noteTop: [...(lore?.noteTop ?? [])], noteBottom: [...(lore?.noteBottom ?? [])], outlets: { ...(lore?.outlets ?? {}) },
   };
@@ -361,8 +362,8 @@ export function cueTextsForPrompt(texts: CueOutput[], lore: LoreForPrompt | unde
     switch (p.position) {
       case "atDepth": injections.push({ agentId: `cue:${t.cueId}`, text: t.text, position: "depth", depth: p.depth, role: p.role }); break;
       case "agentPrompts": injections.push({ agentId: `cue:${t.cueId}`, text: t.text, position: "marker", depth: p.depth, role: p.role }); break;
-      case "before": wi.before.push(t.text); usedLore = true; break;
-      case "after": wi.after.push(t.text); usedLore = true; break;
+      case "before": wi.cuesBefore.push({ cueId: t.cueId, text: t.text }); usedLore = true; break;
+      case "after": wi.cuesAfter.push({ cueId: t.cueId, text: t.text }); usedLore = true; break;
       case "emTop": wi.examplesTop.push(t.text); usedLore = true; break;
       case "emBottom": wi.examplesBottom.push(t.text); usedLore = true; break;
       case "anTop": wi.noteTop.push(t.text); usedLore = true; break;

@@ -13,7 +13,7 @@ test("Library categories are one row of tabs in their groups, and resource editi
   const kitsBox = await navigation.getByRole("button", { name: "Kits", exact: true }).boundingBox();
   const agentsBox = await navigation.getByRole("button", { name: "Agents", exact: true }).boundingBox();
   expect(Math.abs((kitsBox?.y ?? 0) - (agentsBox?.y ?? 99))).toBeLessThan(2);
-  await expect(navigation.getByRole("button")).toHaveCount(12); // + Directors (D-092)
+  await expect(navigation.getByRole("button")).toHaveCount(13); // + Directors (D-092), + Cues (D-114)
   await expect(navigation.getByRole("button", { name: "Kits", exact: true })).toHaveAttribute("aria-current", "page");
   const inactive = navigation.getByRole("button", { name: "NPCs", exact: true });
   expect(await inactive.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");

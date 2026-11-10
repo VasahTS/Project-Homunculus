@@ -159,7 +159,8 @@ describe("cue engine: values and texts", () => {
       { cueId: "c", groupKey: "g", text: "M", placement: { position: "agentPrompts", depth: 4, role: "system", outletName: "" } },
       { cueId: "c", groupKey: "g", text: "O", placement: { position: "outlet", depth: 4, role: "system", outletName: "mood" } },
     ], { before: ["lore"], after: [] });
-    expect(out.worldInfo?.before).toEqual(["lore", "B"]);
+    expect(out.worldInfo?.before).toEqual(["lore"]);
+    expect(out.worldInfo?.cuesBefore).toEqual([{ cueId: "c", text: "B" }]);
     expect(out.worldInfo?.outlets).toEqual({ mood: ["O"] });
     expect(out.injections).toEqual([
       { agentId: "cue:c", text: "D", position: "depth", depth: 2, role: "user" },
@@ -251,6 +252,9 @@ describe("cues in a turn", () => {
     const text = record!.prompt.map((p) => p.content).join("\n");
     expect(text).toContain("It is wet.");
     expect(text).toContain("Puddles everywhere.");
+    // a cue's text after the character is its own part, not counted as the lorebook's
+    expect(record!.prompt.find((p) => p.source === "agent:cue:mood")?.content).toBe("It is wet.");
+    expect(record!.prompt.filter((p) => p.source.startsWith("lore:")).some((p) => p.content.includes("It is wet."))).toBe(false);
 
     // Preview Prompt on the next turn: the value is kept ("keep"), nothing new is saved at the reply
     const preview = await w.chat.turns.previewPrompt(session.id, one.reply.id, connection, { userText: "Sunny now." });

@@ -73,6 +73,9 @@ export interface LoreForPrompt {
   noteTop?: string[];
   noteBottom?: string[];
   outlets?: Record<string, string[]>;
+  /** Cue texts placed before / after the character (D-113): sent right after the lorebook's text, as their own parts. */
+  cuesBefore?: Array<{ cueId: string; text: string }>;
+  cuesAfter?: Array<{ cueId: string; text: string }>;
 }
 
 /** Where SillyTavern puts the Author's Note by default (and the lore entries around it when there is no note setup). */
@@ -209,6 +212,7 @@ export function buildPrompt(rawInput: BuildPromptInput): BuiltPrompt {
       case "worldInfoBefore": case "worldInfoAfter": {
         const list = (b.marker === "worldInfoBefore" ? input.worldInfo?.before : input.worldInfo?.after) ?? [];
         if (list.length) add({ role: b.role, content: fmtWorldInfo(preset.formats.worldInfo, list.join("\n")), source: `lore:${b.marker === "worldInfoBefore" ? "before" : "after"}` });
+        for (const c of (b.marker === "worldInfoBefore" ? input.worldInfo?.cuesBefore : input.worldInfo?.cuesAfter) ?? []) add({ role: b.role, content: c.text, source: `agent:cue:${c.cueId}` });
         break;
       }
       case "scene": for (const p of sceneParts()) add(p); break;
@@ -311,6 +315,8 @@ ${content}`;
   for (const d of input.worldInfo?.depth ?? []) if (d.content.trim()) depthItems.push({ depth: d.depth, order: 100, role: d.role, content: d.content, source: "lore:depth" });
   const loreLeftOut = (marker: "worldInfoBefore" | "worldInfoAfter", list: string[] | undefined) => {
     if (list?.length && !has(marker)) notes.push(`${list.length} lorebook entr${list.length === 1 ? "y" : "ies"} placed "${marker === "worldInfoBefore" ? "before" : "after"}" were not sent, because the preset has no "World Info (${marker === "worldInfoBefore" ? "before" : "after"})" block.`);
+    const cues = marker === "worldInfoBefore" ? input.worldInfo?.cuesBefore : input.worldInfo?.cuesAfter;
+    if (cues?.length && !has(marker)) notes.push(`${cues.length} cue text${cues.length === 1 ? "" : "s"} placed "${marker === "worldInfoBefore" ? "before" : "after"} the character" were not sent, because the preset has no "World Info (${marker === "worldInfoBefore" ? "before" : "after"})" block.`);
   };
   loreLeftOut("worldInfoBefore", input.worldInfo?.before);
   loreLeftOut("worldInfoAfter", input.worldInfo?.after);
