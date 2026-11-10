@@ -21,8 +21,9 @@ test("pin a chat, make a folder from its menu, fold it (the open chat stays), dr
   await page.getByRole("textbox", { name: "Chat name" }).press("Enter");
   await expect(chats.locator(".sc-t").first()).toHaveText("Mira at the docks");
 
-  // Pin
-  await (await menuOf(page, /Mira/)).getByRole("menuitem", { name: "Pin" }).click();
+  // Pin, from the right-click menu
+  await row(page, /Mira/).click({ button: "right" });
+  await page.getByRole("menu").first().getByRole("menuitem", { name: "Pin" }).click();
   await expect(page.getByTestId("session-list-pinned")).toContainText("Mira");
 
   // Move to Folder → New Folder… (also unpins)
@@ -43,7 +44,14 @@ test("pin a chat, make a folder from its menu, fold it (the open chat stays), dr
 
   // drag a chat from Recent onto the folder
   const lyra = chats.locator(".sc-li").first();
-  await lyra.dragTo(folder.locator(".sc-folder-head"));
+  // pointer drag (the desktop window swallows HTML drag and drop): press, move, release over the folder
+  const from = (await lyra.boundingBox())!, to = (await folder.locator(".sc-folder-head").boundingBox())!;
+  await page.mouse.move(from.x + 30, from.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 40, from.y + 20, { steps: 3 });
+  await page.mouse.move(to.x + 30, to.y + 10, { steps: 8 });
+  await expect(folder).toHaveClass(/drop/);
+  await page.mouse.up();
   await expect(folder.locator(".sc-count")).toHaveText("2");
 
   // delete the folder: its chats go back to Recent

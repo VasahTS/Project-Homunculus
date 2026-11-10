@@ -1180,6 +1180,7 @@ Daniel (translated): "a limit for the latest chats, with folders for these chats
 - From Flint (`ChatsNav.tsx`): a folded folder still shows the open chat and any chat that is writing.
 - A folder is only a sidebar grouping: the chat still lives on its character's sheet or its story's page. Stored in app settings (`sidebar.chats`, `chatOrganization.ts`); ids of chats that are gone are not shown, so a chat restored from the Trash comes back to its folder. The sidebar search still lists every matching chat.
 - Tests: `chatOrganization.test.ts`; click tests `chat-folders` (new), `round3` (10 rows, Show N more).
+- **Follow-up the same morning** (Daniel, on Windows: "the ⋯ is invisible, dragging does nothing; right-click would be nice"): dragging uses pointer events (a small label follows the pointer; the folder or Recent under it lights up), because the desktop window (WebView2) swallows the browser's drag and drop, as Folders.tsx already found for cards. Right-click on a chat or a folder opens its menu. "⋯" on hover is brighter, on a filled square.
 
 Signed: **CLAUDE**.
 

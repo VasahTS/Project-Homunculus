@@ -3,7 +3,7 @@
 // (ChatsNav.tsx): pinned on top, a folder per group with its count, "Show N more", drag a chat onto a folder, and a folded
 // folder still shows the open chat and any chat that is writing. A folder is only a sidebar grouping: the chat still
 // lives on its character's sheet or its story's page. CLAUDE, 2026-11-10.
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   addFolder, ago, changeOrganization, deleteFolder, folderOf, foldFolder, groupChats, moveChat, pinChat, renameFolder, useChatOrganization,
   type ChatFolder, type ChatScope,
@@ -24,7 +24,6 @@ export interface SideChat {
 }
 
 const FOLDER_ROWS = 8;
-const DRAG_TYPE = "application/x-homunculus-chat";
 
 export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, onTrash, trashLabel = "Move to Trash", source, testId, empty, recentHelp }: {
   /** The tooltip of the Recent heading. */
@@ -69,23 +68,53 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
     change((o) => { const x = addFolder(o, id, name); return chatId ? moveChat(x, chatId, id) : x; });
   };
 
-  // ---- drag a chat onto a folder (or onto Recent to take it out)
-  const dragProps = (chatId: string) => ({
-    draggable: true,
-    onDragStart: (e: DragEvent) => { e.dataTransfer.setData(DRAG_TYPE, chatId); e.dataTransfer.setData("text/plain", chatId); e.dataTransfer.effectAllowed = "move"; },
-    onDragEnd: () => setDropOn(null),
-  });
-  const dropProps = (target: string, folderId: string | null) => ({
-    onDragOver: (e: DragEvent) => { if (e.dataTransfer.types.includes(DRAG_TYPE)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dropOn !== target) setDropOn(target); } },
-    onDragLeave: (e: DragEvent) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDropOn((d) => (d === target ? null : d)); },
-    onDrop: (e: DragEvent) => {
-      const id = e.dataTransfer.getData(DRAG_TYPE);
-      setDropOn(null);
-      if (!id) return;
-      e.preventDefault();
-      change((o) => moveChat(pinChat(o, id, false), id, folderId));
+  // ---- drag a chat onto a folder (or onto Recent to take it out). Pointer events, not the browser's drag and drop:
+  // the desktop window (WebView2) swallows that (Daniel: "dragging does nothing"), as Folders.tsx found for cards.
+  const drag = useRef<{ id: string; title: string; x: number; y: number; ghost: HTMLElement | null; target: string | null } | null>(null);
+  const targetAt = (x: number, y: number) => (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>("[data-chat-drop]")?.dataset.chatDrop ?? null;
+  const dragProps = (chatId: string, title: string) => ({
+    onPointerDown: (e: ReactPointerEvent) => {
+      if (e.button !== 0 || e.pointerType === "touch" || (e.target as HTMLElement).closest(".sc-more, input")) return;
+      drag.current = { id: chatId, title, x: e.clientX, y: e.clientY, ghost: null, target: null };
+      const move = (ev: PointerEvent) => {
+        const d = drag.current;
+        if (!d) return;
+        if (!d.ghost) {
+          if (Math.hypot(ev.clientX - d.x, ev.clientY - d.y) < 6) return;
+          d.ghost = document.createElement("div");
+          d.ghost.className = "sc-ghost";
+          d.ghost.textContent = d.title;
+          document.body.appendChild(d.ghost);
+          document.body.classList.add("sc-dragging");
+        }
+        d.ghost.style.transform = `translate(${ev.clientX + 12}px, ${ev.clientY + 8}px)`;
+        const t = targetAt(ev.clientX, ev.clientY);
+        if (t !== d.target) { d.target = t; setDropOn(t); }
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+        const d = drag.current;
+        drag.current = null;
+        if (!d?.ghost) return;
+        d.ghost.remove();
+        document.body.classList.remove("sc-dragging");
+        setDropOn(null);
+        // the click that ends a drag does not open the chat
+        const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+        window.addEventListener("click", stop, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener("click", stop, { capture: true }), 0);
+        if (!d.target) return;
+        const folderId = d.target === "recent" ? null : d.target.slice("folder:".length);
+        change((o) => moveChat(pinChat(o, d.id, false), d.id, folderId));
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
     },
   });
+  const dropProps = (target: string, _folderId: string | null) => ({ "data-chat-drop": target });
 
   const row = (c: SideChat) => {
     const open = menu?.chatId === c.id;
@@ -102,7 +131,8 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
     }
     const src = source?.(c.id) ?? null;
     return (
-      <li key={c.id} className={`sc-li${open ? " menu-open" : ""}`} {...dragProps(c.id)}>
+      <li key={c.id} className={`sc-li${open ? " menu-open" : ""}`} {...dragProps(c.id, c.title)}
+        onContextMenu={(e) => { e.preventDefault(); setMenu({ chatId: c.id }); }}>
         <button className={`side-item side-chat sc-row${c.id === activeId ? " on" : ""}`} onClick={() => onOpen(c.id)} title={c.line ? `${c.title}\n${c.line}` : c.title}
           aria-current={c.id === activeId ? "page" : undefined}>
           {pinned && <span className="sc-pin" aria-label="Pinned"><Icon name="pin" size={10} /></span>}
@@ -161,7 +191,7 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
             onBlur={() => { change((o) => renameFolder(o, folder.id, renaming.text)); setRenaming(null); }}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { e.stopPropagation(); setRenaming(null); } }} />
         ) : (
-          <div className={`sc-folder-head${open ? " menu-open" : ""}`}>
+          <div className={`sc-folder-head${open ? " menu-open" : ""}`} onContextMenu={(e) => { e.preventDefault(); setMenu({ folderId: folder.id }); }}>
             <button type="button" className="sc-folder-row" aria-expanded={!folded} onClick={() => change((o) => foldFolder(o, folder.id, !folded))}>
               <span className={`sc-chev${folded ? "" : " open"}`} aria-hidden="true"><Icon name="chevron" size={10} /></span>
               <span className="sc-fn">{folder.name}</span>
