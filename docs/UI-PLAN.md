@@ -6,6 +6,35 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Pictures for any model (Vision helper) and From a comic — CLAUDE, 2026-11-10 · ✅ text approved ("pode começar"); engine in the app (D-115); screens wait for the draft
+
+Daniel (translated): "I use GLM 5.3 90% of the time and it has no vision; once you send an image you can't use a model without vision any more" → a dedicated vision model describes pictures for the main model. And: "sometimes I want to turn doujinshi / short comics into cards / stories: read the pictures in order, understand them, ask questions like who {{user}} is, make drafts and build something coherent for the app." His reality: ≤ 10 pages, text in English, "good enough"; but "our base must be solid so we don't fight it", and planned for a larger scale. Both live **inside the Assistant**.
+
+### V1. Vision helper
+- **One setting:** Settings → Assistant → **For Pictures, Use** [connection ▾] (e.g. Gemini Flash). Later, optionally, the same for chats.
+- **Does the main model see pictures?** From the model list when the service says (OpenRouter `architecture.input_modalities`, nano-gpt `capabilities.vision`), remembered per address + model; or the connection's switch **This Model Can See Pictures** (Auto / Yes / No). A model that sees pictures gets them as today.
+- **Flow:** a picture + a blind main model → the vision model gets the picture **and the message's text** (the description follows the question; text on screen is transcribed) → the description goes in its place: `[Image #id: name — description]`. Stored **on the attachment** and cached by picture + model + prompt: described once; switching models mid-chat never breaks; older pictures in the chat use their saved description.
+- **Tool `look_at_image(image, question)`:** the main model asks the vision model again when it needs a detail the first description missed.
+- **On the message:** the thumbnail stays; under it "Described by Gemini Flash · See Description" (opens the text, **editable**; an edited description is never rewritten). Status "Describing picture…"; cost in the Reply receipt.
+- **States:** no vision connection and a blind model → a note on the attachment "GLM 5.3 can't see pictures. Describe it with: [connection ▾]" (saved); failure → the picture stays, "Couldn't Describe · Retry", nothing lost; several pictures → described in parallel within the connection's limits.
+- **From others:** SillyTavern's Image Captioning extension (caption by another multimodal API, put in the message). Different here: built in, cached per picture, editable, and the model can ask again.
+
+### V2. From a comic (doujinshi / short → one card, and a Story if wanted)
+- **Daniel's answers (11/10):** the result is **one shared card** with the whole main cast (no loose characters in the Library); the Story, when wanted, uses that card. The card's description is organised in sections — **Synopsis, Characters, Setting, Relationships…** (stays compatible with SillyTavern). Story trackers pick the main cast up from the card; **NPCs only for minor characters**.
+- **Input:** in the Assistant, "Import From a Comic…" or pictures dropped in its box; a folder, pictures, CBZ/ZIP (PDF later). A **strip of thumbnails** before anything is spent: natural order by file name (002 before 010), drag to reorder, **Skip** a page (cover, credits). **Reading Order: Manga (Right to Left) · Western (Left to Right)**. "10 pages · about US$ 0.03 with Gemini Flash · Start Reading".
+- **Steps, each saved and redone alone:**
+  1. **Pages** — pictures, order, hash.
+  2. **Reading** (vision model) — **validated JSON**: per page the panels in order, lines transcribed with `speaker` (a cast id), actions and expressions, who is on the page; a provisional cast with **stable ids** (A, B… with looks). **In batches:** up to 10 pages in one call (Daniel's case = one call that sees the whole story); longer comics = several batches, each given the summary and cast so far. Same code for 10 or 200 pages. Broken JSON → one retry, then the error; nothing crooked goes on. Cached per page set + model + prompt.
+  3. **What I Understood** (main model, text only) — synopsis, cast (looks, personality, way of speaking with real lines and pages), relationships, setting, key scenes. Short and **editable**: the one place to correct the understanding. Cast entries can be **merged / split** ("A and C are the same"). The raw reading sits under "See Details".
+  4. **Questions with buttons** (step 5 of "The Assistant, smarter"): **Who Is {{user}}?** one of the cast (thumbnails) · someone new · only an observer — if one of the cast, they leave the card, their lines leave the examples, their looks become the suggested **Persona**. **What to Make?** Card · Card + Story. **Where Does It Start?** the beginning · a scene (by thumbnail) · after the end. **The Plot Becomes:** background · openings · events the narrator can bring in (Story only).
+  5. **Proposals** (Keep / Discard / Edit; nothing saved by itself): the **card** (description in sections, example messages from the real lines, first message = the chosen scene with {{user}} in the right role, "Use a Panel as Portrait"); the **Story** (the card in the Cast, narrator, setting, openings, minor characters as NPCs). Each part shows where it came from ("from pages 4–7").
+- **Limits said plainly:** out-of-order balloons (the transcription is editable under See Details); similar-looking characters (merge / split); some providers refuse or soften adult content (the provider's reason + pick another vision connection, e.g. a local Qwen-VL); an unreadable page is marked in the strip (Skip / Read Again).
+
+**Base (so we don't fight the model):** separate saved steps; a structured middle format; the vision model is swappable; stable cast ids; every fact keeps its pages; V1 is the small case of V2 (one picture → description; N pictures → reading), same engine.
+**Draft:** `docs/drafts/vision-comic/index.html` (claude.ai artifact RSGGRBxmEHqFYKorUkHAQp), boards 1–3 (pictures) and 4–7 (comic). 🟡 waiting for Daniel; screens are coded after he approves it.
+
+---
+
 ## Sidebar chats: a recent-chats limit, pins and chat folders (Play and Assistant) — CLAUDE, 2026-11-10 · ✅ approved; in the app (D-108)
 
 Daniel (translated): "a limit for the latest chats, with folders for these chats too, to organize; look at Flint again". Answers: chats of a **Story** can go in a folder too, **saying where they are from**; the **Assistant's** Recents get the same.

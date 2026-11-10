@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Pictures for any model and reading a comic: engine + draft (2026-11-10) — CLAUDE — D-115
+
+- Daniel: GLM 5.3 (no vision) breaks once a picture is in a chat → a **vision model** describes pictures for it; and "turn doujinshi/shorts into a card / story". Plan text approved ("pode começar"), with his answers: **one shared card** with the main cast, description in sections (Synopsis, Characters, Setting, Relationships…), trackers take the cast from the card, NPCs only for minor characters. `docs/UI-PLAN.md` top section; claude.ai Project copy `claude/UI-PLAN-VISION.md`.
+- **Engine built, no screens** (draft before code): `assistant/vision.ts` (does a model see pictures, route describe / send / drop, describe + cache, `look_at_image`), `assistant/comic.ts` (batched, validated, cached comic reading with stable cast ids; `read_comic`), engine wiring in `assistant/engine.ts` (descriptions stored on the attachment, `used.vision`, `activity`), about "comic" (the workflow to one shared card + a Kit), `ConnectionProfile.vision`, `ModelInfo.vision` (OpenRouter / nano-gpt), `AssistantSettings.vision`; App remembers model vision when it lists models.
+- **Dormant until the screens:** nothing sets `AssistantSettings.vision` yet, so pictures behave as before; one change is live: a model the service says is blind gets the picture's name instead of the picture (the reply no longer fails).
+- **Draft waiting for Daniel:** `docs/drafts/vision-comic/index.html` (artifact RSGGRBxmEHqFYKorUkHAQp): 1 settings (For Pictures, Use; This Model Can See Pictures), 2 a picture in a GLM chat (Described by · See Description, editable; Looked at… step; receipt), 3 describing / Couldn't Describe · Retry / no vision model note, 4 Import From a Comic (strip, skip, reading order, cost), 5 What I Understood (pencils, Merge…, See Details, unsure note), 6 question buttons, 7 one card + persona suggestion + Kit with page tags.
+- **Next:** code the approved draft (screens + Import From a Comic: CBZ/ZIP unpack, `comicPage` attachments, the What I Understood card and question buttons = step 5 of "The Assistant, smarter"). Test with one of Daniel's real short comics (ask him for a sample folder) and his GLM + a vision connection.
+- Checks: typecheck; unit tests (861 passed).
+
 ## Cues: the screens, the move from "No AI call" agents, the Assistant, files (2026-11-10, morning) — CLAUDE — D-114
 
 - Daniel: "pode fazer o resto" (do the rest). Phases 2–4 of `claude/CUES-PLAN.md` on top of D-113. **No separate draft**: he asked for the rest to be done; the screens follow the approved text plan (§7) and the agent editor's look, and he gets screenshots to review.

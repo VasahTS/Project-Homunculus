@@ -88,6 +88,8 @@ export interface ConnectionConfig {
   extraBody?: Record<string, unknown>;
   /** The connection profile this came from, when there is one. */
   profileId?: string;
+  /** The model sees pictures (true), doesn't (false), or nobody said (undefined). D-115. */
+  vision?: boolean;
   limits?: ConnectionLimits;
   /** Tried when this connection fails before sending any text. */
   fallback?: ConnectionConfig;
@@ -114,6 +116,8 @@ export interface ModelInfo {
   reasoning?: boolean;
   /** Reasoning effort levels the model accepts (undefined = not known / all). */
   efforts?: string[];
+  /** The model takes pictures as input (undefined = the service didn't say). D-115. */
+  vision?: boolean;
 }
 
 export interface ProviderDefinition {

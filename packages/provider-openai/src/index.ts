@@ -173,6 +173,9 @@ export function parseModels(json: unknown): ModelInfo[] {
     const efforts = Array.isArray(m.reasoning?.supported_efforts) ? (m.reasoning.supported_efforts as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
     const input = scale(p.prompt);
     const output = scale(p.completion);
+    // OpenRouter: architecture.input_modalities ["text","image"]; nano-gpt (detailed): capabilities.vision
+    const modalities = Array.isArray(m.architecture?.input_modalities) ? m.architecture.input_modalities as unknown[] : undefined;
+    const vision = modalities ? modalities.includes("image") : typeof m.capabilities?.vision === "boolean" ? m.capabilities.vision as boolean : undefined;
     out.push({
       id: m.id,
       name: typeof m.name === "string" && m.name.trim() ? m.name : undefined,
@@ -181,6 +184,7 @@ export function parseModels(json: unknown): ModelInfo[] {
       price: input !== undefined || output !== undefined ? { input, output } : undefined,
       reasoning: m.reasoning ? true : m.capabilities?.reasoning === true ? true : undefined,
       efforts: efforts?.length ? efforts : undefined,
+      vision,
     });
   }
   return out.sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));

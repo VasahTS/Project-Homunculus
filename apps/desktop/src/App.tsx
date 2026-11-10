@@ -65,6 +65,7 @@ import { loadMessageLook } from "./messageLook.ts";
 import { getPrefs, loadPrefs, stepScale, usePrefs } from "./prefs.ts";
 import { loadChatOrganization } from "./chatOrganization.ts";
 import { messageAt } from "./assistant/appReads.ts";
+import { rememberModels } from "./assistant/vision.ts";
 import { OPEN_CHAT_EVENT } from "./ui/MessageText.tsx";
 import { playReplySound } from "./sounds.ts";
 import { notifyInBackground } from "./systemNotify.ts";
@@ -1125,7 +1126,10 @@ export function App() {
   const listModels = async (config: ConnectionConfig, signal: AbortSignal): Promise<ModelInfo[]> => {
     const p = svc.core.providers.get(config.providerId);
     if (!p?.listModels) throw new Error("This AI can't list its models. Type the model's ID instead.");
-    return p.listModels(config, signal);
+    const models = await p.listModels(config, signal);
+    // D-115: remember which models see pictures (the Assistant asks the vision model for the others)
+    void rememberModels(svc.store, config, models).catch(() => undefined);
+    return models;
   };
   const setupProps: StorySetupProps = { presets, profiles: connection.profiles, personas, trackers, agents, cues, namesFor, noteAbove,
     setupAbove: (story) => resolveSetup({ default: defaultSetup, ...(story ? { story } : {}) }),

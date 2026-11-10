@@ -1,0 +1,608 @@
+<title>Pictures and Comics Draft</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Literata:ital,wght@0,400;1,400&display=swap">
+<style>
+/* Layout: a review page of artboards; each artboard is the app in the Mono look (one dark world, like the app and the earlier drafts). */
+:root {
+  color-scheme: dark;
+  --window: #0d0d0d; --surface: #131313; --field: #161616; --pop: #141414;
+  --label: #f2f2f2; --label-2: #a1a1a1; --label-3: #7a7a7a;
+  --sep: rgba(242,242,242,.10); --edge: rgba(242,242,242,.18);
+  --fill: rgba(242,242,242,.05); --fill-hover: rgba(242,242,242,.09); --fill-sel: rgba(242,242,242,.13);
+  --ok: #4cc38a; --warn: #d9b46a; --bad: #e5484d;
+  --page: #080808; --paper: #d9d6cf; --ink: #2a2a2a;
+  --font-ui: "Geist", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, Consolas, monospace;
+  --font-prose: "Literata", Georgia, serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--page); color: var(--label); font: 13px/1.45 var(--font-ui); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 1px solid var(--label); outline-offset: 1px; }
+code { font-family: var(--font-mono); font-size: 12px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 40px; }
+header.top { display: grid; gap: 8px; max-width: 760px; }
+header.top h1 { font: 600 26px/1.15 var(--font-ui); letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--label-2); max-width: 68ch; }
+.kicker { font: 500 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--label-3); }
+.part { font: 600 13px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--label-2); border-top: 1px solid var(--sep); padding-top: 18px; margin: 0; }
+section.board { display: grid; gap: 12px; }
+.board-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.board-head h2 { font: 600 16px var(--font-ui); margin: 0; }
+.board-head .why { color: var(--label-2); max-width: 80ch; }
+.scroll { overflow-x: auto; border: 1px solid var(--sep); }
+.notes { margin: 0; padding-left: 18px; color: var(--label-2); display: grid; gap: 4px; max-width: 90ch; }
+.notes b { color: var(--label); font-weight: 500; }
+
+/* ---- the app frame ---- */
+.app { display: grid; grid-template-columns: 220px 1fr; min-width: 980px; height: 640px; background: var(--window); position: relative; }
+.app.short { height: 470px; }
+.app.tall { height: auto; min-height: 780px; }
+.app.tall .conv { overflow: visible; }
+.side { border-right: 1px solid var(--sep); display: flex; flex-direction: column; padding: 12px 10px; gap: 2px; overflow: hidden; }
+.brand { padding: 2px 8px 10px; font-weight: 600; font-size: 15px; }
+.modes { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--edge); margin: 0 4px 8px; }
+.modes span { text-align: center; padding: 4px; color: var(--label-2); }
+.modes span.on { background: var(--label); color: var(--window); }
+.head { padding: 12px 8px 4px; font-weight: 600; color: var(--label-2); font-size: 12px; }
+.row { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; min-width: 0; font-size: 12.5px; }
+.row.on { background: var(--fill-sel); }
+.row .when { margin-left: auto; font: 10.5px var(--font-mono); color: var(--label-3); }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.bar { height: 42px; border-bottom: 1px solid var(--sep); display: flex; align-items: center; gap: 10px; padding: 0 16px; color: var(--label-2); flex: none; }
+.bar b { color: var(--label); font-weight: 500; }
+.bar .sel { margin-left: auto; }
+.conv { flex: 1; padding: 20px 40px; display: grid; align-content: start; gap: 14px; overflow: hidden; }
+.you { justify-self: end; max-width: 520px; display: grid; gap: 6px; justify-items: end; }
+.you .b { background: var(--fill); padding: 8px 12px; }
+.ai { max-width: 680px; display: grid; gap: 8px; }
+.ai p { margin: 0; max-width: 66ch; }
+.steps { display: grid; gap: 2px; border-left: 1px solid var(--sep); padding-left: 10px; }
+.step { font: 11.5px var(--font-mono); color: var(--label-2); display: flex; gap: 8px; }
+.step b { color: var(--label); font-weight: 500; }
+.step .ok { color: var(--ok); }
+.receipt { font: 11px var(--font-mono); color: var(--label-3); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.receipt b { color: var(--label-2); font-weight: 500; }
+.status { color: var(--label-2); display: flex; align-items: center; gap: 8px; }
+.dots { display: inline-flex; gap: 3px; } .dots i { width: 4px; height: 4px; background: var(--label-2); border-radius: 50%; animation: pulse 1.2s infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .dots i { animation: none; } }
+
+/* pictures on a message */
+.pics { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.pic { display: grid; gap: 4px; justify-items: end; width: 150px; }
+.thumb { width: 150px; height: 96px; border-radius: 6px; overflow: hidden; background: #1d1f22; border: 1px solid var(--sep); position: relative; }
+.shot { position: absolute; inset: 0; display: grid; grid-template-rows: 14px 1fr 18px; gap: 4px; padding: 6px; }
+.shot i { background: #2b2e33; border-radius: 2px; } .shot .mid { display: grid; grid-template-columns: 34px 1fr; gap: 4px; }
+.shot .mid i:last-child { background: #24272b; } .shot .send { justify-self: end; width: 34px; background: #5d6a7a; }
+.desc-line { font-size: 11.5px; color: var(--label-3); text-align: right; }
+.desc-line button { border: 0; background: none; padding: 0; color: var(--label-2); cursor: pointer; border-bottom: 1px solid var(--edge); }
+.desc-line button:hover { color: var(--label); }
+.desc-line .warn { color: var(--warn); }
+.desc { width: 460px; max-width: 100%; border: 1px solid var(--edge); background: var(--surface); padding: 10px 12px; display: grid; gap: 8px; justify-self: end; }
+.desc .dh { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--label-2); }
+.desc .dh b { color: var(--label); font-weight: 500; }
+.desc .dh .tag { margin-left: auto; font: 10.5px var(--font-mono); color: var(--label-3); }
+.desc textarea { width: 100%; min-height: 128px; resize: vertical; background: var(--field); color: var(--label); border: 1px solid var(--sep); padding: 8px; font: 12.5px/1.5 var(--font-ui); }
+.desc .acts { display: flex; gap: 8px; align-items: center; }
+
+/* composer */
+.composer { margin: 0 24px 18px; border: 1px solid var(--edge); background: var(--field); padding: 10px 12px; display: grid; gap: 8px; flex: none; }
+.composer .ph { color: var(--label-3); }
+.att { display: flex; gap: 10px; align-items: center; border: 1px solid var(--sep); padding: 6px; max-width: 560px; }
+.att .thumb { width: 54px; height: 40px; }
+.att .t { display: grid; gap: 2px; min-width: 0; }
+.att .t small { color: var(--label-3); }
+.att .note { color: var(--warn); font-size: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cbar { display: flex; align-items: center; gap: 10px; color: var(--label-3); font-size: 12px; }
+.cbar .plus { border: 1px solid var(--edge); width: 22px; height: 22px; display: grid; place-items: center; color: var(--label-2); }
+.cbar .send { margin-left: auto; background: var(--label); color: var(--window); padding: 3px 10px; font-weight: 500; }
+.menu { position: absolute; z-index: 5; background: var(--pop); box-shadow: 0 0 0 1px var(--edge), 0 16px 40px rgba(0,0,0,.6); min-width: 230px; padding: 4px; display: grid; }
+.menu .mi { padding: 5px 8px; display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; }
+.menu .mi.hl { background: var(--fill-hover); }
+.menu .k { color: var(--label-3); font-size: 11px; }
+.menu hr { border: 0; border-top: 1px solid var(--sep); margin: 4px 2px; }
+
+/* cards and controls */
+.card { border: 1px solid var(--edge); background: var(--surface); padding: 12px; display: grid; gap: 10px; max-width: 680px; }
+.card .ttl { display: flex; align-items: center; gap: 8px; font-weight: 500; flex-wrap: wrap; }
+.card .ttl small { color: var(--label-3); font-weight: 400; }
+.card .ttl .right { margin-left: auto; display: flex; gap: 6px; }
+.acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { border: 1px solid var(--edge); background: none; padding: 4px 10px; cursor: pointer; }
+.btn:hover { background: var(--fill); }
+.btn.primary { background: var(--label); color: var(--window); border-color: var(--label); font-weight: 500; }
+.btn.small { padding: 2px 8px; font-size: 12px; }
+.linkish { border: 0; background: none; padding: 0; color: var(--label-2); cursor: pointer; border-bottom: 1px solid var(--edge); font-size: 12px; }
+.hint { color: var(--label-3); font-size: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--edge); }
+.seg button { border: 0; background: none; padding: 3px 10px; color: var(--label-2); cursor: pointer; font-size: 12px; }
+.seg button.on { background: var(--label); color: var(--window); }
+.sel { border: 1px solid var(--edge); padding: 3px 8px; font-family: var(--font-mono); font-size: 12px; display: inline-flex; gap: 8px; align-items: center; }
+.sel::after { content: "▾"; color: var(--label-3); font-size: 10px; }
+.opts { display: grid; gap: 6px; }
+.opt { border: 1px solid var(--sep); padding: 7px 10px; display: flex; gap: 10px; align-items: center; cursor: pointer; text-align: left; background: none; }
+.opt:hover, .opt.on { border-color: var(--edge); background: var(--fill); }
+.opt.on { box-shadow: inset 2px 0 0 var(--label); }
+.opt .ot { display: grid; gap: 1px; }
+.opt small { color: var(--label-3); }
+.face { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font: 600 11px var(--font-mono); color: var(--ink); }
+.face.a { background: #c9b8a6; } .face.b { background: #a9b3bd; } .face.c { background: #c7b0b9; } .face.new { background: none; border: 1px dashed var(--edge); color: var(--label-3); }
+.src { font: 10.5px var(--font-mono); color: var(--label-3); border: 1px solid var(--sep); padding: 0 5px; white-space: nowrap; display: inline-block; justify-self: start; width: fit-content; }
+
+/* settings */
+.settings { padding: 24px 36px; display: grid; gap: 0; max-width: 660px; overflow: hidden; }
+.settings h3 { margin: 0 0 4px; font: 600 18px var(--font-ui); }
+.settings .sub { color: var(--label-3); margin-bottom: 12px; }
+.srow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--sep); }
+.srow > div { min-width: 0; }
+.srow small { display: block; color: var(--label-3); }
+.srow.hl { background: var(--fill); margin: 0 -10px; padding: 10px; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--sep); margin-bottom: 12px; }
+.tabs span { padding: 5px 9px; color: var(--label-2); font-size: 12px; border-bottom: 2px solid transparent; }
+.tabs span.on { color: var(--label); border-color: var(--label); }
+
+/* comic pages (placeholder art: panels and balloons only) */
+.sheet-bg { position: absolute; inset: 0; z-index: 6; background: rgba(0,0,0,.62); display: grid; place-items: center; }
+.sheet { width: 820px; max-width: 94%; background: var(--pop); box-shadow: 0 0 0 1px var(--edge), 0 16px 40px rgba(0,0,0,.6); display: grid; }
+.sheet .sh { padding: 12px 16px; border-bottom: 1px solid var(--sep); display: flex; gap: 10px; align-items: center; }
+.sheet .sh b { font-weight: 600; }
+.sheet .sb { padding: 14px 16px; display: grid; gap: 12px; }
+.sheet .sf { border-top: 1px solid var(--sep); padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sheet .sf .hint { margin-right: auto; }
+.strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; }
+.pg { flex: none; width: 74px; display: grid; gap: 4px; cursor: pointer; border: 0; background: none; padding: 0; text-align: center; }
+.paper { width: 74px; height: 104px; background: var(--paper); position: relative; overflow: hidden; border: 1px solid #000; }
+.paper .pn { position: absolute; display: block; border: 1.5px solid var(--ink); background: #e9e6df; }
+.paper .bl { position: absolute; width: 18px; height: 10px; border-radius: 50%; background: #fff; border: 1px solid var(--ink); }
+.paper.cover { background: #8e8a84; }
+.paper.cover::after { content: "AFTER\AHOURS"; white-space: pre; position: absolute; inset: 30px 6px auto; font: 700 10px/1.1 var(--font-ui); color: #fff; text-align: center; }
+.pg .lbl { font: 10.5px var(--font-mono); color: var(--label-2); }
+.pg.skip .paper { opacity: .28; }
+.pg.skip .lbl { color: var(--label-3); text-decoration: line-through; }
+.pg .skipmark { position: absolute; inset: auto 3px 3px auto; font: 600 9px var(--font-mono); background: var(--window); color: var(--label); padding: 1px 4px; }
+.orderline { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.arrow { font: 11px var(--font-mono); color: var(--label-3); }
+
+/* what I understood */
+.wiu { display: grid; gap: 0; }
+.wiu .sec { display: grid; grid-template-columns: 120px 1fr auto; gap: 12px; padding: 9px 0; border-top: 1px solid var(--sep); align-items: start; }
+.wiu .sec:first-child { border-top: 0; }
+.wiu h4 { margin: 0; font: 500 11px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--label-3); padding-top: 2px; }
+.wiu p { margin: 0; font: 13.5px/1.55 var(--font-prose); }
+.wiu .pen { border: 0; background: none; color: var(--label-3); cursor: pointer; font-size: 12px; }
+.wiu .pen:hover { color: var(--label); }
+.who { display: grid; gap: 8px; }
+.person { display: grid; grid-template-columns: 30px 1fr; gap: 10px; }
+.person .pt { display: grid; gap: 2px; min-width: 0; }
+.person .pt b { font-weight: 500; }
+.person .pt span { color: var(--label-2); font-size: 12.5px; }
+.person q { font: italic 13px/1.5 var(--font-prose); color: var(--label); quotes: "“" "”"; }
+.unsure { border-left: 2px solid var(--warn); padding: 4px 10px; color: var(--label-2); font-size: 12.5px; }
+.details { border: 1px solid var(--sep); background: var(--window); padding: 8px 10px; font: 11.5px/1.55 var(--font-mono); color: var(--label-2); max-height: 170px; overflow: auto; white-space: pre-wrap; }
+.details b { color: var(--label); font-weight: 500; }
+
+/* proposal */
+.prop { border: 1px solid var(--sep); background: var(--window); padding: 10px 12px; display: grid; gap: 8px; }
+.prop h5 { margin: 0; font: 600 13px var(--font-prose); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.prop p { margin: 0; font: 13px/1.55 var(--font-prose); color: var(--label); }
+.prop .fh { font: 500 11px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--label-3); }
+.fieldrow { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 6px 0; border-top: 1px solid var(--sep); }
+.fieldrow:first-of-type { border-top: 0; }
+.fieldrow > div { min-width: 0; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.cols > * { min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--label-3); font-size: 12px; }
+@media (max-width: 640px) { header.top h1 { font-size: 21px; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="kicker">Draft for review · 2026-11-10 · Mono look · example data</span>
+    <h1>Pictures for any model, and a comic turned into one card</h1>
+    <p>Two parts from <code>docs/UI-PLAN.md</code> (D-115). Part 1: a vision model describes pictures for a main model that can't see them, like GLM 5.3. Part 2: the Assistant reads a short comic, says what it understood, asks who you are in it, and proposes one shared card. The comic “After Hours” is invented for the draft; its pages are blank panels. Pages, the reading order, “See Description” and the answers can be clicked.</p>
+  </header>
+
+  <p class="part">Part 1 · Pictures for any model</p>
+
+  <!-- 1 -->
+  <section class="board">
+    <div class="board-head"><h2>1 · Where you choose the vision model</h2><span class="why">One setting in Settings → Assistant. A connection can also say for itself whether its model sees pictures.</span></div>
+    <div class="scroll">
+      <div class="app short">
+        <aside class="side">
+          <div class="brand">Homunculus</div>
+          <div class="head">Settings</div>
+          <div class="row">General</div><div class="row">Chat</div><div class="row on">Assistant</div><div class="row">Connections</div><div class="row">Defaults</div>
+        </aside>
+        <div class="main">
+          <div class="cols" style="padding: 24px 28px; gap: 28px;">
+            <div class="settings" style="padding:0">
+              <h3>Assistant</h3>
+              <div class="sub">How the Assistant works in every chat.</div>
+              <div class="srow"><div>Default Assistant<small>Who answers a new chat.</small></div><span class="sel">Homunculus</span></div>
+              <div class="srow hl"><div>For Pictures, Use<small>Describes pictures for a model that can't see them. Your model reads the description and can ask it about details.</small></div><span class="sel">Gemini Flash</span></div>
+              <div class="srow"><div>Tools<small>What the Assistant may do.</small></div><span class="hint">Details → Tools</span></div>
+            </div>
+            <div class="settings" style="padding:0">
+              <h3>nano-gpt.com — glm-5.3</h3>
+              <div class="sub">Settings → Connections → the connection</div>
+              <div class="tabs"><span>Basics</span><span>Limits</span><span class="on">Model</span></div>
+              <div class="srow"><div>Model<small>z-ai/glm-5.3:thinking</small></div><span class="btn small">Change…</span></div>
+              <div class="srow hl"><div>This Model Can See Pictures<small>Auto: the service says it can't.</small></div><span class="seg"><button class="on">Auto</button><button>Yes</button><button>No</button></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><b>Auto</b> follows the service's model list (OpenRouter and nano-gpt say which models take pictures; the app remembers it when it lists models). Yes / No is for services that don't say.</li>
+      <li>When the model in use can see pictures, pictures go to it as they do today and the vision model is not called.</li>
+    </ul>
+  </section>
+
+  <!-- 2 -->
+  <section class="board">
+    <div class="board-head"><h2>2 · A picture in a chat with GLM 5.3</h2><span class="why">The thumbnail stays. One quiet line under it says who described it. The reply works as if GLM had seen it, and GLM can ask again.</span></div>
+    <div class="scroll">
+      <div class="app">
+        <aside class="side">
+          <div class="brand">Homunculus</div>
+          <div class="modes"><span>Play</span><span class="on">Assistant</span></div>
+          <div class="head">Recent</div>
+          <div class="row on">Why is the Send button grey<span class="when">now</span></div>
+          <div class="row">Lyra's description<span class="when">2h</span></div>
+          <div class="row">Cues for Yhul<span class="when">1d</span></div>
+        </aside>
+        <div class="main">
+          <div class="bar"><b>Why is the Send button grey</b><span class="sel">nano-gpt.com — glm-5.3</span></div>
+          <div class="conv">
+            <div class="you">
+              <div class="pics" id="pics2">
+                <div class="pic">
+                  <div class="thumb"><div class="shot"><i></i><div class="mid"><i></i><i></i></div><i class="send"></i></div></div>
+                  <div class="desc-line">Described by Gemini Flash · <button type="button" id="seeDesc" aria-expanded="false">See Description</button></div>
+                </div>
+              </div>
+              <div class="desc" id="desc2" hidden>
+                <div class="dh"><b>What Gemini Flash saw</b><span class="tag" id="descTag">GLM reads this</span></div>
+                <textarea id="descText" aria-label="Picture description">A screenshot of the Homunculus Assistant in the dark Mono look.
+Left: a sidebar with "Play" and "Assistant" (Assistant selected) and a list of chats.
+Bottom: the message box, empty, with the placeholder "Type a message". At its right, a grey button "Send" that looks disabled.
+Above the box, a chip "Lyra" with a dashed border.
+Text on screen: "Type a message", "Send", "Lyra", "Add Context".</textarea>
+                <div class="acts"><button class="btn small primary" type="button" id="descSave">Save</button><button class="btn small" type="button" id="descClose">Close</button><span class="hint" id="descHint">Your edit is what GLM reads from now on; it is never written again.</span></div>
+              </div>
+              <div class="b">why is the send button grey here?</div>
+            </div>
+            <div class="ai">
+              <div class="steps">
+                <div class="step"><span class="ok">✓</span><b>Looked at screenshot.png</b> “is there any text in the message box?”</div>
+              </div>
+              <p>The message box is empty: Send stays grey until there is text or a picture to send. The <b>Lyra</b> chip is context, not a message, so on its own it doesn't count. Type your question and Send lights up.</p>
+              <div class="receipt"><span><b>glm-5.3</b> 2 calls · 3.1k tokens</span><span><b>Pictures: Gemini Flash</b> 2 calls · $0.0004</span><span>11 s</span></div>
+            </div>
+          </div>
+          <div class="composer"><span class="ph">Type a message</span><div class="cbar"><span class="plus">+</span><span>Add Context</span><span class="send">Send</span></div></div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><b>See Description</b> opens the text in place; you can correct it (try it). An edited description says “Edited by you” and is never replaced.</li>
+      <li>The step “Looked at …” is GLM asking the vision model a second, precise question. The receipt shows the vision model's cost on its own line.</li>
+      <li>The same picture with the same message is described once, even in another chat.</li>
+    </ul>
+  </section>
+
+  <!-- 3 -->
+  <section class="board">
+    <div class="board-head"><h2>3 · While it describes, and when something is missing</h2><span class="why">The status says what is happening. A problem shows on the picture itself, with one way out.</span></div>
+    <div class="scroll">
+      <div class="app short">
+        <aside class="side">
+          <div class="brand">Homunculus</div>
+          <div class="modes"><span>Play</span><span class="on">Assistant</span></div>
+          <div class="head">Recent</div>
+          <div class="row on">Outfit for Lyra<span class="when">now</span></div>
+        </aside>
+        <div class="main">
+          <div class="bar"><b>Outfit for Lyra</b><span class="sel">nano-gpt.com — glm-5.3</span></div>
+          <div class="conv">
+            <div class="you">
+              <div class="pics">
+                <div class="pic"><div class="thumb" style="background:#2a2420"></div><div class="desc-line">Describing…</div></div>
+                <div class="pic"><div class="thumb" style="background:#20262a"></div><div class="desc-line"><span class="warn">Couldn't Describe</span> · <button type="button">Retry</button></div></div>
+              </div>
+              <div class="b">use these two as her new outfits</div>
+            </div>
+            <div class="ai"><div class="status"><span class="dots"><i></i><i></i><i></i></span>Describing picture 1 of 2…</div></div>
+          </div>
+          <div class="composer">
+            <div class="att">
+              <div class="thumb" style="background:#26222a"></div>
+              <div class="t"><span>ref-sheet.png</span>
+                <span class="note">GLM 5.3 can't see pictures. Describe it with: <span class="sel">Choose…</span></span></div>
+            </div>
+            <div class="cbar"><span class="plus">+</span><span>Add Context</span><span class="send">Send</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><b>Describing…</b> replaces “Thinking…” while the vision model works; several pictures go at the same time.</li>
+      <li><b>Couldn't Describe · Retry</b>: the picture and the message stay; GLM is told it couldn't see that picture. The provider's reason shows on hover (for example a refused picture).</li>
+      <li><b>No vision model yet</b>: the note sits on the attachment before sending. Choosing one saves it as the setting from board 1.</li>
+    </ul>
+  </section>
+
+  <p class="part">Part 2 · From a comic</p>
+
+  <!-- 4 -->
+  <section class="board">
+    <div class="board-head"><h2>4 · Pick the pages</h2><span class="why">From “+” in the Assistant's box. Nothing is spent until Start Reading. Click a page to skip it; switch the reading order.</span></div>
+    <div class="scroll">
+      <div class="app">
+        <aside class="side">
+          <div class="brand">Homunculus</div>
+          <div class="modes"><span>Play</span><span class="on">Assistant</span></div>
+          <div class="head">Recent</div>
+          <div class="row on">New chat<span class="when">now</span></div>
+        </aside>
+        <div class="main">
+          <div class="bar"><b>New chat</b><span class="sel">nano-gpt.com — glm-5.3</span></div>
+          <div class="conv"></div>
+          <div class="composer"><span class="ph">Type a message</span><div class="cbar"><span class="plus">+</span><span>Add Context</span><span class="send">Send</span></div></div>
+          <div class="menu" style="left: 245px; bottom: 50px;">
+            <div class="mi">Add Files…</div><div class="mi">Add Pictures…</div><div class="mi hl">Import From a Comic…<span class="k">pages → a card</span></div><hr><div class="mi">Add Context…</div>
+          </div>
+          <div class="sheet-bg">
+            <div class="sheet">
+              <div class="sh"><b>Import From a Comic</b><span class="hint">After Hours · folder · 9 pictures</span><span style="margin-left:auto" class="btn small">Change…</span></div>
+              <div class="sb">
+                <div class="orderline">
+                  <span>Reading Order</span>
+                  <span class="seg" id="order"><button type="button" class="on" data-o="manga">Manga · Right to Left</button><button type="button" data-o="western">Western · Left to Right</button></span>
+                  <span class="arrow" id="orderHint">panels and balloons read ← (scanlations keep this order in English)</span>
+                </div>
+                <div class="strip" id="strip"></div>
+                <div class="hint">Ordered by file name (002 before 010). Drag a page to move it. Click to skip it.</div>
+              </div>
+              <div class="sf"><span class="hint" id="cost">8 pages · 1 call · about US$ 0.02 with Gemini Flash</span><button class="btn" type="button">Cancel</button><button class="btn primary" type="button">Start Reading</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>A folder, pictures or a CBZ / ZIP. Up to 10 pages go in one call, so the model sees the whole story at once; longer comics are read in parts that pass the cast along.</li>
+      <li>The pages land in the chat as one message (“After Hours · 8 pages”), and the Assistant takes it from there.</li>
+    </ul>
+  </section>
+
+  <!-- 5 -->
+  <section class="board">
+    <div class="board-head"><h2>5 · What I Understood</h2><span class="why">The one place to correct the story before anything is made. Each part has a pencil; people can be merged or split; the page-by-page reading is under See Details.</span></div>
+    <div class="scroll">
+      <div class="app tall">
+        <aside class="side">
+          <div class="brand">Homunculus</div>
+          <div class="modes"><span>Play</span><span class="on">Assistant</span></div>
+          <div class="head">Recent</div>
+          <div class="row on">After Hours<span class="when">now</span></div>
+        </aside>
+        <div class="main">
+          <div class="bar"><b>After Hours</b><span class="sel">nano-gpt.com — glm-5.3</span></div>
+          <div class="conv">
+            <div class="you"><div class="b">After Hours · 8 pages · manga order</div></div>
+            <div class="ai">
+              <div class="steps"><div class="step"><span class="ok">✓</span><b>Read 8 comic pages</b> 1 call · Gemini Flash</div></div>
+              <div class="card">
+                <div class="ttl">What I Understood <small>After Hours · 8 pages</small><span class="right"><button class="linkish" type="button" id="seeDetails">See Details</button></span></div>
+                <div class="wiu">
+                  <div class="sec"><h4>Synopsis</h4><p>Mei, an art student, gets locked in the studio on a rainy night with Ren, the senior she has avoided since the year-end party. Kaho, her roommate, keeps texting. Waiting for the guard, they finally talk about that night, and Mei admits she ran because she didn't want him to see her cry.</p><button class="pen" type="button" aria-label="Edit synopsis">✎</button></div>
+                  <div class="sec"><h4>Cast</h4>
+                    <div class="who">
+                      <div class="person"><span class="face a">A</span><div class="pt"><b>Mei</b><span>Short brown hair, paint-stained apron, small. Shy; turns ironic when nervous.</span><q>It's not like I ran away. I just… left fast.</q><span class="src">p. 3</span></div></div>
+                      <div class="person"><span class="face b">B</span><div class="pt"><b>Ren</b><span>Tall, glasses, long coat. Calm and direct; teases lightly.</span><q>You left your sketchbook. I kept it.</q><span class="src">p. 5</span></div></div>
+                      <div class="person"><span class="face c">C</span><div class="pt"><b>Kaho</b><span>Only on the phone screen and in the last panel. Mei's roommate; loud, caring.</span><span class="src">p. 1, 4, 8</span></div></div>
+                    </div>
+                    <span class="acts" style="flex-direction:column;align-items:flex-end;gap:4px"><button class="pen" type="button">✎</button><button class="linkish" type="button">Merge…</button></span></div>
+                  <div class="sec"><h4>Relationships</h4><p>Mei and Ren: awkward → honest → close (p. 6–8). Mei and Kaho: best friends.</p><button class="pen" type="button">✎</button></div>
+                  <div class="sec"><h4>Setting</h4><p>A university art studio at night, rain on the skylight, the door jammed.</p><button class="pen" type="button">✎</button></div>
+                  <div class="sec"><h4>Key Scenes</h4><p>The door jams (p. 2) · the sketchbook (p. 5) · the argument (p. 6) · the confession (p. 7)</p><button class="pen" type="button">✎</button></div>
+                </div>
+                <div class="unsure">Not sure: the balloon in the last panel of page 6 has no tail; I gave it to Ren.</div>
+                <div class="details" id="details" hidden><b>Page 6 (06.png) — A Mei, B Ren</b>
+[1] Mei turns away, arms crossed.
+  Mei: "You don't get to be nice about it."
+[2] Ren steps closer, hands in his coat.
+  Ren: "I'm not being nice."
+[3] Close-up: Mei's eyes, wet.
+  ? : "Then what are you being?"   ← no tail
+<b>Page 7 (07.png) — A Mei, B Ren</b>
+[1] Both sit on the floor by the easel.
+  Mei (thought): "Say it. Just say it."
+  …</div>
+                <div class="acts"><button class="btn primary" type="button">Looks Right</button><span class="hint">or tell me what to fix</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="composer"><span class="ph">Type a message</span><div class="cbar"><span class="plus">+</span><span>Add Context</span><span class="send">Send</span></div></div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>A correction here (“Kaho is her sister”) is what everything after it uses.</li>
+      <li><b>Merge…</b> joins two people the reader split (“A and D are the same”); every line they said follows.</li>
+      <li>The reading itself is kept: reading again, or asking for other pages, costs nothing.</li>
+    </ul>
+  </section>
+
+  <!-- 6 -->
+  <section class="board">
+    <div class="board-head"><h2>6 · The questions, as buttons</h2><span class="why">One card, one question at a time, with the cast's faces. Pick an answer to see the next one.</span></div>
+    <div class="scroll">
+      <div class="app short">
+        <aside class="side">
+          <div class="brand">Homunculus</div>
+          <div class="modes"><span>Play</span><span class="on">Assistant</span></div>
+          <div class="head">Recent</div>
+          <div class="row on">After Hours<span class="when">now</span></div>
+        </aside>
+        <div class="main">
+          <div class="bar"><b>After Hours</b><span class="sel">nano-gpt.com — glm-5.3</span></div>
+          <div class="conv">
+            <div class="ai">
+              <div class="card" id="ask">
+                <div class="ttl"><span id="askQ">Who is {{user}} in this story?</span><small id="askN">1 of 3</small></div>
+                <div class="opts" id="askOpts"></div>
+                <div class="acts"><button class="linkish" type="button">Other…</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="composer"><span class="ph">Type a message</span><div class="cbar"><span class="plus">+</span><span>Add Context</span><span class="send">Send</span></div></div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>If {{user}} is one of the cast, that person leaves the card (you play them), their lines leave the example messages, and their looks become a suggested <b>Persona</b>.</li>
+      <li>The same card component as step 5 of “The Assistant, smarter” (choice buttons), so other flows reuse it.</li>
+    </ul>
+  </section>
+
+  <!-- 7 -->
+  <section class="board">
+    <div class="board-head"><h2>7 · One shared card, and a story on top</h2><span class="why">Answers: {{user}} = Ren · Card + Story · starts at the door jamming. Every part says which pages it came from.</span></div>
+    <div class="scroll">
+      <div class="app tall">
+        <aside class="side">
+          <div class="brand">Homunculus</div>
+          <div class="modes"><span>Play</span><span class="on">Assistant</span></div>
+          <div class="head">Recent</div>
+          <div class="row on">After Hours<span class="when">now</span></div>
+        </aside>
+        <div class="main">
+          <div class="bar"><b>After Hours</b><span class="sel">nano-gpt.com — glm-5.3</span></div>
+          <div class="conv">
+            <div class="ai">
+              <p>Here is the card. You play Ren, so he isn't in it; I made him a persona suggestion. Kaho stays as a minor character.</p>
+              <div class="card">
+                <div class="ttl">New Character <small>waiting for you</small><span class="right"><span class="src">from pages 1–8</span></span></div>
+                <div class="prop">
+                  <h5>After Hours <span class="hint">Mei · Kaho</span></h5>
+                  <div class="fieldrow"><span class="fh">Description</span><div class="prop" style="border:0;padding:0;background:none">
+                    <p><b>Synopsis</b> — Mei, an art student, is locked in the studio on a rainy night with {{user}}, the senior she has avoided since the year-end party… <span class="src">p. 1–2</span></p>
+                    <p><b>Characters</b></p>
+                    <p><b>Mei</b> — short brown hair, paint-stained apron, small. Shy, ironic when nervous; hides crying. Speaks in short, deflecting lines. <span class="src">p. 3, 6–7</span></p>
+                    <p><b>Minor Characters</b> — Kaho, Mei's roommate: loud, caring, texts at the worst moments. <span class="src">p. 1, 4, 8</span></p>
+                    <p><b>Setting</b> — a university art studio at night; rain; the door is jammed. <span class="src">p. 2</span></p>
+                    <p><b>Relationships</b> — Mei and {{user}}: avoided each other since the party; she kept his sketchbook… <span class="src">p. 5–7</span></p>
+                  </div></div>
+                  <div class="fieldrow"><span class="fh">First Message</span><p>*The handle doesn't move. Mei tries it again, harder, then turns with the face of someone who already knows.* "It's jammed. Of course it's jammed." <span class="src">p. 2</span></p></div>
+                  <div class="fieldrow"><span class="fh">Examples</span><p>Mei: "It's not like I ran away. I just… left fast." <span class="src">p. 3</span> · 3 more</p></div>
+                  <div class="fieldrow"><span class="fh">Portrait</span><div class="acts"><div class="paper" style="width:48px;height:48px"><span class="pn" style="inset:4px"></span></div><button class="linkish" type="button">Use a Panel as Portrait…</button></div></div>
+                </div>
+                <div class="acts"><button class="btn primary" type="button">Keep</button><button class="btn" type="button">Edit</button><button class="btn" type="button">Discard</button><span class="hint">Nothing is saved until you choose.</span></div>
+              </div>
+              <div class="card">
+                <div class="ttl">Persona Suggestion <small>Ren</small></div>
+                <p style="margin:0" class="hint">Tall, glasses, long coat; calm and direct, teases lightly. <span class="src">p. 2, 5</span></p>
+                <div class="acts"><button class="btn" type="button">Keep</button><button class="btn" type="button">Discard</button></div>
+              </div>
+              <div class="card">
+                <div class="ttl">New Story Kit <small>After Hours</small></div>
+                <p style="margin:0" class="hint">Cast: the card above · Scenario: locked in the studio, rain, the guard is late · Openings: the door jams (p. 2), the sketchbook (p. 5) · The plot: events the narrator can bring in.</p>
+                <div class="acts"><button class="btn" type="button">Keep</button><button class="btn" type="button">Discard</button><span class="hint">“Start a Story” from it, as with any Kit.</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="composer"><span class="ph">Type a message</span><div class="cbar"><span class="plus">+</span><span>Add Context</span><span class="send">Send</span></div></div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li><b>One card</b> holds the main cast; the description is in sections (Synopsis, Characters, Minor Characters, Setting, Relationships) and stays a normal SillyTavern card. Trackers pick the cast up from it.</li>
+      <li><b>The story</b> is made as a Kit for now (the Assistant can't write Stories or NPCs yet; that is step 4 of “The Assistant, smarter”). Minor characters stay in the card until then.</li>
+      <li>The small <span class="src">p. 5</span> tags open the reading at that page.</li>
+    </ul>
+  </section>
+
+  <div class="legend"><span>Open questions for Daniel: are the “See Description” line and the “What I Understood” card the right weight? Should Import From a Comic also live in Library → Characters → Import?</span></div>
+</div>
+
+<script>
+// See Description (board 2)
+const see = document.getElementById("seeDesc"), box = document.getElementById("desc2");
+see.addEventListener("click", () => { box.hidden = !box.hidden; see.setAttribute("aria-expanded", String(!box.hidden)); });
+document.getElementById("descClose").addEventListener("click", () => { box.hidden = true; see.setAttribute("aria-expanded", "false"); });
+document.getElementById("descSave").addEventListener("click", () => {
+  document.getElementById("descTag").textContent = "Edited by you";
+  document.querySelector("#pics2 .desc-line").firstChild.textContent = "Edited by you · ";
+  document.getElementById("descHint").textContent = "Saved. GLM reads your version from now on.";
+});
+// pages strip (board 4)
+const layouts = [
+  null,
+  [[4,4,66,40],[4,48,32,52],[38,48,32,52]],
+  [[4,4,32,46],[38,4,32,46],[4,54,66,46]],
+  [[4,4,66,30],[4,38,66,30],[4,72,66,28]],
+  [[4,4,40,96],[48,4,22,46],[48,54,22,46]],
+  [[4,4,66,46],[4,54,66,46]],
+  [[4,4,32,30],[38,4,32,30],[4,38,66,62]],
+  [[4,4,66,96]],
+  [[4,4,32,46],[38,4,32,96],[4,54,32,46]],
+];
+const strip = document.getElementById("strip");
+const skipped = new Set([0]);
+function drawStrip() {
+  strip.innerHTML = "";
+  let n = 0;
+  layouts.forEach((l, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "pg" + (skipped.has(i) ? " skip" : "");
+    const p = document.createElement("div"); p.className = "paper" + (l ? "" : " cover");
+    if (l) for (const [x, y, w, h] of l) { const s = document.createElement("span"); s.className = "pn"; Object.assign(s.style, { left: x + "px", top: y + "px", width: w + "px", height: h + "px" }); p.appendChild(s); const bl = document.createElement("span"); bl.className = "bl"; Object.assign(bl.style, { left: (x + w - 22) + "px", top: (y + 4) + "px" }); p.appendChild(bl); }
+    if (skipped.has(i)) { const m = document.createElement("span"); m.className = "skipmark"; m.textContent = "SKIP"; p.appendChild(m); }
+    const lbl = document.createElement("span"); lbl.className = "lbl";
+    lbl.textContent = skipped.has(i) ? `${String(i).padStart(2, "0")}.png` : `p. ${++n}`;
+    b.append(p, lbl);
+    b.setAttribute("aria-pressed", String(skipped.has(i)));
+    b.addEventListener("click", () => { skipped.has(i) ? skipped.delete(i) : skipped.add(i); drawStrip(); });
+    strip.appendChild(b);
+  });
+  const pages = layouts.length - skipped.size;
+  document.getElementById("cost").textContent = `${pages} page${pages === 1 ? "" : "s"} · ${Math.max(1, Math.ceil(pages / 10))} call · about US$ ${(pages * 0.0025).toFixed(2)} with Gemini Flash`;
+}
+drawStrip();
+document.querySelectorAll("#order button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("#order button").forEach((x) => x.classList.toggle("on", x === b));
+  document.getElementById("orderHint").textContent = b.dataset.o === "manga" ? "panels and balloons read ← (scanlations keep this order in English)" : "panels and balloons read →";
+}));
+// See Details (board 5)
+document.getElementById("seeDetails").addEventListener("click", (e) => { const d = document.getElementById("details"); d.hidden = !d.hidden; e.target.textContent = d.hidden ? "See Details" : "Hide Details"; });
+// questions (board 6)
+const questions = [
+  { q: "Who is {{user}} in this story?", opts: [["a", "Mei", "you play the art student"], ["b", "Ren", "you play the senior"], ["c", "Kaho", "you play the roommate"], ["new", "Someone New", "you join as a new person"], ["new", "Only Watching", "no role; the card plays everyone"]] },
+  { q: "What should I make?", opts: [["", "The Card", "one card with the main cast"], ["", "The Card and a Story", "the card, plus a Kit to start stories from"]] },
+  { q: "Where does it start?", opts: [["", "The Beginning", "the door jams (p. 2)"], ["", "A Scene…", "pick a page"], ["", "After the End", "what happens next"]] },
+];
+let qi = 0;
+function drawAsk() {
+  const q = questions[qi];
+  document.getElementById("askQ").textContent = q.q;
+  document.getElementById("askN").textContent = `${qi + 1} of ${questions.length}`;
+  const box = document.getElementById("askOpts"); box.innerHTML = "";
+  for (const [face, t, s] of q.opts) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "opt";
+    if (face) { const f = document.createElement("span"); f.className = "face " + face; f.textContent = face === "new" ? "+" : face.toUpperCase(); b.appendChild(f); }
+    const tt = document.createElement("span"); tt.className = "ot"; tt.innerHTML = `<span></span><small></small>`; tt.firstChild.textContent = t; tt.lastChild.textContent = s; b.appendChild(tt);
+    b.addEventListener("click", () => { b.classList.add("on"); setTimeout(() => { qi = (qi + 1) % questions.length; drawAsk(); }, 260); });
+    box.appendChild(b);
+  }
+}
+drawAsk();
+</script>

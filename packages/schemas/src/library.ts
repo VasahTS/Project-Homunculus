@@ -186,6 +186,8 @@ export const ConnectionProfile = z.object({
   /** Extra fields added to every request body (for options the app has no control for yet). */
   extraBody: z.record(z.string(), Json).default({}),
   notes: z.string().default(""),
+  /** Can this model see pictures? "auto" = as the service's model list says (D-115). */
+  vision: z.enum(["auto", "yes", "no"]).default("auto"),
 });
 export type ConnectionProfile = z.infer<typeof ConnectionProfile>;
 export type ConnectionProfileInput = z.input<typeof ConnectionProfile>;

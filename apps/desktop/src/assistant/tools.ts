@@ -140,6 +140,10 @@ export interface ToolContext {
   web?: WebSession;
   webBudget?: { searches: number; chars: number };
   onStatus?: (label: string) => void;
+  /** Asks the vision model about a picture (only when the main model can't see pictures, D-115). */
+  look?: (imageId: string, question: string) => Promise<ToolOutcome>;
+  /** Reads comic pages with the model that can see them (D-115). */
+  readComic?: (args: { order?: unknown; images?: string[]; skip?: string[]; from?: number; to?: number }) => Promise<ToolOutcome>;
 }
 
 export interface ToolOutcome { result: string; label: string; error?: boolean }
@@ -1320,6 +1324,16 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         if (str(a.variant) && !v) throw new Error(`No version “${str(a.variant)}” of ${c.name}. Its versions: ${c.variants.map((x) => x.label).join(", ") || "none"}.`);
         ctx.results.push({ type: "change", id: ctx.newId(), kind: "character", itemId: c.id, name: c.name, summary: `Use “${img.name}” as the picture${v ? ` of ${v.label}` : ""}`, before: { picture: "" }, after: { picture: JSON.stringify({ mime: img.mime, base64: img.base64, ...(v ? { variantId: v.id } : {}) }) }, status: "waiting" });
         return { result: "Proposed; the user decides.", label: `Proposed a picture for “${c.name}${v ? ` · ${v.label}` : ""}”` };
+      }
+      case "look_at_image": {
+        if (!ctx.look) return { result: "No vision model is set; you can't look at pictures in this chat.", label: "look_at_image", error: true };
+        return await ctx.look(str(a.image), str(a.question));
+      }
+      case "read_comic": {
+        if (!ctx.readComic) return { result: "There are no pictures in this chat.", label: "read_comic", error: true };
+        const ids = (v: unknown) => Array.isArray(v) ? v.map((x) => String(x)) : undefined;
+        const n = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? Math.floor(v) : undefined;
+        return await ctx.readComic({ order: a.order, images: ids(a.images), skip: ids(a.skip), from: n(a.from), to: n(a.to) });
       }
       case "web_search":
       case "web_fetch":

@@ -143,6 +143,18 @@ describe("OpenAI-compatible provider", () => {
     expect(nano.find((m) => m.id === "bare-id")).toEqual({ id: "bare-id", name: undefined, description: undefined, contextLength: undefined, price: undefined, reasoning: undefined, efforts: undefined });
   });
 
+  it("knows which models see pictures (D-115): OpenRouter input_modalities, nano-gpt capabilities.vision", () => {
+    const list = parseModels({ data: [
+      { id: "google/gemini-flash", architecture: { input_modalities: ["text", "image"] } },
+      { id: "z-ai/glm-5.3", architecture: { input_modalities: ["text"] } },
+      { id: "nano/vl", capabilities: { vision: true } },
+      { id: "nano/text", capabilities: { vision: false } },
+      { id: "unknown" },
+    ] });
+    const v = Object.fromEntries(list.map((m) => [m.id, m.vision]));
+    expect(v).toEqual({ "google/gemini-flash": true, "z-ai/glm-5.3": false, "nano/vl": true, "nano/text": false, unknown: undefined });
+  });
+
   it("asks the right address for the model list, with the key, and explains errors", async () => {
     let url = ""; let auth = "";
     const ok = async (u: string, init: RequestInit) => {

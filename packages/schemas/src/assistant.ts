@@ -79,6 +79,11 @@ export const AssistantSettings = z.object({
   defaultPresetId: z.string().default(""),
   /** Tool groups switched off for every chat: "create", "change", "files", "memory". */
   toolsOff: z.array(z.string()).default([]),
+  /**
+   * The model that looks at pictures for a main model that can't (D-115): it describes each picture, and the main
+   * model can ask it again (look_at_image). Empty = pictures go to the main model as they are.
+   */
+  vision: z.object({ connectionId: Id.nullable().default(null), model: z.string().default("") }).default({ connectionId: null, model: "" }),
   /** Round 1 fields (read once to fill the default assistant and preset; never written again). */
   connectionId: Id.nullable().optional(),
   model: z.string().optional(),
@@ -116,11 +121,27 @@ export const AssistantResult = z.discriminatedUnion("type", [
 ]);
 export type AssistantResult = z.infer<typeof AssistantResult>;
 
+/** A picture put into words by the vision model, for a main model that can't see pictures (D-115). */
+export const PictureDescription = z.object({
+  text: z.string(),
+  /** The vision model that wrote it ("" when the user wrote it). */
+  model: z.string().default(""),
+  edited: z.boolean().default(false),
+  at: z.number().int().default(0),
+});
+export type PictureDescription = z.infer<typeof PictureDescription>;
+
 /** Something added to a message: an item of the app (read with tools), a file, or an image. */
 export const AssistantAttachment = z.discriminatedUnion("type", [
   z.object({ type: z.literal("item"), kind: AssistantReadKind, id: Id, name: z.string() }),
   z.object({ type: z.literal("file"), id: Id, name: z.string(), mime: z.string().default(""), text: z.string(), summary: z.string().default("") }),
-  z.object({ type: z.literal("image"), id: Id, name: z.string(), mime: z.string(), base64: z.string() }),
+  z.object({
+    type: z.literal("image"), id: Id, name: z.string(), mime: z.string(), base64: z.string(),
+    /** What the vision model saw (D-115); `edited` = the user corrected it, so it is never written again. */
+    description: PictureDescription.optional(),
+    /** A page of a comic to read with read_comic: never described alone, never sent whole to the main model. */
+    comicPage: z.boolean().optional(),
+  }),
 ]);
 export type AssistantAttachment = z.infer<typeof AssistantAttachment>;
 
@@ -160,7 +181,11 @@ export const AssistantMessage = z.object({
     calls: z.number().optional(),
     /** Separate provider-reported usage, so retrieval never appears free. CODEX. */
     helper: z.object({ model: z.string(), calls: z.number(), tools: z.number(), tokensIn: z.number(), tokensOut: z.number(), cost: z.number(), ms: z.number() }).optional(),
+    /** The vision model's calls for this reply (descriptions, look_at_image, comic reading). D-115. */
+    vision: z.object({ model: z.string(), calls: z.number(), cached: z.number().default(0), tokensIn: z.number(), tokensOut: z.number(), cost: z.number(), ms: z.number() }).optional(),
   }).optional(),
+  /** While a reply is being written: what it is doing that is not the model writing ("Describing picture 1 of 2…"). */
+  activity: z.string().optional(),
   error: z.string().optional(),
   createdAt: z.number().int(),
 });

@@ -5,6 +5,7 @@
 // - the library is never sent: only how many items of each kind exist; the model looks things up with tools;
 // - picked items and files go as one line each (the model reads what it needs);
 // - pictures are sent only with the newest two user messages (older ones become "[image … sent earlier]");
+//   a main model that can't see pictures gets what the vision model saw instead (D-115, vision.ts);
 // - tool results of earlier replies are cut to their first lines (Flint's "microcompaction"): the model can read again.
 import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
@@ -14,6 +15,8 @@ import { libraryCounts, runTool, TOOL_SPECS, webSession, type ToolContext } from
 import type { WebSession } from "./web.ts";
 import { decodeHistory, encodeHistory } from "./history.ts";
 import { consultLibrary, excerptHelper, HELPER_RULES, HELPER_SPEC, type HelperUsage } from "./helper.ts";
+import { describePicture, emptyVisionUsage, LOOK_SPEC, lookAtPicture, NO_VISION_RULES, pictureRoute, pictureText, READ_COMIC_SPEC, seesPictures, VISION_RULES, visionConnection } from "./vision.ts";
+import { naturalCompare, readComic, readingText, ReadingOrder } from "./comic.ts";
 export { TOOL_SPECS };
 
 const SETTINGS_KEY = "assistant.settings";
@@ -55,7 +58,7 @@ export async function loadSettings(store: SqlStore): Promise<AssistantSettings> 
     assistants, presets,
     defaultAssistantId: assistants.some((a) => a.id === raw.defaultAssistantId) ? raw.defaultAssistantId : "homunculus",
     defaultPresetId: raw.defaultPresetId === "" && raw.presets.length ? "" : presets.some((p) => p.id === raw.defaultPresetId) ? raw.defaultPresetId : presets[0]!.id,
-    toolsOff: raw.toolsOff,
+    toolsOff: raw.toolsOff, vision: raw.vision,
   });
   if (changed) await saveSettings(store, out);
   return out;
@@ -159,16 +162,20 @@ export function systemParts(assistant: AssistantPersona, preset: AssistantPreset
 }
 const systemText = (parts: Record<string, string>) => Object.values(parts).filter(Boolean).join("\n\n");
 
-function userContent(m: AssistantMessage, withImages: boolean): string | ContentPart[] {
+/** How pictures reach the main model (D-115): as they are, as the vision model's words, or by name only. */
+export type PictureRoute = "send" | "describe" | "drop";
+
+function userContent(m: AssistantMessage, withImages: boolean, pictures: PictureRoute = "send"): string | ContentPart[] {
   const lines: string[] = [];
   for (const a of m.attachments) {
     if (a.type === "item") lines.push(`[Added: ${a.kind}:${a.id} · ${a.name}]`);
     else if (a.type === "file") lines.push(`[File ${a.id}: ${a.name} — ${a.summary}]`);
+    else if (pictures !== "send" || a.comicPage) lines.push(pictureText(a, pictures === "send" ? "describe" : pictures, withImages));
     else if (!withImages) lines.push(`[Image ${a.id}: ${a.name} (sent earlier)]`);
     else lines.push(`[Image ${a.id}: ${a.name}]`);
   }
   const text = [lines.join("\n"), m.text].filter(Boolean).join("\n\n");
-  const images = withImages ? m.attachments.filter((a): a is Extract<typeof a, { type: "image" }> => a.type === "image") : [];
+  const images = withImages && pictures === "send" ? m.attachments.filter((a): a is Extract<typeof a, { type: "image" }> => a.type === "image" && !a.comicPage) : [];
   if (!images.length) return text;
   return [{ type: "text", text }, ...images.map((i) => ({ type: "image" as const, mime: i.mime, base64: i.base64 }))];
 }
@@ -185,9 +192,11 @@ function resultLines(m: AssistantMessage): string[] {
 }
 
 /** The saved chat as model turns (exact rounds of tool calls; older tool results shortened). */
-export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts: string): RichTurn[] {
+export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts: string, pictures: PictureRoute = "send"): RichTurn[] {
   const { assistant, preset } = resolveFor(chat, settings);
-  const out: RichTurn[] = [{ role: "system", content: systemText(systemParts(assistant, preset, counts, chat.draftFirst, webOn(chat, settings))) }];
+  const hasPictures = chat.messages.some((m) => m.attachments.some((a) => a.type === "image"));
+  const visionRules = !hasPictures || pictures === "send" ? "" : `\n\n${pictures === "describe" ? VISION_RULES : NO_VISION_RULES}`;
+  const out: RichTurn[] = [{ role: "system", content: systemText(systemParts(assistant, preset, counts, chat.draftFirst, webOn(chat, settings))) + visionRules }];
   const users = chat.messages.filter((m) => m.role === "user");
   const recentImages = new Set(users.slice(-2).map((m) => m.id));
   const lastUser = users.at(-1)?.id;
@@ -202,7 +211,7 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
   if (earlierResults.length) out.push({ role: "user", content: earlierResults.join("\n") });
   for (const m of chat.messages.slice(cut + 1)) {
     if (m.id === lastUser) afterLastUser = true;
-    if (m.role === "user") { out.push({ role: "user", content: userContent(m, recentImages.has(m.id)) }); continue; }
+    if (m.role === "user") { out.push({ role: "user", content: userContent(m, recentImages.has(m.id), pictures) }); continue; }
     let step = 0;
     for (const round of m.rounds) {
       out.push({ role: "assistant", content: round.text, toolCalls: round.calls });
@@ -243,7 +252,13 @@ export async function runAssistant(o: {
   const est = (t: string) => Math.ceil(t.length / 3.6);
   const web = webOn(o.chat, settings);
   const sys = systemParts(assistant, preset, counts, o.chat.draftFirst, web);
-  const tools = toolsFor(settings, o.chat.draftFirst, web, assistant.toolHelper?.enabled);
+  // D-115: pictures for a main model that can't see them
+  const vision = visionConnection(settings, o.connections);
+  const route = pictureRoute(await seesPictures(o.store, conn), vision);
+  const visionUsage = emptyVisionUsage(vision?.model ?? "");
+  let base: AssistantChat = o.chat;
+  const hasPictures = o.chat.messages.some((m) => m.attachments.some((a) => a.type === "image"));
+  const tools = [...toolsFor(settings, o.chat.draftFirst, web, assistant.toolHelper?.enabled), ...(route === "describe" ? [LOOK_SPEC] : []), ...(hasPictures ? [READ_COMIC_SPEC] : [])];
   const helper = assistant.toolHelper;
   const helperBase = helper?.connectionId ? o.connections[helper.connectionId] : undefined;
   const helperConn = helperBase ? { ...helperBase, ...(helper?.model ? { model: helper.model } : {}) } : undefined;
@@ -252,17 +267,17 @@ export async function runAssistant(o: {
   const parts: Record<string, number> = { app: est(sys.app ?? ""), assistant: est(sys.assistant ?? ""), preset: est(sys.preset ?? ""), tools: est(JSON.stringify(tools)) };
   const sent = [
     ...(preset ? [...preset.rules.filter((r) => r.on && r.text.trim()).map((r) => r.id), ...preset.notes.filter((n) => n.on && n.text.trim()).map((n) => n.id), ...(preset.memoryOn ? preset.memory.map((m) => m.id) : [])] : []),
-    ...o.chat.messages.slice((o.chat.compact ? o.chat.messages.findIndex((m) => m.id === o.chat.compact!.uptoId) : -1) + 1).flatMap((m) => m.attachments.map((a) => a.id)),
+    ...base.messages.slice((o.chat.compact ? base.messages.findIndex((m) => m.id === o.chat.compact!.uptoId) : -1) + 1).flatMap((m) => m.attachments.map((a) => a.id)),
   ];
   const t0 = now();
   let thinkMs = 0, writeMs = 0, callsMade = 0;
   const repeats = new Map<string, number>();
   const reply: AssistantMessage = { id: newId(), role: "assistant", text: "", reasoning: "", attachments: [], steps: [], rounds: [], results: [], used: { model: conn.model, guides: [] }, createdAt: now() };
-  let chat: AssistantChat = { ...o.chat, messages: [...o.chat.messages, reply] };
+  let chat: AssistantChat = { ...o.chat, messages: [...base.messages, reply] };
   const guides = new Set(o.chat.guides);
   const files = new Map<string, { name: string; text: string; mime: string }>();
   const images = new Map<string, { name: string; mime: string; base64: string }>();
-  for (const m of o.chat.messages) for (const a of m.attachments) {
+  for (const m of base.messages) for (const a of m.attachments) {
     if (a.type === "file") files.set(a.id, { name: a.name, text: a.text, mime: a.mime });
     if (a.type === "image") images.set(a.id, { name: a.name, mime: a.mime, base64: a.base64 });
   }
@@ -278,7 +293,56 @@ export async function runAssistant(o: {
       await saveSettings(o.store, { ...s, presets: s.presets.map((p) => (p.id === target.id ? { ...p, memory: [...p.memory, { id: newId(), text, from: o.chat.title, at: now() }] } : p)) });
     },
   };
-  const push = () => { if (helperUsage.calls && reply.used) reply.used.helper = { ...helperUsage }; o.onUpdate({ ...reply, steps: [...reply.steps], rounds: [...reply.rounds], results: [...reply.results] }); };
+  /** Pictures of the chat with no description yet (kept messages only), described in parallel; saved on each attachment. */
+  const describeNew = async (c: AssistantChat, progress: (n: number, of: number) => void): Promise<AssistantChat> => {
+    const cut = c.compact ? c.messages.findIndex((m) => m.id === c.compact!.uptoId) : -1;
+    const todo = c.messages.slice(cut + 1).flatMap((m) => m.role === "user" ? m.attachments.flatMap((a) => a.type === "image" && !a.description && !a.comicPage ? [{ m, a }] : []) : []);
+    if (!todo.length) return c;
+    let done = 0;
+    progress(1, todo.length);
+    const described = new Map<string, string>();
+    await Promise.all(todo.map(async ({ m, a }) => {
+      try { described.set(a.id, await describePicture({ core: o.core, store: o.store, conn: vision!, picture: a, question: m.text, usage: visionUsage, signal: o.signal })); }
+      catch (e) { if (o.signal?.aborted) throw e; /* left undescribed: the model is told, the UI offers Retry */ }
+      progress(Math.min(++done + 1, todo.length), todo.length);
+    }));
+    if (!described.size) return c;
+    const at = now();
+    const messages = c.messages.map((m) => m.attachments.some((a) => described.has(a.id))
+      ? { ...m, attachments: m.attachments.map((a) => a.type === "image" && described.has(a.id) ? { ...a, description: { text: described.get(a.id)!, model: vision!.model, edited: false, at } } : a) }
+      : m);
+    return { ...c, messages };
+  };
+  if (route === "describe" && vision) ctx.look = async (id, question) => {
+    const img = images.get(id);
+    if (!img) return { result: `No picture “${id}” in this chat.`, label: "look_at_image", error: true };
+    if (!question.trim()) return { result: "Ask a question about the picture.", label: "look_at_image", error: true };
+    return { result: await lookAtPicture({ core: o.core, store: o.store, conn: vision, picture: img, question, usage: visionUsage, signal: o.signal }), label: `Looked at ${img.name}` };
+  };
+  // D-115: comic pages are read by the model that can see them (the vision model, or the main one when it can)
+  ctx.readComic = async (a) => {
+    const reader = route === "describe" ? vision : route === "send" ? conn : undefined;
+    if (!reader) return { result: "This model can't see pictures and no vision model is set (Settings → Assistant → For Pictures, Use). Tell the user.", label: "read_comic", error: true };
+    const order = ReadingOrder.safeParse(a.order);
+    if (!order.success) return { result: "Give order: \"manga\" or \"western\" (ask the user when you don't know).", label: "read_comic", error: true };
+    const all = base.messages.flatMap((m) => m.attachments.flatMap((x) => x.type === "image" ? [x] : []));
+    const picked = a.images?.length ? a.images.map((id) => all.find((x) => x.id === id)) : (all.some((x) => x.comicPage) ? all.filter((x) => x.comicPage) : all).slice().sort((x, y) => naturalCompare(x.name, y.name));
+    const missing = a.images?.filter((id, i) => !picked[i]) ?? [];
+    if (missing.length) return { result: `No picture ${missing.map((m) => `“${m}”`).join(", ")} in this chat.`, label: "read_comic", error: true };
+    const pages = picked.filter((x): x is NonNullable<typeof x> => !!x && !(a.skip ?? []).includes(x.id));
+    if (!pages.length) return { result: "No pages to read.", label: "read_comic", error: true };
+    if (route === "send") visionUsage.model = conn.model;
+    const reading = await readComic({ core: o.core, store: o.store, conn: reader, pages, order: order.data, usage: visionUsage, signal: o.signal, now,
+      onProgress: (done, total) => { reply.activity = done < total ? `Reading pages… ${done} of ${total}` : undefined; push(); } });
+    reply.activity = undefined;
+    const from = Math.max(1, a.from ?? 1), to = Math.min(reading.pages.length, a.to ?? reading.pages.length);
+    let text = readingText(reading, from, to);
+    let shown = to;
+    while (text.length > 24_000 && shown > from) { shown = Math.max(from, Math.floor((from + shown) / 2)); text = readingText(reading, from, shown); }
+    const more = shown < reading.pages.length ? `\n\n(Pages ${from}–${shown} shown; call read_comic again with from=${shown + 1} for the rest — it's cached.)` : "";
+    return { result: `Read ${reading.pages.length} pages (${pages.map((p, i) => `${i + 1}=${p.id}`).join(", ")}) in ${reading.order} order.\n\n${text}${more}`, label: `Read ${reading.pages.length} comic page${reading.pages.length === 1 ? "" : "s"}` };
+  };
+  const push = () => { if (helperUsage.calls && reply.used) reply.used.helper = { ...helperUsage }; if ((visionUsage.calls || visionUsage.cached) && reply.used) reply.used.vision = { ...visionUsage }; o.onUpdate({ ...reply, steps: [...reply.steps], rounds: [...reply.rounds], results: [...reply.results] }); };
   const usage = { tokensIn: 0, tokensOut: 0, cost: 0, last: 0 };
   const delegate = async (args: string) => {
     if (!helperConn || !helper?.enabled) return { result: "Select an available connection for the tool helper in Customize → Assistants. No fallback model was called.", label: "Helper connection unavailable", error: true };
@@ -290,9 +354,15 @@ export async function runAssistant(o: {
   };
 
   try {
+    if (route === "describe" && vision) {
+      base = await describeNew(base, (n, of) => { reply.activity = of > 1 ? `Describing picture ${n} of ${of}…` : "Describing picture…"; push(); });
+      reply.activity = undefined;
+      chat = { ...base, messages: [...base.messages, reply] };
+      push();
+    }
     for (let step = 0; ; step++) {
       o.signal?.throwIfAborted();
-      const turns = toTurns(chat, settings, counts);
+      const turns = toTurns(chat, settings, counts, route);
       ctx.availableGuides = new Set(Object.values(GUIDES).filter((g) => turns.some((t) => t.role === "tool" && t.content === g.text)).map((g) => g.kind));
       let text = "";
       let calls: ToolCall[] = [];
@@ -329,7 +399,7 @@ export async function runAssistant(o: {
         push();
       }
       if (looping && repeats.size && [...repeats.values()].some((n) => n >= 4)) { reply.text = "(Stopped: the same tool call kept repeating.)"; break; }
-      chat = { ...chat, messages: [...o.chat.messages, reply] };
+      chat = { ...chat, messages: [...base.messages, reply] };
     }
   } catch (e) {
     // Keep every requested tool paired, including calls that Stop prevented from starting.
@@ -343,16 +413,16 @@ export async function runAssistant(o: {
   }
   // the chat's share: from the service's count when it gave one, else estimated from the turns themselves
   const sysTotal = parts.app! + parts.assistant! + parts.preset! + parts.tools!;
-  parts.chat = usage.last ? Math.max(0, usage.last - sysTotal) : est(JSON.stringify(toTurns({ ...chat, messages: [...o.chat.messages, reply] }, settings, counts).slice(1)));
+  parts.chat = usage.last ? Math.max(0, usage.last - sysTotal) : est(JSON.stringify(toTurns({ ...chat, messages: [...base.messages, reply] }, settings, counts, route).slice(1)));
   reply.used = { model: conn.model, guides: [...guides], assistant: assistant.name, ...(preset ? { preset: preset.name } : {}), parts, sent, ms: now() - t0, thinkMs, writeMs, calls: callsMade, ...(usage.last ? { lastPrompt: usage.last } : {}), ...(usage.tokensIn ? { tokensIn: usage.tokensIn } : {}), ...(usage.tokensOut ? { tokensOut: usage.tokensOut } : {}), ...(usage.cost ? { cost: usage.cost } : {}) };
   push();
   const made = reply.results.filter((r) => r.type === "created" || r.type === "change").map((r) => (r as { name: string }).name);
-  const first = o.chat.messages.find((m) => m.role === "user");
+  const first = base.messages.find((m) => m.role === "user");
   const final: AssistantChat = {
-    ...o.chat,
+    ...base,
     title: o.chat.title === "New chat" && first ? first.text.replace(/\s+/g, " ").slice(0, 48) || "New chat" : o.chat.title,
     summary: made.length ? `Made or changed: ${[...new Set(made)].slice(0, 3).join(", ")}` : o.chat.summary,
-    guides: [...guides], messages: [...o.chat.messages, reply], updatedAt: now(),
+    guides: [...guides], messages: [...base.messages, reply], updatedAt: now(),
   };
   await saveChat(o.store, final);
   return final;
