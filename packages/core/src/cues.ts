@@ -191,7 +191,7 @@ const num = (x: unknown) => { const n = typeof x === "boolean" ? Number(x) : Num
 
 // ------------------------------------------------------------------ texts
 
-/** A text's own trigger (words, chance, messages) and tests. Returns why it is out, or "" when it may go in. */
+/** A text's own trigger (words, messages) and tests — chance comes later. Returns why it is out, or "" when it may go in. */
 function textBlocked(t: CueText, input: CueRunInput, ctx: Record<string, unknown>): string {
   if (!t.enabled || !t.text.trim()) return "off";
   if (input.history.length < t.minMessages) return `needs ${t.minMessages} messages`;
@@ -203,7 +203,6 @@ function textBlocked(t: CueText, input: CueRunInput, ctx: Record<string, unknown
     if (t.words.also.length && !has(t.words.also)) return "words";
     if (t.words.not.length && has(t.words.not)) return "words";
   }
-  if (t.chance < 100 && input.random() * 100 >= t.chance) return "chance";
   return "";
 }
 
@@ -239,6 +238,9 @@ function runGroup(g: CueGroup, input: CueRunInput, ctx: Record<string, unknown>,
     const keep = new Set([...shared.values()].map((list) => byWeight(list, input.random)!.id));
     candidates = candidates.filter((t) => !t.oneOf.trim() || keep.has(t.id));
   }
+  // each text's own chance, after "one of" (as a lorebook: the group's winner rolls, a loser never takes its place)
+  candidates = candidates.filter((t) => t.chance >= 100 || input.random() * 100 < t.chance);
+  if (!candidates.length) return { picked: [], reason: "chance said no" };
   const matched = candidates.length;
   // don't repeat the last N (while something else is left)
   const last = mem.last[g.key] ?? [];

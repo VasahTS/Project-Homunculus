@@ -114,6 +114,11 @@ describe("cue engine: values and texts", () => {
     const text = run(shared).texts[0]!.text.split("\n");
     expect(text).toHaveLength(2);
     expect(text).toContain("C");
+    // as in a lorebook group: the winner rolls its chance; when it loses, the other one does not take its place
+    const rolled: CueInput = { id: "r", name: "R", namespace: "cue-r", groups: [{ key: "g", pick: "all", items: [
+      { id: "a", text: "A", oneOf: "mood" }, { id: "b", text: "B", oneOf: "mood", chance: 50 }] }] };
+    expect(run(rolled, { random: () => 0.99 }).report.groups[0]!.reason).toBe("chance said no");
+    expect(run(rolled, { random: () => 0.1 }).texts[0]!.text).toBe("A");
   });
 
   it("a text's own trigger: words, also needs, but not, chance and messages — no lorebook", () => {
