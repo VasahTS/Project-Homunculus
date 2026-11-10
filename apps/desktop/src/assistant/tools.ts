@@ -12,6 +12,8 @@ import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
 import { readPart } from "./files.ts";
+import { agentRows, chatRows, directorRows, getAppItem, quickReplyRows, readChat, regexRows } from "./appReads.ts";
+import { ABOUT_TOPICS, aboutText } from "./about.ts";
 import { GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIELDS } from "./guides.ts";
 import { WebLimitedError, WebSession } from "./web.ts";
 import { readScope, readText, withReadRanges, type ReadScope } from "./reads.ts";
@@ -22,7 +24,12 @@ const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
 const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 const one = (s: string, n = 90) => { const t = s.replace(/\s+/g, " ").trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
-export const READ_KINDS: AssistantReadKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story"];
+export const READ_KINDS: AssistantReadKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story", "chat", "agent", "regex", "quickreply", "director"];
+/** Kinds that only `find` with that kind lists (a library search without a kind leaves the many chats out). */
+const FIND_ALONE: AssistantReadKind[] = ["chat"];
+const APP_KINDS = ["chat", "agent", "regex", "quickreply", "director"] as const;
+type AppKind = (typeof APP_KINDS)[number];
+const isAppKind = (k: string): k is AppKind => (APP_KINDS as readonly string[]).includes(k);
 const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset"];
 /** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
 export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
@@ -146,6 +153,10 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: { kind: kindProp(FOLDER_KINDS, "Only this kind (optional).") } } },
   { name: "read", description: "Read one library item (kind:id). Without fields, long texts are paged and lorebooks return an entry index. Long text pages contain up to 6,000 source characters and a separate _read array: field, offset, end, total, nextOffset, done and next (exact arguments for the next read). Copy next exactly; done=true is the end. Never calculate offsets from JSON length or historical previews. Select fields like [\"description\"]. A version uses [\"variant:<label or id>\", \"description\"]; a lore entry uses [\"entry:<title or id>\", \"content\"] (omit the second selector to inspect all fields). Lorebook fields [\"entries\"] pages 10 entries; its offset is an entry index.",
     parameters: { type: "object", properties: { id: { type: "string" }, fields: { type: "array", items: { type: "string" } }, offset: { type: "integer", minimum: 0, description: "Zero-based source UTF-16 offset for text; entry index for fields [entries]. Use the server's next arguments." } }, required: ["id"] } },
+  { name: "read_chat", description: "Read a chat's messages on the branch it shows (or a named branch), numbered #1… as the chat numbers them. Default: the last 30. `from`/`to` pick a range; `search` lists the messages containing a phrase. Long pages stop early and give the next range. You never write messages.",
+    parameters: { type: "object", properties: { id: { type: "string", description: "chat:id (from find with kind \"chat\", or the user's context)." }, from: { type: "integer", minimum: 1 }, to: { type: "integer", minimum: 1 }, search: { type: "string" }, branch: { type: "string", description: "A branch's name (optional)." } }, required: ["id"] } },
+  { name: "about", description: "What a part of the app is and how it works (where it lives, what it changes in the prompt, its options). Ask before advising on or changing a kind you have not handled in this chat, and before diagnosing why the AI writes the way it does (topic \"prompt\").",
+    parameters: { type: "object", properties: { topic: { type: "string", enum: ABOUT_TOPICS } }, required: ["topic"] } },
   { name: "guide", description: "How to write one kind of item well, and the exact fields `create`/`change` accept. Call once per kind per chat before writing it.",
     parameters: { type: "object", properties: { kind: kindProp(WRITE_KINDS, "") }, required: ["kind"] } },
   { name: "create", description: "Create a new item. `data` uses the fields from `guide`. Saved right away (the user can undo) unless the user asked to approve new items. A preset may start from an existing one with data.from = \"preset:id\".",
@@ -195,6 +206,11 @@ async function baseRows(store: SqlStore, kind: AssistantReadKind): Promise<Row[]
     case "npc": return (await store.npcs.list()).map((n) => ({ kind, id: n.id, name: n.name, line: one(Object.values(n.values).filter((v) => typeof v === "string").join(" · ") || n.notes) }));
     case "persona": return (await store.personas.list()).map((p) => ({ kind, id: p.id, name: p.name, line: one(p.description) }));
     case "preset": return (await store.presets.list()).map((p) => ({ kind, id: p.id, name: p.name, line: `${p.blocks.length} blocks${p.description ? ` · ${one(p.description, 60)}` : ""}` }));
+    case "chat": return (await chatRows(store)).map((r) => ({ kind, ...r }));
+    case "agent": return (await agentRows(store)).map((r) => ({ kind, ...r }));
+    case "regex": return (await regexRows(store)).map((r) => ({ kind, ...r }));
+    case "quickreply": return (await quickReplyRows(store)).map((r) => ({ kind, ...r }));
+    case "director": return (await directorRows(store)).map((r) => ({ kind, ...r }));
   }
 }
 
@@ -225,6 +241,7 @@ export async function getItem(store: SqlStore, kind: AssistantReadKind, id: stri
     case "npc": return (await store.npcs.get(id)) as unknown as Obj | undefined;
     case "persona": return (await store.personas.get(id)) as unknown as Obj | undefined;
     case "preset": return (await store.presets.get(id)) as unknown as Obj | undefined;
+    case "chat": case "agent": case "regex": case "quickreply": case "director": return getAppItem(store, kind, id);
   }
 }
 
@@ -266,6 +283,7 @@ const entryFull = (e: LoreEntry) => Object.fromEntries(Object.entries(e).filter(
 async function readItem(store: SqlStore, ref: string, fields: string[], offset: number): Promise<string> {
   const r = splitRef(ref);
   if (!r) return `Unknown item “${ref}”. Use the "kind:id" from find.`;
+  if (r.kind === "chat" && !fields.length) return readChat(store, r.id);
   let item = await getItem(store, r.kind, r.id);
   if (!item) return `No ${r.kind} with id “${r.id}”.`;
   // Write aliases belong in the read view; apply/stale checks keep using the raw stored item. CODEX.
@@ -311,7 +329,14 @@ async function readItem(store: SqlStore, ref: string, fields: string[], offset: 
 }
 
 async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, query: string, page: number, folder = ""): Promise<string> {
-  const kinds = kind ? [kind] : READ_KINDS;
+  if (kind === "chat" && query.trim()) {
+    const found = await chatRows(store, query);
+    const from = (Math.max(1, Math.round(page)) - 1) * 25;
+    const shown = found.slice(from, from + 25);
+    if (!shown.length) return `No chat's name or messages match “${query}”.`;
+    return `${shown.map((r) => `chat:${r.id} · ${r.name} — ${r.line}`).join("\n")}${found.length > from + 25 ? `\n(${found.length - from - 25} more; page ${Math.floor(from / 25) + 2})` : ""}`;
+  }
+  const kinds = kind ? [kind] : READ_KINDS.filter((k) => !FIND_ALONE.includes(k));
   let all: Row[] = [];
   for (const k of kinds) all = all.concat(await rows(store, k));
   if (splitPath(folder).length) {
@@ -1107,6 +1132,24 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         const r = splitRef(ref);
         const nm = r ? (await rows(ctx.store, r.kind)).find((x) => x.id === r.id)?.name : undefined;
         return { result: res, label: `Read ${nm ?? ref}${strs(a.fields).length ? ` (${strs(a.fields).join(", ")})` : ""}` };
+      }
+      case "read_chat": {
+        const ref = str(a.id);
+        const id = ref.startsWith("chat:") ? ref.slice(5) : ref;
+        const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+        const opts = { from: num(a.from), to: num(a.to), search: str(a.search), branch: str(a.branch) };
+        const res = await readChat(ctx.store, id, Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined && v !== "")));
+        const title = (await ctx.store.getSession(id))?.title ?? ref;
+        return { result: res, label: opts.search ? `Searched “${title}” for “${opts.search}”` : `Read chat “${title}”${opts.from ? ` #${opts.from}–${opts.to ?? "end"}` : ""}` };
+      }
+      case "about": {
+        const topic = str(a.topic);
+        const text = aboutText(topic);
+        if (!text) return { result: `No topic “${topic}”. Topics: ${ABOUT_TOPICS.join(", ")}.`, label: "about", error: true };
+        if (ctx.availableGuides?.has(`about:${topic}`)) return { result: `You already have “${topic}” earlier in this chat.`, label: `About: ${topic}` };
+        ctx.guides.add(`about:${topic}`);
+        (ctx.availableGuides ??= new Set()).add(`about:${topic}`);
+        return { result: text, label: `Read about ${topic === "app" ? "the app" : topic}` };
       }
       case "guide": {
         const g = GUIDES[str(a.kind)];

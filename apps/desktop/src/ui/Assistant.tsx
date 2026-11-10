@@ -35,14 +35,14 @@ export type AppMode = "play" | "assistant";
 /** A thing of the app the user can add as context (from App's lists). */
 export interface LibraryEntry { kind: AssistantReadKind; id: string; name: string; line: string; avatar?: Avatar | undefined }
 
-const KIND_LABEL: Record<AssistantReadKind, string> = { character: "Characters", persona: "Personas", narrator: "Narrators", npc: "NPCs", story: "Stories", kit: "Kits", lorebook: "Lorebooks", tracker: "Trackers", preset: "Presets" };
-const KIND_ONE: Record<AssistantReadKind, string> = { character: "Character", persona: "Persona", narrator: "Narrator", npc: "NPC", story: "Story", kit: "Kit", lorebook: "Lorebook", tracker: "Tracker", preset: "Preset" };
+const KIND_LABEL: Record<AssistantReadKind, string> = { character: "Characters", persona: "Personas", narrator: "Narrators", npc: "NPCs", story: "Stories", kit: "Kits", lorebook: "Lorebooks", tracker: "Trackers", preset: "Presets", chat: "Chats", agent: "Agents", regex: "Regex", quickreply: "Quick Replies", director: "Directors" };
+const KIND_ONE: Record<AssistantReadKind, string> = { character: "Character", persona: "Persona", narrator: "Narrator", npc: "NPC", story: "Story", kit: "Kit", lorebook: "Lorebook", tracker: "Tracker", preset: "Preset", chat: "Chat", agent: "Agent", regex: "Regex script", quickreply: "Quick Reply set", director: "Director" };
 // unslop (D-074): one line-icon set instead of geometric glyphs
-const KIND_ICON: Record<AssistantReadKind, keyof typeof ICONS> = { character: "characters", persona: "persona", narrator: "scroll", npc: "figure", story: "book", kit: "grid", lorebook: "book", tracker: "trackers", preset: "preset" };
+const KIND_ICON: Record<AssistantReadKind, keyof typeof ICONS> = { character: "characters", persona: "persona", narrator: "scroll", npc: "figure", story: "book", kit: "grid", lorebook: "book", tracker: "trackers", preset: "preset", chat: "send", agent: "sparkle", regex: "search", quickreply: "bolt", director: "masks" };
 const KindMark = ({ kind }: { kind: AssistantReadKind }) => <Icon name={KIND_ICON[kind]} size={14} />;
 
 
-const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "narrator", "npc", "story", "kit", "lorebook", "tracker", "preset"];
+const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "chat", "story", "narrator", "npc", "kit", "lorebook", "preset", "tracker", "agent", "regex", "quickreply", "director"];
 
 // ------------------------------------------------------------------ state shared by the sidebar and the view
 
@@ -152,8 +152,10 @@ const QUICK: Array<{ title: string; text: string; prompt: string }> = [
   { title: "Make a narrator", text: "How your stories are told: voice, rules, pacing.", prompt: "Make a narrator that " },
 ];
 
-export function AssistantView({ svc, st, connection, library, userName, lead, onOpenItem, onStartKit, onChanged, listModels, onManageConnections, focusMessageId = null }: {
+export function AssistantView({ svc, st, connection, library, userName, lead, onOpenItem, onStartKit, onChanged, listModels, onManageConnections, focusMessageId = null, screen = [] }: {
   svc: AppServices; st: AssistantState; connection: ConnectionState; library: LibraryEntry[]; userName: string; lead: ReactNode;
+  /** What was on screen in Play when the Assistant opened (D-110): added as chips, dashed, removable. */
+  screen?: Array<{ kind: AssistantReadKind; id: string; name: string }>;
   /** For the model switch under the message box (Quick Connection, D-077). */
   listModels: (config: ConnectionConfig, signal: AbortSignal) => Promise<ModelInfo[]>; onManageConnections: () => void;
   onOpenItem: (kind: AssistantKind, id: string) => void; onStartKit: (id: string) => void;
@@ -167,6 +169,14 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const { text, atts } = compose;
   const setText = (text: string) => setCompose(d => ({ ...d, text }));
   const setAtts = (next: AssistantAttachment[] | ((items: AssistantAttachment[]) => AssistantAttachment[])) => setCompose(d => ({ ...d, atts: typeof next === "function" ? next(d.atts) : next }));
+  // the screen it was opened from becomes context, once per opening (D-110); dashed until the user sends or removes it
+  const [autoKeys, setAutoKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!screen.length) return;
+    setAtts((a) => [...a, ...screen.filter((x) => !a.some((y) => y.type === "item" && y.kind === x.kind && y.id === x.id)).map((x) => ({ type: "item" as const, kind: x.kind, id: x.id, name: x.name }))]);
+    setAutoKeys(new Set(screen.map((x) => `${x.kind}:${x.id}`)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
   const [savingHistory, setSavingHistory] = useState(false);
   const [undoMessage, setUndoMessage] = useState<{ chatId: string; branch: string; message: AssistantMessage; index: number } | null>(null);
   const [picking, setPicking] = useState(false);
@@ -460,7 +470,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       <div className="asst-bottom"><div className="asst-col">
         {undoMessage && chat?.id === undoMessage.chatId && (chat.activeBranchId ?? "main") === undoMessage.branch && <div className="asst-deleted" role="status">Message deleted from this branch. <button className="link" disabled={busy} onClick={() => void undoDelete()}>Undo</button></div>}
         {error && <p className="asst-error" role="alert">{error}</p>}
-        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty }} />
+        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty, autoKeys }} />
         {summary}
       </div></div>
       <input ref={fileInput} type="file" multiple hidden accept=".json,.jsonl,.md,.markdown,.txt,.csv,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" data-testid="assistant-file"
@@ -477,7 +487,8 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   );
 }
 
-function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false }: {
+function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false, autoKeys }: {
+  autoKeys?: Set<string>;
   text: string; setText: (t: string) => void; atts: AssistantAttachment[]; setAtts: (f: (a: AssistantAttachment[]) => AssistantAttachment[]) => void;
   busy: boolean; onSend: () => void; onStop: () => void; onPick: () => void; onFiles: () => void; onDropFiles: (f: File[]) => void; picksBar: ReactNode; autoFocus?: boolean;
 }) {
@@ -489,7 +500,8 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
       {atts.length > 0 && (
         <div className="asst-ctx">
           {atts.map((a) => (
-            <span key={a.id} className={`asst-chip${a.type === "image" ? " img" : ""}`}>
+            <span key={a.id} className={`asst-chip${a.type === "image" ? " img" : ""}${a.type === "item" && autoKeys?.has(`${a.kind}:${a.id}`) ? " auto" : ""}`}
+              title={a.type === "item" && autoKeys?.has(`${a.kind}:${a.id}`) ? "Added from the screen you came from. ✕ removes it." : undefined}>
               {a.type === "image" ? <img src={`data:${a.mime};base64,${a.base64}`} alt="" /> : <span className="asst-k" aria-hidden>{a.type === "item" ? <KindMark kind={a.kind} /> : <Icon name="file" size={14} />}</span>}
               <span className="asst-chip-name">{a.name}</span>
               <button type="button" aria-label={`Remove ${a.name}`} onClick={() => setAtts((x) => x.filter((y) => y.id !== a.id))}>✕</button>
@@ -701,6 +713,14 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
   const [kind, setKind] = useBackState<AssistantReadKind>("character");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Map<string, LibraryEntry>>(() => new Map(picked.map((p) => [`${p.kind}:${p.id}`, { kind: p.kind, id: p.id, name: p.name, line: "" }])));
+  /** A chat can be added whole or as a range of its messages (D-110): "#150–#212" goes in its name for the Assistant. */
+  const [ranges, setRanges] = useState<Record<string, { from: string; to: string }>>({});
+  const lastChat = [...sel.values()].reverse().find((e) => e.kind === "chat");
+  const nameOf = (e: LibraryEntry) => {
+    const r = e.kind === "chat" ? ranges[e.id] : undefined;
+    const from = Number(r?.from), to = Number(r?.to);
+    return r && (from > 0 || to > 0) ? `${e.name} · messages #${from > 0 ? from : 1}–${to > 0 ? `#${to}` : "end"}` : e.name;
+  };
   const counts = useMemo(() => { const c: Partial<Record<AssistantReadKind, number>> = {}; for (const e of library) c[e.kind] = (c[e.kind] ?? 0) + 1; return c; }, [library]);
   const words = q.trim().toLowerCase();
   const shown = library.filter((e) => (words ? `${e.name} ${e.line}`.toLowerCase().includes(words) : e.kind === kind)).slice(0, 300);
@@ -726,11 +746,21 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
           })}
         </div>
       </div>
+      {lastChat && (
+        <div className="asst-range" data-testid="assistant-chat-range">
+          <span><b>{lastChat.name}</b>: all messages, or from #</span>
+          <input type="number" min={1} aria-label="From message" placeholder="1" value={ranges[lastChat.id]?.from ?? ""}
+            onChange={(e) => setRanges((r) => ({ ...r, [lastChat.id]: { from: e.target.value, to: r[lastChat.id]?.to ?? "" } }))} />
+          <span>to #</span>
+          <input type="number" min={1} aria-label="To message" placeholder="end" value={ranges[lastChat.id]?.to ?? ""}
+            onChange={(e) => setRanges((r) => ({ ...r, [lastChat.id]: { from: r[lastChat.id]?.from ?? "", to: e.target.value } }))} />
+        </div>
+      )}
       <div className="modal-foot">
-        <span className="grow asst-picked">{sel.size ? [...sel.values()].map((e) => <span key={`${e.kind}:${e.id}`} className="asst-chip"><span className="asst-k"><KindMark kind={e.kind} /></span><span className="asst-chip-name">{e.name}</span></span>) : <span className="hint">Pick characters, lorebooks, narrators… The Assistant reads only what it needs from them.</span>}</span>
+        <span className="grow asst-picked">{sel.size ? [...sel.values()].map((e) => <span key={`${e.kind}:${e.id}`} className="asst-chip"><span className="asst-k"><KindMark kind={e.kind} /></span><span className="asst-chip-name">{e.name}</span></span>) : <span className="hint">Pick characters, chats, lorebooks, agents… The Assistant reads only what it needs from them.</span>}</span>
         <Button variant="plain" onClick={onClose}>Cancel</Button>
         <Button variant="prominent" disabled={!sel.size} data-testid="assistant-picker-add"
-          onClick={() => onAdd([...sel.values()].map((e) => ({ type: "item", kind: e.kind, id: e.id, name: e.name })))}>Add {sel.size || ""}</Button>
+          onClick={() => onAdd([...sel.values()].map((e) => ({ type: "item", kind: e.kind, id: e.id, name: nameOf(e) })))}>Add {sel.size || ""}</Button>
       </div>
     </Modal>
   );

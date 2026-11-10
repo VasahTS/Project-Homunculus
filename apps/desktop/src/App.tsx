@@ -6,8 +6,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useGuardedNavigation } from "./ui/ux.tsx";
 import { backForwardOf, goMove, isClaimed, openLayers, pressEscape, recordMove, takeQuietScreen } from "./ui/back-button.ts";
 import { pageIn, slideTab } from "./ui/motion.ts";
-import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript } from "@homunculus/schemas";
-import { bundleExtras, bundleFile, collectBundle, countsText, importBundle, parseBundle, type BundleRoot } from "@homunculus/core";
+import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript, type AssistantReadKind } from "@homunculus/schemas";
+import { directorProfiles, bundleExtras, bundleFile, collectBundle, countsText, importBundle, parseBundle, type BundleRoot } from "@homunculus/core";
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
 import { LorebookEditor } from "./ui/LorebookEditor.tsx";
@@ -60,6 +60,8 @@ import { loadQuickReplies } from "./quickReplies.ts";
 import { loadMessageLook } from "./messageLook.ts";
 import { getPrefs, loadPrefs, stepScale, usePrefs } from "./prefs.ts";
 import { loadChatOrganization } from "./chatOrganization.ts";
+import { messageAt } from "./assistant/appReads.ts";
+import { OPEN_CHAT_EVENT } from "./ui/MessageText.tsx";
 import { playReplySound } from "./sounds.ts";
 import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
@@ -208,7 +210,12 @@ export function App() {
   const connection = useConnections(svc?.store ?? null);
   // the Assistant mode (D-062): its own sidebar and chats; Play is everything else
   const [mode, setModeState] = useState<AppMode>(() => { try { return localStorage.getItem("homunculus.mode") === "assistant" ? "assistant" : "play"; } catch { return "play"; } });
-  const setMode = (m: AppMode) => { setHomeOpen(false); navigate(() => { setModeState(m); try { localStorage.setItem("homunculus.mode", m); } catch { /* private window */ } }); };
+  /** What was on screen when the Assistant was opened from Play (D-110): its chips in the message box ("this chat"). */
+  const [screenContext, setScreenContext] = useState<Array<{ kind: AssistantReadKind; id: string; name: string }>>([]);
+  const setMode = (m: AppMode) => {
+    if (m === "assistant" && mode === "play") setScreenContext(onScreen());
+    setHomeOpen(false); navigate(() => { setModeState(m); try { localStorage.setItem("homunculus.mode", m); } catch { /* private window */ } });
+  };
   const asst = useAssistant(svc);
   // a newer version on GitHub (D-037): a quiet bar on top + Settings → About
   const updates = useUpdates();
@@ -501,12 +508,62 @@ export function App() {
     }));
     return [...play, ...assistant.flat()];
   }, [svc, sessions, asst.chats]);
+  // a "#41" link in an Assistant reply opens that chat at message 41 of the branch it shows (D-110)
+  useEffect(() => {
+    if (!svc) return;
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ sessionId: string; n: number | null }>).detail;
+      if (!d || !sessions.some((x) => x.id === d.sessionId)) return;
+      void (async () => {
+        const mid = d.n ? await messageAt(svc.store, d.sessionId, d.n) : null;
+        setMode("play");
+        openChat(d.sessionId, mid ?? undefined);
+      })();
+    };
+    window.addEventListener(OPEN_CHAT_EVENT, on);
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, on);
+  });
+  // Quick Reply sets and Directors live in app settings: read when the Assistant is open (D-110)
+  const [asstExtra, setAsstExtra] = useState<LibraryEntry[]>([]);
+  useEffect(() => {
+    if (mode !== "assistant" || !svc) return;
+    let live = true;
+    void (async () => {
+      const qr = await svc.store.getQuickReplies().catch(() => null);
+      const dp = await directorProfiles(svc.store).catch(() => []);
+      if (live) setAsstExtra([
+        ...(qr?.sets ?? []).map((x) => ({ kind: "quickreply" as const, id: x.id, name: x.name, line: `${x.replies.length} replies` })),
+        ...dp.map((p) => ({ kind: "director" as const, id: p.id, name: p.name, line: `${p.weights.length} weights` })),
+      ]);
+    })();
+    return () => { live = false; };
+  }, [mode, svc]);
   if (bootError) return <div className="boot error">Could not start: {bootError}</div>;
 
   if (!svc) return <div className="boot">Waking the homunculus…</div>;
 
   const byId = Object.fromEntries(characters.map((c) => [c.id, c]));
   const active = sessions.find((s) => s.id === activeId) ?? null;
+  /** The Play screen's subject, as Assistant context (D-110). */
+  const onScreen = (): Array<{ kind: AssistantReadKind; id: string; name: string }> => {
+    if (view.kind === "session" && active) {
+      const story = active.storyId ? stories.find((x) => x.id === active.storyId) : undefined;
+      const lead = characters.find((c) => c.id === active.cast[0]?.characterId);
+      return [{ kind: "chat", id: active.id, name: active.title },
+        ...(story ? [{ kind: "story" as const, id: story.id, name: story.name }] : lead ? [{ kind: "character" as const, id: lead.id, name: lead.name }] : [])];
+    }
+    const one = <T extends { id: string; name: string }>(kind: AssistantReadKind, list: T[], id: string | null | undefined) => {
+      const x = id ? list.find((y) => y.id === id) : undefined;
+      return x ? [{ kind, id: x.id, name: x.name }] : [];
+    };
+    if (view.kind === "characters") return one("character", characters, view.id);
+    if (view.kind === "story") return one("story", stories, view.id);
+    if (view.kind === "kit") return one("kit", kits, view.id);
+    if (view.kind === "lorebooks") return one("lorebook", lorebooks, view.id);
+    if (view.kind === "presets") return one("preset", presets, view.id);
+    if (view.kind === "personas") return one("persona", personas, view.id);
+    return [];
+  };
 
   const newSession = async (characterId: string, variantId: string | null = null) => {
     const c = byId[characterId];
@@ -1344,6 +1401,11 @@ export function App() {
     ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${b.entries.length} entries`) })),
     ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help) })),
     ...presets.map((x) => ({ kind: "preset" as const, id: x.id, name: x.name, line: `${x.blocks.length} blocks` })),
+    // D-110: chats and the parts of the app the Assistant can read but not yet write
+    ...sessions.map((x) => ({ kind: "chat" as const, id: x.id, name: x.title, line: `${x.storyId ? stories.find((st) => st.id === x.storyId)?.name ?? "Story" : characters.find((c) => c.id === x.cast[0]?.characterId)?.name ?? "Chat"} · ${messageCounts[x.id] ?? 0} messages` })),
+    ...agents.map((a) => ({ kind: "agent" as const, id: a.id, name: a.name, line: short(a.help) })),
+    ...globalRegex.map((r) => ({ kind: "regex" as const, id: r.id, name: r.name || "(unnamed)", line: r.targets.join(", ") })),
+    ...asstExtra,
   ];
   const lead = (
     <IconButton label={sidebarOpen ? "Hide Sidebar" : "Show Sidebar"} onClick={toggleSidebar} aria-pressed={sidebarOpen}>
@@ -1939,7 +2001,7 @@ export function App() {
           onSort: (key, sort, seed) => setPrefs(key)({ ...prefsOf(key), sort, sortSeed: seed }),
           sources: { characters, stories, kits, narrators, npcs, personas, presets, lorebooks, trackers, agents, regex: globalRegex, trash }, sessions, lastTimes, defaultPersonaId }}>
         {mode === "assistant" ? (
-          <AssistantView focusMessageId={focusMessage?.sessionId === asst.activeId ? focusMessage.messageId : null} svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary}
+          <AssistantView focusMessageId={focusMessage?.sessionId === asst.activeId ? focusMessage.messageId : null} svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary} screen={screenContext}
             listModels={listModels} onManageConnections={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }}
             userName={personas.find((p) => p.id === defaultPersonaId)?.name ?? ""}
             onChanged={() => void refresh(svc)}

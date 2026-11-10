@@ -8,7 +8,8 @@ import { Id } from "./common.ts";
 export const AssistantKind = z.enum(["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset"]);
 export type AssistantKind = z.infer<typeof AssistantKind>;
 /** Kinds it can read (find / read / add as context). */
-export const AssistantReadKind = z.enum(["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story"]);
+/** What the Assistant can read and add as context; chat, agent, regex, quickreply and director are read-only (D-110). */
+export const AssistantReadKind = z.enum(["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story", "chat", "agent", "regex", "quickreply", "director"]);
 export type AssistantReadKind = z.infer<typeof AssistantReadKind>;
 
 export const AssistantRule = z.object({ id: Id, text: z.string().min(1), on: z.boolean().default(true) });

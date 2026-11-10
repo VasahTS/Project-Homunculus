@@ -1,6 +1,7 @@
 // Homunculus 2 — a message's text on screen (D-061). Author: CLAUDE, 2026-11-01.
 // Markdown + dialogue color + filtered HTML (messageFormat.ts). Regex output with its own <style> block is drawn in the
 // sandboxed box instead, so its CSS can never reach the app.
+import { parseChatLink } from "../assistant/appReads.ts";
 import { useMemo } from "react";
 import { isDesktop } from "../db.ts";
 import { formatMessage, needsMessageFrame } from "../messageFormat.ts";
@@ -47,7 +48,12 @@ function onClick(e: { target: EventTarget | null; preventDefault: () => void }) 
   }
 }
 
+/** Event the app listens to: a link in a reply that opens one of the user's chats at a message number (D-110). */
+export const OPEN_CHAT_EVENT = "homunculus:open-chat";
+
 export async function openLink(url: string): Promise<void> {
+  const chat = parseChatLink(url);
+  if (chat) { window.dispatchEvent(new CustomEvent(OPEN_CHAT_EVENT, { detail: chat })); return; }
   if (!/^(https?:|mailto:)/i.test(url)) return;
   if (isDesktop) {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
