@@ -3,6 +3,47 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
+<!-- 0.4.0 release notes written by CODEX. -->
+## 0.4.0 — 2026-11-10
+
+Organize your chats, jump back to a line you remember, and try an Assistant edit on a real conversation before committing to it. This release also adds JanitorAI browsing and a document-style editor for character cards.
+
+### Chats and sidebar
+
+- **Pins and folders.** In Play and the Assistant, pin a chat to keep it at the top, or drag it into a collapsible folder. Right-click a chat or use its three-dot menu to move it. Story chats show the name of their story, so you can tell similarly named chats apart.
+- **A shorter Recent list.** The sidebar shows 10 recent chats by default, with one line per chat and **Show more** for older ones. Set the limit in **Settings → Chat → Sidebar → Recent chats**.
+- **Search inside messages.** Type a phrase in **Search chats and messages**. Results show a highlighted excerpt and open the chat at the matching message.
+
+### Assistant
+
+- **Ask about a conversation.** The Assistant can read a chat's history, search for a phrase, and link to specific messages in its answers. Use **Add Context** to select a chat or a range of messages. Opening the Assistant from Play brings the current chat or Library item into context as a removable chip.
+- **More context for app questions.** The Assistant can read agents, regex scripts, Quick Replies and Directors, and consult a guide to explain how features such as prompt assembly and memory work.
+- **Try It on an edit.** For a character card, narrator, lorebook or prompt preset copy, choose a chat and compare two versions of a reply side by side, with and without the change. The preview shows the model and asks before making two model calls. Both replies stay in the preview, outside your chat history.
+- **Prompt presets in the Library.** Ask the Assistant to create a new preset or adapt an existing one. Edits create a separate preset you can select in a chat or story.
+- **Easier to edit Assistant presets.** Rules and memories wrap as you type, and memories show their date and token count.
+
+### Character editor
+
+- **Text layout.** Open a character card and choose **Text** to edit its description, scenario, greetings, dialogue examples and other text fields in one document. **Ctrl+F** finds text and **Ctrl+H** replaces it across the card or in the current field, with match case, whole-word and regex options. One **Ctrl+Z** reverses a Replace All.
+- **Compare and restore.** Open **Compare** for a side-by-side, word-level diff against the start of your edit, the last save, the original import, the main version or a history entry when available. Use **Put Back** to restore individual changes or **Put Back All** to restore the comparison version's text.
+
+### JanitorAI in Card Browser
+
+- **Browse and import public cards.** Open the dedicated **JanitorAI** source to search and preview cards as a guest, or sign in from its own window. Public lorebook entries come in with the card.
+- **Choose how to import a hidden card.** When an eligible DataCat copy is available, **Add from DataCat** imports it, and **Save as PNG** can save it to disk. **Extract Yourself** reads the current JanitorAI card for supported cards and requires a JanitorAI sign-in and confirmation on first use.
+- **Choose what triggers lore during extraction.** The **Lorebook Trigger** row lets you include the card, catalog page, scenario, greetings, lorebook descriptions or your own text. Large lorebooks are read in smaller passes when needed. If the AI cannot rebuild the hidden lore into entries with keywords, Homunculus imports the captured text as disabled entries for review.
+
+### Chat panel and trackers
+
+- **Character, Prompt and Memory have distinct homes.** Edit the card version the chat uses in the **Character** tab. **Prompt** puts the Author's Note first and groups model settings, presets, lorebooks and other controls into expandable cards. Open **Memory** from the chat's top bar while the conversation stays visible.
+- **Pick trackers together.** Start from the Scene checklist to choose multiple trackers and their field sets in one step. Use the **Trackers** button to adjust them later. Switching several trackers quickly now keeps each change.
+- **One Scene sheet per person.** Values from multiple trackers appear together on the same character sheet. Global values are grouped by tracker. Each group uses a consistent layout, the changed marker sits beside the label, and long lists display and edit one item per line.
+
+### Layout fixes
+
+- Long code lines wrap in chat and in narrow panels while preserving indentation and copied text.
+- Long preset block names, story titles and version labels fit their panels without covering switches, dates or other controls.
+
 ## 0.3.6 — 2026-11-08
 
 - **Mouse side buttons everywhere:** back (M4, or Alt+←) closes the open window, menu or card preview, then steps back through what you switched — tabs, the character editor's layout, the open entry — and screens; forward (M5, or Alt+→) goes forward again.
