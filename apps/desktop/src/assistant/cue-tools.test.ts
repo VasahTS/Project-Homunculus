@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { AssistantResult } from "@homunculus/schemas";
 import { newTestStore } from "../../../../packages/core/test/helpers.ts";
 import { applyChange, runTool, saveDraftItem, undoCreate, type ToolContext } from "./tools.ts";
-import { DRAFT_BLOCK, GUIDES } from "./guides.ts";
+import { CORE_RULES, DRAFT_BLOCK, GUIDES } from "./guides.ts";
+import { aboutText } from "./about.ts";
 
 async function setup() {
   const { store } = await newTestStore();
@@ -60,5 +61,22 @@ describe("Assistant cues (D-113)", () => {
     expect(r).toMatchObject({ type: "created", kind: "cue", name: "Weather" });
     expect(GUIDES.cue!.text).toMatch(/Converting a JanitorAI script/);
     expect(GUIDES.cue!.fields).toEqual(expect.arrayContaining(["signals", "values", "groups", "characterIds"]));
+  });
+
+  it("the guide teaches building and explaining cues; its examples are valid cues", async () => {
+    const text = GUIDES.cue!.text;
+    expect(text).toMatch(/Building a cue/);
+    expect(text).toMatch(/Explaining a cue/);
+    expect(CORE_RULES).toMatch(/is a cue, not an agent/);
+    expect(aboutText("prompt")).toMatch(/cues/);
+    const examples = text.split("\n\nExample — ").slice(1).map((b) => b.slice(b.indexOf("\n") + 1).split("\n\n")[0]!).filter((b) => b.startsWith("{"));
+    expect(examples.length).toBe(2);
+    for (const data of examples) {
+      const { store, ctx } = await setup();
+      const out = await runTool("create", args({ kind: "cue", data: JSON.parse(data) }), ctx);
+      expect(out.error, out.result).toBeFalsy();
+      const card = ctx.results.at(-1) as Extract<AssistantResult, { type: "created" }>;
+      expect((await store.cues.get(card.itemId))!.groups[0]!.items.length).toBe(2);
+    }
   });
 });

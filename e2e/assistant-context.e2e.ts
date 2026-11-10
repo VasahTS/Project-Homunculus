@@ -33,3 +33,19 @@ test("Add context → Chats: pick a chat and a range; Agents and Regex are there
   await page.getByTestId("assistant-add-context").click();
   await expect(picker.getByRole("tab", { name: /Agents/ })).toBeVisible();
 });
+
+test("D-114: opened from a cue, the cue comes as a chip; Add context has Cues", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("place-list").getByRole("button", { name: "Library" }).click();
+  await page.getByTestId("library-list").getByRole("button", { name: "Cues", exact: true }).click();
+  await page.getByTestId("cue-row").filter({ hasText: "Grounded Complication" }).click();
+  await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  const box = page.getByTestId("assistant-composer");
+  await expect(box.locator(".asst-chip.auto")).toHaveCount(1);
+  await expect(box.locator(".asst-chip.auto")).toContainText("Grounded Complication");
+  await page.getByTestId("assistant-plus").click();
+  await page.getByTestId("assistant-add-context").click();
+  const picker = page.getByTestId("assistant-picker");
+  await picker.getByRole("tab", { name: /Cues/ }).click();
+  await expect(picker.getByRole("button", { name: /Don't Write for User/ })).toBeVisible();
+});

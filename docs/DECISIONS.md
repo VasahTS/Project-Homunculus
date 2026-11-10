@@ -1253,6 +1253,7 @@ Daniel (translated): "do the rest" — phases 2–4 of the cues plan after D-113
 - **"No AI call" agents are cues now** (plan principle "agents think, cues react"): the mode left the agent editor; on start each text agent becomes a cue with the same id and the same prompt (tested), and every setup layer that switched the agent switches the cue; the two starters ship as cues. Old Homunculus files convert on import.
 - **Lorebook import** of a JanitorAI lorebook script asks: Lorebook (facts) or Cue (writing rules), with "Split regex keywords".
 - **Assistant:** cues are a writable kind (create, approved change, drafts, Undo; never proposed for the Trash, cues have no Trash); its guide explains every field and how to convert a JanitorAI script by mapping what the code does, never running it.
-- Tests: `core/test/cue-migration.test.ts`, `assistant/cue-tools.test.ts`, click tests `e2e/cues.e2e.ts`; `agents.e2e.ts` updated.
+- **Assistant knows cues on screen and how to build them** (Daniel: "did you add context for the Assistant?" / "the Assistant must know how to build these and explain them"): opened from a cue, the cue comes as a context chip; Add Context lists Cues. Its guide adds a short way to build one (reads → remembers only what must last → writes; short directions at depth 1), what is a cue and what is an agent or a lorebook entry, worked examples (tested to be valid cues), and how to explain a cue and why it did or didn't fire (Reply tab, Try It). Its rules say a text-only rule is a cue, not an agent, and that new cues start off.
+- Tests: `core/test/cue-migration.test.ts`, `assistant/cue-tools.test.ts`, click tests `e2e/cues.e2e.ts`, `e2e/assistant-context.e2e.ts`; `agents.e2e.ts` updated.
 
 Signed: **CLAUDE**.

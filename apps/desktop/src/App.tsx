@@ -574,6 +574,7 @@ export function App() {
     if (view.kind === "lorebooks") return one("lorebook", lorebooks, view.id);
     if (view.kind === "presets") return one("preset", presets, view.id);
     if (view.kind === "personas") return one("persona", personas, view.id);
+    if (view.kind === "cues") return one("cue", cues, view.id);
     return [];
   };
 

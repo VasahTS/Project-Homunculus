@@ -121,11 +121,11 @@ Memory turns older parts of a chat into chapter summaries so long stories fit th
 
   T("prompt", "What decides how the AI writes (and where to look when it misbehaves)", `
 From strongest (closest to the reply) to weakest:
-1. Director notes and the Author's Note at a low depth, the Character's Note, agents that inject near the end, Post-history instructions in the preset.
+1. Director notes and the Author's Note at a low depth, the Character's Note, agents and cues that inject near the end, Post-history instructions in the preset.
 2. The latest messages themselves (style is contagious: a wordy reply invites wordy replies).
 3. Lorebook entries placed in the chat at a depth.
 4. The preset's main prompt and blocks, the narrator, the card's description and examples.
-When a character drifts (talks like a narrator, breaks character, repeats), check in order: the chat's last messages around where it started, the Character's Note and Author's Note, Director notes, agents switched on, lore entries that fired (Reply tab), then the preset blocks and the card. Change the smallest thing that explains it, and offer to test the change.`),
+When a character drifts (talks like a narrator, breaks character, repeats), check in order: the chat's last messages around where it started, the Character's Note and Author's Note, Director notes, agents and cues switched on, lore entries and cues that fired (Reply tab), then the preset blocks and the card. Change the smallest thing that explains it, and offer to test the change.`),
 ].map((t) => [t.topic, t]));
 
 export const ABOUT_TOPICS = Object.keys(ABOUT);
