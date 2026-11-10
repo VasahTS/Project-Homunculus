@@ -1,5 +1,19 @@
 # HANDOFF — Homunculus 2
 
+## Cues: the screens, the move from "No AI call" agents, the Assistant, files (2026-11-10, morning) — CLAUDE — D-114
+
+- Daniel: "pode fazer o resto" (do the rest). Phases 2–4 of `claude/CUES-PLAN.md` on top of D-113. **No separate draft**: he asked for the rest to be done; the screens follow the approved text plan (§7) and the agent editor's look, and he gets screenshots to review.
+- **Library → Cues** (`ui/CuesPage.tsx`, Around each reply: Trackers · Agents · Cues): list with search, **From an Example…** (Random Event, Opens Up Slowly, Mood Words, Time of Day, Boundary — `cues.ts` `CUE_EXAMPLES`), **New Cue**, **Import** (.h2.json files; a JanitorAI lorebook script → one cue; a script with code → the Assistant, with the code in the box). Editor, saves by itself: About · Where It Runs (On in every chat = Default layer, tied characters, generation types, from message N, Same Roll / Roll Again) · Reads · Remembers (rules as rows, Keep It / Start Over, Show in Scene) · Writes (groups: pick, don't repeat, chance, cooldown, wrap, where it goes; texts open in place with tests, own words trigger, chance, weight, one of) · Delete. **Try It** (`CueTryIt` + `TurnPipeline.tryCue`): any chat and message, Reads / Remembers / Writes with the final text, nothing saved.
+- **Switching on:** Default (editor switch), a story's Setup (Cues section, story only), a chat's **Prompt tab → Cues card** (`SessionCues`; 1:1 and story chats; "changed in this chat" + Undo), tied characters.
+- **In the chat:** Reply tab **Cues · N** (`ReplyCues`: signals with the words that matched, values before → after and why, texts picked and why); prompt parts read "Cue: <name>" (`promptSources.cueNames`); Scene tab shows "Show in Scene" values per cue, editable (`SceneCues`, your edit wins at that message).
+- **Agents:** "No AI Call" left the agent editor (a hint points to Cues); new agents make their own call. On start `moveTextAgentsToCues` turns every text agent into a cue with the same id and prompt and moves its on/off in every setup layer (`SqlStore.rewriteSetupLayers`); the two starters ship as cues (`installStarterCues`). Old .h2.json files: `textAgentsToCues` on import.
+- **Homunculus files:** cues export/import (`bundle.ts` kind "cue"; a story brings its cues, a cue its tied cards; a taken namespace gets a new one).
+- **Lorebooks → Import** of a JanitorAI lorebook script asks **Lorebook or Cue** (`JanitorImportChoice`, with "Split regex keywords").
+- **Assistant:** kind "cue" — find / read / create / change (approved) / drafts (`homunculus-cue`) / Undo; guide "cue" with the field list and how to convert a JanitorAI script; about "cue"; agent topic updated.
+- **To try (Windows):** Library → Cues → From an Example… → Boundary → On in every chat → in a chat write "please stop" → Reply tab "Cues · 1", Scene shows paused = yes; "go on" turns it back. Try It on Opens Up Slowly. Prompt tab → Cues: switch a starter on for one chat. Lorebooks → Import yhul's JanitorAI file → Cue. Your Scene Direction file (`Claude outputs`) imports from Library → Cues → Import.
+- Checks: typecheck; unit tests; click tests `cues` (new, 3), `agents` (updated: 8 starters; new agents call the AI). Full click suite run before pushing.
+- Changelog line for the next release: "**Cues** (Library → Cues): rules that react to the chat with no AI call — count words, remember values between turns (swipes never count twice), pick texts; examples, Try It, a receipt in the Reply tab, values in the Scene. "No AI call" agents became cues by themselves. JanitorAI lorebook scripts import as cues or lorebooks; the Assistant converts JanitorAI scripts."
+
 ## Cues: engine, turn and JanitorAI lorebook import (2026-11-10, morning) — CLAUDE — D-113
 
 - Daniel: "let's implement cues" (plan `claude/CUES-PLAN.md`, his five answers of 10/11). Built **phases 0 and 1** (no screens yet: UI follows "draft before code").

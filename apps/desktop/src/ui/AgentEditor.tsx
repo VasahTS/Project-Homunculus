@@ -120,9 +120,9 @@ export function AgentEditor({ agent, agents = [], profiles = [], drafts, onTry, 
               onClick={() => set({ runMode: "separate", input: { ...input, messages: Math.max(4, input.messages) } })}><b>Its Own AI Call</b><span>Separate request, with an optional model override.</span></button>
             <button type="button" role="radio" aria-checked={d.runMode === "inline"} disabled={!inlineOk} className={`ae-tile${d.runMode === "inline" ? " on" : ""}`}
               onClick={() => set({ runMode: "inline" })}><b>Inside the Main Reply</b><span>Written by the story model in the same reply.</span></button>
-            <button type="button" role="radio" aria-checked={textMode} disabled={out !== "inject"} className={`ae-tile${textMode ? " on" : ""}`}
-              onClick={() => set({ runMode: "text", input: { ...input, messages: 0 } })}><b>No AI Call</b><span>Inserts text with expanded macros.</span></button>
           </div>
+          {/* D-113: rules that add text without an AI call are cues now */}
+          {out === "inject" && <p className="hint ae-cue-hint" data-testid="agent-cue-hint">Only adding a text, with no AI call? Make it a cue in Library → Cues: it can also count words, remember values and pick texts.</p>}
         </Sec>
 
         {d.runMode === "separate" && (

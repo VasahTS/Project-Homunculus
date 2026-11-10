@@ -1,7 +1,7 @@
 // Tests for the Assistant (D-062): the tool loop, light reading, proposals, files, and the guides. Author: CLAUDE, 2026-11-01.
 import initSqlJs from "sql.js";
 import { describe, expect, it } from "vitest";
-import { Character, Persona, LoreEntry, Lorebook, Narrator, Preset, PresetBlock, Story, TrackerField, FieldDisplay, FieldType, AssistantChat, type AssistantMessage } from "@homunculus/schemas";
+import { Cue, Character, Persona, LoreEntry, Lorebook, Narrator, Preset, PresetBlock, Story, TrackerField, FieldDisplay, FieldType, AssistantChat, type AssistantMessage } from "@homunculus/schemas";
 import { HomunculusCore, SqlJsDriver, SqlStore, coreMigrations, migrate, type GenerateRequest, type StreamChunk } from "@homunculus/core";
 import { compactChat, loadChat, needsCompaction, runAssistant, saveSettings, toTurns, loadSettings } from "./engine.ts";
 import { applyChange, approveNew, redoMove, runTool, undoMove, type ToolContext } from "./tools.ts";
@@ -425,6 +425,7 @@ describe("the Assistant", () => {
       kit: [...shape(Story), "narratorId", "lorebookIds"],
       narrator: [...shape(Narrator), ...shape(Narrator.shape.style.unwrap() as never)],
       preset: ["from", ...shape(Preset), ...shape(PresetBlock)],
+      cue: shape(Cue),
     };
     for (const [k, g] of Object.entries(GUIDES)) for (const f of g.fields) expect(have[k], `${k}.${f}`).toContain(f);
   });

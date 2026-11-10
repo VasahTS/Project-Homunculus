@@ -71,8 +71,9 @@ export function blankAgent(output: AgentOutputKind = "inject"): AgentConfigInput
   return {
     id: `agent-${crypto.randomUUID()}`, name: "", help: "", triggers: triggersFor(kind.when, output === "proposal" ? 4 : 10), output,
     ...(output === "proposal" ? { proposal: { target: "lorebook" as const } } : {}),
-    runMode: output === "inject" ? "text" : "separate", prompt: "",
-    input: { messages: output === "inject" ? 0 : 4, lorebooks: false, cards: output !== "inject", state: false, readsAgents: [], persona: false, scenario: false, authorsNote: false, chapters: false, previousNotes: 0, minTokens: 0 },
+    // "No AI call" moved to cues (D-113): every agent makes its own call
+    runMode: "separate", prompt: "",
+    input: { messages: 4, lorebooks: false, cards: output !== "inject", state: false, readsAgents: [], persona: false, scenario: false, authorsNote: false, chapters: false, previousNotes: 0, minTokens: 0 },
     ...(output === "inject" ? { injection: { position: "depth" as const, depth: 1, role: "system" as const } } : {}),
     ...(output === "check" ? { check: { onFail: "warn" as const, maxRetries: 1 } } : {}),
     ...(output === "note" ? { display: { note: "message" as const } } : {}),
@@ -132,19 +133,6 @@ const after = [{ on: "turn" as const, phase: "after" as const }];
 const starter = (a: AgentConfigInput): AgentConfigInput => ({ ...a, source: { kind: "builtin", from: "starter" } });
 
 export const STARTER_AGENTS: AgentConfigInput[] = [
-  starter({
-    id: "starter-dont-write-for-user", name: "Don't Write for User", help: "Keeps the AI from acting or speaking for you.",
-    triggers: before, output: "inject", runMode: "text", input: { messages: 0, lorebooks: false, cards: false, state: false, readsAgents: [] },
-    injection: { position: "depth", depth: 1, role: "system" },
-    prompt: "Never write {{user}}'s actions, words, thoughts or feelings. Only {{char}} and the other characters act and speak. When it is {{user}}'s turn to act, stop and leave room for them.",
-  }),
-  starter({
-    id: "starter-grounded-complication", name: "Grounded Complication", help: "Adds a small, plausible complication.",
-    triggers: before, output: "inject", runMode: "text", input: { messages: 0, lorebooks: false, cards: false, state: false, readsAgents: [] },
-    injection: { position: "depth", depth: 1, role: "system" },
-    conditions: { keywords: [], probability: 40, generationTypes: [], roles: [], minMessages: 0, state: [] },
-    prompt: "In this reply, add one realistic complication: {{random::something breaks or goes missing::someone arrives at the wrong moment::the weather turns::a small misunderstanding::a cost or a delay appears}}. Keep it grounded and do not derail the plot.",
-  }),
   starter({
     id: "starter-prose-polisher", name: "Prose Polisher", help: "Cuts repetition and stock phrases.",
     triggers: after, output: "rewrite", runMode: "separate", input: { messages: 0, lorebooks: false, cards: false, state: false, readsAgents: [] },

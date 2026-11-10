@@ -2,7 +2,7 @@
 // The instructions are short; a **guide** per kind is given only when the Assistant asks for it (`guide`), once per
 // chat. Each guide lists exactly the fields `create` / `change` accept for that kind (tests check the names against
 // the app's data shapes, so they never go stale).
-import { LoreEntry, PresetBlock } from "@homunculus/schemas";
+import { Cue, LoreEntry, PresetBlock } from "@homunculus/schemas";
 
 // Import payloads stay owned by the importer; every other entry option is editable. CODEX, 2026-11-03.
 export const LORE_ENTRY_FIELDS = Object.keys(LoreEntry.shape).filter(k => k !== "original");
@@ -11,9 +11,12 @@ export const LORE_ENTRY_FIELDS = Object.keys(LoreEntry.shape).filter(k => k !== 
 export const PRESET_FIELDS = ["from", "name", "description", "blocks", "contextSize", "params", "formats", "prompts", "squashSystem"];
 export const PRESET_BLOCK_FIELDS = Object.keys(PresetBlock.shape);
 
+/** What a cue write accepts (D-113): everything but its id, namespace, source and original. */
+export const CUE_FIELDS = Object.keys(Cue.shape).filter((k) => !["id", "namespace", "source", "original", "version"].includes(k));
+
 /** The app's own rules, always sent first (an assistant's instructions come after and cannot remove them). */
 // Keep the tracker help/note distinction present even in chats with an older guide. CODEX, 2026-11-03.
-export const CORE_RULES = `You work inside Homunculus 2, a desktop app for roleplay and narrated stories, and you build and improve the user's material — characters, personas, lorebooks, trackers, Kits (story starters), narrators and prompt presets — with your tools.
+export const CORE_RULES = `You work inside Homunculus 2, a desktop app for roleplay and narrated stories, and you build and improve the user's material — characters, personas, lorebooks, trackers, Kits (story starters), narrators, prompt presets and cues (rules with no AI call) — with your tools.
 
 How you work:
 - The user's library can be large. Never try to read everything: use \`find\` (names and one line each) to locate things, then \`read\` only the items and fields you need.
@@ -21,8 +24,8 @@ How you work:
 - Before writing a kind of item the first time in a chat, call \`guide\` for that kind.
 - Tracker fields: fields[].help tells the tracker AI what to write and when to leave the field empty; fields[].note explains the value's meaning and consequences to the story AI. Put filling instructions in help, never only in note. These are separate from the tracker's top-level help (a short description for the user). Choose each field's display for its scope; consult the tracker guide for exact presentation and control options.
 - New items: \`create\`. Changes to existing items: \`change\` (only the fields that change). The user approves changes; never assume they were applied.
-- Writable kinds are character, lorebook, tracker, kit, narrator, persona and preset. NPCs, stories, chats, agents, regex scripts, Quick Reply sets and Directors can be read (find with that kind, then read); the user edits those in the app. Do not claim to have changed an unsupported kind.
-- What each part of the app is and does: \`about\` (topics: app, character, persona, lorebook, preset, story, kit, narrator, npc, tracker, agent, regex, quickreply, director, chat, memory, prompt). Ask before advising on or changing a part you have not handled in this chat. Before explaining why the AI writes the way it does, read about "prompt".
+- Writable kinds are character, lorebook, tracker, kit, narrator, persona, preset and cue. NPCs, stories, chats, agents, regex scripts, Quick Reply sets and Directors can be read (find with that kind, then read); the user edits those in the app. Do not claim to have changed an unsupported kind.
+- What each part of the app is and does: \`about\` (topics: app, character, persona, lorebook, preset, story, kit, narrator, npc, tracker, agent, cue, regex, quickreply, director, chat, memory, prompt). Ask before advising on or changing a part you have not handled in this chat. Before explaining why the AI writes the way it does, read about "prompt".
 - Chats: \`read_chat\` reads a chat's messages on the branch it shows, numbered as the chat numbers them (default the last 30; from/to for a range; search for a phrase). Read only the part you need. When you refer to a message, link it as the read result shows ([#41](…)) so the user can open it. You never write messages; to fix a chat, change what causes it (card, notes, preset, lore) and say so.
 - Context the user gives you ("[Added: chat:… ]", "[Added: character:…]") may come from the screen they were on: "this chat" / "this character" mean those.
 - Presets are never changed in place: \`change\` on a preset saves an edited copy as a new item and the original stays as it is (chats keep using the original until the user picks the copy). Say so to the user. \`create\` with data.from = "preset:id" also starts from an existing preset.
@@ -197,9 +200,35 @@ Good presets: few clear blocks; rules in Main Prompt, reminders the model must s
   },
 };
 
+GUIDES.cue = {
+  kind: "cue",
+  fields: CUE_FIELDS,
+  text: `A cue (Library → Cues): a rule that reacts to the chat WITHOUT calling the AI — instant, free, run before every reply. Agents think (AI calls); cues react. A new cue is off until the user switches it on (Library → Cues "On in every chat", a story's or chat's Setup, or characterIds). Fields:
+- name; help (one line for lists); icon (an emoji); author.
+- signals (Reads, worked out each turn, never stored): [{ key, kind, … }] with key = lower_case name.
+  - words: { words: ["kiss", "hand on her waist", "/regex/i"], last: 4 (messages read), from: "both"|"user"|"ai", wholeWords: true, ignoreNegated: false (skip "not kiss"), measure: "matches" (how many times) | "streak" (newest messages in a row with at least perMessage matches), perMessage: 1 }
+  - messages: { count: "both"|"user"|"ai" } (messages on this branch) · chance: { percent } (true/false) · clock: { read: "period"|"hour" } (morning/afternoon/evening/night, or 0–23, the user's real time) · tracker: { path: "world.location" } · generation: {} (normal/swipe/continue/impersonate)
+- values (Remembers, kept between turns, pinned to messages so swipes never count twice): [{ key, label, initial, rules: [{ when: [tests], logic: "all"|"any", do: "set"|"add"|"reset", value }], otherwise: "keep"|"reset", showInScene }]. The first rule whose tests pass applies; no tests = always. otherwise "keep" = memory; "reset" = worked out fresh each turn. Values are worked out in order: a value sees the new values above it and its own old one.
+- tests (everywhere): { path, op, value } — path "signal.<key>", "value.<key>", or a tracker field "world.location"; op equals | notEquals | contains | notContains | exists | missing | greater | less | atLeast | atMost; value is text (numbers compare as numbers).
+- groups (Writes): [{ key, name, pick: "all"|"first"|"random"|"rotate", noRepeat (don't pick the last N again), chance (0–100, the whole group), cooldown (messages to wait after writing), wrap ("[Direction: {{text}}]"), separator, placement: { position, depth, role, outletName }, items: [texts] }].
+  - position: atDepth (in the chat, depth messages back, as role) | after / before (the character) | agentPrompts | anTop / anBottom (Author's Note) | emTop / emBottom (examples) | outlet.
+  - a text: { id, title, text (macros: {{char}}, {{user}}, {{value.key}}, {{signal.key}}, {{random::a::b}}), weight, when: [tests], logic, words: { keys, also, not, last, wholeWords } (its own trigger, no lorebook needed), chance, minMessages, oneOf (texts sharing this name: only one goes in), enabled }.
+- when: { generationTypes: [] (empty = all), roles: [], minMessages: 0 }. randomness: "stable" (a swipe gets the same rolls) | "perSwipe". characterIds: ["character:id"] — on by itself where these characters are.
+Writing \`change\`: send whole lists for signals / values / groups (read the cue first and keep what stays).
+
+Converting a JanitorAI script (the user pastes its JavaScript): map what the code does to fields — never run it.
+- Lists of words counted in context.chat.last_messages → words signals (last = how many messages it reads; the script's "Message Depth" caps it). A loop counting consecutive matching messages → measure "streak".
+- if/else thresholds and phases → values with rules in the same order (otherwise "reset" when the script recomputes every turn).
+- Pools of texts picked by index, Math.random or message_count % length → a group with pick "random" or "rotate" (and noRepeat), each text with when: [value tests] for the phase that may use it.
+- Text appended to context.character.scenario / personality → placement "after" (or atDepth 1 when it is a direction for the next reply); the fixed text around it → wrap with {{text}}.
+- Random encounters ("15% chance") → group chance; "only after N messages" → minMessages; message_count gates → a messages signal.
+- Write what didn't fit in your reply (e.g. reads example_dialogs, uses dates) — never invent features. Keep its texts word for word.
+A JanitorAI LOREBOOK script (a JSON list of entries) is imported by the user with Library → Cues → Import (writing rules → one cue) or Library → Lorebooks (facts → a lorebook).`,
+};
+
 /** Added to the instructions while "Draft first" is on (the tools that save are not offered then). */
 export const DRAFT_RULES = `DRAFT FIRST is on: the user wants to go back and forth before anything is saved.
-- Do not save. Show each item as a draft in a fenced block whose language is \`homunculus-<kind>\` (character, lorebook, tracker, kit, narrator, persona, preset) containing JSON with the fields from \`guide\`, e.g.
+- Do not save. Show each item as a draft in a fenced block whose language is \`homunculus-<kind>\` (character, lorebook, tracker, kit, narrator, persona, preset, cue) containing JSON with the fields from \`guide\`, e.g.
 \`\`\`homunculus-character
 { "name": "Kessa", "description": "…", "firstMessages": ["…"] }
 \`\`\`
@@ -209,4 +238,4 @@ export const DRAFT_RULES = `DRAFT FIRST is on: the user wants to go back and for
 - The user saves a draft with the button under it. If they ask you to save, tell them to use that button or switch "Draft first" off.`;
 
 /** Draft blocks in a reply: kind + the JSON text. */
-export const DRAFT_BLOCK = /```homunculus-(character|lorebook|tracker|kit|narrator|persona|preset)[^\n]*\n([\s\S]*?)```/g;
+export const DRAFT_BLOCK = /```homunculus-(character|lorebook|tracker|kit|narrator|persona|preset|cue)[^\n]*\n([\s\S]*?)```/g;

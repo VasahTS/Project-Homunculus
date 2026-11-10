@@ -13,6 +13,9 @@ export const CATEGORY_LABELS: Record<SourceCategory, string> = {
 /** CSS color of a category (tokens in theme/tokens.css). */
 export const categoryColor = (c: SourceCategory) => `var(--cat-${c})`;
 
+/** Cue names by id (D-113), kept up to date by the app, so a prompt part "agent:cue:<id>" reads "Cue: Scene Direction". */
+export const cueNames = new Map<string, string>();
+
 const agentName = (id: string, trackers: Tracker[]) => trackers.find((t) => t.agent.id === id)?.agent.name ?? id;
 
 export function sourceInfo(source: string, trackers: Tracker[]): { label: string; category: SourceCategory } {
@@ -30,6 +33,7 @@ export function sourceInfo(source: string, trackers: Tracker[]): { label: string
   if (source === "authorsNote") return { label: "Author's Note", category: "other" };
   if (source === "prefill") return { label: "Reply start (prefill)", category: "preset" };
   if (source.startsWith("lore:")) return { label: "Lorebooks", category: "lore" };
+  if (source.startsWith("agent:cue:")) return { label: `Cue: ${cueNames.get(source.slice(10)) ?? "(deleted)"}`, category: "agent" };
   if (source.startsWith("block:")) return { label: `Preset: ${source.slice(6)}`, category: "preset" };
   const i = source.indexOf(":");
   const kind = i < 0 ? source : source.slice(0, i);

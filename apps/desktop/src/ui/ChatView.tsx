@@ -13,6 +13,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fra
 import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
 import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
+import { SceneCues, SessionCues } from "./SceneCues.tsx";
+import { layerHasCue } from "../cues.ts";
 import { MemoryPane } from "./MemoryPane.tsx";
 import { DirectorPane, DirectorWindow } from "./DirectorPane.tsx";
 import type { StorySetupProps } from "./SetupFields.tsx";
@@ -50,7 +52,7 @@ import type { ReactNode } from "react";
 interface SiblingInfo { index: number; ids: string[] }
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
-export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex, onOpenQuickReply, onError, onLibraryChanged, onSetDefaultPersona, onOpenPersona }: {
+export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex, onOpenCues, onOpenQuickReply, onError, onLibraryChanged, onSetDefaultPersona, onOpenPersona }: {
   /** Ctrl+click on a quick reply, or "Edit sets" in the Prompt tab: Library → Quick Replies (D-090). */
   onOpenQuickReply?: ((setId?: string, replyId?: string) => void) | undefined;
   onError?: ((e: unknown) => void) | undefined;
@@ -116,6 +118,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   /** Regex scripts were allowed here (the Library and editors reload what is allowed). */
   onRegexChanged?: () => void;
   onOpenRegex?: () => void;
+  /** Library → Cues (D-113). */
+  onOpenCues?: () => void;
   /** The Personas window (D-096): "Make Default", and Edit / New Persona / the Library page. */
   onSetDefaultPersona?: (id: string) => void;
   onOpenPersona?: (id: string | "new" | null) => void;
@@ -408,6 +412,10 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const qrStyle = useQuickReplyStyle();
   const castIds = session.cast.map((c) => c.characterId).filter((id): id is string => !!id);
+  // the cues this chat inherits (every chat, its story) and how many are on here, for the Prompt tab's Cues card (D-113)
+  const cueAbove = useMemo(() => setupProps?.setupAbove(storySetup) ?? { cues: [] as string[] } as unknown as ReturnType<NonNullable<typeof setupProps>["setupAbove"]>, [setupProps, storySetup]);
+  const cueOn = (setupProps?.cues ?? []).filter((c) => layerHasCue(session.setup, c.id, cueAbove.cues.includes(c.id) || c.characterIds.some((id) => castIds.includes(id))));
+  const cueSummary = cueOn.length ? `${cueOn.length} on · ${cueOn.map((c) => c.name).join(", ")}` : "Rules with no AI call";
   const qrHost: QuickReplyHost = {
     storyId: session.storyId, characterIds: castIds, chatId: session.id, input,
     setInput: (t) => setInput(t),
@@ -1020,7 +1028,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
           scene={<ScenePanel svc={svc} session={session} storySetup={storySetup} messageId={last?.id ?? null} busy={busy} refreshKey={sceneKey}
             trackers={trackers} running={manual && manual.messageId === last?.id ? manual.agentId : null} onRun={runAgentsOn}
             avatars={sceneAvatars} onToggle={onToggleTracker} onToggleAll={onToggleTrackers} onPickSet={onPickFieldSet} onEditTracker={onEditTracker}
-            onNewTracker={onNewTracker} onChanged={() => setSceneKey((k) => k + 1)} onChangeSession={onChangeSession} onSaveToVault={onSaveNpcToVault} />}
+            onNewTracker={onNewTracker} onChanged={() => setSceneKey((k) => k + 1)} onChangeSession={onChangeSession} onSaveToVault={onSaveNpcToVault}
+            extra={<SceneCues svc={svc} session={session} cues={setupProps?.cues ?? []} messageId={last?.id ?? null} refreshKey={sceneKey} onChanged={() => setSceneKey((k) => k + 1)} />} />}
           prompt={<PromptPane c={connection} providers={providers} session={session} storySetup={storySetup} storyName={storyInfo?.name} director={storyInfo?.role === "director"} setupProps={setupProps} onChangeSession={onChangeSession} onOpenSettings={onOpenSettings}
             presets={presets} defaultPresetId={defaultPresetId} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} trackers={trackers}
             authorsNote={noteAbove && <AuthorsNoteGroup level="chat" inStory={!!storySetup} layer={session.setup} above={noteAbove} onChange={(setup) => onChangeSession({ ...session, setup })} />}
@@ -1033,6 +1042,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                   ? <p className="hint prompt-card-empty">No regex scripts apply to this chat. <button type="button" className="link" onClick={() => onOpenRegex?.()}>Library → Regex</button></p>
                   : <SessionRegex rows={regexRows} regexOff={session.setup.regexOff ?? []} onOpenLibrary={() => onOpenRegex?.()}
                       onChange={(regexOff) => { void onChangeSession({ ...session, setup: { ...session.setup, regexOff } }); setRegexTick((t) => t + 1); }} /> },
+              { id: "cues", icon: "bolt", title: "Cues", summary: cueSummary,
+                body: <SessionCues session={session} cues={setupProps?.cues ?? []} above={cueAbove} onChangeSession={(s) => void onChangeSession(s)} onOpenLibrary={() => onOpenCues?.()} /> },
               { id: "quick-replies", icon: "send", title: "Quick Replies", summary: "Buttons above the message box",
                 body: <SessionQuickReplies chatId={session.id} storyId={session.storyId} storyName={storyInfo?.name}
                   cast={castIds.map((id) => ({ id, name: characters[id]?.name ?? "Character" })).filter((c, i, a) => a.findIndex((x) => x.id === c.id) === i)}

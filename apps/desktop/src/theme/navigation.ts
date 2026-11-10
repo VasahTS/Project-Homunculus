@@ -1,5 +1,5 @@
 // Approved collection navigation, expressed as profile data for future customization. CODEX, D-040.
-export type LibraryCategory = "kits" | "narrators" | "npcs" | "directors" | "personas" | "lorebooks" | "regex" | "quick-replies" | "presets" | "trackers" | "agents" | "trash";
+export type LibraryCategory = "kits" | "narrators" | "npcs" | "directors" | "personas" | "lorebooks" | "regex" | "quick-replies" | "presets" | "trackers" | "agents" | "cues" | "trash";
 export type NavigationPlace = "stories" | "characters" | "card-browser" | "library" | "vault";
 export interface NavigationProfile {
   places: Array<{ id: NavigationPlace; label: string; icon: "book" | "characters" | "globe" | "grid" | "lock" }>;
@@ -12,7 +12,7 @@ export const COLLECTION_NAVIGATION: NavigationProfile = {
   groups: [
     { id: "building", label: "Story building", items: [{ id: "kits", label: "Kits" }, { id: "narrators", label: "Narrators" }, { id: "npcs", label: "NPCs" }, { id: "directors", label: "Directors" }] },
     { id: "writing", label: "Writing and context", items: [{ id: "personas", label: "Personas" }, { id: "lorebooks", label: "Lorebooks" }, { id: "presets", label: "Presets" }, { id: "regex", label: "Regex" }, { id: "quick-replies", label: "Quick Replies" }] },
-    { id: "scene", label: "Around each reply", items: [{ id: "trackers", label: "Trackers" }, { id: "agents", label: "Agents" }] },
+    { id: "scene", label: "Around each reply", items: [{ id: "trackers", label: "Trackers" }, { id: "agents", label: "Agents" }, { id: "cues", label: "Cues" }] },
     { id: "manage", label: "Manage", items: [{ id: "trash", label: "Trash" }], trailing: true },
   ],
   recentLimit: 5, // D-078 (UX review item 12): five fit at 768 px

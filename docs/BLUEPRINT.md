@@ -256,7 +256,7 @@ A chat with an AI that **creates and edits library things for you**, in the styl
 - **Conditions:** the lorebook's format (`LoreCondition`) plus at least / at most; paths `signal.<k>`, `value.<k>`, `<namespace>.<field>`.
 - **Switching on:** `SetupLayer.cues` (Default → Story → chat), plus cues tied to a character in the chat; a chat's "remove" switches any off. Randomness: same roll on a swipe (default) or roll again.
 - **Receipt:** `GenerationRecord.cues` (signals with the words that matched, values before → after and why, texts picked and why, tokens). Preview Prompt and Try It run cues without saving.
-- Code: `schemas/cues.ts`, `core/cues.ts` (pure engine), `TurnPipeline.runCues` (turn step 2b), `SqlStore.cues` (table `cues`, migration 11). JanitorAI lorebook scripts import as lorebooks (`st-lorebooks`); `cueFromLoreEntries` and `cueFromTextAgent` make cues from entries and from text agents. Screens (Library → Cues, editor, Try It, Setup, Reply tab) follow `claude/CUES-PLAN.md` §7 after a draft.
+- Code: `schemas/cues.ts`, `core/cues.ts` (pure engine), `TurnPipeline.runCues` (turn step 2b), `SqlStore.cues` (table `cues`, migration 11). JanitorAI lorebook scripts import as lorebooks (`st-lorebooks`); `cueFromLoreEntries` and `cueFromTextAgent` make cues from entries and from text agents. Screens (D-114): Library → Cues (`ui/CuesPage.tsx`: editor, examples, Try It, Import), a story's Setup and a chat's Prompt tab → Cues card, Reply tab "Cues · N", Scene values (`ui/SceneCues.tsx`); the Assistant writes cues (kind "cue"). "No AI call" agents moved to cues (`cue-migration.ts`).
 
 ---
 

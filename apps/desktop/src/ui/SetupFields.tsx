@@ -8,7 +8,8 @@
 import { useState, type ReactNode } from "react";
 import { Button, Icon } from "./kit.tsx";
 import { Modal } from "./Vault.tsx";
-import type { AgentConfig, ConnectionProfile, Persona, Preset, SetupLayer } from "@homunculus/schemas";
+import type { AgentConfig, ConnectionProfile, Cue, Persona, Preset, SetupLayer } from "@homunculus/schemas";
+import { layerHasCue, layerWithCue } from "../cues.ts";
 import { kindOf, whenText } from "../agents.ts";
 import { layerFieldSet, layerHasTracker, layerWithFieldSet, layerWithStyle, layerWithTracker, type Tracker } from "../trackers.ts";
 
@@ -26,6 +27,8 @@ export interface StorySetupProps {
   trackers: Tracker[];
   /** The Library's agents (slice 5, D-047). */
   agents: AgentConfig[];
+  /** The Library's cues (D-113). */
+  cues: Cue[];
   /** What a layer under `story` inherits (undefined = what a story inherits from Settings → Defaults). */
   namesFor: (story?: SetupLayer) => SetupNames;
   /** The Author's Note a layer under `story` inherits (undefined = Settings → Defaults). */
@@ -43,7 +46,7 @@ export interface SetupNames {
   persona: string;
 }
 
-export function SetupFields({ mode, layer, onChange, above, names, presets, profiles, personas, trackers, agents = [], title = "Setup", aside, trackersAside, agentsAside, testId, director = false }: {
+export function SetupFields({ mode, layer, onChange, above, names, presets, profiles, personas, trackers, agents = [], cues = [], title = "Setup", aside, trackersAside, agentsAside, testId, director = false }: {
   /** story: the story's own layer (above = Defaults). chat: one chat's layer (above = its story). */
   mode: "story" | "chat";
   layer: SetupLayer;
@@ -56,6 +59,7 @@ export function SetupFields({ mode, layer, onChange, above, names, presets, prof
   personas: Persona[];
   trackers: Tracker[];
   agents?: AgentConfig[];
+  cues?: Cue[];
   title?: string;
   aside?: ReactNode;
   trackersAside?: ReactNode;
@@ -144,6 +148,11 @@ export function SetupFields({ mode, layer, onChange, above, names, presets, prof
       <SetupSection title="Agents" aside={agentsAside} testId="setup-agents">
         <AgentsSummary agents={agents} chat={chat} layer={layer} above={above} onChange={onChange} />
       </SetupSection>
+
+      {/* a chat switches its cues in the Prompt tab's Cues card (1:1 chats have no setup block) */}
+      {!chat && <SetupSection title="Cues" testId="setup-cues">
+        <CuesSummary cues={cues} chat={chat} layer={layer} above={above} onChange={onChange} />
+      </SetupSection>}
     </div>
   );
 }
@@ -184,6 +193,56 @@ function AgentsSummary({ agents, chat, layer, above, onChange }: { agents: Agent
             <span className="hint grow">{chat ? "Changes here only affect this chat." : "Every new chat of this story starts with these."}</span>
             {on.length > 0 && <Button small variant="plain" onClick={() => onChange(agents.reduce((l, a) => layerWithTracker(l, a.id, false, inherited(a.id)), layer))}>Turn All Off</Button>}
           </span>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+/**
+ * Cues (D-113) as one row, like agents: which are on, and "Choose Cues…" for the list. Cues on in every chat (Default)
+ * or tied to a character show as on here too, so the row says what really runs.
+ */
+function CuesSummary({ cues, chat, layer, above, onChange }: { cues: Cue[]; chat: boolean; layer: SetupLayer; above?: SetupLayer; onChange: (l: SetupLayer) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  if (cues.length === 0) return <div className="setup-empty">No cues yet. Make one in Library → Cues: rules that react to the chat with no AI call.</div>;
+  const inherited = (id: string) => (chat && above ? layerHasCue(above, id) : false);
+  const isOn = (c: Cue) => layerHasCue(layer, c.id, inherited(c.id));
+  const on = cues.filter(isOn);
+  const changedHere = chat ? cues.filter((c) => isOn(c) !== inherited(c.id)).length : 0;
+  const needle = q.trim().toLowerCase();
+  const sorted = cues.filter((c) => !needle || `${c.name} ${c.help}`.toLowerCase().includes(needle))
+    .sort((a, b) => Number(isOn(b)) - Number(isOn(a)) || a.name.localeCompare(b.name));
+  return (
+    <>
+      <div className={`setup-row${changedHere ? " changed" : ""}`} data-testid="setup-cues-summary">
+        <span className="setup-k grow">
+          <span>{on.length === 0 ? "None on" : `${on.length} on`}</span>
+          <small>{on.length ? on.map((c) => c.name).join(" · ") : `${cues.length} in your Library`}{changedHere ? ` · ${changedHere} changed in this chat` : ""}</small>
+        </span>
+        <span className="setup-v"><Button small onClick={() => setOpen(true)} data-testid="setup-cues-choose">Choose Cues…</Button></span>
+      </div>
+      {open && (
+        <Modal title={chat ? "Cues in this chat" : "Cues in this story"} onClose={() => { setOpen(false); setQ(""); }} testId="setup-cues-sheet" className="modal-small agents-pick">
+          <label className="search-box agents-pick-search"><Icon name="search" size={13} /><input autoFocus aria-label="Search cues" placeholder="Search cues" value={q} onChange={(e) => setQ(e.target.value)} /></label>
+          <div className="setup-group agents-pick-list">
+            {sorted.map((c) => {
+              const inh = inherited(c.id);
+              const here = isOn(c);
+              const isChanged = chat && here !== inh;
+              const tied = c.characterIds.length ? " · on by itself with its characters" : "";
+              const sub = !chat ? `${c.help || "no AI call"}${tied}` : isChanged ? (here ? "on in this chat · off in the story" : "off in this chat · on in the story") : here ? `from the story${tied}` : `${c.help || "no AI call"}${tied}`;
+              return (
+                <div key={c.id} className={`setup-row tracker${isChanged ? " changed" : ""}`} data-testid={`setup-cue-${c.id}`}>
+                  <input type="checkbox" className="setup-check" aria-label={c.name} checked={here} onChange={(e) => onChange(layerWithCue(layer, c.id, e.target.checked, inh))} />
+                  <span className="setup-k grow"><span>{c.icon ? `${c.icon} ` : ""}{c.name}</span><small>{sub}</small>{isChanged && <ChangedChip onUndo={() => onChange(layerWithCue(layer, c.id, inh, inh))} />}</span>
+                </div>
+              );
+            })}
+            {sorted.length === 0 && <div className="setup-empty">Nothing matches.</div>}
+          </div>
+          <span className="row-line"><span className="hint grow">{chat ? "Changes here only affect this chat." : "Every new chat of this story starts with these."} Cues on in every chat are switched on in Library → Cues.</span></span>
         </Modal>
       )}
     </>

@@ -72,11 +72,19 @@ A tracker is an agent that keeps world state after each reply: it reads the last
 
   T("agent", "Agents", `
 Agents do one job around each reply. Each has: when it runs (before the reply / alongside / after it / every N messages / only when asked), what it does, how it runs and what it reads.
-- What it does: adds rules to the prompt (inject, often with no AI call: text with macros and {{random}}), rewrites your message before sending (intercept), rewrites the reply (rewrite; the original stays as a revision, Undo), checks the reply (check: warn, fix or write again), offers choices (buttons under the reply; a click sends it), writes a side note (note: under the message or in the ✦ panel), proposes Library changes (proposal), keeps world state (state = trackers).
-- How it runs: its own AI call (own connection/model possible), inside the main reply (inline), or no AI call (text).
+- What it does: adds rules to the prompt (inject, written by its own AI call; a fixed text with no AI call is a cue), rewrites your message before sending (intercept), rewrites the reply (rewrite; the original stays as a revision, Undo), checks the reply (check: warn, fix or write again), offers choices (buttons under the reply; a click sends it), writes a side note (note: under the message or in the ✦ panel), proposes Library changes (proposal), keeps world state (state = trackers).
+- How it runs: its own AI call (own connection/model possible) or inside the main reply (inline). Rules with no AI call are cues (about "cue").
 - Reads: last N messages, cards, persona, scenario, lorebooks, tracker values, Author's Note, memory chapters, other agents' results, its own previous notes.
 - Conditions: keywords, chance %, generation types, only after N messages, tracker values. Variables ({{name}}) a chat can change; versions of the instructions.
 - Switched on per story/chat in the chat's ✦ panel (Setup), or for every chat. Library → Agents edits them; Try It previews one without applying anything.`),
+
+  T("cue", "Cues", `
+A cue is a rule that reacts to the chat with no AI call (Library → Cues): instant and free, run before every reply. Agents think; cues react.
+- Reads: word counts in the last messages (or how many messages in a row had them), messages so far, chance, the real clock, a tracker field, the kind of generation.
+- Remembers: values with rules (set / add / reset), pinned to each message, so swipes never count twice and each branch keeps its own. Values marked "Show in Scene" show (and can be edited) in the Scene tab.
+- Writes: groups of texts — all that match, the first, random by weight, or in rotation; don't repeat, chance, cooldown, a wrap; each text can have its own word trigger, tests and chance. Placed like lorebook entries (in the chat at a depth, around the character…) or with the agents' prompts.
+- On: in every chat (Library → Cues), per story or chat (Setup → Cues), or by itself where a tied character is. The Reply tab shows what each cue read, remembered and wrote; Try It in the editor shows it for any message without saving.
+- JanitorAI: lorebook scripts import as a cue or a lorebook; advanced (JavaScript) scripts are converted by the Assistant (guide "cue").`),
 
   T("regex", "Regex scripts", `
 SillyTavern-compatible find/replace scripts. Each has a pattern (/pattern/flags), a replacement ($1, {{match}}, macros), targets (user messages, AI replies, slash text, lorebook text, reasoning) and when it acts:

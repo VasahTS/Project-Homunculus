@@ -129,6 +129,7 @@ export function ReplyPane({ providers, svc, session, storySetup, messageId, trac
       </Group>
 
       {rec.lore && <ReplyLorebooks lore={rec.lore} />}
+      {rec.cues?.length ? <ReplyCues cues={rec.cues} /> : null}
 
       <Group title="Agents after the reply" testId="reply-agents">
         {r.runs.length === 0 && <Row wide><span className="hint">No agents ran for this reply.</span></Row>}
@@ -273,6 +274,34 @@ export function MemoryReceipt({ m }: { m: NonNullable<GenerationRecord["memory"]
         </Row>
         {m.asked !== undefined && m.asked < m.chapters - 1 && <Row wide><span className="hint">{m.chapters - 1 - m.asked} chapter(s) were left out before asking: they share fewer words with this exchange.</span></Row>}
       </>}
+    </Group>
+  );
+}
+
+/** What each cue read, remembered and wrote for this reply (D-113): no AI call, so this is the whole story of it. */
+export function ReplyCues({ cues }: { cues: NonNullable<GenerationRecord["cues"]> }) {
+  const texts = cues.reduce((n, c) => n + c.groups.reduce((k, g) => k + g.picked.length, 0), 0);
+  const tokens = cues.reduce((n, c) => n + c.tokens, 0);
+  const show = (x: unknown) => (x === undefined || x === null || x === "" ? "—" : typeof x === "object" ? JSON.stringify(x) : String(x));
+  return (
+    <Group title={`Cues · ${cues.length}`} testId="reply-cues" aside={<span className="tabular">{texts} text{texts === 1 ? "" : "s"} · {tokens} tok</span>}
+      help="Rules that ran with no AI call: what they read, what they remember (before → after) and what they wrote.">
+      {cues.map((c) => (
+        <details key={c.cueId} className="chg-who" open={cues.length <= 2}>
+          <summary><span className="chg-who-name">{c.name}</span><span className="hint">{c.skipped ? `didn't run: ${c.skipped}` : c.groups.some((g) => g.picked.length) ? `${c.tokens} tok` : "nothing this turn"}</span><span className="spacer" /><span className="chev" aria-hidden><Icon name="chevron" size={12} /></span></summary>
+          <ul className="chg-list">
+            {c.signals.map((s) => <li key={`s-${s.key}`} className="chg"><span className="chg-field">{s.key}</span><span className="chg-val"><span className="chg-to">{show(s.value)}</span>{s.detail && <span className="hint"> · {s.detail}</span>}</span></li>)}
+            {c.values.map((v) => (
+              <li key={`v-${v.key}`} className="chg" title={v.why}><span className="chg-field">{v.key}</span>
+                <span className="chg-val">{show(v.before) !== show(v.after) ? <><span className="chg-from">{show(v.before)}</span><span className="chg-arrow" aria-label="to">→</span></> : null}<span className="chg-to">{show(v.after)}</span><span className="hint"> · {v.why}</span></span></li>
+            ))}
+            {c.groups.map((g) => (
+              <li key={`g-${g.key}`} className="chg"><span className="chg-field">{g.name || g.key}</span>
+                <span className="chg-val"><span className="chg-to">{g.picked.length ? g.picked.map((x) => x.title).join(", ") : "nothing"}</span><span className="hint"> · {g.reason}</span></span></li>
+            ))}
+          </ul>
+        </details>
+      ))}
     </Group>
   );
 }

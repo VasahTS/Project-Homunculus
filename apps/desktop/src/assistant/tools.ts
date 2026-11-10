@@ -6,15 +6,15 @@
 //
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
-import { CastMember, Character, CharacterVariant, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
-import { characterNoteOf, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec, type TrialOverrides } from "@homunculus/core";
+import { CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
+import { characterNoteOf, cueNamespace, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec, type TrialOverrides } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
 import { readPart } from "./files.ts";
 import { agentRows, chatRows, directorRows, getAppItem, quickReplyRows, readChat, regexRows } from "./appReads.ts";
 import { ABOUT_TOPICS, aboutText } from "./about.ts";
-import { GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIELDS } from "./guides.ts";
+import { CUE_FIELDS, GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIELDS } from "./guides.ts";
 import { WebLimitedError, WebSession } from "./web.ts";
 import { readScope, readText, withReadRanges, type ReadScope } from "./reads.ts";
 
@@ -24,13 +24,13 @@ const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
 const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 const one = (s: string, n = 90) => { const t = s.replace(/\s+/g, " ").trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
-export const READ_KINDS: AssistantReadKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "story", "chat", "agent", "regex", "quickreply", "director"];
+export const READ_KINDS: AssistantReadKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "npc", "persona", "preset", "cue", "story", "chat", "agent", "regex", "quickreply", "director"];
 /** Kinds that only `find` with that kind lists (a library search without a kind leaves the many chats out). */
 const FIND_ALONE: AssistantReadKind[] = ["chat"];
 const APP_KINDS = ["chat", "agent", "regex", "quickreply", "director"] as const;
 type AppKind = (typeof APP_KINDS)[number];
 const isAppKind = (k: string): k is AppKind => (APP_KINDS as readonly string[]).includes(k);
-const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset"];
+const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset", "cue"];
 /** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
 export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
 const inFolders = (k: string): k is FolderKind => (FOLDER_KINDS as string[]).includes(k);
@@ -206,6 +206,7 @@ async function baseRows(store: SqlStore, kind: AssistantReadKind): Promise<Row[]
     case "npc": return (await store.npcs.list()).map((n) => ({ kind, id: n.id, name: n.name, line: one(Object.values(n.values).filter((v) => typeof v === "string").join(" · ") || n.notes) }));
     case "persona": return (await store.personas.list()).map((p) => ({ kind, id: p.id, name: p.name, line: one(p.description) }));
     case "preset": return (await store.presets.list()).map((p) => ({ kind, id: p.id, name: p.name, line: `${p.blocks.length} blocks${p.description ? ` · ${one(p.description, 60)}` : ""}` }));
+    case "cue": return (await store.cues.list()).map((c) => ({ kind, id: c.id, name: c.name, line: `${c.groups.reduce((n, g) => n + g.items.length, 0)} texts${c.values.length ? ` · remembers ${c.values.map((v) => v.key).join(", ")}` : ""}${c.help ? ` · ${one(c.help, 60)}` : ""}` }));
     case "chat": return (await chatRows(store)).map((r) => ({ kind, ...r }));
     case "agent": return (await agentRows(store)).map((r) => ({ kind, ...r }));
     case "regex": return (await regexRows(store)).map((r) => ({ kind, ...r }));
@@ -241,6 +242,7 @@ export async function getItem(store: SqlStore, kind: AssistantReadKind, id: stri
     case "npc": return (await store.npcs.get(id)) as unknown as Obj | undefined;
     case "persona": return (await store.personas.get(id)) as unknown as Obj | undefined;
     case "preset": return (await store.presets.get(id)) as unknown as Obj | undefined;
+    case "cue": return (await store.cues.get(id)) as unknown as Obj | undefined;
     case "chat": case "agent": case "regex": case "quickreply": case "director": return getAppItem(store, kind, id);
   }
 }
@@ -835,7 +837,27 @@ async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name:
       const p = await write(w, `preset:${preset.id}`, () => store.savePreset(preset));
       return { id: p.id, name: p.name, detail: `${base ? `copy of “${base.name}” · ` : ""}${p.blocks.length} blocks` };
     }
+    case "cue": {
+      const cue = cueOf(data, (await store.cues.list()).map((c) => c.namespace));
+      const c = await write(w, `cue:${cue.id}`, () => store.saveCue(cue));
+      return { id: c.id, name: c.name, detail: `${c.groups.reduce((n, g) => n + g.items.length, 0)} texts · off until switched on` };
+    }
   }
+}
+
+/**
+ * A cue as the Assistant writes it (D-113): missing group keys and text ids are filled in, characters may be given as
+ * "character:id", and a change merges into the saved cue (groups / signals / values are written as full lists).
+ */
+export function cueOf(data: Obj, taken: Iterable<string>, base?: Cue): Cue {
+  const groups = Array.isArray(data.groups) ? data.groups.filter(isObj).map((g, gi) => ({
+    ...g, key: str(g.key) || `group${gi + 1}`,
+    items: (Array.isArray(g.items) ? g.items.filter(isObj) : []).map((t, ti) => ({ ...t, id: str(t.id) || `t${gi + 1}_${ti + 1}` })),
+  })) : undefined;
+  const characterIds = data.characterIds !== undefined ? strs(data.characterIds).map((x) => splitRef(x)?.id ?? x) : undefined;
+  const merged: Obj = { ...(base ?? {}), ...pick(data, CUE_FIELDS), ...(groups ? { groups } : {}), ...(characterIds ? { characterIds } : {}) };
+  const name = str(merged.name).trim();
+  return Cue.parse({ ...merged, id: base?.id ?? `cue-${crypto.randomUUID()}`, namespace: base?.namespace ?? cueNamespace(name || "cue", taken), source: base?.source ?? { kind: "user" } });
 }
 
 // Preparing an approval card never writes, but must use the same parsers as immediate creation. CODEX.
@@ -850,6 +872,7 @@ async function validateNew(store: SqlStore, kind: AssistantKind, data: Obj): Pro
     case "narrator": narratorOf(data, newId()); break;
     case "lorebook": Lorebook.parse({ id: newId(), name, description: str(data.description), entries: loreEntriesAfter([], { add: data.entries ?? [] }, newId) }); break;
     case "kit": kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, newId()); break;
+    case "cue": cueOf(data, []); break;
   }
 }
 
@@ -890,6 +913,7 @@ export async function prepareChange(store: SqlStore, kind: AssistantKind, itemId
     case "persona": personaOf(changes, dryId, Persona.parse(item)); break;
     case "kit": kitOf({ ...changes, ...(changes.cast !== undefined ? { cast: await castOf(store, changes.cast) } : {}) }, itemId, item); break;
     case "tracker": { const t = (await listTrackers(store)).find(t => t.agent.id === itemId)!; trackerAfter(draftOf(t), changes); break; }
+    case "cue": cueOf(changes, [], Cue.parse(item)); break;
   }
   return { type: "change", id: newId(), kind, itemId, name: str(item.name), summary, before: currentOf(item, kind, changes), after: changes, status: "waiting" };
 }
@@ -958,6 +982,7 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
       await store.saveNarrator({ ...merged, builtin: n.builtin });
       break;
     }
+    case "cue": await store.saveCue(cueOf(ch, [], Cue.parse(item))); break;
   }
   return "applied";
 }
@@ -968,6 +993,7 @@ export async function applyTrash(store: SqlStore, kind: AssistantKind, id: strin
   const t = TRASH_KIND[kind];
   if (t) await store.moveToTrash(t, id);
   else if (kind === "tracker") await deleteTracker(store, id);
+  else if (kind === "cue") await store.cues.delete(id); // cues have no Trash: only Undo of one the Assistant made gets here
 }
 
 /** Undo of a created item: to the Trash (trackers have no Trash: removed). */
@@ -1216,6 +1242,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       }
       case "propose_trash": {
         const r = splitRef(str(a.id));
+        if (r?.kind === "cue") return { result: "Cues can't be proposed for the Trash; the user deletes them in Library → Cues. One you made can be undone on its card.", label: "propose_trash", error: true };
         if (r?.kind === "preset") return { result: "Presets can't be proposed for the Trash; the user removes them in Library → Presets. A copy you made can be undone on its card.", label: "propose_trash", error: true };
         if (!r || !WRITE_KINDS.includes(r.kind as AssistantKind)) return { result: `Can't move “${str(a.id)}”.`, label: "propose_trash", error: true };
         const item = await getItem(ctx.store, r.kind, r.id);

@@ -134,7 +134,7 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
         <>
           <p className="follows-story" data-testid="follows-story">Inherits <strong>{storyName}</strong>. Overrides apply to this chat.</p>
           <SetupFields mode="chat" layer={session.setup} above={storySetup} names={setupProps!.namesFor(storySetup)} director={director}
-            presets={setupProps!.presets} profiles={setupProps!.profiles} personas={setupProps!.personas} trackers={setupProps!.trackers} agents={setupProps!.agents}
+            presets={setupProps!.presets} profiles={setupProps!.profiles} personas={setupProps!.personas} trackers={setupProps!.trackers} agents={setupProps!.agents} cues={setupProps!.cues}
             onChange={(setup) => onChangeSession({ ...session, setup })} testId="chat-setup" />
         </>
       )}

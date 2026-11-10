@@ -1241,3 +1241,18 @@ Daniel (translated): "research how JanitorAI's scripts work and make a detailed 
 - Checked on JanitorAI's real export (an empty `extensions` on every entry; `name`, `insertion_order`, `probability` 0–100, `depth` = messages read). Words signals can also count a **streak** (newest messages in a row with at least N matches), the one reading yhul's Scene Direction script needed; as a cue it reaches the script's phase in 1000 random chats. Third-party texts (yhul's) stay out of the repo.
 
 Signed: **CLAUDE**.
+
+
+## D-114 — Cues on screen: Library → Cues, switching them on, the receipt, the Scene, the Assistant; "No AI call" agents move to cues (2026-11-10)
+
+Daniel (translated): "do the rest" — phases 2–4 of the cues plan after D-113 (the engine).
+- **No separate draft** this time: Daniel asked for the rest to be done; the screens follow the approved plan text (claude/CUES-PLAN.md §7) and the agent editor's look; screenshots go to him for review.
+- **Library → Cues:** list + editor of sections (About · Where It Runs · Reads · Remembers · Writes), saving by itself; examples (Random Event, Opens Up Slowly, Mood Words, Time of Day, Boundary); Try It on any chat's message with nothing saved; Import (Homunculus files, JanitorAI lorebook scripts as one cue, scripts with code handed to the Assistant).
+- **Where a cue is on:** "On in every chat" in its editor (Default layer), a story's Setup (Cues section), a chat's Prompt tab (Cues card, 1:1 chats too), and characters it is tied to. The chat's Setup block has no Cues section: the card is the one place for a chat.
+- **Receipt and Scene:** Reply tab "Cues · N" (what each read, remembered and wrote, and why); prompt parts named "Cue: …"; values with "Show in Scene" in the Scene tab, editable (the user's edit wins at that message, like tracker fields).
+- **"No AI call" agents are cues now** (plan principle "agents think, cues react"): the mode left the agent editor; on start each text agent becomes a cue with the same id and the same prompt (tested), and every setup layer that switched the agent switches the cue; the two starters ship as cues. Old Homunculus files convert on import.
+- **Lorebook import** of a JanitorAI lorebook script asks: Lorebook (facts) or Cue (writing rules), with "Split regex keywords".
+- **Assistant:** cues are a writable kind (create, approved change, drafts, Undo; never proposed for the Trash, cues have no Trash); its guide explains every field and how to convert a JanitorAI script by mapping what the code does, never running it.
+- Tests: `core/test/cue-migration.test.ts`, `assistant/cue-tools.test.ts`, click tests `e2e/cues.e2e.ts`; `agents.e2e.ts` updated.
+
+Signed: **CLAUDE**.

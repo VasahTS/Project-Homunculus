@@ -6,7 +6,7 @@
 //  4. build the prompt              8. other triggers (every N messages, state change), events
 //
 // Only step 5 is fatal: an agent failing never loses the reply.
-import { AgentConfig, type AgentConfigInput } from "@homunculus/schemas";
+import { AgentConfig, Cue as CueSchema, type AgentConfigInput, type Cue, type CueInput } from "@homunculus/schemas";
 import type { Character, CueReport, GenerationRecord, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, RegexScript, Session, Story } from "@homunculus/schemas";
 import { AgentRunner, seededSequence, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
 import { cueTextsForPrompt, runCue, type CueMessage, type CueOutput } from "./cues.ts";
@@ -1481,13 +1481,14 @@ export class TurnPipeline {
    * answered and writes the new ones at that message: a swipe starts from the same place (a counter never adds twice),
    * a branch has its own values, and an edited message is simply read again. `save: false` = Preview Prompt / Try It.
    */
-  async runCues(a: { session: Session; setup: ResolvedSetup; parentId: string | null; type: GenerationType; names: RunRequest["names"]; save: boolean; swipe: number }):
+  async runCues(a: { session: Session; setup: ResolvedSetup; parentId: string | null; type: GenerationType; names: RunRequest["names"]; save: boolean; swipe: number;
+    /** Run only these (Try It: a cue being edited), on or not. */ only?: Cue[] }):
     Promise<{ texts: CueOutput[]; reports: CueReport[] }> {
     if (!a.parentId) return { texts: [], reports: [] };
     const off = new Set(a.session.setup.cues?.remove ?? []);
     const cast = new Set(a.session.cast.flatMap((c) => (c.characterId && c.presence !== "off" ? [c.characterId] : [])));
-    const tied = (await this.store.cues.list()).filter((c) => c.characterIds.some((id) => cast.has(id))).map((c) => c.id);
-    const cues = await this.store.cuesForUse([...a.setup.cues, ...tied].filter((id) => !off.has(id)));
+    const tied = a.only ? [] : (await this.store.cues.list()).filter((c) => c.characterIds.some((id) => cast.has(id))).map((c) => c.id);
+    const cues = a.only ?? await this.store.cuesForUse([...a.setup.cues, ...tied].filter((id) => !off.has(id)));
     if (!cues.length) return { texts: [], reports: [] };
     const path = await this.store.pathTo(a.parentId);
     const history: CueMessage[] = path.filter((m) => m.visibility.ai === "full" && m.kind !== "event")
@@ -1515,6 +1516,25 @@ export class TurnPipeline {
       if (a.save) await this.core.state.applyDelta(a.parentId, { [cue.namespace]: r.values as Record<string, never> });
     }
     return { texts, reports };
+  }
+
+  /**
+   * Try It for a cue (D-113): what it would read, remember and write for the next reply after `parentId`, with nothing
+   * saved. The cue may be a draft that is not saved yet; it runs whether it is on in that chat or not.
+   */
+  async tryCue(sessionId: string, parentId: string, input: CueInput): Promise<{ texts: CueOutput[]; report: CueReport; before: Record<string, unknown> | undefined }> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    const setup = await this.setupFor(session);
+    const speaking = await this.pickSpeaker(session);
+    const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
+    const user = (persona ? effectivePersona(persona, setup.personaVariantId).name : undefined) ?? DEFAULT_USER_NAME;
+    const names = { char: speaking.character?.name ?? "Narrator", user, bySpeaker: (m: Message) => this.nameOf(m, user) };
+    const cue = CueSchema.parse(input);
+    const siblings = await this.store.childrenOf(sessionId, parentId);
+    const r = await this.runCues({ session, setup, parentId, type: "normal", names, save: false, swipe: siblings.filter((m) => m.speaker.kind !== "user").length, only: [cue] });
+    const before = (await this.core.state.resolve(sessionId, (await this.store.parentOf(parentId)) ?? null))[cue.namespace];
+    return { texts: r.texts, report: r.reports[0]!, before };
   }
 
   /**

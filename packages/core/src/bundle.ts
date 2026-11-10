@@ -16,9 +16,12 @@
 // left out) are dropped, so the story falls back to your Default setup for them.
 import { z } from "zod";
 import {
-  AgentConfig, Avatar, Character, Kit, Lorebook, Narrator, Npc, Preset, Story, TrackerSchema,
+  AgentConfig, Avatar, Character, Cue, Kit, Lorebook, Narrator, Npc, Preset, Story, TrackerSchema,
   type ListOverride, type SetupLayer,
 } from "@homunculus/schemas";
+import { cueFromTextAgent, cueNamespace } from "./cues.ts";
+import { isTextAgent, moveIdsToCues } from "./cue-migration.ts";
+import { prepared } from "./agents/styles.ts";
 import { cleanProfile, directorLinks, directorProfiles, saveDirectorLinks, saveDirectorProfiles, type DirectorProfile } from "./director.ts";
 import type { ExportedFile } from "./extensions.ts";
 import type { SqlStore } from "./storage/store.ts";
@@ -28,7 +31,7 @@ export const BUNDLE_VERSION = 1;
 /** The file name ends like this, so the files are easy to tell apart from SillyTavern's. */
 export const BUNDLE_EXT = ".h2.json";
 
-export type BundleKind = "narrator" | "npc" | "story" | "kit" | "agent" | "director";
+export type BundleKind = "narrator" | "npc" | "story" | "kit" | "agent" | "director" | "cue";
 export interface BundleRoot { kind: BundleKind; id: string }
 
 export interface HomunculusBundle {
@@ -45,6 +48,8 @@ export interface HomunculusBundle {
   kits: Kit[];
   agents: AgentConfig[];
   trackerSchemas: TrackerSchema[];
+  /** Cues (D-113). */
+  cues: Cue[];
   directors: DirectorProfile[];
   /** Story id → the Director it uses (Library → Directors). */
   directorLinks: Record<string, string>;
@@ -52,7 +57,7 @@ export interface HomunculusBundle {
   avatars: Record<string, Avatar>;
 }
 
-const KINDS = ["narrator", "npc", "story", "kit", "agent", "director"] as const;
+const KINDS = ["narrator", "npc", "story", "kit", "agent", "director", "cue"] as const;
 const BundleFile = z.object({
   format: z.literal(BUNDLE_FORMAT),
   version: z.number().int(),
@@ -67,12 +72,13 @@ const BundleFile = z.object({
   kits: z.array(Kit).default([]),
   agents: z.array(AgentConfig).default([]),
   trackerSchemas: z.array(TrackerSchema).default([]),
+  cues: z.array(Cue).default([]),
   directors: z.array(z.unknown()).default([]),
   directorLinks: z.record(z.string(), z.string()).default({}),
   avatars: z.record(z.string(), Avatar).default({}),
 });
 
-const KIND_WORD: Record<BundleKind, string> = { narrator: "narrator", npc: "NPC", story: "story", kit: "Kit", agent: "agent", director: "Director" };
+const KIND_WORD: Record<BundleKind, string> = { narrator: "narrator", npc: "NPC", story: "story", kit: "Kit", agent: "agent", director: "Director", cue: "cue" };
 
 // ------------------------------------------------------------------------------------------------ export
 
@@ -83,6 +89,7 @@ function setupLinks(layer: SetupLayer) {
     presetIds: layer.presetId ? [layer.presetId] : [],
     lorebookIds: ids(layer.lorebooks),
     agentIds: [...ids(layer.agents), ...Object.keys(layer.agentOverrides ?? {})],
+    cueIds: ids(layer.cues),
     schemaIds: Object.values(layer.agentOverrides ?? {}).flatMap((o) => (o.schemaId ? [o.schemaId] : [])),
   };
 }
@@ -91,7 +98,7 @@ function setupLinks(layer: SetupLayer) {
 export async function collectBundle(store: SqlStore, roots: BundleRoot[]): Promise<HomunculusBundle> {
   const b: HomunculusBundle = {
     format: BUNDLE_FORMAT, version: BUNDLE_VERSION, exportedAt: new Date().toISOString(), roots: [],
-    characters: [], lorebooks: [], presets: [], narrators: [], npcs: [], stories: [], kits: [], agents: [], trackerSchemas: [],
+    characters: [], lorebooks: [], presets: [], narrators: [], npcs: [], stories: [], kits: [], agents: [], trackerSchemas: [], cues: [],
     directors: [], directorLinks: {}, avatars: {},
   };
   const seen = new Set<string>();
@@ -143,6 +150,14 @@ export async function collectBundle(store: SqlStore, roots: BundleRoot[]): Promi
     await pictures(n.id);
     await schema(n.schemaId);
   };
+  const cue = async (id: string) => {
+    if (!once("cue", id)) return;
+    const c = await store.cues.get(id);
+    if (!c) return;
+    b.cues.push(c);
+    // a cue tied to characters brings their cards, so it switches on there again
+    for (const ch of c.characterIds) await character(ch);
+  };
   const director = (id: string) => {
     if (!once("director", id)) return;
     const d = directors.find((x) => x.id === id);
@@ -163,6 +178,7 @@ export async function collectBundle(store: SqlStore, roots: BundleRoot[]): Promi
     }
     for (const id of [...l.lorebookIds, ...Object.keys(st.lorePatches)]) await lorebook(id);
     for (const id of l.agentIds) await agent(id);
+    for (const id of l.cueIds) await cue(id);
     for (const id of l.schemaIds) await schema(id);
   };
 
@@ -173,6 +189,7 @@ export async function collectBundle(store: SqlStore, roots: BundleRoot[]): Promi
     else if (r.kind === "npc") { if (!await store.npcs.get(r.id)) throw missing(); await npc(r.id); }
     else if (r.kind === "agent") { if (!await store.agentConfigs.get(r.id)) throw missing(); await agent(r.id); }
     else if (r.kind === "director") { if (!directors.some((d) => d.id === r.id)) throw missing(); director(r.id); }
+    else if (r.kind === "cue") { if (!await store.cues.get(r.id)) throw missing(); await cue(r.id); }
     else if (r.kind === "story") {
       const st = await store.getStory(r.id);
       if (!st) throw missing();
@@ -208,7 +225,7 @@ export function bundleTitle(bundle: HomunculusBundle): string {
 
 function rootName(bundle: HomunculusBundle, r: BundleRoot): string {
   const list: Array<{ id: string; name: string }> = r.kind === "narrator" ? bundle.narrators : r.kind === "npc" ? bundle.npcs : r.kind === "story" ? bundle.stories
-    : r.kind === "kit" ? bundle.kits : r.kind === "agent" ? bundle.agents : bundle.directors;
+    : r.kind === "kit" ? bundle.kits : r.kind === "agent" ? bundle.agents : r.kind === "cue" ? bundle.cues : bundle.directors;
   return list.find((x) => x.id === r.id)?.name ?? "";
 }
 
@@ -225,14 +242,38 @@ export function parseBundle(text: string): HomunculusBundle {
   try { raw = JSON.parse(text); } catch { throw new Error("This file is not valid JSON."); }
   const r = raw as { format?: unknown; version?: unknown } | null;
   if (r?.format === "homunculus-chat") throw new Error("This is a Homunculus chat, not a Library file.");
-  if (!r || r.format !== BUNDLE_FORMAT) throw new Error("This is not a Homunculus file (narrators, NPCs, stories, Kits, agents, trackers or Directors).");
+  if (!r || r.format !== BUNDLE_FORMAT) throw new Error("This is not a Homunculus file (narrators, NPCs, stories, Kits, agents, trackers, cues or Directors).");
   if (typeof r.version === "number" && r.version > BUNDLE_VERSION) throw new Error("This file was made by a newer Homunculus. Update the app to import it.");
   const parsed = BundleFile.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     throw new Error(`Part of this file can't be read${issue ? ` (${issue.path.join(".")}: ${issue.message})` : ""}.`);
   }
-  return { ...parsed.data, format: BUNDLE_FORMAT, directors: parsed.data.directors.map(cleanProfile) };
+  return textAgentsToCues({ ...parsed.data, format: BUNDLE_FORMAT, directors: parsed.data.directors.map(cleanProfile) });
+}
+
+/**
+ * A file from before cues (D-113): its "No AI call" agents come in as cues with the same ids, and the stories in it switch
+ * those cues on and off where they switched the agents.
+ */
+export function textAgentsToCues(bundle: HomunculusBundle): HomunculusBundle {
+  const text = bundle.agents.filter(isTextAgent);
+  if (!text.length) return bundle;
+  const ids = new Set(text.map((a) => a.id));
+  const taken = new Set(bundle.cues.map((c) => c.namespace));
+  const cues = text.map((a) => {
+    const namespace = cueNamespace(a.name, taken);
+    taken.add(namespace);
+    return cueFromTextAgent(a, { id: a.id, namespace, text: prepared(a).prompt }).cue;
+  });
+  const fix = <T extends Story>(st: T): T => { const l = moveIdsToCues(st.setup, ids); return l ? { ...st, setup: l } : st; };
+  return {
+    ...bundle,
+    agents: bundle.agents.filter((a) => !ids.has(a.id)),
+    cues: [...bundle.cues, ...cues],
+    stories: bundle.stories.map(fix), kits: bundle.kits.map(fix),
+    roots: bundle.roots.map((r) => (r.kind === "agent" && ids.has(r.id) ? { kind: "cue" as const, id: r.id } : r)),
+  };
 }
 
 // ------------------------------------------------------------------------------------------------ import
@@ -250,11 +291,12 @@ export interface BundleImportResult {
   notes: string[];
 }
 
-type Table = "character" | "lorebook" | "preset" | "narrator" | "npc" | "story" | "kit" | "agent" | "schema" | "director";
+type Table = "character" | "lorebook" | "preset" | "narrator" | "npc" | "story" | "kit" | "agent" | "schema" | "director" | "cue";
 
 const newId = (old: string, table: Table) => {
   const u = crypto.randomUUID();
   if (table === "agent") return `agent-${u}`;
+  if (table === "cue") return `cue-${u}`;
   if (table === "schema") return `set-${u}`;
   return /^[a-z]+-[0-9a-f-]{36}$/i.test(old) ? `${old.slice(0, old.indexOf("-"))}-${u}` : u;
 };
@@ -270,27 +312,27 @@ export async function importBundle(store: SqlStore, bundle: HomunculusBundle, fi
   const rootKey = new Set(bundle.roots.map((r) => `${r.kind}:${r.id}`));
 
   // What this install has: alive (not in the Trash) and anything with that id (the Trash too).
-  const [characters, lorebooks, presets, narrators, npcs, stories, kits, agents, schemas, connections, personas] = await Promise.all([
+  const [characters, lorebooks, presets, narrators, npcs, stories, kits, agents, schemas, connections, personas, cuesHere] = await Promise.all([
     store.listCharacters(), store.lorebooks.list(), store.presets.list(), store.narrators.list(), store.npcs.list(), store.stories.list(),
-    store.kits.list(), store.agentConfigs.list(), store.trackerSchemas.list(), store.connections.list(), store.personas.list(),
+    store.kits.list(), store.agentConfigs.list(), store.trackerSchemas.list(), store.connections.list(), store.personas.list(), store.cues.list(),
   ]);
   const directors = await directorProfiles(store);
   const alive: Record<Table, Map<string, unknown>> = {
     character: new Map(characters.map((x) => [x.id, x])), lorebook: new Map(lorebooks.map((x) => [x.id, x])), preset: new Map(presets.map((x) => [x.id, x])),
     narrator: new Map(narrators.map((x) => [x.id, x])), npc: new Map(npcs.map((x) => [x.id, x])), story: new Map(stories.map((x) => [x.id, x])),
     kit: new Map(kits.map((x) => [x.id, x])), agent: new Map(agents.map((x) => [x.id, x])), schema: new Map(schemas.map((x) => [x.id, x])),
-    director: new Map(directors.map((x) => [x.id, x])),
+    director: new Map(directors.map((x) => [x.id, x])), cue: new Map(cuesHere.map((x) => [x.id, x])),
   };
   const anyWithId = async (t: Table, id: string): Promise<boolean> => {
     if (alive[t].has(id)) return true;
     if (t === "character") return !!await store.getCharacter(id);
-    const table = { lorebook: store.lorebooks, preset: store.presets, narrator: store.narrators, npc: store.npcs, story: store.stories, kit: store.kits, agent: store.agentConfigs, schema: store.trackerSchemas }[t as Exclude<Table, "character" | "director">];
+    const table = { lorebook: store.lorebooks, preset: store.presets, narrator: store.narrators, npc: store.npcs, story: store.stories, kit: store.kits, agent: store.agentConfigs, schema: store.trackerSchemas, cue: store.cues }[t as Exclude<Table, "character" | "director">];
     return table ? !!await table.get(id) : false;
   };
 
   // 1. Decide every item's id here: the same one, a new one, or "already here, use it".
-  const map: Record<Table, Map<string, string>> = { character: new Map(), lorebook: new Map(), preset: new Map(), narrator: new Map(), npc: new Map(), story: new Map(), kit: new Map(), agent: new Map(), schema: new Map(), director: new Map() };
-  const keep: Record<Table, Set<string>> = { character: new Set(), lorebook: new Set(), preset: new Set(), narrator: new Set(), npc: new Set(), story: new Set(), kit: new Set(), agent: new Set(), schema: new Set(), director: new Set() };
+  const map: Record<Table, Map<string, string>> = { character: new Map(), lorebook: new Map(), preset: new Map(), narrator: new Map(), npc: new Map(), story: new Map(), kit: new Map(), agent: new Map(), schema: new Map(), director: new Map(), cue: new Map() };
+  const keep: Record<Table, Set<string>> = { character: new Set(), lorebook: new Set(), preset: new Set(), narrator: new Set(), npc: new Set(), story: new Set(), kit: new Set(), agent: new Set(), schema: new Set(), director: new Set(), cue: new Set() };
   /** `root`: a picked item (or part of one): reused only when it is the same as the one here, else a copy. `fresh`: always
    * its own copy (a field set of a tracker that comes in as a copy). `reuse`: the one here is used whatever it holds. */
   const plan = async <T extends { id: string }>(t: Table, items: T[], how: (x: T) => "root" | "dependency" | "reuse" | "fresh") => {
@@ -313,6 +355,7 @@ export async function importBundle(store: SqlStore, bundle: HomunculusBundle, fi
   await plan("agent", bundle.agents, (x) => (x.runMode === "code" ? "reuse" : isRoot("agent", x.id) ? "root" : "dependency"));
   // a tracker's field sets follow it: its own copy when it comes in as a copy
   await plan("schema", bundle.trackerSchemas, (x) => (x.trackerId && map.agent.has(x.trackerId) && map.agent.get(x.trackerId) !== x.trackerId ? "fresh" : "dependency"));
+  await plan("cue", bundle.cues, (x) => (isRoot("cue", x.id) ? "root" : "dependency"));
   await plan("director", bundle.directors, (x) => (isRoot("director", x.id) || Object.values(bundle.directorLinks).includes(x.id) ? "root" : "dependency"));
   // a built-in or code agent that this install doesn't have can't run here
   const unusable = bundle.agents.filter((a) => a.runMode === "code" && !alive.agent.has(a.id));
@@ -360,6 +403,7 @@ export async function importBundle(store: SqlStore, bundle: HomunculusBundle, fi
     }
     const lb = listOf(s.lorebooks, "lorebook"); if (lb) s.lorebooks = lb;
     const ag = listOf(s.agents, "agent"); if (ag) s.agents = ag;
+    const cu = listOf(s.cues, "cue"); if (cu) s.cues = cu;
     if (s.agentOverrides) {
       s.agentOverrides = Object.fromEntries(Object.entries(s.agentOverrides).flatMap(([k, v]) => {
         const a = to("agent", k);
@@ -411,6 +455,14 @@ export async function importBundle(store: SqlStore, bundle: HomunculusBundle, fi
     ...(x.connectionId !== undefined ? { connectionId: connection(x.connectionId) ?? null } : {}),
     source: { kind: "imported" as const, ...(fileName ? { from: fileName } : x.source.from ? { from: x.source.from } : {}) },
   }));
+  // a cue's namespace (its values in the world state) must be its own here; a copy gets a new one
+  const usedNs = new Set(cuesHere.map((c) => c.namespace));
+  await write("cue", bundle.cues, "cue", (x) => store.saveCue(x), (x) => {
+    const namespace = keep.cue.has(x.id) || !usedNs.has(x.namespace) ? x.namespace : cueNamespace(x.name, usedNs);
+    usedNs.add(namespace);
+    return { ...x, namespace, characterIds: list("character", x.characterIds),
+      source: { kind: "imported" as const, ...(fileName ? { from: fileName } : x.source.from ? { from: x.source.from } : {}) } };
+  });
   await write("narrator", bundle.narrators, "narrator", (x) => store.saveNarrator(x), (x) => ({ ...x, builtin: x.builtin && x.id === "simple-narrator" && !alive.narrator.has(x.id) }));
   // stories and Kits before their NPCs, so an NPC's folder (storyId) can point at the new id
   await write("story", bundle.stories, "story", (x) => store.saveStory(x), (x) => fixStory(x));
@@ -466,7 +518,7 @@ export function bundleExtras(bundle: HomunculusBundle): Record<string, number> {
   const n = (xs: Array<{ id: string }>) => xs.filter((x) => !roots.has(x.id)).length;
   const out: Record<string, number> = {
     character: n(bundle.characters), lorebook: n(bundle.lorebooks), preset: n(bundle.presets), narrator: n(bundle.narrators), NPC: n(bundle.npcs),
-    agent: n(bundle.agents), "field set": n(bundle.trackerSchemas), Director: n(bundle.directors),
+    agent: n(bundle.agents), "field set": n(bundle.trackerSchemas), cue: n(bundle.cues), Director: n(bundle.directors),
   };
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v > 0));
 }

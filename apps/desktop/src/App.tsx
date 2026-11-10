@@ -6,10 +6,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useGuardedNavigation } from "./ui/ux.tsx";
 import { backForwardOf, goMove, isClaimed, openLayers, pressEscape, recordMove, takeQuietScreen } from "./ui/back-button.ts";
 import { pageIn, slideTab } from "./ui/motion.ts";
-import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type RegexScript, type AssistantReadKind } from "@homunculus/schemas";
+import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type Cue, type RegexScript, type AssistantReadKind } from "@homunculus/schemas";
 import { directorProfiles, bundleExtras, bundleFile, collectBundle, countsText, importBundle, parseBundle, type BundleRoot } from "@homunculus/core";
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
-import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
+import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, importStLorebook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
 import { LorebookEditor } from "./ui/LorebookEditor.tsx";
 import { PresetEditor } from "./ui/PresetEditor.tsx";
 import { servicesReady, type AppServices } from "./core-instance.ts";
@@ -46,6 +46,10 @@ import { AgentEditor } from "./ui/AgentEditor.tsx";
 import { AgentTryIt } from "./ui/AgentTryIt.tsx";
 import type { AgentDraft } from "./agent-draft.ts";
 import { blankAgent, deleteAgent, listAgents, saveAgent } from "./agents.ts";
+import { cueFromJanitorText, isJanitorLorebook, listCues } from "./cues.ts";
+import { JanitorImportChoice } from "./ui/CuesPage.tsx";
+import { CuesPage } from "./ui/CuesPage.tsx";
+import { cueNames } from "./ui/promptSources.ts";
 import { LoreChangeTag, LoreVersionBar } from "./ui/LoreVersions.tsx";
 import { PersonaEditor } from "./ui/PersonaEditor.tsx";
 import { Button, Icon, IconButton } from "./ui/kit.tsx";
@@ -85,6 +89,7 @@ type View =
   | { kind: "settings"; tab: SettingsTab }
   | { kind: "trackers"; draft?: TrackerDraft; isNew?: boolean; fromSession?: boolean }
   | { kind: "agents"; id: string | null; fromSession?: boolean }
+  | { kind: "cues"; id: string | null }
   | { kind: "vault"; tab: VaultTab; id: string | null }
   | { kind: "story"; id: string }
   | { kind: "kit"; id: string }
@@ -149,6 +154,10 @@ export function App() {
   const [avatars, setAvatars] = useState<Record<string, Avatar>>({});
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
+  /** Cues (D-113): rules without an AI call. */
+  const [cues, setCues] = useState<Cue[]>([]);
+  /** JanitorAI lorebook scripts waiting for "Lorebook or Cue?" (D-113 §6.1). */
+  const [janitorAsk, setJanitorAsk] = useState<File[] | null>(null);
   /** The lorebook editor shows this story's version of the book (D-049); null = the original. */
   const [loreVersion, setLoreVersion] = useState<{ bookId: string; storyId: string } | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
@@ -407,6 +416,9 @@ export function App() {
     setAvatars(av);
     setTrackers(ts);
     setAgents(await listAgents(s.store));
+    const cueList = await listCues(s.store);
+    setCues(cueList);
+    cueNames.clear(); for (const c of cueList) cueNames.set(c.id, c.name);
     await refreshVault(s);
     const lines: Record<string, string> = {};
     const counts: Record<string, number> = {};
@@ -789,15 +801,42 @@ export function App() {
     } catch (e) { setNotice({ kind: "error", title: `Could not export ${b.name}`, lines: [errorText(e)] }); }
   };
 
-  const importLorebooks = async (files: File[]) => {
+  const importLorebooks = async (files: File[], asked?: { as: "lorebook" | "cue"; splitRegex: boolean }) => {
     const importer = svc.core.lorebookImporters.all()[0];
     if (!importer) return;
+    if (!asked) {
+      const janitor: File[] = [];
+      for (const f of files) if (isJanitorLorebook(await f.text())) janitor.push(f);
+      if (janitor.length) {
+        setJanitorAsk(janitor);
+        files = files.filter((f) => !janitor.includes(f));
+        if (!files.length) return;
+      }
+    }
+    if (asked?.as === "cue") {
+      const lines: string[] = [];
+      let last: string | null = null;
+      const taken = new Set(cues.map((c) => c.namespace));
+      for (const f of files) {
+        try {
+          const { cue, notes } = cueFromJanitorText(await f.text(), f.name, taken, asked.splitRegex);
+          taken.add(cue.namespace);
+          const saved = await svc.store.saveCue(cue);
+          last = saved.id;
+          lines.push(`${f.name}: the cue “${saved.name}”, ${saved.groups[0]?.items.length ?? 0} texts. Switch it on in Library → Cues or a chat's Setup.`, ...notes);
+        } catch (e) { lines.push(`${f.name}: ${errorText(e)}`); }
+      }
+      await refresh(svc);
+      if (last) setView({ kind: "cues", id: last });
+      setNotice({ kind: last ? "ok" : "error", title: last ? "Imported as cues" : "Nothing was imported", lines });
+      return;
+    }
     const imported: string[] = [];
     const lines: string[] = [];
     let last: string | null = null;
     for (const f of files) {
       try {
-        const r = await importer.import(await readFileBytes(f), f.name);
+        const r = asked?.splitRegex ? importStLorebook(await readFileBytes(f), f.name, { splitRegex: true }) : await importer.import(await readFileBytes(f), f.name);
         const saved = await svc.store.saveLorebook({ ...r.lorebook, id: crypto.randomUUID() });
         const linked = await linkImportedLorebook(svc.store, saved);
         imported.push(`${saved.name} (${saved.entries.length} entries)`);
@@ -1087,7 +1126,7 @@ export function App() {
     if (!p?.listModels) throw new Error("This AI can't list its models. Type the model's ID instead.");
     return p.listModels(config, signal);
   };
-  const setupProps: StorySetupProps = { presets, profiles: connection.profiles, personas, trackers, agents, namesFor, noteAbove,
+  const setupProps: StorySetupProps = { presets, profiles: connection.profiles, personas, trackers, agents, cues, namesFor, noteAbove,
     setupAbove: (story) => resolveSetup({ default: defaultSetup, ...(story ? { story } : {}) }),
     onSavePreset: async (preset) => { await svc.store.savePreset(preset); await refresh(svc); },
     onOpenPreset: (id) => setView({ kind: "presets", id }),
@@ -1312,7 +1351,7 @@ export function App() {
     } catch (e) { setNotice({ kind: "error", title: "Could not export the chat", lines: [errorText(e)] }); }
   };
   // ---- Homunculus files: narrators, NPCs, stories, Kits, agents, trackers, Directors (D-094)
-  const KIND_TITLE: Record<BundleRoot["kind"], string> = { narrator: "narrator", npc: "NPC", story: "story", kit: "Kit", agent: "agent", director: "Director" };
+  const KIND_TITLE: Record<BundleRoot["kind"], string> = { narrator: "narrator", npc: "NPC", story: "story", kit: "Kit", agent: "agent", director: "Director", cue: "cue" };
   const exportItem = async (kind: BundleRoot["kind"], id: string, name: string, what = KIND_TITLE[kind]) => {
     try {
       const bundle = await collectBundle(svc.store, [{ kind, id }]);
@@ -1349,6 +1388,7 @@ export function App() {
       else if (kind === "story") setView({ kind: "vault", tab: "stories", id });
       else if (kind === "kit") setView({ kind: "vault", tab: "kits", id });
       else if (kind === "director") setView({ kind: "directors" });
+      else if (kind === "cue") setView({ kind: "cues", id });
       else {
         const t = (await listTrackers(svc.store)).find((x) => x.agent.id === id);
         setView(t ? { kind: "trackers", draft: draftOf(t), isNew: false } : { kind: "agents", id });
@@ -1402,6 +1442,7 @@ export function App() {
     ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${b.entries.length} entries`) })),
     ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help) })),
     ...presets.map((x) => ({ kind: "preset" as const, id: x.id, name: x.name, line: `${x.blocks.length} blocks` })),
+    ...cues.map((x) => ({ kind: "cue" as const, id: x.id, name: x.name, line: x.help || `${x.groups.reduce((n, g) => n + g.items.length, 0)} texts` })),
     // D-110: chats and the parts of the app the Assistant can read but not yet write
     ...sessions.map((x) => ({ kind: "chat" as const, id: x.id, name: x.title, line: `${x.storyId ? stories.find((st) => st.id === x.storyId)?.name ?? "Story" : characters.find((c) => c.id === x.cast[0]?.characterId)?.name ?? "Chat"} · ${messageCounts[x.id] ?? 0} messages` })),
     ...agents.map((a) => ({ kind: "agent" as const, id: a.id, name: a.name, line: short(a.help) })),
@@ -1413,9 +1454,9 @@ export function App() {
       <Icon name="sidebar" size={17} />
     </IconButton>
   );
-  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "regex" ? { kind: "regex" } : area === "quick-replies" ? { kind: "quick-replies" } : area === "directors" ? { kind: "directors" } : area === "agents" ? { kind: "agents", id: null } : { kind: "trackers" }); };
+  const openLibrary = (area: LibraryArea) => { setVaultQuery(""); setView(area === "kits" || area === "narrators" || area === "npcs" ? { kind: "vault", tab: area, id: null } : area === "characters" || area === "personas" || area === "presets" || area === "lorebooks" ? { kind: area, id: null } : area === "trash" ? { kind: "trash" } : area === "regex" ? { kind: "regex" } : area === "quick-replies" ? { kind: "quick-replies" } : area === "directors" ? { kind: "directors" } : area === "agents" ? { kind: "agents", id: null } : area === "cues" ? { kind: "cues", id: null } : { kind: "trackers" }); };
   const libraryCategory: LibraryCategory | null = view.kind === "vault" && view.tab !== "stories" ? view.tab : view.kind === "kit" ? "kits"
-    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" || view.kind === "directors" ? view.kind : null;
+    : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "cues" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" || view.kind === "directors" ? view.kind : null;
   const pageLead = libraryCategory ? null : lead;
   // opened a lorebook from a session (Prompt tab): a button goes straight back to it (Daniel: "me senti perdido")
   const backSession = loreBack ? sessions.find((x) => x.id === loreBack) : undefined;
@@ -1650,6 +1691,19 @@ export function App() {
       {agentPreview && editing?.id === agentPreview.snapshot().value.id && <AgentTryIt draft={agentPreview} svc={svc} sessions={sessions} stories={stories}
         characters={characters} connection={connection} defaultSetup={defaultSetup} initialSessionId={activeId} onClose={() => setAgentPreview(null)} />}</>
     );
+  } else if (view.kind === "cues") {
+    content = (
+      <CuesPage svc={svc} lead={pageLead} cues={cues} stories={stories} sessions={sessions} characters={characters} defaultSetup={defaultSetup}
+        selectedId={view.id} onSelect={(id) => setView({ kind: "cues", id })} onSetDefaultSetup={setDefaultSetup}
+        onChanged={async () => { const list = await listCues(svc.store); setCues(list); cueNames.clear(); for (const c of list) cueNames.set(c.id, c.name); }}
+        onExport={(id, name) => void exportItem("cue", id, name)} onImportBundles={importItems}
+        onConvertScript={(code, fileName) => {
+          asst.setActiveId(null);
+          setDraftValue("assistant:new", { text: `Convert this JanitorAI script (${fileName}) into a cue. Show me what didn't fit.\n\n\`\`\`js\n${code.trim()}\n\`\`\``, atts: [] });
+          setMode("assistant");
+        }}
+        onNotice={(kind, title, lines = []) => setNotice({ kind, title, lines })} activeSessionId={activeId} />
+    );
   } else if (view.kind === "vault") {
     const q = vaultQuery.trim().toLowerCase();
     const searching = q !== "";
@@ -1802,6 +1856,7 @@ export function App() {
     content = (
       <ChatView
             onOpenRegex={() => setView({ kind: "regex" })}
+            onOpenCues={() => setView({ kind: "cues", id: null })}
             onOpenQuickReply={(setId, replyId) => setView({ kind: "quick-replies", setId, replyId })}
             onError={(e) => setNotice({ kind: "error", title: "Quick Replies were not saved", lines: [errorText(e)] })}
             onRegexChanged={() => void svc.store.getApprovedRegex().then(setApprovedRegex)}
@@ -1910,6 +1965,8 @@ export function App() {
   overHome.current = paletteOpen || !!newStoryOpen || !!picker || !!savingNpc;
   const overlays = (
     <>
+      {janitorAsk && <JanitorImportChoice files={janitorAsk.map((f) => f.name)} onClose={() => setJanitorAsk(null)}
+        onPick={(as, splitRegex) => { const files = janitorAsk; setJanitorAsk(null); void importLorebooks(files, { as, splitRegex }); }} />}
       {savingNpc && (() => {
         const chat = sessions.find((x) => x.id === savingNpc.sessionId);
         const st = chat?.storyId ? stories.find((x) => x.id === chat.storyId) : undefined;
@@ -1991,7 +2048,7 @@ export function App() {
           onNewStory={() => setNewStoryOpen({ cardId: null })}
           onOpenCharacters={() => setView({ kind: "characters", id: null })}
           onOpenCardBrowser={() => setView({ kind: "card-browser" })}
-          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" || view.kind === "directors" ? view.kind : "kits")}
+          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "cues" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" || view.kind === "directors" ? view.kind : "kits")}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "general" })}
           onOpenHome={() => setHomeOpen(true)}
@@ -2008,10 +2065,10 @@ export function App() {
             listModels={listModels} onManageConnections={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }}
             userName={personas.find((p) => p.id === defaultPersonaId)?.name ?? ""}
             onChanged={() => void refresh(svc)}
-            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "persona") setView({ kind: "personas", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else if (kind === "preset") setView({ kind: "presets", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
+            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "persona") setView({ kind: "personas", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else if (kind === "preset") setView({ kind: "presets", id }); else if (kind === "cue") setView({ kind: "cues", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
             onStartKit={(id) => { const k = kits.find((x) => x.id === id); if (k) { setMode("play"); void startFromKit(k); } }} />
         ) : libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
-          counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, agents: agents.length, trash: trash.length }}
+          counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, agents: agents.length, cues: cues.length, trash: trash.length }}
           onOpen={openLibrary}>{content}</LibraryWorkspace> : content}
         </CollectionOrderContext.Provider>
       </div>

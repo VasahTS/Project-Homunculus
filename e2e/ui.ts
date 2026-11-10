@@ -5,7 +5,7 @@ import { expect, type Page } from "@playwright/test";
  * Opens a primary collection or a category in the grouped Library (D-040).
  * Round 3 (D-036): Characters is a place of its own in the sidebar.
  */
-export async function openLibrary(page: Page, area: "Characters" | "Personas" | "Lorebooks" | "Presets" | "Regex" | "Quick Replies" | "Trackers" | "Agents" | "Trash" | "Stories" | "Kits" | "Narrators" | "NPCs" | "Directors") {
+export async function openLibrary(page: Page, area: "Characters" | "Personas" | "Lorebooks" | "Presets" | "Regex" | "Quick Replies" | "Trackers" | "Agents" | "Cues" | "Trash" | "Stories" | "Kits" | "Narrators" | "NPCs" | "Directors") {
   if (area === "Stories") { await page.getByTestId("place-list").getByRole("button", { name: "Stories", exact: true }).click(); return; }
   if (area === "Characters") { await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click(); return; }
   await page.getByTestId("place-list").getByRole("button", { name: "Library" }).click();

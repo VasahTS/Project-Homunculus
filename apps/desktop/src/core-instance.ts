@@ -1,7 +1,7 @@
 // Homunculus 2 — boots the app's services exactly once, outside React. Author: CLAUDE, 2026-10-23.
 // (React may mount components twice in development; owning the core inside a
 // component made it get stuck on "loading core…" — caught by the e2e test.)
-import { ChatService, HomunculusCore, SqlStore, coreMigrations, migrate } from "@homunculus/core";
+import { ChatService, HomunculusCore, SqlStore, coreMigrations, migrate, moveTextAgentsToCues } from "@homunculus/core";
 import { createOpenAICompatibleModule } from "@homunculus/provider-openai";
 import { createSillyTavernCardsModule } from "@homunculus/st-cards";
 import { createSillyTavernPersonasModule } from "@homunculus/st-personas";
@@ -13,6 +13,7 @@ import { backupBeforeMigrate, isDesktop, openDatabase } from "./db.ts";
 import { offlineAiModule } from "./offline-ai.ts";
 import { installStarterTrackers } from "./trackers.ts";
 import { installStarterAgents } from "./agents.ts";
+import { installStarterCues } from "./cues.ts";
 import { installConnectionProfiles } from "./connection.ts";
 import { turns } from "./turns.ts";
 
@@ -42,6 +43,8 @@ async function boot(): Promise<AppServices> {
   turns.watchAgentRuns(core);
   await installStarterTrackers(store); // once; editable data, not code (D-017)
   await installStarterAgents(store); // once; one small example per kind, editable data (D-047)
+  await moveTextAgentsToCues(store); // D-113: "No AI call" agents are cues now (does nothing once they moved)
+  await installStarterCues(store); // once; the two starters that used to be text agents, for new installs
   await installConnectionProfiles(store); // once: the old single connection becomes a saved profile (D-020)
   // once: the built-in preset as editable data (D-021); deleting it later doesn't bring it back
   if (!(await store.getAppSetting("starterPresets"))) {

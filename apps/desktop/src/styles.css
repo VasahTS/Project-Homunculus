@@ -4232,3 +4232,38 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .chips-read.lines .item-chip { position: relative; padding: 0 0 0 12px; border-radius: 0; background: transparent; font-size: inherit; }
 .chips-read.lines .item-chip::before { content: ""; position: absolute; left: 2px; top: 0.62em; width: 4px; height: 4px; border-radius: 50%; background: var(--label-2); }
 .fv-edit.fv-edit-list { display: block; min-height: 2.6em; white-space: pre-wrap; }
+
+/* ---- Cues (D-113): Library → Cues, the editor, Try It, the Scene's values. Same look as the agent editor. */
+.cue-empty { display: grid; align-content: start; gap: 12px; padding: 32px 28px; max-width: 880px; }
+.cue-empty h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.cue-examples { margin: 4px 0; }
+.cue-card { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-group); border: 1px solid var(--glass-edge); background: var(--bg, transparent); }
+.cue-card .row-line.wrap > span { color: var(--label-2); font-size: 13px; }
+.row-line > .cue-key, .cue-key { flex: 0 0 120px; width: 120px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; padding: 4px 6px; }
+.cue-key.bad { border-color: var(--warn); outline-color: var(--warn); }
+.cue-kind { font-size: 13px; font-weight: 600; }
+.row-line > .cue-val, .cue-val { flex: 0 1 150px; width: 150px; padding: 4px 6px; font-size: 13px; }
+.cue-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--label-2); }
+.cue-conds { display: grid; gap: 6px; }
+.cue-cond > input:not(.cue-val) { flex: 0 1 180px; }
+.cue-rule { display: grid; gap: 6px; padding: 8px 10px; border-radius: calc(7px * var(--round)); background: var(--group); }
+.cue-rule-n { font-size: 12px; font-weight: 600; color: var(--label-3); text-transform: none; }
+.cue-texts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cue-text { border-radius: calc(7px * var(--round)); background: var(--group); }
+.cue-text.off { opacity: 0.6; }
+.cue-text-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; padding: 8px 10px; border: 0; background: transparent; color: var(--label); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.cue-text-head b { flex: 1 1 200px; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cue-text.open .cue-text-head { border-bottom: 1px solid var(--separator); }
+.cue-text-body { display: grid; gap: 8px; padding: 10px; }
+.cue-text-body textarea { width: 100%; }
+.cue-words { display: grid; gap: 6px; }
+.cue-try { display: grid; gap: 10px; }
+.cue-try h4 { margin: 6px 0 0; font-size: 13px; font-weight: 600; }
+.cue-try-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+.cue-try-text { margin: 6px 0 2px; padding: 8px 10px; border-radius: calc(7px * var(--round)); background: var(--fill); white-space: pre-wrap; font-family: var(--font-prose, inherit); font-size: 13px; }
+.ae-cue-hint { margin: 0; font-size: 12px; }
+.scene-cues { margin-top: 8px; }
+.scene-cue-input { width: 100%; min-width: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: calc(6px * var(--round)); background: transparent; color: var(--label); font: inherit; }
+.scene-cue-input:hover:not(:disabled) { border-color: var(--separator); }
+.scene-cue-input:focus { border-color: var(--accent); background: var(--fill); }
+@media (max-width: 760px) { .cue-key, .cue-val { width: 96px; } }

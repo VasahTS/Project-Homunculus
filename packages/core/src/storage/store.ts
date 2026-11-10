@@ -278,6 +278,33 @@ export class SqlStore implements StateRepository, MessageTree {
     return c;
   }
 
+  /**
+   * Changes every setup layer (the Default, every story and Kit, every chat — the Trash too). `fix` returns the new layer, or
+   * null when this one doesn't change. A chat keeps its place in the "most recent" order. Returns how many layers changed.
+   */
+  async rewriteSetupLayers(fix: (layer: SetupLayer) => SetupLayer | null): Promise<number> {
+    let n = 0;
+    const d = fix(await this.getDefaultSetup());
+    if (d) { await this.setDefaultSetup(d); n++; }
+    for (const table of ["stories", "kits"] as const) {
+      const rows = await this.db.select<{ id: string; data: string }>(`SELECT id, data FROM ${table}`);
+      for (const r of rows) {
+        const doc = (table === "stories" ? Story : Kit).parse(JSON.parse(r.data));
+        const l = fix(doc.setup);
+        if (!l) continue;
+        await this.db.execute(`UPDATE ${table} SET data = ? WHERE id = ?`, [JSON.stringify((table === "stories" ? Story : Kit).parse({ ...doc, setup: l })), r.id]);
+        n++;
+      }
+    }
+    for (const s of await this.allSessions()) {
+      const l = fix(s.setup);
+      if (!l) continue;
+      await this.db.execute("UPDATE sessions SET data = ? WHERE id = ?", [JSON.stringify(Session.parse({ ...s, setup: l })), s.id]);
+      n++;
+    }
+    return n;
+  }
+
   /** The cues with these ids, in that order (unknown ids are skipped). */
   async cuesForUse(ids: string[]): Promise<Cue[]> {
     const out: Cue[] = [];

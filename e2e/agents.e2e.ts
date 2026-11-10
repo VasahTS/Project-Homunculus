@@ -17,7 +17,7 @@ test("Library → Agents: the starter examples in a table, a list view, and an e
   await page.goto("/");
   await openLibrary(page, "Agents");
   const table = page.getByTestId("agent-table");
-  await expect(table.getByTestId("agent-row")).toHaveCount(10);
+  await expect(table.getByTestId("agent-row")).toHaveCount(8); // D-113: the two "No AI call" starters are cues now
   await page.getByRole("radio", { name: "Choices" }).click();
   await expect(table.getByTestId("agent-row")).toHaveCount(1);
   await expect(table.getByTestId("agent-row")).toContainText("CYOA Choices");
@@ -34,19 +34,14 @@ test("Library → Agents: the starter examples in a table, a list view, and an e
   await expect(page.getByTestId("agent-list")).toContainText("Line Editor");
 });
 
-test("a new agent of the 'adds rules' kind goes into the prompt as written", async ({ page }) => {
+test("a new 'adds to the prompt' agent makes its own AI call; a fixed text is a cue now (D-113)", async ({ page }) => {
   await page.goto("/");
   await openLibrary(page, "Agents");
   await page.getByRole("button", { name: "New Agent" }).click();
   const editor = page.getByTestId("agent-editor");
-  await editor.getByLabel("Agent name").fill("Rain");
-  await editor.getByLabel("Agent instructions").fill("It is raining on {{user}}.");
-  await expect(editor.getByTestId("agent-save-state")).toHaveText("✓ Saved");
-  await openSession(page);
-  await turnOn(page, "Rain");
-  await openTab(page, "prompt");
-  await page.getByRole("button", { name: "Preview Prompt", exact: true }).click();
-  await expect(page.getByTestId("prompt-preview")).toContainText("It is raining on User.");
+  await expect(editor.getByRole("radio", { name: /Its Own AI Call/ })).toHaveAttribute("aria-checked", "true");
+  await expect(editor.getByRole("radio", { name: /No AI Call/ })).toHaveCount(0);
+  await expect(editor.getByTestId("agent-cue-hint")).toContainText("Library → Cues");
 });
 
 test("choices become buttons and a click sends them; a note waits under the reply", async ({ page }) => {
@@ -125,11 +120,11 @@ test("a story switches an agent on for its chats", async ({ page }) => {
   await create.getByRole("button", { name: /Narrated adventure/ }).click();
   await create.getByLabel("An empty story").check();
   await create.getByTestId("setup-agents").getByRole("button", { name: "Choose Agents…" }).click();
-  await page.getByTestId("setup-agents-sheet").getByLabel("Don't Write for User").check();
+  await page.getByTestId("setup-agents-sheet").getByLabel("Continuity").check();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("setup-agents-sheet")).toBeHidden();
   await create.getByTestId("create-story").click();
-  await expect(page.getByTestId("story-setup").getByTestId("setup-agents-summary")).toContainText("Don't Write for User");
+  await expect(page.getByTestId("story-setup").getByTestId("setup-agents-summary")).toContainText("Continuity");
   await page.getByTestId("play-story").click();
   await page.getByTestId("new-chat-sheet").getByTestId("start-chat").click();
   await expect(page.getByTestId("agents-menu-button")).toHaveAccessibleName("Agents: 1 on in this chat");

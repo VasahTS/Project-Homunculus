@@ -57,7 +57,7 @@ interface Cell { t: Tracker; f: TrackerField; value: unknown; was: unknown; mine
 /** A person (or a pair) of one tracker, with the accessors for their values. */
 interface Person { key: string; t: Tracker; schema: TrackerSchema; id: string; name: string; you: boolean; here: boolean; pair: boolean; cells: Cell[]; /** Every tracker that keeps this person (D-105). */ trackers?: Tracker[] }
 
-export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshKey, trackers, running, onRun, avatars, onToggle, onToggleAll, onPickSet, onEditTracker, onNewTracker, onChanged, onChangeSession, onSaveToVault }: {
+export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshKey, trackers, running, onRun, avatars, onToggle, onToggleAll, onPickSet, onEditTracker, onNewTracker, onChanged, onChangeSession, onSaveToVault, extra }: {
   svc: AppServices;
   session: Session;
   /** The story's layer, for a story chat: trackers it turns on are on here too (D-031). */
@@ -82,6 +82,8 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
   onChangeSession?: ((s: Session) => void) | undefined;
   /** "Save to the Vault" for someone the tracker brought in (round 3, D-036). */
   onSaveToVault?: ((d: { name: string; schemaId: string; values: Record<string, unknown> }) => void) | undefined;
+  /** More of the scene at the end (the cues' values, D-113). */
+  extra?: ReactNode;
 }) {
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState("");
@@ -426,6 +428,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
           </section>
         </div>
       )}
+      {extra}
     </div>
   );
 }

@@ -38,14 +38,14 @@ const TrialCtx = createContext<{ svc: AppServices; connection: ConnectionState; 
 /** A thing of the app the user can add as context (from App's lists). */
 export interface LibraryEntry { kind: AssistantReadKind; id: string; name: string; line: string; avatar?: Avatar | undefined }
 
-const KIND_LABEL: Record<AssistantReadKind, string> = { character: "Characters", persona: "Personas", narrator: "Narrators", npc: "NPCs", story: "Stories", kit: "Kits", lorebook: "Lorebooks", tracker: "Trackers", preset: "Presets", chat: "Chats", agent: "Agents", regex: "Regex", quickreply: "Quick Replies", director: "Directors" };
-const KIND_ONE: Record<AssistantReadKind, string> = { character: "Character", persona: "Persona", narrator: "Narrator", npc: "NPC", story: "Story", kit: "Kit", lorebook: "Lorebook", tracker: "Tracker", preset: "Preset", chat: "Chat", agent: "Agent", regex: "Regex script", quickreply: "Quick Reply set", director: "Director" };
+const KIND_LABEL: Record<AssistantReadKind, string> = { character: "Characters", persona: "Personas", narrator: "Narrators", npc: "NPCs", story: "Stories", kit: "Kits", lorebook: "Lorebooks", tracker: "Trackers", preset: "Presets", cue: "Cues", chat: "Chats", agent: "Agents", regex: "Regex", quickreply: "Quick Replies", director: "Directors" };
+const KIND_ONE: Record<AssistantReadKind, string> = { character: "Character", persona: "Persona", narrator: "Narrator", npc: "NPC", story: "Story", kit: "Kit", lorebook: "Lorebook", tracker: "Tracker", preset: "Preset", cue: "Cue", chat: "Chat", agent: "Agent", regex: "Regex script", quickreply: "Quick Reply set", director: "Director" };
 // unslop (D-074): one line-icon set instead of geometric glyphs
-const KIND_ICON: Record<AssistantReadKind, keyof typeof ICONS> = { character: "characters", persona: "persona", narrator: "scroll", npc: "figure", story: "book", kit: "grid", lorebook: "book", tracker: "trackers", preset: "preset", chat: "send", agent: "sparkle", regex: "search", quickreply: "bolt", director: "masks" };
+const KIND_ICON: Record<AssistantReadKind, keyof typeof ICONS> = { character: "characters", persona: "persona", narrator: "scroll", npc: "figure", story: "book", kit: "grid", lorebook: "book", tracker: "trackers", preset: "preset", cue: "bolt", chat: "send", agent: "sparkle", regex: "search", quickreply: "bolt", director: "masks" };
 const KindMark = ({ kind }: { kind: AssistantReadKind }) => <Icon name={KIND_ICON[kind]} size={14} />;
 
 
-const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "chat", "story", "narrator", "npc", "kit", "lorebook", "preset", "tracker", "agent", "regex", "quickreply", "director"];
+const KIND_ORDER: AssistantReadKind[] = ["character", "persona", "chat", "story", "narrator", "npc", "kit", "lorebook", "preset", "tracker", "agent", "cue", "regex", "quickreply", "director"];
 
 // ------------------------------------------------------------------ state shared by the sidebar and the view
 
@@ -1082,7 +1082,7 @@ function RequestView({ chat, messageId, settings, svc, onClose }: { chat: Assist
 
 // ------------------------------------------------------------------ drafts in replies ("Draft first")
 
-const KIND_NAME: Record<AssistantKind, string> = { persona: "Persona", character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator", preset: "Preset" };
+const KIND_NAME: Record<AssistantKind, string> = { persona: "Persona", character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator", preset: "Preset", cue: "Cue" };
 
 /** A reply's text with its draft blocks drawn as draft cards (Save to library, Copy, Show JSON). */
 /** Flint's sources row (D-067): site letters + "N read · M found"; open = the list of pages. */
