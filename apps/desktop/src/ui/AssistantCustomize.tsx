@@ -90,18 +90,18 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
           {!connection.configs[a.toolHelper.connectionId ?? ""] && <p className="hint">Select a helper connection from Settings → Connections.</p>}
           <label className="cust-field"><span>Helper reading calls per consultation</span><input aria-label="Helper reading calls per consultation" type="number" min={1} max={20} value={a.toolHelper.maxSteps} onChange={e => set({ toolHelper: { ...a.toolHelper!, maxSteps: Math.max(1, Math.min(20, Math.round(Number(e.target.value) || 1))) } })} /><small className="hint">Up to two consultations per reply. Briefs contain up to 2,000 characters; Read retrieves the source text.</small></label>
         </div>}
+        <div className="cust-grid">
+          <label className="cust-field"><span>Thinking</span><select value={a.effort} onChange={(e) => set({ effort: e.target.value as AssistantPersona["effort"] })}><option value="">Model's default</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+          <label className="cust-field"><span>Temperature</span><input type="number" min={0} max={2} step={0.1} value={a.temperature} onChange={(e) => set({ temperature: Math.min(2, Math.max(0, Number(e.target.value) || 0)) })} /></label>
+          <label className="cust-field"><span>Steps per message</span><input type="number" min={1} max={100} value={a.maxSteps} onChange={(e) => set({ maxSteps: Math.min(100, Math.max(1, Math.round(Number(e.target.value) || 1))) })} /><small className="hint">Tool calls before it stops and asks.</small></label>
+          <label className="cust-field"><span>New items</span><select value={a.saveNew ? "now" : "ask"} onChange={(e) => set({ saveNew: e.target.value === "now" })}><option value="now">Save right away (Undo)</option><option value="ask">Ask me first</option></select><small className="hint">Changes to your items always wait for your OK.</small></label>
+        </div>
         {/* D-115: one vision model for every assistant (settings-wide) */}
         <h4 className="cust-sub">Pictures (all assistants)</h4>
         <p className="hint">For Pictures, Use: describes pictures for a model that can't see them. Your model reads the description and can ask it about details. Leave it empty to send pictures as they are.</p>
         <div data-testid="assistant-vision-settings">
           <ModelRow svc={svc} connection={connection} explicit labelPrefix="Pictures " connectionId={s.vision.connectionId} model={s.vision.model}
             onChange={(connectionId, model) => put({ ...s, vision: { connectionId, model } })} />
-        </div>
-        <div className="cust-grid">
-          <label className="cust-field"><span>Thinking</span><select value={a.effort} onChange={(e) => set({ effort: e.target.value as AssistantPersona["effort"] })}><option value="">Model's default</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-          <label className="cust-field"><span>Temperature</span><input type="number" min={0} max={2} step={0.1} value={a.temperature} onChange={(e) => set({ temperature: Math.min(2, Math.max(0, Number(e.target.value) || 0)) })} /></label>
-          <label className="cust-field"><span>Steps per message</span><input type="number" min={1} max={100} value={a.maxSteps} onChange={(e) => set({ maxSteps: Math.min(100, Math.max(1, Math.round(Number(e.target.value) || 1))) })} /><small className="hint">Tool calls before it stops and asks.</small></label>
-          <label className="cust-field"><span>New items</span><select value={a.saveNew ? "now" : "ask"} onChange={(e) => set({ saveNew: e.target.value === "now" })}><option value="now">Save right away (Undo)</option><option value="ask">Ask me first</option></select><small className="hint">Changes to your items always wait for your OK.</small></label>
         </div>
         <div className="cust-actions">
           <Button small onClick={() => add(a)}>Duplicate</Button>
