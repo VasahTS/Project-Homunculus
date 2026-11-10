@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Sidebar folders, code-block wrap, a smarter Assistant (2026-11-10, night) — CLAUDE — D-108…D-111
+
+- **Sidebar (D-108):** Pinned → Folders → Recent (10, one-line rows) in Play and the Assistant; Settings → Chat → Sidebar → Recent chats. `ui/SidebarChats.tsx`, `chatOrganization.ts`.
+- **Code blocks wrap (D-109)** in every message.
+- **Assistant (D-110):** reads chats (`read_chat`, numbered like the chat, ranges, search; `#41` links open the chat there), agents, regex, Quick Replies, Directors; `about` explains every part of the app; the screen you came from becomes dashed chips; Add context has Chats (with a range) and the new kinds.
+- **Try It (D-111):** under a change (card, narrator, lorebook, preset copy) — asks first with its cost, then before | after; nothing saved (`trialReply` + `overlayStore` in core).
+- **To try (Windows):** pin a chat, make a folder from "⋯", drag a chat in, fold it; Settings → Chat → Recent chats. Open a chat → switch to Assistant → ask "why does she talk like a narrator around message 10?" → it should read the chat and link #N (click it). "Improve her description" → Try It.
+- **Next (UI-PLAN "The Assistant, smarter"):** step 4 (write Stories, NPCs, agents, regex, Quick Replies, Director notes), step 5 (plan + choice buttons), step 6 (recipes); the Assistant running Try It by itself when asked.
+
 ## Assistant presets: memories and rules wrap (2026-11-10) — CLAUDE — D-107
 
 - Daniel: the preset's Memory list was one line per memory, hard to read and edit. Rules and memories now wrap and grow (`AutoText` in `ui/kit.tsx`); Enter adds, Shift+Enter is a new line; a memory shows its date and tokens.

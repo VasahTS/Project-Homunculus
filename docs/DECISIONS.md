@@ -1171,3 +1171,45 @@ Daniel (translated, with a screenshot of Assistant → Customize → Presets →
 
 Signed: **CLAUDE**.
 
+## D-108 — Sidebar chats: Pinned → folders → a compact Recent, in Play and the Assistant (2026-11-10)
+
+Daniel (translated): "a limit for the latest chats, with folders for these chats too, to organize; look at Flint"; "10 recent, but make them smaller so the UI isn't busy"; chats of a Story may go in folders "saying where they are from"; the Assistant's Recents too. Draft approved: `docs/drafts/chat-folders/index.html` (boards 1–4).
+- One component, `ui/SidebarChats.tsx`, for both sidebars: **Pinned** (top, never counted), **Folders** (one level; chevron, name, count; fold; "Show N more" after 8; "Drag chats here" when empty) and **Recent** (chats in no folder; Settings → Chat → Sidebar → **Recent chats**: 3 / 5 / **10** / 20 / All; "Show N more").
+- Rows are one line, 26 px: the chat's name, where it is from in grey (the story or the character), the time ("5h", "2d"); "⋯" on hover; the last line moved to the tooltip; a chat that is writing shows "writing…" (with ■) in place of the time.
+- "⋯": Pin / Unpin, Move to Folder (the folders, New Folder…; shown inside the same menu so the sidebar never clips it), Remove from Folder, Rename, Open the Story Page / Open <name>'s Sheet, Move to Trash (Assistant: Delete Chat). Drag a row onto a folder, or onto Recent to take it out. A folder's "⋯": Rename, Delete Folder (its chats go back to Recent).
+- From Flint (`ChatsNav.tsx`): a folded folder still shows the open chat and any chat that is writing.
+- A folder is only a sidebar grouping: the chat still lives on its character's sheet or its story's page. Stored in app settings (`sidebar.chats`, `chatOrganization.ts`); ids of chats that are gone are not shown, so a chat restored from the Trash comes back to its folder. The sidebar search still lists every matching chat.
+- Tests: `chatOrganization.test.ts`; click tests `chat-folders` (new), `round3` (10 rows, Show N more).
+
+Signed: **CLAUDE**.
+
+## D-109 — Code blocks wrap in every message (2026-11-10)
+
+Daniel: "the code block's word wrap doesn't work and it breaks the whole UI when it shows". Chat messages kept `white-space: pre`, so a long line scrolled sideways in the chat and, in narrow places (the Director, the inspector), pushed the panel wider. `.msg-format pre` now wraps (`pre-wrap`, `overflow-wrap: anywhere`) everywhere a message is drawn, never wider than its column; spaces, indentation and Copy stay exact. Click test in `message-format.e2e.ts`.
+
+Signed: **CLAUDE**.
+
+## D-110 — The Assistant reads chats and the rest of the app, knows the screen it came from, and has a guide for every part (2026-11-10)
+
+Daniel approved the text and draft ("The Assistant, smarter", steps 1 + 2) and asked (translated): "add context for Stories, NPCs, regex, quick replies and Director", and "for each one, its context (what it means in the app), its features etc., for the assistant to consult and do things properly".
+- **Reads more:** `AssistantReadKind` adds `chat`, `agent`, `regex`, `quickreply`, `director` (read-only; writing them is step 4). `find` lists chats only when asked for that kind, and finds chats by what was said in them. `assistant/appReads.ts`.
+- **`read_chat`:** a chat's messages on the branch it shows (or a named branch), numbered as the chat numbers them; the last 30 by default, `from`/`to`, `search`; long pages stop early with the next range. Never writes messages.
+- **Message links:** replies cite `[#41](https://open.homunculus.invalid/chat/<id>/41)`; clicking it opens that chat at message 41 of the branch it shows (`OPEN_CHAT_EVENT`, handled by App; `.invalid` never reaches a real site).
+- **`about`:** what each part of the app is and does (app, character, persona, lorebook, preset, story, kit, narrator, npc, tracker, agent, regex, quickreply, director, chat, memory, and "prompt": what decides how the AI writes, and where to look when it misbehaves). Once per chat, like `guide`. `assistant/about.ts`. The core rules tell the Assistant when to ask.
+- **Knows the screen:** switching to the Assistant from Play adds what was on screen as dashed chips (a chat + its character or story; a character, story, Kit, lorebook, preset or persona page); ✕ removes them.
+- **Add context:** tabs for Chats (whole, or a range "from # to #", which goes in the chip's name), Agents, Regex, Quick Replies and Directors.
+- Tests: `app-reads.test.ts`; click tests `assistant-context` (new); `assistant` and the offline test AI start from an empty box / leave chats out of moves.
+
+Signed: **CLAUDE**.
+
+## D-111 — Try It on an Assistant change: asks first, then before | after (2026-11-10)
+
+Daniel (translated): "ask before doing it; not needed most of the time, but great for testing more technical things".
+- Under a change to a card, a narrator or a lorebook (waiting or applied), or a preset copy: "Test this change? The latest reply of [chat ▾] written twice…" with **Try It**, **Not Now** and the cost ("2 calls · <model> · nothing is saved"). Chats in the Assistant's context come first in the list, then chats that use the item, then recent ones.
+- **Try It** writes the chat's latest reply (or the reply to your last message) twice, as things are and with the change, side by side; Try Again; Stop.
+- Core: `TurnPipeline.trialReply` builds the same prompt as Preview Prompt over a **read-only overlay store** (`overlayStore`: replaced characters, lorebooks, narrators, or the chat's preset) and streams one answer. Nothing is written: no message, record, timer or state. Agents that need their own call don't run (as in Preview Prompt).
+- Not yet: the Assistant running Try It by itself when asked ("test it").
+- Tests: `packages/core/test/trial.test.ts`; click test `assistant-trial` (new; checks no message was added).
+
+Signed: **CLAUDE**.
+
