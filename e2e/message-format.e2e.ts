@@ -37,3 +37,23 @@ test("narration, dialogue, bold and the AI's colors are drawn; scripts never; li
   await expect(page.getByTestId("settings-messages-body").getByTestId("msg-format").locator("em")).toHaveCount(0);
   await page.getByRole("switch", { name: "Formatting (Markdown)" }).click();
 });
+
+test("a long code block wraps inside the message and never widens the chat (D-109)", async ({ page }) => {
+  const long = "Status: " + "the party walks through the long corridor of the archive and finds nothing at all ".repeat(5);
+  const text = `*She waits.*\n\n\`\`\`\n${long}\n    indented line\nLocation: The_Archive_${"x".repeat(160)}\n\`\`\`\n\nAfter.`;
+  await page.goto("/");
+  await page.evaluate(async (t) => {
+    const svc = await (await import("/src/core-instance.ts" as string)).servicesReady;
+    const c = (await svc.store.listCharacters()).find((x: { name: string }) => x.name === "Lyra");
+    await svc.store.saveCharacter({ ...c, firstMessages: [t] });
+  }, text);
+  await newChatWith(page);
+  const pre = page.getByTestId("msg-format").first().locator("pre");
+  await expect(pre).toBeVisible();
+  const m = await pre.evaluate((el) => ({ fits: el.scrollWidth <= el.clientWidth + 1, rows: el.clientHeight / parseFloat(getComputedStyle(el).lineHeight || "20"), text: el.textContent ?? "" }));
+  expect(m.fits).toBe(true);
+  expect(m.rows).toBeGreaterThan(4); // the long lines wrapped
+  expect(m.text).toContain("    indented line"); // spaces kept
+  const page_ = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth <= innerWidth, msgs: (() => { const e = document.querySelector('[data-testid="messages"]') as HTMLElement; return e.scrollWidth <= e.clientWidth + 1; })() }));
+  expect(page_).toEqual({ doc: true, msgs: true });
+});

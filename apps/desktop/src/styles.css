@@ -2355,7 +2355,12 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .msg-format strong, .msg-format b { font-weight: 600; }
 .msg-format blockquote { margin: 0.4em 0 0.8em; padding: 2px 0 2px 12px; border-left: 3px solid var(--separator); color: var(--label-2); }
 .msg-format code { font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace); font-size: 0.88em; background: var(--fill); padding: 2px 4px; border-radius: calc(5px * var(--round)); }
-.msg-format pre { background: var(--fill); padding: 10px 12px; border-radius: var(--radius-control); overflow-x: auto; white-space: pre; }
+/* code blocks wrap everywhere a message is drawn (chat, Director, Assistant, previews): a long line never widens its column
+   or the panel around it; spaces, indentation and Copy stay exact (D-109, Daniel: "word wrap doesn't work and it breaks the UI") */
+.msg-format { min-width: 0; max-width: 100%; }
+.msg-format pre { background: var(--fill); padding: 10px 12px; border-radius: var(--radius-control); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+  max-width: 100%; min-width: 0; box-sizing: border-box; overflow-x: hidden; tab-size: 4; }
+.msg-format pre code { white-space: inherit; overflow-wrap: inherit; word-break: inherit; }
 .msg-format pre code { background: none; padding: 0; }
 .msg-format ul, .msg-format ol { margin: 0.2em 0 0.8em; padding-left: 1.4em; }
 .msg-format hr { border: 0; border-top: 1px solid var(--separator); margin: 1em 0; }
@@ -2668,7 +2673,7 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .det-step-b pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 220px; overflow: auto; background: var(--fill); padding: 6px 8px; border-radius: calc(6px * var(--round)); color: var(--label-2); }
 @media (max-width: 1100px) { .asst-wrap.with-details { grid-template-columns: minmax(0, 1fr); } .asst-wrap.with-details .det { position: absolute; right: 0; top: 0; bottom: 0; width: min(340px, 90vw); z-index: 20; box-shadow: var(--shadow-pop); background: var(--pop); } .asst-wrap { position: relative; } }
 /* code blocks: Copy (every message) */
-.msg-format .code-wrap { position: relative; }
+.msg-format .code-wrap { position: relative; min-width: 0; max-width: 100%; }
 .msg-format .code-copy { position: absolute; top: 6px; right: 6px; border: 1px solid var(--separator); background: var(--pop); color: var(--label-2); font: 500 12px var(--font-ui, inherit); padding: 2px 8px; border-radius: calc(6px * var(--round)); cursor: pointer; opacity: 0; transition: opacity var(--dur-fast); }
 .msg-format .code-wrap:hover .code-copy, .msg-format .code-copy:focus { opacity: 1; }
 .msg-format .code-copy:hover { color: var(--label); }
