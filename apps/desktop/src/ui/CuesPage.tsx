@@ -125,6 +125,7 @@ export function CuesPage({ svc, lead, cues, stories, sessions, characters, defau
           detail={selected ? (
             <CueEditor key={selected.id} cue={selected} svc={svc} characters={characters} stories={stories} sessions={sessions} defaultSetup={defaultSetup}
               activeSessionId={activeSessionId} onSetDefaultSetup={onSetDefaultSetup} onSaved={onChanged} onExport={onExport}
+              onDuplicate={(c) => void add(copyCue(c, taken, `${c.name} (copy)`))}
               onDelete={async () => { await svc.store.cues.delete(selected.id); await onSetDefaultSetup(layerWithCue(defaultSetup, selected.id, false)); await onChanged(); onSelect(null); }} />
           ) : <EmptyDetail text="Select a cue to edit it." />}
         />
@@ -159,10 +160,10 @@ function ExampleCards({ onPick }: { onPick: (id: string) => void }) {
 type TryResult = { texts: CueOutput[]; report: CueReport; before: Record<string, unknown> | undefined };
 type Paths = Array<{ value: string; label: string }>;
 
-function CueEditor({ cue, svc, characters, stories, sessions, defaultSetup, activeSessionId, onSetDefaultSetup, onSaved, onExport, onDelete }: {
+function CueEditor({ cue, svc, characters, stories, sessions, defaultSetup, activeSessionId, onSetDefaultSetup, onSaved, onExport, onDuplicate, onDelete }: {
   cue: Cue; svc: AppServices; characters: Character[]; stories: Story[]; sessions: Session[]; defaultSetup: SetupLayer; activeSessionId: string | null;
   onSetDefaultSetup: (patch: Partial<SetupLayer>) => Promise<void> | void;
-  onSaved: () => Promise<void>; onExport: (id: string, name: string) => void; onDelete: () => Promise<void>;
+  onSaved: () => Promise<void>; onExport: (id: string, name: string) => void; onDuplicate: (c: Cue) => void; onDelete: () => Promise<void>;
 }) {
   const [d, setD] = useState<Cue>(cue);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
@@ -210,7 +211,8 @@ function CueEditor({ cue, svc, characters, stories, sessions, defaultSetup, acti
         <span className={status === "error" ? "error-text" : "hint"} role="status" data-testid="cue-save-state">{status === "saving" ? "Saving…" : status === "error" ? "Not saved" : "✓ Saved"}</span>
         <OnPill d={d} set={set} characters={characters} stories={stories} sessions={sessions} defaultSetup={defaultSetup} onSetDefaultSetup={onSetDefaultSetup} />
         <Button small variant={trying ? "prominent" : "bordered"} data-testid="cue-try" aria-pressed={trying} onClick={() => { setTrying(!trying); setResult(null); }}>Try It</Button>
-        <MoreMenu d={d} set={set} onExport={() => { void flush().then((ok) => { if (ok) onExport(d.id, d.name || "cue"); }); }} onDelete={onDelete} />
+        <MoreMenu d={d} set={set} onExport={() => { void flush().then((ok) => { if (ok) onExport(d.id, d.name || "cue"); }); }}
+          onDuplicate={() => { void flush().then((ok) => { if (ok) onDuplicate(d); }); }} onDelete={onDelete} />
       </div>
       <div className="editor-body cx-body">
         {error && <div className="error-bar inline" role="alert">{error}</div>}
@@ -220,7 +222,7 @@ function CueEditor({ cue, svc, characters, stories, sessions, defaultSetup, acti
 
         <section className="cx-sec" id={`${d.id}-writes`} aria-label="Writes">
           {d.groups.map((g, i) => (
-            <PartCard key={g.key + i} g={g} n={i + 1} many={d.groups.length > 1} values={d.values} paths={paths} result={trying ? result : null}
+            <PartCard key={g.key + i} g={g} n={i + 1} many={d.groups.length > 1} values={d.values} signals={d.signals} paths={paths} result={trying ? result : null}
               onChange={(next) => set({ groups: d.groups.map((x, j) => (j === i ? next : x)) })}
               onRemove={() => set({ groups: d.groups.filter((_, j) => j !== i) })} />
           ))}
@@ -337,14 +339,17 @@ function OnPill({ d, set, characters, stories, sessions, defaultSetup, onSetDefa
 }
 
 /** ⋯: Export, Author, where values live, Delete. */
-function MoreMenu({ d, set, onExport, onDelete }: { d: Cue; set: (p: Partial<Cue>) => void; onExport: () => void; onDelete: () => Promise<void> }) {
+function MoreMenu({ d, set, onExport, onDuplicate, onDelete }: { d: Cue; set: (p: Partial<Cue>) => void; onExport: () => void; onDuplicate: () => void; onDelete: () => Promise<void> }) {
   const { open, setOpen, box } = usePop();
   return (
     <span className="cx-pop-wrap" ref={box}>
       <IconButton label="More" aria-haspopup="dialog" aria-expanded={open} data-testid="cue-more" onClick={() => setOpen(!open)}><Icon name="dots" size={15} /></IconButton>
       {open && (
         <div className="cx-pop" role="dialog" aria-label="More">
-          <Button small data-testid="cue-export" title="Save this cue to a file, to keep or share" onClick={() => { setOpen(false); onExport(); }}>Export…</Button>
+          <div className="row-line wrap">
+            <Button small data-testid="cue-duplicate" title="A copy of this cue, off, to change without touching this one" onClick={() => { setOpen(false); onDuplicate(); }}>Duplicate</Button>
+            <Button small data-testid="cue-export" title="Save this cue to a file, to keep or share" onClick={() => { setOpen(false); onExport(); }}>Export…</Button>
+          </div>
           <label className="ae-fld"><span>Author</span><input aria-label="Cue author" placeholder="Optional" value={d.author ?? ""} onChange={(e) => set({ author: e.target.value || undefined })} /></label>
           <small className="hint">Values live in the scene as <code>{d.namespace}</code>; macros read them as <code>{`{{state.${d.namespace}.name}}`}</code>.</small>
           <hr />
@@ -373,7 +378,7 @@ function HowItWorks({ d, result, onJump }: { d: Cue; result: TryResult | null; o
             ))}
         </div>
       ) : d.groups.map((g) => {
-        const sv = stageView(g, d.values);
+        const sv = stageView(g, d.values, d.signals);
         return <div key={g.key} className="cx-it">{only ? null : <b>{g.name || g.key}</b>}
           <span>{partSentence(g, sv?.key).map((p) => p.text).join("")} {g.items.length} {g.items.length === 1 ? "text" : "texts"}{g.pick === "all" && g.items.some(isAlways) && g.items.some((t) => !isAlways(t)) ? ` (${g.items.filter(isAlways).length} always)` : ""}.</span></div>;
       })}
@@ -485,8 +490,8 @@ function TryBand({ svc, cue, sessions, initialSessionId, onResult, onClose }: {
 
 const SHOW = 10;
 
-function PartCard({ g, n, many, values, paths, result, onChange, onRemove }: {
-  g: CueGroup; n: number; many: boolean; values: CueValue[]; paths: Paths; result: TryResult | null;
+function PartCard({ g, n, many, values, signals, paths, result, onChange, onRemove }: {
+  g: CueGroup; n: number; many: boolean; values: CueValue[]; signals: CueSignal[]; paths: Paths; result: TryResult | null;
   onChange: (g: CueGroup) => void; onRemove: () => void;
 }) {
   const [settings, setSettings] = useState(false);
@@ -496,7 +501,7 @@ function PartCard({ g, n, many, values, paths, result, onChange, onRemove }: {
   const [onlyHits, setOnlyHits] = useState(false);
   const up = (patch: Partial<CueGroup>) => onChange({ ...g, ...patch });
   const upItem = (id: string, patch: Partial<CueText>) => up({ items: g.items.map((x) => (x.id === id ? { ...x, ...patch } : x)) });
-  const sv = stageView(g, values);
+  const sv = stageView(g, values, signals);
   const short = oneOfShort(g.items.map((t) => t.oneOf));
   const report = result?.report.groups.find((x) => x.key === g.key);
   const hits = new Set(report?.picked.map((x) => x.id) ?? []);
@@ -570,7 +575,7 @@ function PartCard({ g, n, many, values, paths, result, onChange, onRemove }: {
               const has = sv.of.get(id)!;
               const next = has.has(stage) ? [...has].filter((x) => x !== stage) : [...has, stage];
               if (!next.length) return;
-              upItem(id, { when: sv.stages.filter((s) => next.includes(s)).map((s) => ({ path: `value.${sv.key}`, op: "equals" as const, value: s })), logic: "any" });
+              upItem(id, { when: sv.stages.filter((s) => next.includes(s)).map((s) => ({ path: sv.path, op: "equals" as const, value: s })), logic: "any" });
             }} />
         ) : <>
           {split && !onlyHits && <div className="cx-sub-h">Always <em>· in every reply · ~{tokensOf(always).toLocaleString()} tokens</em></div>}
@@ -582,7 +587,7 @@ function PartCard({ g, n, many, values, paths, result, onChange, onRemove }: {
         <div className="cx-part-foot">
           {all && g.items.length > SHOW + 2 && <button type="button" className="link quiet" onClick={() => setAll(false)}>Show fewer</button>}
           <span className="grow" />
-          <button type="button" className="link" data-testid="cue-add-text" onClick={() => addText(sv ? { when: [{ path: `value.${sv.key}`, op: "equals", value: sv.stages[1] ?? sv.stages[0]! }] } : undefined)}>+ Add a Text</button>
+          <button type="button" className="link" data-testid="cue-add-text" onClick={() => addText(sv ? { when: [{ path: sv.path, op: "equals", value: (sv.reading ? sv.stages[0] : sv.stages[1] ?? sv.stages[0])! }] } : undefined)}>+ Add a Text</button>
         </div>
       </div>
     </div>
@@ -631,13 +636,20 @@ function StageTable({ g, sv, hits, onlyHits, all, open, rowProps, onToggle, onSh
   g: CueGroup; sv: NonNullable<ReturnType<typeof stageView>>; hits: Set<string> | null; onlyHits: boolean; all: boolean; open: string | null;
   rowProps: (t: CueText) => RowProps; onToggle: (id: string, stage: string) => void; onShowAll: () => void;
 }) {
-  const used = sv.stages.filter((s) => g.items.some((t) => sv.of.get(t.id)?.has(s)) || s !== sv.stages[0]);
+  // a value's starting stage (no scene yet) is left out while no text uses it
+  const used = sv.stages.filter((s) => sv.reading || s !== sv.stages[0] || g.items.some((t) => sv.of.get(t.id)?.has(s)));
   const list = onlyHits && hits ? g.items.filter((t) => hits.has(t.id)) : g.items;
   const shown = !all && !onlyHits && list.length > SHOW + 2 ? list.slice(0, SHOW) : list;
   return <>
     <div className="cx-table-wrap">
       <table className="cx-table" data-testid="cue-stage-table">
-        <thead><tr><th scope="col">Text</th>{used.map((s) => <th key={s} scope="col">{s}</th>)}<th scope="col" className="tk">tokens</th></tr></thead>
+        <thead>
+          <tr><th aria-hidden /><th colSpan={used.length} className="cx-th-group"><span>{sv.reading ? `reading: ${sv.key}` : sv.key}
+            <Help text={sv.reading
+              ? `Each column is an answer the “${sv.key}” reading can give. A dot means the text can go in when that is the answer. Click a dot to switch it.`
+              : `Each column is a stage the cue's “${sv.key}” value can be in (Remembers, below, says when it moves). A dot means the text can go in at that stage. Click a dot to switch it.`} /></span></th><th aria-hidden /></tr>
+          <tr><th scope="col">Text</th>{used.map((s) => <th key={s} scope="col">{s}</th>)}<th scope="col" className="tk">tokens</th></tr>
+        </thead>
         <tbody>
           {shown.map((t) => {
             const rp = rowProps(t);

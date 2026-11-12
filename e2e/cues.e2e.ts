@@ -101,7 +101,8 @@ test("D-119: a value's rules read as sentences, and a part that only tests that 
   await expect(rules.first()).toContainText("close");
   await expect(rules.first()).toContainText("messages ≥ 60");
   const table = editor.getByTestId("cue-stage-table");
-  await expect(table.getByRole("columnheader")).toHaveText(["Text", "guarded", "warming", "close", "tokens"]);
+  await expect(table.locator("thead tr").last().getByRole("columnheader")).toHaveText(["Text", "guarded", "warming", "close", "tokens"]);
+  await expect(table.locator("thead tr").first()).toContainText("stage");
   // "Warming" also at "close": click its dot
   await table.getByRole("button", { name: "Warming at close" }).click();
   await expect(table.getByRole("button", { name: "Warming at close" })).toHaveAttribute("aria-pressed", "true");
@@ -110,4 +111,19 @@ test("D-119: a value's rules read as sentences, and a part that only tests that 
   await rules.first().getByRole("button").click();
   await expect(editor.getByRole("textbox", { name: "Rule value" })).toHaveValue("close");
   await editor.getByRole("button", { name: "Done" }).click();
+  // ⋯ → Duplicate makes an off copy and opens it
+  await editor.getByTestId("cue-more").click();
+  await editor.getByTestId("cue-duplicate").click();
+  await expect(page.getByTestId("cue-editor").getByLabel("Cue name")).toHaveValue("Opens Up Slowly (copy)");
+  await expect(page.getByTestId("cue-row").filter({ hasText: "Opens Up Slowly (copy)" })).toContainText("Off");
+});
+
+test("D-119: a part that tests the clock's part of the day is a table too", async ({ page }) => {
+  await page.goto("/");
+  await openLibrary(page, "Cues");
+  await page.getByTestId("cues-examples").click();
+  await page.getByTestId("cue-example-time-of-day").click();
+  const table = page.getByTestId("cue-editor").getByTestId("cue-stage-table");
+  await expect(table.locator("thead tr").last().getByRole("columnheader")).toHaveText(["Text", "morning", "afternoon", "evening", "night", "tokens"]);
+  await expect(table.locator("thead tr").first()).toContainText("reading: part");
 });

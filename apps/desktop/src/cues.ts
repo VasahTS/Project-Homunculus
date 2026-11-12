@@ -144,31 +144,48 @@ export function valueStages(v: Val): string[] {
   return [...new Set(all)];
 }
 
+/** The fixed answers some readings give, in their natural order (a part that tests one of these is a table too). */
+export function readingStages(s: CueSignal): string[] {
+  if (s.kind === "clock" && s.read === "period") return ["morning", "afternoon", "evening", "night"];
+  if (s.kind === "generation") return ["normal", "swipe", "continue", "impersonate"];
+  if (s.kind === "chance") return ["true", "false"];
+  return [];
+}
+
 /**
- * When every text of a part only tests one value ("phase is early" or "phase is early or mid"), the part reads best as
- * a table: one column per stage. Returns the value and, per text, its stages; null when the part doesn't fit.
+ * When every text of a part only tests one value ("phase is early" or "phase is early or mid") — or one reading with
+ * fixed answers, like the clock's part of the day — the part reads best as a table: one column per stage. Returns
+ * what it tests (`path`: "value.phase", "signal.part"), its name and, per text, its stages; null when it doesn't fit.
  */
-export function stageView(g: CueGroup, values: Val[]): { key: string; stages: string[]; of: Map<string, Set<string>> } | null {
+export function stageView(g: CueGroup, values: Val[], signals: CueSignal[] = []):
+  { key: string; path: string; of: Map<string, Set<string>>; stages: string[]; reading: boolean } | null {
   if (g.items.length < 2) return null;
-  let key = "";
+  let path = "";
   const of = new Map<string, Set<string>>();
   for (const t of g.items) {
     if (t.words?.keys.length || !t.when.length) return null;
     if (t.when.length > 1 && t.logic !== "any") return null;
     const set = new Set<string>();
     for (const c of t.when) {
-      const m = /^value\.([a-z][a-z0-9_]*)$/.exec(c.path);
-      if (!m || c.op !== "equals" || (key && key !== m[1])) return null;
-      key = m[1]!;
+      if (!/^(value|signal)\.[a-z][a-z0-9_]*$/.test(c.path) || c.op !== "equals" || (path && path !== c.path)) return null;
+      path = c.path;
       set.add(String(c.value));
     }
     of.set(t.id, set);
   }
-  const v = values.find((x) => x.key === key);
-  if (!v) return null;
-  const stages = valueStages(v);
+  const [kind, key] = path.split(".") as ["value" | "signal", string];
+  let stages: string[];
+  if (kind === "value") {
+    const v = values.find((x) => x.key === key);
+    if (!v) return null;
+    stages = valueStages(v);
+  } else {
+    const s = signals.find((x) => x.key === key);
+    if (!s) return null;
+    stages = readingStages(s);
+  }
   for (const s of of.values()) for (const x of s) if (!stages.includes(x)) stages.push(x);
-  return stages.length >= 2 ? { key, stages, of } : null;
+  return stages.length >= 2 ? { key, path, stages, of, reading: kind === "signal" } : null;
 }
 
 /** The texts that only one of a "one of" name goes in with: the name shown without the prefix they all share. */

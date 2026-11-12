@@ -4527,3 +4527,12 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .comic-lbl { font: 10.5px var(--font-mono, monospace); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .comic-foot { display: flex; gap: 8px; align-items: center; justify-content: flex-end; border-top: 1px solid var(--separator); padding-top: 10px; margin-top: 12px; flex-wrap: wrap; }
 .comic-foot .hint { margin-right: auto; }
+/* D-119: the Reply tab's cue receipt uses the editor's reads → remembers → writes, stacked */
+.cx-flow.stack { grid-template-columns: minmax(0, 1fr); margin: 4px 0 8px; }
+.cx-flow.stack .cx-col { padding: 8px 10px; }
+.cx-flow.stack .cx-col + .cx-col { border-top: 1px solid var(--separator); }
+.cx-table th.cx-th-group { border-bottom: 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--cx-mem); text-align: center; padding: 8px 4px 0; }
+.cx-th-group span { display: inline-flex; align-items: center; gap: 4px; }
+/* the table's "?" stays visible: it is the one place that says what the columns are (D-119) */
+.cx-th-group .help-btn { opacity: .75; }
+.cx-th-group .help-btn:hover { opacity: 1; }

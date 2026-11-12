@@ -1325,5 +1325,6 @@ Daniel: the Cues tab "is a mess; look yourself"; then, on draft 1 (claude.ai art
 - **Try It inside the editor:** a band picks the chat and message; How it works turns into the result (values with matched words, the stage moving, picks and reasons, tokens) and the rows that go in turn green; "Only what goes in". Edits update it. No modal.
 - Layout: the editor body is one `minmax(0, 1fr)` column and every row wraps, so nothing runs past the edge below 1280 px.
 - Tests: `apps/desktop/src/cues-screen.test.ts`; click tests `e2e/cues.e2e.ts` (updated + stage table/rules).
+- **Follow-up (same day, Daniel: "do 1 to 4"):** ⋯ → **Duplicate** (an off copy, opened); the **Reply tab's "Cues · N"** shows each cue as Reads / Remembers / Writes, stacked, in the editor's colors; the stage table has a **header naming what its columns are** ("stage", "mood", "reading: part") with a "?" that stays visible; the table also works for **readings with fixed answers** (`readingStages`: the clock's part of the day, the generation type, chance yes/no), in their natural order — Time of Day is a table now.
 
 Signed: **CLAUDE**.

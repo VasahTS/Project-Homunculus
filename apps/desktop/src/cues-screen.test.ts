@@ -36,6 +36,15 @@ describe("Cues screen helpers (D-119)", () => {
     expect(stageView(both.groups[0]!, both.values)).toBeNull();
   });
 
+  it("a part that tests the clock's part of the day is a table in the day's order", () => {
+    const c = cue({
+      signals: [{ key: "part", kind: "clock", read: "period" }],
+      groups: [{ key: "t", items: [{ id: "n", text: "N", when: [{ path: "signal.part", op: "equals", value: "night" }] }, { id: "m", text: "M", when: [{ path: "signal.part", op: "equals", value: "morning" }] }] }],
+    });
+    const sv = stageView(c.groups[0]!, c.values, c.signals)!;
+    expect(sv).toMatchObject({ key: "part", path: "signal.part", reading: true, stages: ["morning", "afternoon", "evening", "night"] });
+  });
+
   it("one-of names lose the prefix they share; patterns read as their words", () => {
     const short = oneOfShort(["comprehension-intimacy", "comprehension-behavior", ""]);
     expect(short("comprehension-intimacy")).toBe("intimacy");

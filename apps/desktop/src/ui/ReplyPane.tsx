@@ -289,17 +289,20 @@ export function ReplyCues({ cues }: { cues: NonNullable<GenerationRecord["cues"]
       {cues.map((c) => (
         <details key={c.cueId} className="chg-who" open={cues.length <= 2}>
           <summary><span className="chg-who-name">{c.name}</span><span className="hint">{c.skipped ? `didn't run: ${c.skipped}` : c.groups.some((g) => g.picked.length) ? `${c.tokens} tok` : "nothing this turn"}</span><span className="spacer" /><span className="chev" aria-hidden><Icon name="chevron" size={12} /></span></summary>
-          <ul className="chg-list">
-            {c.signals.map((s) => <li key={`s-${s.key}`} className="chg"><span className="chg-field">{s.key}</span><span className="chg-val"><span className="chg-to">{show(s.value)}</span>{s.detail && <span className="hint"> · {s.detail}</span>}</span></li>)}
-            {c.values.map((v) => (
-              <li key={`v-${v.key}`} className="chg" title={v.why}><span className="chg-field">{v.key}</span>
-                <span className="chg-val">{show(v.before) !== show(v.after) ? <><span className="chg-from">{show(v.before)}</span><span className="chg-arrow" aria-label="to">→</span></> : null}<span className="chg-to">{show(v.after)}</span><span className="hint"> · {v.why}</span></span></li>
-            ))}
-            {c.groups.map((g) => (
-              <li key={`g-${g.key}`} className="chg"><span className="chg-field">{g.name || g.key}</span>
-                <span className="chg-val"><span className="chg-to">{g.picked.length ? g.picked.map((x) => x.title).join(", ") : "nothing"}</span><span className="hint"> · {g.reason}</span></span></li>
-            ))}
-          </ul>
+          {/* D-119: the same reads → remembers → writes as the cue editor's "How it works", stacked for the panel */}
+          {!c.skipped && <div className="cx cx-flow stack">
+            {c.signals.length > 0 && <div className="cx-col read"><h4>Reads</h4>
+              {c.signals.map((s) => <div key={s.key} className="cx-it"><b>{s.key} = <span className="cx-live">{show(s.value)}</span></b>{s.detail && <span>{s.detail}</span>}</div>)}
+            </div>}
+            {c.values.length > 0 && <div className="cx-col mem"><h4>Remembers</h4>
+              {c.values.map((v) => <div key={v.key} className="cx-it" title={v.why}><b>{v.key}</b>
+                <span>{show(v.before) !== show(v.after) ? <>{show(v.before)} → </> : null}<b className="cx-mem-now">{show(v.after)}</b> · {v.why}</span></div>)}
+            </div>}
+            <div className="cx-col write"><h4>Writes</h4>
+              {c.groups.map((g) => <div key={g.key} className="cx-it"><b>{g.name || g.key}{g.picked.length ? ` · ${g.picked.length}` : ""}</b>
+                <span>{g.picked.length ? g.picked.map((x) => x.title).join(", ") : "nothing"} · {g.reason}{g.tokens ? ` · ${g.tokens} tok` : ""}</span></div>)}
+            </div>
+          </div>}
         </details>
       ))}
     </Group>

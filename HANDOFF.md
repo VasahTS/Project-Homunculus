@@ -5,7 +5,9 @@
 - Daniel looked at draft 1 (artifact SNhzdAd3oQ1xgdZFKfMXzJ): stage table ✓, Try It inside the editor ✓, titles stay as written; "at least readable and easy to edit first"; a **tutorial** for cues comes later (it is confusing).
 - Built in `ui/CuesPage.tsx` (+ helpers in `cues.ts`, `CueValue.stages` in schemas, `cx-` styles): On pill, How it works, parts with sentence + Settings, text rows with tags, Always heading, stage table, ladder + rules as sentences, reads as rows, text opened in place with word chips and Split into words, Try It band. Details in D-119.
 - **To try (Windows):** Library → Cues → Yhul: How it works at the top; Part 2 is a table by phase (click a dot); Remembers → reorder the ladder with ‹ › (default order is approaching, late, mid, early, post — put it as approaching, early, mid, late, post once); open a rule (click it); open a writing rule (chips, paste a list); Try It on a chat. Off ▾ → On in every chat.
-- **Next:** the Reply tab's "Cues · N" receipt in the same three columns; the cue tutorial.
+- **Follow-up done:** ⋯ → Duplicate; the Reply tab receipt as Reads / Remembers / Writes; the table header says what the columns are (with "?"); readings with fixed answers (clock, generation, chance) make tables too.
+- **Examples for Daniel:** `JanitorAI Examples.h2.json` (sent in chat, not in the repo): Random Encounter, Weighted Random Events, Emotion Engine (mood table + tension counter), Scene Orchestrator (3 parts), Action & Social Reaction (but none of), Coffee Shop Rules — ideas from the scripts on help.janitorai.com, texts written fresh.
+- **Next:** the cue tutorial; capturing text into a value (for a Likes/Dislikes/Fears cue); folders in the Cues list.
 - Checks: typecheck; unit tests; click tests `cues`, `assistant-context`.
 
 ## Export and import assistants and presets (2026-11-12) — CLAUDE — D-118
