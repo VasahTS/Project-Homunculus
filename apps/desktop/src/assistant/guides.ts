@@ -263,9 +263,9 @@ export const DRAFT_RULES = `DRAFT FIRST is on: the user wants to go back and for
 \`\`\`homunculus-character
 { "name": "Kessa", "description": "…", "firstMessages": ["…"] }
 \`\`\`
-- One block per item. To revise an existing library item, put "id": "kind:id" in the JSON and only the fields that change (for a preset, saving makes an edited copy).
+- One block per item. To revise an existing library item, put "id": "kind:id" in the JSON and only the fields that change, in the same shape \`change\` takes (a lorebook's entries as { "add", "update", "remove" }: never resend unchanged entries). For a preset, saving makes an edited copy.
 - A new item may have "folder": "RPG/Iron Party" (where it is saved).
-- After a revision, show the whole updated draft again (not a diff), so the newest block is always complete.
+- Call guide(kind) before the first draft of a kind. After revising a new (unsaved) draft, show the whole updated draft again so the newest block is always complete; a draft of an existing item stays changes-only.
 - The user saves a draft with the button under it. If they ask you to save, tell them to use that button or switch "Draft first" off.`;
 
 /** Draft blocks in a reply: kind + the JSON text. */

@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Assistant: tool calls from MiniMax / Mimo stop failing (2026-11-12) — CLAUDE — D-120
+
+- Daniel: a friend's MiniMax M3.1 Flash and Mimo v2.5 Pro (NanoGPT) failed lorebook edits ("change failed" ×14; a draft card with "[object Object]"). Cause, from Daniel's own chat: the provider delivers nested lists as `{ "item": [...] }`, booleans as `"true"`, empty lists as `""`. Details in D-120.
+- `assistant/args.ts` (`looseArgs`, `errorText`) runs before every tool; `read` takes several `entry:` selectors; `entries.add` that repeats an existing entry is refused (no more silent duplicates); draft cards show add/update/remove; `DRAFT_RULES` fixed.
+- **To try (Windows):** Assistant with MiniMax M3.1 Flash → "create a simple lorebook for a random character" → "edit something in this same lorebook": a change card, no red "change failed" rows. Draft first on → ask to change one entry of an existing lorebook: the card lists "~ <entry>" with its fields.
+- **Next (needs a draft):** check draft blocks when the reply ends and show the error + "Ask to fix" on the card.
+- Checks: typecheck; unit tests (887 passed, 9 new in `args.test.ts`). Click tests not run.
+- Changelog line for the next release: "**The Assistant works with more models**: tool calls from models like MiniMax and Mimo no longer fail on lorebook edits, and a draft no longer shows \"[object Object]\"."
+
 ## Cues editor, round 2: readable and easy to edit (2026-11-12) — CLAUDE — D-119
 
 - Daniel looked at draft 1 (artifact SNhzdAd3oQ1xgdZFKfMXzJ): stage table ✓, Try It inside the editor ✓, titles stay as written; "at least readable and easy to edit first"; a **tutorial** for cues comes later (it is confusing).

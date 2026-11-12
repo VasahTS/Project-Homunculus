@@ -835,7 +835,7 @@ function OpsField({ name, before, after }: { name: string; before: unknown; afte
   for (const a of Array.isArray(ops.add) ? ops.add.filter(isO) : []) rows.push({ sign: "+", title: titleOf(a), fields: Object.entries(a).filter(([k]) => k !== "label" && k !== "title" && k !== "id").map(([k, v]) => [k, undefined, v]) });
   for (const u of Array.isArray(ops.update) ? ops.update.filter(isO) : []) {
     const b = find(u);
-    rows.push({ sign: b ? "~" : "+", title: titleOf(u) || titleOf(b ?? {}), fields: Object.entries(u).filter(([k]) => k !== "label" && k !== "title" && k !== "id").map(([k, v]) => [k, b?.[k], v]) });
+    rows.push({ sign: b || before === undefined ? "~" : "+", title: titleOf(u) || titleOf(b ?? {}), fields: Object.entries(u).filter(([k]) => k !== "label" && k !== "title" && k !== "id").map(([k, v]) => [k, b?.[k], v]) });
   }
   for (const r of Array.isArray(ops.remove) ? ops.remove : []) rows.push({ sign: "−", title: titleOf(find({ id: r, label: r, title: r }) ?? { label: r }), fields: [] });
   return (
@@ -1306,12 +1306,14 @@ function DraftField({ name, value, bare = false }: { name: string; value: unknow
     if (value && typeof value === "object") return <div className="asst-draft-chips">{Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== "" && v != null).map(([k, v]) => <span key={k}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</span>)}</div>;
     return <div className="asst-draft-v"><MessageText text={String(value ?? "")} /></div>;
   }
+  // A revision's list changes ({ add, update, remove }) read like the change card's, not "[object Object]" (D-120).
+  if ((name === "entries" || name === "variants") && value && typeof value === "object" && !Array.isArray(value)) return <OpsField name={name} before={undefined} after={value} />;
   if (Array.isArray(value)) {
     const items = value.map((v) => (typeof v === "string" ? v : v && typeof v === "object" ? String((v as Record<string, unknown>).title ?? (v as Record<string, unknown>).label ?? (v as Record<string, unknown>).name ?? JSON.stringify(v)) : String(v)));
     return <div className="asst-draft-f"><span>{label} <small>({items.length})</small></span>{typeof value[0] === "string" && name !== "tags" && name !== "keys"
       ? items.map((t, i) => <div key={i} className="asst-draft-v"><MessageText text={t} /></div>)
       : <div className="asst-draft-chips">{items.map((t, i) => <span key={i}>{t}</span>)}</div>}</div>;
   }
-  if (value && typeof value === "object") return <div className="asst-draft-f"><span>{label}</span><div className="asst-draft-chips">{Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== "" && v != null).map(([k, v]) => <span key={k}>{k}: {String(v)}</span>)}</div></div>;
+  if (value && typeof value === "object") return <div className="asst-draft-f"><span>{label}</span><div className="asst-draft-chips">{Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== "" && v != null).map(([k, v]) => <span key={k}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</span>)}</div></div>;
   return <div className="asst-draft-f"><span>{label}</span><div className="asst-draft-v"><MessageText text={String(value ?? "")} /></div></div>;
 }

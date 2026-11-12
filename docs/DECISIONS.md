@@ -1328,3 +1328,15 @@ Daniel: the Cues tab "is a mess; look yourself"; then, on draft 1 (claude.ai art
 - **Follow-up (same day, Daniel: "do 1 to 4"):** ⋯ → **Duplicate** (an off copy, opened); the **Reply tab's "Cues · N"** shows each cue as Reads / Remembers / Writes, stacked, in the editor's colors; the stage table has a **header naming what its columns are** ("stage", "mood", "reading: part") with a "?" that stays visible; the table also works for **readings with fixed answers** (`readingStages`: the clock's part of the day, the generation type, chance yes/no), in their natural order — Time of Day is a table now.
 
 Signed: **CLAUDE**.
+
+## D-120 — The Assistant accepts tool arguments as providers really deliver them (2026-11-12)
+
+Daniel: a friend's MiniMax M3.1 Flash and Mimo v2.5 Pro kept failing on lorebook edits ("change failed" ×14, then a draft card showing "[object Object]"). Daniel's own chat showed every failed `change` had lists wrapped as `{ "item": [...] }` (also inside entries: `keys: { item: [...] }`), `"true"` for true and `""` for an empty list: XML-style tool calls turned back into JSON by the provider without the nested shape (`changes`/`data` are open objects). The model could not see this and ended up "probing" the format.
+
+- **`assistant/args.ts` → `looseArgs`**, run on every tool call before validation: unwraps `{ item: X }` into a list (any depth, one element too); parses a list/object sent as JSON text; drops `""` for add/update/remove/order; turns `"true"`/`"false"`/`"100"` into a boolean/number **only for keys that are boolean/number in the app's schemas and never text** (walked from `@homunculus/schemas`), so `content: "true"` or a cue rule's `value: "1"` stay text. A really wrong value still fails. Daniel's 14 failed calls: 13 become proposals; the one left (two ids in one entry) is a real mistake and still errors.
+- **`errorText`**: schema errors go back to the model as one line per problem with its path ("constant: expected boolean, received string."), not the zod JSON dump.
+- **`read` with several `entry:` selectors** returns each entry (and says which one is missing); before, all but the first came back "(no such field)" and models read entries one by one.
+- **Lorebook `entries.add` that repeats an entry already in the book** (same id, or same title and content) is refused with a message saying add is only for new entries. A draft that resent the whole book used to apply silently and duplicate every entry.
+- **Draft first:** a revision's `entries`/`variants` operations show on the draft card like the change card (+ new, ~ changed, − removed) instead of "[object Object]". `DRAFT_RULES` no longer contradicts the lorebook guide: a draft of an existing item holds only the changes, in `change`'s shape; "show the whole draft again" is only for new drafts; call guide(kind) before the first draft of a kind.
+- Tests: `apps/desktop/src/assistant/args.test.ts` (the real call shapes).
+- Not done (needs a UI draft first): checking a draft block when the reply ends and offering "Ask to fix" on the card.

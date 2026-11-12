@@ -19,6 +19,7 @@ import { CUE_FIELDS, GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIEL
 import { WebLimitedError, WebSession } from "./web.ts";
 import { readScope, readText, withReadRanges, type ReadScope } from "./reads.ts";
 import { questionFrom, understoodFrom } from "./cards.ts";
+import { errorText, looseArgs } from "./args.ts";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -157,7 +158,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: { kind: kindProp(READ_KINDS, "Only this kind (optional)."), query: { type: "string", description: "Words in the name or summary (optional)." }, folder: { type: "string", description: "Only items in this folder and its subfolders, e.g. \"RPG\" (optional)." }, page: { type: "number", description: "Page, from 1." } } } },
   { name: "folders", description: "The user's folders (each kind has its own tree), with how many items each holds.",
     parameters: { type: "object", properties: { kind: kindProp(FOLDER_KINDS, "Only this kind (optional).") } } },
-  { name: "read", description: "Read one library item (kind:id). Without fields, long texts are paged and lorebooks return an entry index. Long text pages contain up to 6,000 source characters and a separate _read array: field, offset, end, total, nextOffset, done and next (exact arguments for the next read). Copy next exactly; done=true is the end. Never calculate offsets from JSON length or historical previews. Select fields like [\"description\"]. A version uses [\"variant:<label or id>\", \"description\"]; a lore entry uses [\"entry:<title or id>\", \"content\"] (omit the second selector to inspect all fields). Lorebook fields [\"entries\"] pages 10 entries; its offset is an entry index.",
+  { name: "read", description: "Read one library item (kind:id). Without fields, long texts are paged and lorebooks return an entry index. Long text pages contain up to 6,000 source characters and a separate _read array: field, offset, end, total, nextOffset, done and next (exact arguments for the next read). Copy next exactly; done=true is the end. Never calculate offsets from JSON length or historical previews. Select fields like [\"description\"]. A version uses [\"variant:<label or id>\", \"description\"]; a lore entry uses [\"entry:<title or id>\", \"content\"] (omit the second selector to inspect all fields); several entries at once: [\"entry:A\", \"entry:B\"]. Lorebook fields [\"entries\"] pages 10 entries; its offset is an entry index.",
     parameters: { type: "object", properties: { id: { type: "string" }, fields: { type: "array", items: { type: "string" } }, offset: { type: "integer", minimum: 0, description: "Zero-based source UTF-16 offset for text; entry index for fields [entries]. Use the server's next arguments." } }, required: ["id"] } },
   { name: "read_chat", description: "Read a chat's messages on the branch it shows (or a named branch), numbered #1… as the chat numbers them. Default: the last 30. `from`/`to` pick a range; `search` lists the messages containing a phrase. Long pages stop early and give the next range. You never write messages.",
     parameters: { type: "object", properties: { id: { type: "string", description: "chat:id (from find with kind \"chat\", or the user's context)." }, from: { type: "integer", minimum: 1 }, to: { type: "integer", minimum: 1 }, search: { type: "string" }, branch: { type: "string", description: "A branch's name (optional)." } }, required: ["id"] } },
@@ -301,10 +302,21 @@ async function readItem(store: SqlStore, ref: string, fields: string[], offset: 
   if (r.kind === "character" && item.characterNote === undefined) item = { ...item, characterNote: characterNoteOf(Character.parse(item)) };
   if (r.kind === "lorebook") {
     const book = Lorebook.parse(item);
-    const one = fields.find((f) => f.startsWith("entry:"));
+    const picked = fields.filter((f) => f.startsWith("entry:"));
+    const findEntry = (sel: string) => { const key = sel.slice(6).trim().toLowerCase(); return book.entries.find((x) => x.id.toLowerCase() === key || x.title.toLowerCase() === key); };
+    // Several entries in one read (models ask for them together; D-120). CLAUDE.
+    if (picked.length > 1) {
+      const selected = fields.filter((f) => !f.startsWith("entry:"));
+      return JSON.stringify(picked.map((sel) => {
+        const e = findEntry(sel);
+        if (!e) return { entry: sel.slice(6), missing: "No such entry. Read the lorebook without fields for the index." };
+        const scope = readScope(ref, `entry:${e.id}`);
+        return selected.length ? { id: e.id, title: e.title, ...selectedRead(entryFull(e), selected, 0, scope) } : withReadRanges(compact(entryFull(e), "", 0, scope) as Obj, scope);
+      }));
+    }
+    const one = picked[0];
     if (one) {
-      const key = one.slice(6).trim().toLowerCase();
-      const e = book.entries.find((x) => x.id.toLowerCase() === key || x.title.toLowerCase() === key);
+      const e = findEntry(one);
       if (!e) return `No entry “${one.slice(6)}”. Read the lorebook without fields for the index.`;
       const selected = fields.filter(f => f !== one), scope = readScope(ref, `entry:${e.id}`);
       return JSON.stringify(selected.length ? selectedRead(entryFull(e), selected, offset, scope) : withReadRanges(compact(entryFull(e), "", 0, scope) as Obj, scope));
@@ -565,6 +577,10 @@ function loreEntriesAfter(before: LoreEntry[], raw: unknown, newId: () => string
     entries = entries.map(e => e === old ? { ...updated, ...(old.original !== undefined ? { original: old.original } : {}) } : e);
   }
   for (const key of (raw.remove ?? []) as unknown[]) { if (typeof key !== "string") throw new Error("Entry removals must be ids."); const old = target(key); entries = entries.filter(e => e !== old); }
+  // An "added" entry that is already in the book (same id, or same title and content) is a resend, not a new entry:
+  // applying it would duplicate the book (seen with drafts that repeated every entry; D-120). CLAUDE.
+  const resent = ((raw.add ?? []) as unknown[]).filter(isObj).filter(a => before.some(b => (str(a.id) && b.id === str(a.id)) || (str(a.title).toLowerCase() === b.title.toLowerCase() && str(a.content).trim() === b.content.trim())));
+  if (resent.length) throw new Error(`entries.add repeats ${resent.length} entr${resent.length === 1 ? "y" : "ies"} already in the book (${resent.slice(0, 5).map(a => `“${str(a.title) || str(a.id)}”`).join(", ")}${resent.length > 5 ? ", …" : ""}). add is only for new entries; send a changed entry in update with its id, and leave unchanged ones out.`);
   for (const a of (raw.add ?? []) as unknown[]) { if (!isObj(a)) throw new Error("An added entry must be an object."); entries.push(loreEntryOf(a, newId)); }
   if (new Set(entries.map(e => e.id)).size !== entries.length) throw new Error("Lore entry ids must be unique.");
   return entries;
@@ -1197,7 +1213,7 @@ export async function trialSides(store: SqlStore, r: AssistantResult): Promise<T
 
 export async function runTool(name: string, rawArgs: string, ctx: ToolContext): Promise<ToolOutcome> {
   let a: Obj;
-  try { a = rawArgs.trim() ? (JSON.parse(rawArgs) as Obj) : {}; } catch { return { result: "Your arguments were not valid JSON. Try again.", label: `${name} (bad arguments)`, error: true }; }
+  try { a = rawArgs.trim() ? (looseArgs(JSON.parse(rawArgs)) as Obj) : {}; } catch { return { result: "Your arguments were not valid JSON. Try again.", label: `${name} (bad arguments)`, error: true }; }
   if (!isObj(a)) return { result: "Arguments must be an object.", label: name, error: true };
   const w: Writes = { signal: ctx.signal, completed: [] };
   try {
@@ -1364,7 +1380,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
     }
     return { result: `There is no tool “${name}”.`, label: name, error: true };
   } catch (e) {
-    return { result: `Error: ${e instanceof Error ? e.message : String(e)}${w.completed?.length ? ` Completed writes: ${w.completed.join(", ")}.` : ""}`, label: `${name} failed`, error: true };
+    return { result: `Error: ${errorText(e)}${w.completed?.length ? ` Completed writes: ${w.completed.join(", ")}.` : ""}`, label: `${name} failed`, error: true };
   }
 }
 
