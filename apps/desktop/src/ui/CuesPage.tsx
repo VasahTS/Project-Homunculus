@@ -430,7 +430,7 @@ function readingText(s: CueSignal, all: CueSignal[]): string {
   const same = sameWordsAs(s, all);
   const count = same ? `${same.key}'s words` : `${s.words.length} ${s.words.length === 1 ? "word" : "words"}`;
   const who = s.from === "user" ? ", yours" : s.from === "ai" ? ", the AI's" : "";
-  return s.measure === "streak" ? `messages in a row with ${s.perMessage}+ of ${count} · last ${s.last}${who}` : `${count} · last ${s.last} messages${who}`;
+  return s.measure === "streak" ? `messages in a row with ${s.perMessage}+ of ${count} · last ${s.last}${who}` : `${count} · ${s.last === 1 ? "last message" : `last ${s.last} messages`}${who}`;
 }
 
 // ------------------------------------------------------------------ Try It, inside the editor
