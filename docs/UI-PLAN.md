@@ -6,6 +6,34 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
+## Cues editor, round 2 — CLAUDE, 2026-11-12 · 🟡 draft 1 waiting for Daniel
+
+Daniel (translated): "now we need to work on the Cues tab, right now it's a mess; look at it yourself and see what's bad". Seen in the app with his Yhul cue (2 parts, 43 texts) at 1180 and 1366 px, and the starter Don't Write for User.
+
+### What is wrong today
+- **Bugs:** below ~1280 px the cards overflow the editor (the group's pick menu and × vanish, word chips run off the edge); the list row says "on in off"; the wrap placeholder "[Direction: {{text}}]" looks like a real wrap.
+- **Order:** sections follow the data model (About · Where It Runs · Reads · Remembers · Writes), so what the cue writes is at the bottom; a one-text cue shows two empty sections first.
+- **Size:** Yhul's editor is 5,100 px tall: each word list is a one-word-per-line textarea (84 lines, twice); a group's defaults (chance 100, wait 0) are always spelled out.
+- **Reading:** value rules are rows of dropdowns ("intimacy (reads)", "set it to"); nothing shows the ladder inactive → approaching → … → post; nothing says the cue has two parts or that three rules go in every reply; "~7651 tokens in all" is the most it could ever add, not what a reply costs.
+- **Try It:** a modal that pastes every picked text in full and doesn't point at the rows that lit up.
+
+### The proposal (draft: claude.ai artifact SNhzdAd3oQ1xgdZFKfMXzJ, five boards with Yhul)
+1. **Header:** icon, name, ✓ Saved, an **On pill** ("Off ▾" / "On in every chat ▾") that opens what Where It Runs had (every chat, characters, runs on, from message, swipe), **Try It**, **⋯** (Export, Duplicate, Author, namespace, Delete). The list row says the same: Off / Every chat / 2 chats / With Lyra, plus "2 parts · 43 texts".
+2. **How it works:** three columns written from the cue: Reads (name, how many words, how far back) → Remembers (each value as its ladder of stages) → Writes (each part in one line). A foot line gives the real cost per reply: always / by words / one direction. Each item jumps to its section. A cue with nothing to read or remember shows one sentence ("Adds one text to every reply…").
+3. **Parts first.** Each part has a sentence for its settings ("Puts in every rule whose words show up, after the character") and **Settings** for the rest. Texts are rows of equal layout: title, tokens on the right, a wrapping line of tags (first four words + "+12", chance, from message, "one of"). "Always" texts get their own heading with their cost. Long parts show 10 + Show all.
+4. **Stage table:** when every text of a part only tests one value ("phase is early or mid"), the part shows as a table, one column per stage, a dot = goes in; click a dot to switch it; a count per stage under it.
+5. **Rules as sentences:** "→ post when intimacy ≥ 5 and climax ≥ 1", numbered, first match wins, drag to reorder, "otherwise → inactive (starts over) · keep it instead" as the last row. A rule edits in its own line.
+6. **A text opened in place:** the text first (reading font, tokens), then **Goes in when** as a sentence with word chips (type, paste a list, ×), "+ and also one of… / + but none of… / + a test"; then one line: chance, from message, "one of" (a picker of names already used, naming the texts that share it). A /pattern/ keyword shows as chips with **Split into words**.
+7. **Try It inside the editor:** a green band (chat, after which message, example numbers) turns How it works into the result (values with matched words and message numbers, the stage moving, what each part puts in, tokens this reply, what was left out and why) and marks the rows that go in; "Only what goes in" hides the rest. No modal. Later the Reply tab's receipt uses the same three columns.
+8. **Small cues stay small:** no empty sections; "Add: Read the chat · Remember a value · Another text · Another part".
+
+### Questions for Daniel
+1. Stage table for parts that depend on one value, or the usual rows with a "phase: early · mid" tag?
+2. Try It inside the editor instead of a window?
+3. Titles in CAPITALS (JanitorAI): keep as written, or show as normal sentences on screen (what the AI gets doesn't change)?
+
+---
+
 ## Pictures for any model (Vision helper) and From a comic — CLAUDE, 2026-11-10 · ✅ text and draft approved ("rascunhos aprovados"); in the app (D-115, D-116)
 
 Daniel (translated): "I use GLM 5.3 90% of the time and it has no vision; once you send an image you can't use a model without vision any more" → a dedicated vision model describes pictures for the main model. And: "sometimes I want to turn doujinshi / short comics into cards / stories: read the pictures in order, understand them, ask questions like who {{user}} is, make drafts and build something coherent for the app." His reality: ≤ 10 pages, text in English, "good enough"; but "our base must be solid so we don't fight it", and planned for a larger scale. Both live **inside the Assistant**.
