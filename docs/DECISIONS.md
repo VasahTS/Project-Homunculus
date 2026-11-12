@@ -1310,3 +1310,20 @@ Daniel asked to be able to export the assistants and the presets (Assistant → 
 - Tests: `assistant/share.test.ts`; click test `e2e/assistant-share.e2e.ts`.
 
 Signed: **CLAUDE**.
+
+## D-119 — Library → Cues, round 2: readable and easy to edit (2026-11-12)
+
+Daniel: the Cues tab "is a mess; look yourself"; then, on draft 1 (claude.ai artifact SNhzdAd3oQ1xgdZFKfMXzJ): the stage table is good, Try It inside the editor is fine, JanitorAI titles stay as written; "it must at least be readable and easy to edit first" (a tutorial comes later).
+
+- **Header:** icon, name, ✓ Saved, the **On pill** ("Off ▾" / "On · Every chat ▾") holding what Where It Runs had (every chat, tied characters, runs on, starts after N messages, swipe), **Try It**, **⋯** (Export, Author, namespace, Delete). The list row says "2 parts · 43 texts · Off / Every chat" (fixes "on in off").
+- **How it works** (`cue-flow`): Reads → Remembers → Writes written from the cue (a value's stages as a ladder), with the real cost per reply (`cueCost`: always + per part). A cue that reads and remembers nothing shows only Writes.
+- **Parts first**, each with a sentence for its settings (`partSentence`) and **Settings** for pick, don't repeat, chance, wait, where it goes and wrap (the wrap placeholder no longer looks like a value). Texts are rows: title, tokens, a wrapping line of tags (first four words + "+N", last N, chance, from message, one of). "Always" texts get their own heading with their cost. Long parts show 10 + Show all.
+- **Stage table** (`stageView`): when every text of a part only tests one value (equals, joined by "or"), the part is a table, a column per stage; a dot switches a stage (a text keeps at least one).
+- **Values:** the stages as a ladder with ‹ › to reorder (saved as `CueValue.stages`, screen only; default: start, then the rules' values from the last rule up); rules as numbered sentences, edited in their own line, Move Up/Down; "otherwise" is the last row.
+- **Reads:** one row each (name, kind, plain sentence, a preview of the words; a reading with the same words as an earlier one says so). Edit opens the settings; words are chips.
+- **A text opened in place:** title, On, Duplicate, Delete, Close; the text in the reading font with tokens; **Goes in when** as a sentence (words as chips: Enter or comma adds, a pasted list adds all, ×; a plain-word /pattern/ offers **Split into words**; "+ and also one of… / + but none of… / + a test"); one line for chance, from message, weight, one of (with the names in use, and which texts share it). A part with one text shows it open.
+- **Try It inside the editor:** a band picks the chat and message; How it works turns into the result (values with matched words, the stage moving, picks and reasons, tokens) and the rows that go in turn green; "Only what goes in". Edits update it. No modal.
+- Layout: the editor body is one `minmax(0, 1fr)` column and every row wraps, so nothing runs past the edge below 1280 px.
+- Tests: `apps/desktop/src/cues-screen.test.ts`; click tests `e2e/cues.e2e.ts` (updated + stage table/rules).
+
+Signed: **CLAUDE**.

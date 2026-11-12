@@ -83,7 +83,7 @@ A cue is a rule that reacts to the chat with no AI call (Library → Cues): inst
 - Reads: word counts in the last messages (or how many messages in a row had them), messages so far, chance, the real clock, a tracker field, the kind of generation.
 - Remembers: values with rules (set / add / reset), pinned to each message, so swipes never count twice and each branch keeps its own. Values marked "Show in Scene" show (and can be edited) in the Scene tab.
 - Writes: groups of texts — all that match, the first, random by weight, or in rotation; don't repeat, chance, cooldown, a wrap; each text can have its own word trigger, tests and chance. Placed like lorebook entries (in the chat at a depth, around the character…) or with the agents' prompts.
-- On: in every chat (Library → Cues), per story or chat (Setup → Cues), or by itself where a tied character is. The Reply tab shows what each cue read, remembered and wrote; Try It in the editor shows it for any message without saving.
+- On: in every chat (Library → Cues, the Off/On button at the top of the cue), per story or chat (Setup → Cues), or by itself where a tied character is. The Reply tab shows what each cue read, remembered and wrote; Try It in the editor shows it for any message without saving.
 - JanitorAI: a lorebook script imports as one cue (exact); an advanced (JavaScript) script is converted by the Assistant (guide "cue"); a script and its lorebook become one cue with two parts.`),
 
   T("regex", "Regex scripts", `

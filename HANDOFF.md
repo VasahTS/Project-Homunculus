@@ -1,11 +1,12 @@
 # HANDOFF — Homunculus 2
 
-## Cues editor, round 2: diagnosis and draft (2026-11-12) — CLAUDE
+## Cues editor, round 2: readable and easy to edit (2026-11-12) — CLAUDE — D-119
 
-- Daniel: the Cues tab "is a mess; look yourself". Looked at it in the browser preview with his Yhul cue (`Claude outputs/Yhul.cue.json`, personal) and the starters. Problems and the proposal are in `docs/UI-PLAN.md` (top section) and the claude.ai Project doc `claude/UI-PLAN-CUES.md`.
-- **Draft 1 waiting for Daniel:** claude.ai artifact SNhzdAd3oQ1xgdZFKfMXzJ (Yhul data, so it is not in `docs/drafts`): 1 header with the On pill + How it works + Part 1 rows; 2 phase rules as sentences + Part 2 as a stage table; 3 a rule opened (Goes in when, word chips, Split into words); 4 Try It inside the editor; 5 a one-text cue and the On pill open.
-- **No code yet** ("draft before code"). Known bugs to fix with it: overflow below ~1280 px, "on in off" in the list row, the wrap placeholder that looks like a value.
-- Note: the graphify index on Daniel's PC (`graphify-indexes/Homunculus-release-0.4.0`) predates Cues; the code was read directly.
+- Daniel looked at draft 1 (artifact SNhzdAd3oQ1xgdZFKfMXzJ): stage table ✓, Try It inside the editor ✓, titles stay as written; "at least readable and easy to edit first"; a **tutorial** for cues comes later (it is confusing).
+- Built in `ui/CuesPage.tsx` (+ helpers in `cues.ts`, `CueValue.stages` in schemas, `cx-` styles): On pill, How it works, parts with sentence + Settings, text rows with tags, Always heading, stage table, ladder + rules as sentences, reads as rows, text opened in place with word chips and Split into words, Try It band. Details in D-119.
+- **To try (Windows):** Library → Cues → Yhul: How it works at the top; Part 2 is a table by phase (click a dot); Remembers → reorder the ladder with ‹ › (default order is approaching, late, mid, early, post — put it as approaching, early, mid, late, post once); open a rule (click it); open a writing rule (chips, paste a list); Try It on a chat. Off ▾ → On in every chat.
+- **Next:** the Reply tab's "Cues · N" receipt in the same three columns; the cue tutorial.
+- Checks: typecheck; unit tests; click tests `cues`, `assistant-context`.
 
 ## Export and import assistants and presets (2026-11-12) — CLAUDE — D-118
 

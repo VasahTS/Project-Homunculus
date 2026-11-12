@@ -6,7 +6,7 @@ Already done under this rule: the **Scene** panel ("C — Quiet", D-025) and the
 
 ---
 
-## Cues editor, round 2 — CLAUDE, 2026-11-12 · 🟡 draft 1 waiting for Daniel
+## Cues editor, round 2 — CLAUDE, 2026-11-12 · ✅ draft 1 approved (stage table ✓, Try It in the editor ✓, titles as written); in the app (D-119)
 
 Daniel (translated): "now we need to work on the Cues tab, right now it's a mess; look at it yourself and see what's bad". Seen in the app with his Yhul cue (2 parts, 43 texts) at 1180 and 1366 px, and the starter Don't Write for User.
 

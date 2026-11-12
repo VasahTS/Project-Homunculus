@@ -12,8 +12,14 @@ test("an example cue, on in every chat: it reads your words, remembers, writes, 
   await page.getByTestId("cue-example-boundary").click();
   const editor = page.getByTestId("cue-editor");
   await expect(editor.getByLabel("Cue name")).toHaveValue("Boundary");
+  // D-119: "How it works" says what it reads, remembers and writes; the On pill holds where it runs
+  await expect(editor.getByTestId("cue-flow")).toContainText("paused");
+  await editor.getByTestId("cue-on").click();
   await editor.getByRole("switch", { name: "On in every chat" }).click();
   await expect(editor.getByRole("switch", { name: "On in every chat" })).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await expect(editor.getByTestId("cue-on")).toContainText("Every chat");
+  await expect(page.getByTestId("cue-row").filter({ hasText: "Boundary" })).toContainText("Every chat");
 
   await openSession(page);
   await send(page, "Please stop, I don't want this.");
@@ -42,9 +48,11 @@ test("Try It shows what a cue would read, remember and write, with nothing saved
   await openLibrary(page, "Cues");
   await page.getByTestId("cue-row").filter({ hasText: "Grounded Complication" }).click();
   await page.getByTestId("cue-try").click();
-  const tryIt = page.getByTestId("cue-try-it");
-  await expect(tryIt.getByTestId("cue-try-writes")).toContainText("Grounded Complication");
-  await page.keyboard.press("Escape");
+  // D-119: Try It sits in the editor; How it works shows the result
+  await expect(page.getByTestId("cue-try-it")).toBeVisible();
+  await expect(page.getByTestId("cue-try-writes")).toContainText("Grounded Complication");
+  await page.getByTestId("cue-try-it").getByRole("button", { name: "Close" }).click();
+  await expect(page.getByTestId("cue-try-it")).toHaveCount(0);
 
   await openSession(page);
   await openTab(page, "prompt");
@@ -69,6 +77,37 @@ test("a JanitorAI lorebook script comes in as a cue of writing rules", async ({ 
   const editor = page.getByTestId("cue-editor");
   await expect(editor.getByLabel("Cue name")).toHaveValue("Rules");
   await expect(editor.getByTestId("cue-text")).toHaveCount(2);
-  await expect(editor.getByTestId("cue-text").nth(1)).toContainText("words: sext, texting");
+  await expect(editor.getByTestId("cue-text").nth(1)).toContainText("sext · texting");
   await expect(editor.getByTestId("cue-text").nth(1)).toContainText("70%");
+  // D-119: the always text has its own heading; a text opens in place with its words as chips
+  await expect(editor).toContainText("Always");
+  await editor.getByTestId("cue-text").nth(1).getByRole("button").first().click();
+  await expect(editor.getByRole("button", { name: "Remove texting" })).toBeVisible();
+  const words = editor.getByRole("textbox", { name: "Needs one of these words" });
+  await words.fill("dirty text, phone");
+  await words.press("Enter");
+  await expect(editor.getByRole("button", { name: "Remove phone" })).toBeVisible();
+  await expect(editor.getByTestId("cue-save-state")).toHaveText("✓ Saved");
+});
+
+test("D-119: a value's rules read as sentences, and a part that only tests that value is a table of its stages", async ({ page }) => {
+  await page.goto("/");
+  await openLibrary(page, "Cues");
+  await page.getByTestId("cues-examples").click();
+  await page.getByTestId("cue-example-opens-up").click();
+  const editor = page.getByTestId("cue-editor");
+  await expect(editor.getByTestId("cue-flow")).toContainText("guarded");
+  const rules = editor.getByTestId("cue-rule");
+  await expect(rules.first()).toContainText("close");
+  await expect(rules.first()).toContainText("messages ≥ 60");
+  const table = editor.getByTestId("cue-stage-table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Text", "guarded", "warming", "close", "tokens"]);
+  // "Warming" also at "close": click its dot
+  await table.getByRole("button", { name: "Warming at close" }).click();
+  await expect(table.getByRole("button", { name: "Warming at close" })).toHaveAttribute("aria-pressed", "true");
+  await expect(editor.getByTestId("cue-save-state")).toHaveText("✓ Saved");
+  // a rule opens in its line
+  await rules.first().getByRole("button").click();
+  await expect(editor.getByRole("textbox", { name: "Rule value" })).toHaveValue("close");
+  await editor.getByRole("button", { name: "Done" }).click();
 });

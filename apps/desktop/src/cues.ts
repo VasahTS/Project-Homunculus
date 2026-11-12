@@ -2,8 +2,8 @@
 // words for signals, rules and places. Author: CLAUDE, 2026-11-10.
 // The app knows no cue by name: the examples and the two starters are editable data.
 import { Cue, type CueCondition, type CueGroup, type CueInput, type CuePosition, type CueSignal, type Session, type SetupLayer, type Story } from "@homunculus/schemas";
-import { cueFromLoreEntries, cueNamespace, conditionText, type SqlStore } from "@homunculus/core";
-import { importStLorebook } from "@homunculus/st-lorebooks";
+import { cueFromLoreEntries, cueNamespace, conditionText, estimateTokens, type SqlStore } from "@homunculus/core";
+import { importStLorebook, splitRegexKey } from "@homunculus/st-lorebooks";
 import { LoreEntry } from "@homunculus/schemas";
 
 export async function listCues(store: SqlStore): Promise<Cue[]> {
@@ -50,14 +50,14 @@ export function layerWithCue(layer: SetupLayer, id: string, on: boolean, inherit
 /** "Default · 2 stories · 3 chats" — where a cue is switched on (characters it is tied to count too). */
 export function cueOnText(c: Cue, def: SetupLayer, stories: Story[], sessions: Session[], characterName: (id: string) => string | undefined): string {
   const parts: string[] = [];
-  if (layerHasCue(def, c.id)) parts.push("every chat");
+  if (layerHasCue(def, c.id)) parts.push("Every chat");
   const st = stories.filter((s) => layerHasCue(s.setup, c.id)).length;
   if (st) parts.push(`${st} ${st === 1 ? "story" : "stories"}`);
   const ch = sessions.filter((s) => s.setup.cues?.add.includes(c.id)).length;
   if (ch) parts.push(`${ch} ${ch === 1 ? "chat" : "chats"}`);
   const names = c.characterIds.map(characterName).filter(Boolean);
-  if (names.length) parts.push(`with ${names.join(", ")}`);
-  return parts.join(" · ") || "off";
+  if (names.length) parts.push(`With ${names.join(", ")}`);
+  return parts.join(" · ") || "Off";
 }
 
 // ------------------------------------------------------------------ words for the screens
@@ -116,6 +116,127 @@ export function signalText(s: CueSignal): string {
 
 export const conditionWords = (c: CueCondition) => conditionText(c);
 export const testsText = (list: CueCondition[], logic: "all" | "any") => list.map(conditionText).join(logic === "any" ? " or " : " · ");
+
+// ------------------------------------------------------------------ reading a cue at a glance (D-119)
+
+type Item = CueGroup["items"][number];
+type Val = Cue["values"][number];
+
+/** A text with nothing that decides when it goes in: it goes in every time its part runs. */
+export const isAlways = (t: Item) => !t.words?.keys.length && !t.when.length && t.chance >= 100 && !t.minMessages;
+
+/** "2 parts · 43 texts", for the list. */
+export function cueSizeText(c: Pick<Cue, "groups">): string {
+  const texts = c.groups.reduce((n, g) => n + g.items.length, 0);
+  const t = `${texts} ${texts === 1 ? "text" : "texts"}`;
+  return c.groups.length > 1 ? `${c.groups.length} parts · ${t}` : t;
+}
+
+/**
+ * The stages a value moves between, in screen order: the order saved with the value, else the starting value first,
+ * then the values its rules set, from the last rule up (rules are usually written most specific first). Values that
+ * count (rules that add) have no stages.
+ */
+export function valueStages(v: Val): string[] {
+  if (v.rules.some((r) => r.do === "add")) return [];
+  const derived = [String(v.initial), ...v.rules.filter((r) => r.do === "set").map((r) => String(r.value)).reverse()];
+  const all = [...v.stages, ...derived].map((s) => s.trim()).filter(Boolean);
+  return [...new Set(all)];
+}
+
+/**
+ * When every text of a part only tests one value ("phase is early" or "phase is early or mid"), the part reads best as
+ * a table: one column per stage. Returns the value and, per text, its stages; null when the part doesn't fit.
+ */
+export function stageView(g: CueGroup, values: Val[]): { key: string; stages: string[]; of: Map<string, Set<string>> } | null {
+  if (g.items.length < 2) return null;
+  let key = "";
+  const of = new Map<string, Set<string>>();
+  for (const t of g.items) {
+    if (t.words?.keys.length || !t.when.length) return null;
+    if (t.when.length > 1 && t.logic !== "any") return null;
+    const set = new Set<string>();
+    for (const c of t.when) {
+      const m = /^value\.([a-z][a-z0-9_]*)$/.exec(c.path);
+      if (!m || c.op !== "equals" || (key && key !== m[1])) return null;
+      key = m[1]!;
+      set.add(String(c.value));
+    }
+    of.set(t.id, set);
+  }
+  const v = values.find((x) => x.key === key);
+  if (!v) return null;
+  const stages = valueStages(v);
+  for (const s of of.values()) for (const x of s) if (!stages.includes(x)) stages.push(x);
+  return stages.length >= 2 ? { key, stages, of } : null;
+}
+
+/** The texts that only one of a "one of" name goes in with: the name shown without the prefix they all share. */
+export function oneOfShort(names: string[]): (name: string) => string {
+  const list = [...new Set(names.filter(Boolean))];
+  if (list.length < 2) return (n) => n;
+  let prefix = list[0]!.slice(0, list[0]!.lastIndexOf("-") + 1);
+  while (prefix && !list.every((n) => n.startsWith(prefix) && n.length > prefix.length)) prefix = prefix.slice(0, prefix.slice(0, -1).lastIndexOf("-") + 1);
+  return (n) => (prefix && n.startsWith(prefix) ? n.slice(prefix.length) : n);
+}
+
+/** The words a key list shows: a /pattern/ made of plain words reads as those words. */
+export function keyWords(keys: string[]): { words: string[]; patterns: number } {
+  const words: string[] = [];
+  let patterns = 0;
+  for (const k of keys) {
+    const split = splitRegexKey(k);
+    if (split) { words.push(...split.words); patterns++; }
+    else if (/^\/.+\/[a-z]*$/s.test(k)) {
+      // a pattern with more than words: show its plain alternatives, still one pattern
+      const body = k.slice(1, k.lastIndexOf("/"));
+      words.push(...body.split("|").map((p) => p.replace(/[\\()?:*+[\]^$]/g, "").trim()).filter(Boolean));
+      patterns++;
+    } else words.push(k);
+  }
+  return { words, patterns };
+}
+
+const PICK_PHRASE: Record<CueGroup["pick"], string> = {
+  all: "every text whose tests pass", first: "the first text that matches", random: "one text at random", rotate: "one text, taking turns",
+};
+
+/** "Puts in every text whose tests pass, after the character" — a part's settings in one sentence. */
+export function partSentence(g: CueGroup, stageKey?: string): Array<{ text: string; strong?: boolean }> {
+  const words = g.items.some((t) => t.words?.keys.length);
+  const single = g.items.length === 1 ? g.items[0]! : null;
+  const pick = single ? (isAlways(single) ? "its text in every reply" : "its text when it matches")
+    : g.pick === "all" && words ? "every text whose words show up" : PICK_PHRASE[g.pick];
+  const out: Array<{ text: string; strong?: boolean }> = [{ text: "Puts in " }, { text: pick, strong: true }];
+  if ((g.pick === "random" || g.pick === "rotate") && g.noRepeat) out.push({ text: ` (not the last ${g.noRepeat === 1 ? "one" : g.noRepeat})` });
+  if (stageKey) out.push({ text: " for the current " }, { text: stageKey, strong: true });
+  const place = placeText(g.placement);
+  out.push({ text: ", " }, { text: place.charAt(0).toLowerCase() + place.slice(1).replace(/ · /g, ", "), strong: true });
+  if (g.wrap.trim()) out.push({ text: ", inside a wrap" });
+  if (g.chance < 100) out.push({ text: `, ${g.chance}% of the time` });
+  if (g.cooldown) out.push({ text: `, then waits ${g.cooldown} message${g.cooldown === 1 ? "" : "s"}` });
+  out.push({ text: "." });
+  return out;
+}
+
+/** What a cue adds to a reply, in tokens: always, and what may come on top (per part). */
+export function cueCost(c: Pick<Cue, "groups">): { always: number; extra: Array<{ part: string; min: number; max: number; one: boolean }> } {
+  let always = 0;
+  const extra: Array<{ part: string; min: number; max: number; one: boolean }> = [];
+  for (const g of c.groups) {
+    const on = g.items.filter((t) => t.enabled && t.text.trim());
+    if (!on.length) continue;
+    const sizes = on.map((t) => estimateTokens(t.text));
+    const sure = g.chance >= 100 && !g.cooldown;
+    if (g.pick === "all") {
+      const fixed = on.filter(isAlways);
+      if (sure) always += fixed.reduce((n, t) => n + estimateTokens(t.text), 0);
+      const rest = on.filter((t) => !isAlways(t) || !sure).map((t) => estimateTokens(t.text));
+      if (rest.length) extra.push({ part: g.name || g.key, min: Math.min(...rest), max: Math.max(...rest), one: false });
+    } else extra.push({ part: g.name || g.key, min: Math.min(...sizes), max: Math.max(...sizes), one: true });
+  }
+  return { always, extra };
+}
 
 // ------------------------------------------------------------------ examples (From an Example…) and starters
 

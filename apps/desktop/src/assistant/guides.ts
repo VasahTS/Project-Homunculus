@@ -207,7 +207,7 @@ GUIDES.cue = {
   fields: CUE_FIELDS,
   text: `What cues are for: one place for the rules that steer how the AI writes. A cue reacts to the chat WITHOUT calling the AI — instant, free, run before every reply — and adds text to the prompt. It replaces JanitorAI scripts (both kinds: "lorebook scripts", which are lists of keyword-triggered texts, and advanced scripts written in JavaScript) and the old "No AI call" agents. The user should not need a lorebook, an agent and a cue for one bot's rules: all of it fits in one cue. Agents think (AI calls); lorebooks hold facts (who, where, what) looked up by keyword; cues hold rules. When unsure whether something is facts or rules, ask.
 One cue, many parts: a cue can have several signals, values and groups; each group writes on its own (one group "all" of keyword rules, another "rotate" of phase directions…). Make ONE cue for one purpose, bot or author; separate cues only when the user wants to switch the parts on and off apart, or asks.
-A new cue is off until the user switches it on (Library → Cues "On in every chat", a story's or chat's Setup, or characterIds). Fields:
+A new cue is off until the user switches it on (Library → Cues: the Off/On button at the top of the cue → "On in every chat"; a story's or chat's Setup, or characterIds). Fields:
 - name; help (one line for lists); icon (an emoji); author.
 - signals (Reads, worked out each turn, never stored): [{ key, kind, … }] with key = lower_case name.
   - words: { words: ["kiss", "hand on her waist", "/regex/i"], last: 4 (messages read), from: "both"|"user"|"ai", wholeWords: true, ignoreNegated: false (skip "not kiss"), measure: "matches" (how many times) | "streak" (newest messages in a row with at least perMessage matches), perMessage: 1 }

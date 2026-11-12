@@ -1,4 +1,4 @@
-// Homunculus 2 — Library → Cues: the list, the editor and Try It (D-113, claude/CUES-PLAN.md §7). Author: CLAUDE, 2026-11-10.
+// Homunculus 2 — Library → Cues: the list, the editor and Try It (D-113, claude/CUES-PLAN.md §7; round 2 D-119). Author: CLAUDE, 2026-11-10.
 // A cue reacts to the chat without calling the AI. The editor is one page of sections, like the agent editor:
 // About · Where It Runs · Reads · Remembers · Writes. Every section can stay empty, so a simple rule is just a text;
 // the examples go from simple (Random Event) to complete (Opens Up Slowly, Boundary). It saves by itself.
@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Cue, CueSignal as CueSignalSchema, type Character, type CueCondition, type CueGroup, type CueInput, type CueReport, type CueSignal, type CueText, type CueValue, type Message, type Session, type SetupLayer, type Story } from "@homunculus/schemas";
 import { estimateTokens, isBundleText, type CueOutput } from "@homunculus/core";
 import type { AppServices } from "../core-instance.ts";
-import { CUE_EXAMPLES, copyCue, cueFromJanitorText, POSITIONS, PICKS, SIGNAL_KINDS, blankCue, cueFromExample, cueOnText, layerHasCue, layerWithCue, placeText, signalText, testsText } from "../cues.ts";
+import { CUE_EXAMPLES, copyCue, cueCost, cueFromJanitorText, cueSizeText, isAlways, keyWords, oneOfShort, partSentence, POSITIONS, PICKS, SIGNAL_KINDS, blankCue, cueFromExample, cueOnText, layerHasCue, layerWithCue, signalText, stageView, testsText, valueStages } from "../cues.ts";
+import { splitRegexKey } from "@homunculus/st-lorebooks";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { AutoText, Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { EmptyDetail, MasterDetail, SearchBox } from "./LibraryPages.tsx";
@@ -36,7 +37,6 @@ export function CuesPage({ svc, lead, cues, stories, sessions, characters, defau
 }) {
   const [q, setQ] = useState("");
   const [examples, setExamples] = useState(false);
-  const [trying, setTrying] = useState<CueInput | null>(null);
   const needle = q.trim().toLowerCase();
   const shown = cues.filter((c) => !needle || `${c.name} ${c.help}`.toLowerCase().includes(needle));
   const selected = cues.find((c) => c.id === selectedId) ?? null;
@@ -115,7 +115,7 @@ export function CuesPage({ svc, lead, cues, stories, sessions, characters, defau
                 <li key={c.id}>
                   <button className={`master-item${c.id === selectedId ? " on" : ""}`} onClick={() => onSelect(c.id)} data-testid="cue-row">
                     <span className="ag-ico" aria-hidden>{c.icon || "⟡"}</span>
-                    <span className="side-text"><strong>{c.name}</strong><span>{c.help || `${c.groups.reduce((n, g) => n + g.items.length, 0)} texts`} · on in {cueOnText(c, defaultSetup, stories, sessions, charName)}</span></span>
+                    <span className="side-text"><strong>{c.name}</strong><span>{cueSizeText(c)} · <span className={`cx-st${cueOnText(c, defaultSetup, stories, sessions, charName) === "Off" ? "" : " live"}`}>{cueOnText(c, defaultSetup, stories, sessions, charName)}</span></span></span>
                   </button>
                 </li>
               ))}
@@ -124,7 +124,7 @@ export function CuesPage({ svc, lead, cues, stories, sessions, characters, defau
           </>}
           detail={selected ? (
             <CueEditor key={selected.id} cue={selected} svc={svc} characters={characters} stories={stories} sessions={sessions} defaultSetup={defaultSetup}
-              onSetDefaultSetup={onSetDefaultSetup} onSaved={onChanged} onTry={setTrying} onExport={onExport}
+              activeSessionId={activeSessionId} onSetDefaultSetup={onSetDefaultSetup} onSaved={onChanged} onExport={onExport}
               onDelete={async () => { await svc.store.cues.delete(selected.id); await onSetDefaultSetup(layerWithCue(defaultSetup, selected.id, false)); await onChanged(); onSelect(null); }} />
           ) : <EmptyDetail text="Select a cue to edit it." />}
         />
@@ -134,7 +134,6 @@ export function CuesPage({ svc, lead, cues, stories, sessions, characters, defau
           <ExampleCards onPick={(id) => { setExamples(false); const c = cueFromExample(id, taken); if (c) void add(c); }} />
         </Modal>
       )}
-      {trying && <CueTryIt svc={svc} cue={trying} sessions={sessions} initialSessionId={activeSessionId} onClose={() => setTrying(null)} />}
     </div>
   );
 }
@@ -151,16 +150,25 @@ function ExampleCards({ onPick }: { onPick: (id: string) => void }) {
   );
 }
 
-// ------------------------------------------------------------------ the editor
+// ------------------------------------------------------------------ the editor (round 2, D-119)
+// Daniel: "the Cues tab is a mess … it must at least be readable and easy to edit first". Draft 1 approved (claude.ai
+// artifact SNhzdAd3oQ1xgdZFKfMXzJ): a header with the On pill, "How it works" (reads → remembers → writes), the parts
+// first with texts as rows (a stage table when a part only tests one value), values as ladders with rules as
+// sentences, reads as rows with word chips, and Try It inside the editor.
 
-function CueEditor({ cue, svc, characters, stories, sessions, defaultSetup, onSetDefaultSetup, onSaved, onTry, onExport, onDelete }: {
-  cue: Cue; svc: AppServices; characters: Character[]; stories: Story[]; sessions: Session[]; defaultSetup: SetupLayer;
+type TryResult = { texts: CueOutput[]; report: CueReport; before: Record<string, unknown> | undefined };
+type Paths = Array<{ value: string; label: string }>;
+
+function CueEditor({ cue, svc, characters, stories, sessions, defaultSetup, activeSessionId, onSetDefaultSetup, onSaved, onExport, onDelete }: {
+  cue: Cue; svc: AppServices; characters: Character[]; stories: Story[]; sessions: Session[]; defaultSetup: SetupLayer; activeSessionId: string | null;
   onSetDefaultSetup: (patch: Partial<SetupLayer>) => Promise<void> | void;
-  onSaved: () => Promise<void>; onTry: (c: CueInput) => void; onExport: (id: string, name: string) => void; onDelete: () => Promise<void>;
+  onSaved: () => Promise<void>; onExport: (id: string, name: string) => void; onDelete: () => Promise<void>;
 }) {
   const [d, setD] = useState<Cue>(cue);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
   const [error, setError] = useState("");
+  const [trying, setTrying] = useState(false);
+  const [result, setResult] = useState<TryResult | null>(null);
   const pending = useRef<Cue | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const flush = useCallback(async () => {
@@ -184,120 +192,73 @@ function CueEditor({ cue, svc, characters, stories, sessions, defaultSetup, onSe
     clearTimeout(timer.current);
     timer.current = setTimeout(() => { void flush(); }, 600);
   };
-  const everyChat = layerHasCue(defaultSetup, d.id);
   const keysTaken = (exceptKey?: string) => new Set([...d.signals.map((s) => s.key), ...d.values.map((v) => v.key)].filter((k) => k !== exceptKey));
-  const paths = useMemo(() => [
+  const paths = useMemo<Paths>(() => [
     ...d.signals.map((s) => ({ value: `signal.${s.key}`, label: `${s.key} (reads)` })),
     ...d.values.map((v) => ({ value: `value.${v.key}`, label: `${v.key} (remembers)` })),
   ], [d.signals, d.values]);
-  const usedIn = [
-    stories.filter((s) => layerHasCue(s.setup, d.id)).length && `${stories.filter((s) => layerHasCue(s.setup, d.id)).length} stories`,
-    sessions.filter((s) => s.setup.cues?.add.includes(d.id)).length && `${sessions.filter((s) => s.setup.cues?.add.includes(d.id)).length} chats`,
-  ].filter(Boolean).join(" · ");
+  const jump = (id: string) => document.getElementById(`${d.id}-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const addSignal = () => set({ signals: [...d.signals, CueSignalSchema.parse({ key: freeKey("words", keysTaken()), kind: "words" })] });
+  const addValue = () => set({ values: [...d.values, { key: freeKey("value", keysTaken()), label: "", initial: "", rules: [], otherwise: "keep", showInScene: false, stages: [] }] });
+  const addPart = () => set({ groups: [...d.groups, { key: freeKey("texts", new Set(d.groups.map((g) => g.key))), name: `Part ${d.groups.length + 1}`, pick: "all", noRepeat: 0, chance: 100, cooldown: 0, wrap: "", separator: "\n", placement: { position: "atDepth", depth: 1, role: "system", outletName: "" }, items: [emptyText()] }] });
 
   return (
-    <div className="editor agent-editor ae cue-editor" aria-label="Cue editor" data-testid="cue-editor">
-      <div className="session-bar">
-        <input className="ae-icon" aria-label="Cue icon" maxLength={4} placeholder="⟡" value={d.icon ?? ""} onChange={(e) => set({ icon: e.target.value || undefined })} />
-        <input className="ag-title" aria-label="Cue name" placeholder="Cue name" value={d.name} onChange={(e) => set({ name: e.target.value })} />
-        <span className="spacer" />
+    <div className="editor cx" aria-label="Cue editor" data-testid="cue-editor">
+      <div className="session-bar cx-bar">
+        <input className="cx-icon" aria-label="Cue icon" maxLength={4} placeholder="⟡" value={d.icon ?? ""} onChange={(e) => set({ icon: e.target.value || undefined })} />
+        <input className="cx-name" aria-label="Cue name" placeholder="Cue name" value={d.name} onChange={(e) => set({ name: e.target.value })} />
         <span className={status === "error" ? "error-text" : "hint"} role="status" data-testid="cue-save-state">{status === "saving" ? "Saving…" : status === "error" ? "Not saved" : "✓ Saved"}</span>
-        <button type="button" className="btn btn-bordered btn-small" data-testid="cue-try" onClick={() => onTry(d)}>Try It</button>
-        <button type="button" className="btn btn-bordered btn-small" data-testid="cue-export" title="Save this cue to a file, to keep or share"
-          onClick={() => { void flush().then((ok) => { if (ok) onExport(d.id, d.name || "cue"); }); }}>Export</button>
+        <OnPill d={d} set={set} characters={characters} stories={stories} sessions={sessions} defaultSetup={defaultSetup} onSetDefaultSetup={onSetDefaultSetup} />
+        <Button small variant={trying ? "prominent" : "bordered"} data-testid="cue-try" aria-pressed={trying} onClick={() => { setTrying(!trying); setResult(null); }}>Try It</Button>
+        <MoreMenu d={d} set={set} onExport={() => { void flush().then((ok) => { if (ok) onExport(d.id, d.name || "cue"); }); }} onDelete={onDelete} />
       </div>
-      <div className="editor-body ae-body">
+      <div className="editor-body cx-body">
         {error && <div className="error-bar inline" role="alert">{error}</div>}
+        <AutoText className="cx-help" rows={1} aria-label="Cue description" placeholder="What it does, in one line" value={d.help} onChange={(e) => set({ help: e.target.value.replace(/\n/g, " ") })} />
+        {trying && <TryBand svc={svc} cue={d} sessions={sessions} initialSessionId={activeSessionId} onResult={setResult} onClose={() => { setTrying(false); setResult(null); }} />}
+        <HowItWorks d={d} result={trying ? result : null} onJump={jump} />
 
-        <Sec title="About">
-          <div className="ae-two">
-            <label className="ae-fld"><span>What it does</span><input aria-label="Cue description" placeholder="One line, shown in lists" value={d.help} onChange={(e) => set({ help: e.target.value })} /></label>
-            <label className="ae-fld"><span>Author</span><input aria-label="Cue author" placeholder="Optional" value={d.author ?? ""} onChange={(e) => set({ author: e.target.value || undefined })} /></label>
-          </div>
-        </Sec>
-
-        <Sec title="Where It Runs" help="A cue is off until you switch it on: in every chat, in a story's or a chat's Setup, or wherever a character is.">
-          <div className="row-line wrap">
-            <Switch label="On in every chat" checked={everyChat} onChange={(on) => void onSetDefaultSetup({ cues: layerWithCue(defaultSetup, d.id, on).cues })} />
-            <span>On in every chat</span>
-            <span className="hint">{usedIn ? `· also switched on in ${usedIn}` : "· or switch it on in a story's or a chat's Setup"}</span>
-          </div>
-          <div className="row-line wrap" data-testid="cue-characters">
-            <span>With these characters</span>
-            {d.characterIds.map((id) => (
-              <span key={id} className="tag">{characters.find((c) => c.id === id)?.name ?? "(a deleted character)"} <button type="button" className="link quiet" aria-label="Untie this character" onClick={() => set({ characterIds: d.characterIds.filter((x) => x !== id) })}>×</button></span>
-            ))}
-            <select className="pick-select" aria-label="Tie to a character" value="" onChange={(e) => { if (e.target.value) set({ characterIds: [...d.characterIds, e.target.value] }); }}>
-              <option value="">+ Character…</option>
-              {characters.filter((c) => !d.characterIds.includes(c.id)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <Help text="The cue switches on by itself in chats where one of these characters is. A chat can still switch it off in its Setup." />
-          </div>
-          <div className="row-line wrap">
-            <span>Runs on</span>
-            {GEN.map((g) => {
-              const on = !d.when.generationTypes.length || d.when.generationTypes.includes(g.value);
-              return <button key={g.value} type="button" className={`fchip${on ? " on" : ""}`} aria-pressed={on}
-                onClick={() => {
-                  const all = GEN.map((x) => x.value);
-                  const cur = d.when.generationTypes.length ? d.when.generationTypes : all;
-                  const next = on ? cur.filter((x) => x !== g.value) : [...cur, g.value];
-                  set({ when: { ...d.when, generationTypes: next.length === all.length ? [] : next } });
-                }}>{g.label}</button>;
-            })}
-            <span>· from message</span>
-            <NumberBox label="Starts after this many messages" value={d.when.minMessages} min={0} max={10000} onCommit={(n) => set({ when: { ...d.when, minMessages: n } })} />
-          </div>
-          <div className="row-line wrap">
-            <span>On a new version (swipe)</span>
-            <Segmented small label="Chance on a swipe" value={d.randomness} onChange={(v) => set({ randomness: v })}
-              options={[{ value: "stable", label: "Same Roll" }, { value: "perSwipe", label: "Roll Again" }]} />
-            <Help text="Same Roll: a swipe gets the same texts, only the AI's writing changes. Counters never add twice either way." />
-          </div>
-        </Sec>
-
-        <Sec title="Reads" help="Worked out on every reply, never stored. Use their names in tests and texts: {{signal.name}}.">
-          {d.signals.map((s, i) => (
-            <SignalCard key={i} s={s} taken={keysTaken(s.key)}
-              onChange={(next) => set({ signals: d.signals.map((x, j) => (j === i ? next : x)) })}
-              onRemove={() => set({ signals: d.signals.filter((_, j) => j !== i) })} />
-          ))}
-          {!d.signals.length && <p className="hint">Nothing yet. A cue can work without reading anything (texts with a chance, for example).</p>}
-          <div className="row-line wrap">
-            <select className="pick-select" aria-label="Add a signal" value="" data-testid="cue-add-signal" onChange={(e) => {
-              const kind = e.target.value as CueSignal["kind"];
-              if (!kind) return;
-              const key = freeKey(kind === "words" ? "words" : kind, keysTaken());
-              set({ signals: [...d.signals, CueSignalSchema.parse({ key, kind })] });
-            }}>
-              <option value="">+ Add a Signal…</option>
-              {SIGNAL_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label} — {k.sub}</option>)}
-            </select>
-          </div>
-        </Sec>
-
-        <Sec title="Remembers" help="Values kept between turns, pinned to each message: a swipe never counts twice, a branch has its own. Use them as {{value.name}}.">
-          {d.values.map((v, i) => (
-            <ValueCard key={i} v={v} paths={paths} taken={keysTaken(v.key)}
-              onChange={(next) => set({ values: d.values.map((x, j) => (j === i ? next : x)) })}
-              onRemove={() => set({ values: d.values.filter((_, j) => j !== i) })} />
-          ))}
-          {!d.values.length && <p className="hint">Nothing yet. Values let a cue follow a scene: a stage, a counter, “is it paused?”.</p>}
-          <div className="row-line"><Button small data-testid="cue-add-value" onClick={() => set({ values: [...d.values, { key: freeKey("value", keysTaken()), label: "", initial: "", rules: [], otherwise: "keep", showInScene: false }] })}>+ Add a Value</Button></div>
-        </Sec>
-
-        <Sec title="Writes" help="Groups of texts. Each group picks its text(s) and says where they go in the prompt.">
+        <section className="cx-sec" id={`${d.id}-writes`} aria-label="Writes">
           {d.groups.map((g, i) => (
-            <GroupCard key={g.key + i} g={g} paths={paths}
+            <PartCard key={g.key + i} g={g} n={i + 1} many={d.groups.length > 1} values={d.values} paths={paths} result={trying ? result : null}
               onChange={(next) => set({ groups: d.groups.map((x, j) => (j === i ? next : x)) })}
               onRemove={() => set({ groups: d.groups.filter((_, j) => j !== i) })} />
           ))}
-          <div className="row-line"><Button small data-testid="cue-add-group" onClick={() => set({ groups: [...d.groups, { key: freeKey("texts", new Set(d.groups.map((g) => g.key))), name: "Texts", pick: "all", noRepeat: 0, chance: 100, cooldown: 0, wrap: "", separator: "\n", placement: { position: "atDepth", depth: 1, role: "system", outletName: "" }, items: [{ ...emptyText() }] }] })}>+ Add a Group</Button></div>
-        </Sec>
+          {!d.groups.length && <p className="hint">This cue writes nothing yet. Add a part with a text.</p>}
+        </section>
 
-        <div className="row-line end">
-          <span className="hint grow">Values live in the scene as <code>{d.namespace}</code>: macros read them as <code>{`{{state.${d.namespace}.name}}`}</code>.</span>
-          <ConfirmButton label="Delete Cue" confirmLabel="Delete it" onConfirm={() => void onDelete()} />
+        {d.values.length > 0 && (
+          <section className="cx-sec" id={`${d.id}-remembers`} aria-label="Remembers">
+            <div className="cx-sec-h"><span className="cx-k mem">Remembers</span><span className="hint">values kept between replies, pinned to each message (a swipe never counts twice)</span><span className="grow" />
+              <Button small variant="plain" data-testid="cue-add-value" onClick={addValue}>+ Add a Value</Button></div>
+            {d.values.map((v, i) => (
+              <ValueCard key={i} v={v} paths={paths} taken={keysTaken(v.key)} now={trying ? result?.report.values.find((x) => x.key === v.key)?.after : undefined}
+                onChange={(next) => set({ values: d.values.map((x, j) => (j === i ? next : x)) })}
+                onRemove={() => set({ values: d.values.filter((_, j) => j !== i) })} />
+            ))}
+          </section>
+        )}
+
+        {d.signals.length > 0 && (
+          <section className="cx-sec" id={`${d.id}-reads`} aria-label="Reads">
+            <div className="cx-sec-h"><span className="cx-k read">Reads</span><span className="hint">worked out on every reply, never stored</span><span className="grow" />
+              <Button small variant="plain" data-testid="cue-add-signal" onClick={addSignal}>+ Add a Reading</Button></div>
+            <div className="cx-box">
+              {d.signals.map((s, i) => (
+                <SignalRow key={i} s={s} all={d.signals} taken={keysTaken(s.key)} live={trying ? result?.report.signals.find((x) => x.key === s.key) : undefined}
+                  onChange={(next) => set({ signals: d.signals.map((x, j) => (j === i ? next : x)) })}
+                  onRemove={() => set({ signals: d.signals.filter((_, j) => j !== i) })} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        <div className="cx-add">
+          <span>Add:</span>
+          {!d.signals.length && <Button small data-testid="cue-add-signal" onClick={addSignal}>Read the Chat</Button>}
+          {!d.values.length && <Button small data-testid="cue-add-value" onClick={addValue}>Remember a Value</Button>}
+          <Button small data-testid="cue-add-group" onClick={addPart}>Another Part</Button>
+          <Help text="Reads: words, message counts, chance, the clock or a tracker field, worked out on every reply. Values: something the cue remembers between replies (a stage, a counter, “is it paused?”). Parts: groups of texts, each picking its own way and going to its own place in the prompt." />
         </div>
       </div>
     </div>
@@ -306,6 +267,650 @@ function CueEditor({ cue, svc, characters, stories, sessions, defaultSetup, onSe
 
 const GEN = [{ value: "normal", label: "New Replies" }, { value: "swipe", label: "New Versions" }, { value: "continue", label: "Continue" }, { value: "impersonate", label: "Impersonate" }] as const;
 const emptyText = (): CueText => ({ id: uid(), title: "", text: "", weight: 100, when: [], logic: "all", chance: 100, minMessages: 0, oneOf: "", enabled: true });
+
+/** A small menu under a button: closes on a click outside or Escape. */
+function usePop() {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); box.current?.querySelector<HTMLElement>("[aria-haspopup]")?.focus(); } };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  return { open, setOpen, box };
+}
+
+/** "Off ▾" / "On in every chat ▾": where the cue runs, and the rarely changed run settings. */
+function OnPill({ d, set, characters, stories, sessions, defaultSetup, onSetDefaultSetup }: {
+  d: Cue; set: (p: Partial<Cue>) => void; characters: Character[]; stories: Story[]; sessions: Session[]; defaultSetup: SetupLayer;
+  onSetDefaultSetup: (patch: Partial<SetupLayer>) => Promise<void> | void;
+}) {
+  const { open, setOpen, box } = usePop();
+  const charName = (id: string) => characters.find((c) => c.id === id)?.name;
+  const on = cueOnText(d, defaultSetup, stories, sessions, charName);
+  const everyChat = layerHasCue(defaultSetup, d.id);
+  const st = stories.filter((s) => layerHasCue(s.setup, d.id)).length;
+  const ch = sessions.filter((s) => s.setup.cues?.add.includes(d.id)).length;
+  return (
+    <span className="cx-pop-wrap" ref={box}>
+      <button type="button" className={`cx-on${on === "Off" ? "" : " live"}`} aria-haspopup="dialog" aria-expanded={open} data-testid="cue-on" onClick={() => setOpen(!open)}>
+        <span className="cx-dot" />{on === "Off" ? "Off" : `On · ${on}`}<span aria-hidden className="cx-caret">▾</span>
+      </button>
+      {open && (
+        <div className="cx-pop" role="dialog" aria-label="Where it runs" data-testid="cue-where">
+          <div className="cx-pop-ln"><b>On in every chat</b><Switch label="On in every chat" checked={everyChat} onChange={(v) => void onSetDefaultSetup({ cues: layerWithCue(defaultSetup, d.id, v).cues })} /></div>
+          <div className="cx-pop-ln wrap" data-testid="cue-characters">
+            <span>With these characters</span>
+            {d.characterIds.map((id) => (
+              <span key={id} className="tag">{charName(id) ?? "(a deleted character)"} <button type="button" className="link quiet" aria-label="Untie this character" onClick={() => set({ characterIds: d.characterIds.filter((x) => x !== id) })}>×</button></span>
+            ))}
+            <select className="pick-select" aria-label="Tie to a character" value="" onChange={(e) => { if (e.target.value) set({ characterIds: [...d.characterIds, e.target.value] }); }}>
+              <option value="">+ Character…</option>
+              {characters.filter((c) => !d.characterIds.includes(c.id)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <small className="hint">Or switch it on for one story or chat: its Setup → Cues.{st || ch ? ` On in ${st} ${st === 1 ? "story" : "stories"}, ${ch} ${ch === 1 ? "chat" : "chats"} now.` : ""}</small>
+          <hr />
+          <div className="cx-pop-ln wrap"><span>Runs on</span>
+            {GEN.map((g) => {
+              const isOn = !d.when.generationTypes.length || d.when.generationTypes.includes(g.value);
+              return <button key={g.value} type="button" className={`fchip${isOn ? " on" : ""}`} aria-pressed={isOn}
+                onClick={() => {
+                  const all = GEN.map((x) => x.value);
+                  const cur = d.when.generationTypes.length ? d.when.generationTypes : all;
+                  const next = isOn ? cur.filter((x) => x !== g.value) : [...cur, g.value];
+                  set({ when: { ...d.when, generationTypes: next.length === all.length ? [] : next } });
+                }}>{g.label}</button>;
+            })}
+          </div>
+          <div className="cx-pop-ln"><span>Starts after this many messages</span><NumberBox label="Starts after this many messages" value={d.when.minMessages} min={0} max={10000} onCommit={(n) => set({ when: { ...d.when, minMessages: n } })} /></div>
+          <div className="cx-pop-ln"><span>On a swipe <Help text="Same Roll: a swipe gets the same texts, only the AI's writing changes. Counters never add twice either way." /></span>
+            <Segmented small label="Chance on a swipe" value={d.randomness} onChange={(v) => set({ randomness: v })}
+              options={[{ value: "stable", label: "Same Roll" }, { value: "perSwipe", label: "Roll Again" }]} /></div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** ⋯: Export, Author, where values live, Delete. */
+function MoreMenu({ d, set, onExport, onDelete }: { d: Cue; set: (p: Partial<Cue>) => void; onExport: () => void; onDelete: () => Promise<void> }) {
+  const { open, setOpen, box } = usePop();
+  return (
+    <span className="cx-pop-wrap" ref={box}>
+      <IconButton label="More" aria-haspopup="dialog" aria-expanded={open} data-testid="cue-more" onClick={() => setOpen(!open)}><Icon name="dots" size={15} /></IconButton>
+      {open && (
+        <div className="cx-pop" role="dialog" aria-label="More">
+          <Button small data-testid="cue-export" title="Save this cue to a file, to keep or share" onClick={() => { setOpen(false); onExport(); }}>Export…</Button>
+          <label className="ae-fld"><span>Author</span><input aria-label="Cue author" placeholder="Optional" value={d.author ?? ""} onChange={(e) => set({ author: e.target.value || undefined })} /></label>
+          <small className="hint">Values live in the scene as <code>{d.namespace}</code>; macros read them as <code>{`{{state.${d.namespace}.name}}`}</code>.</small>
+          <hr />
+          <ConfirmButton label="Delete Cue" confirmLabel="Delete it" onConfirm={() => void onDelete()} />
+        </div>
+      )}
+    </span>
+  );
+}
+
+// ------------------------------------------------------------------ How it works
+
+function HowItWorks({ d, result, onJump }: { d: Cue; result: TryResult | null; onJump: (id: string) => void }) {
+  const r = result?.report;
+  const cost = cueCost(d);
+  const only = !d.signals.length && !d.values.length;
+  const show = (x: unknown) => (x === undefined || x === null || x === "" ? "—" : typeof x === "object" ? JSON.stringify(x) : String(x));
+  const writes = (
+    <div className="cx-col write">
+      <h4>Writes {!only && <button type="button" className="link quiet" onClick={() => onJump("writes")}>{d.groups.length} {d.groups.length === 1 ? "part" : "parts"} ▸</button>}</h4>
+      {r ? (
+        <div data-testid="cue-try-writes">
+          {r.skipped ? <p className="hint" data-testid="cue-try-skipped">It would not run here: {r.skipped}.</p>
+            : r.groups.map((g) => (
+              <div key={g.key} className="cx-it"><b>{g.name || g.key} · {g.picked.length}</b><span>{g.picked.length ? g.picked.map((x) => x.title).join(", ") : "nothing this reply"} · {g.reason}</span></div>
+            ))}
+        </div>
+      ) : d.groups.map((g) => {
+        const sv = stageView(g, d.values);
+        return <div key={g.key} className="cx-it">{only ? null : <b>{g.name || g.key}</b>}
+          <span>{partSentence(g, sv?.key).map((p) => p.text).join("")} {g.items.length} {g.items.length === 1 ? "text" : "texts"}{g.pick === "all" && g.items.some(isAlways) && g.items.some((t) => !isAlways(t)) ? ` (${g.items.filter(isAlways).length} always)` : ""}.</span></div>;
+      })}
+    </div>
+  );
+  return (
+    <div className={`cx-flow${only ? " one" : ""}${r ? " live" : ""}`} aria-label="How it works" data-testid="cue-flow">
+      {!only && <>
+        <div className="cx-col read"><h4>Reads <button type="button" className="link quiet" onClick={() => onJump("reads")}>{d.signals.length} ▸</button></h4>
+          {d.signals.map((s) => {
+            const live = r?.signals.find((x) => x.key === s.key);
+            return <div key={s.key} className="cx-it"><b>{s.key}{live ? <> = <span className="cx-live">{show(live.value)}</span></> : null}</b><span>{live ? (live.detail || "nothing matched") : readingText(s, d.signals)}</span></div>;
+          })}
+          {!d.signals.length && <span className="hint">Nothing.</span>}
+        </div>
+        <div className="cx-arrow" aria-hidden>→</div>
+        <div className="cx-col mem"><h4>Remembers <button type="button" className="link quiet" onClick={() => onJump("remembers")}>{d.values.length} ▸</button></h4>
+          {d.values.map((v) => {
+            const live = r?.values.find((x) => x.key === v.key);
+            const stages = valueStages(v);
+            return <div key={v.key} className="cx-it"><b>{v.key}</b>
+              {live ? <span>{show(live.before)} → <b className="cx-mem-now">{show(live.after)}</b> · {live.why}</span> : !stages.length ? <span>starts as {show(v.initial)} · {v.rules.length} {v.rules.length === 1 ? "rule" : "rules"}</span> : null}
+              {stages.length > 0 && <Ladder stages={stages} start={String(v.initial)} now={live ? String(live.after) : undefined} />}
+              {v.showInScene && !live && <span>Shown in the Scene panel</span>}
+            </div>;
+          })}
+          {!d.values.length && <span className="hint">Nothing.</span>}
+        </div>
+        <div className="cx-arrow" aria-hidden>→</div>
+      </>}
+      {writes}
+      <div className="cx-flow-foot">
+        {r ? <span>This reply: <b>{r.tokens.toLocaleString()}</b> tokens from this cue</span> : <>
+          {cost.always > 0 && <span>Each reply: <b>~{cost.always.toLocaleString()}</b> tokens always</span>}
+          {cost.extra.map((x) => <span key={x.part}>{cost.always || cost.extra[0] !== x ? "+ " : "Each reply: "}{x.one ? `one from ${x.part}` : `${x.part} whose tests pass`} (<b>{x.min === x.max ? `~${x.min}` : `${x.min}–${x.max}`}</b>{x.one ? "" : " each"})</span>)}
+          {!cost.always && !cost.extra.length && <span>Nothing to add yet.</span>}
+        </>}
+      </div>
+    </div>
+  );
+}
+
+function Ladder({ stages, start, now }: { stages: string[]; start: string; now?: string }) {
+  return <span className="cx-ladder">{stages.map((s, i) => <span key={s} className="cx-ladder-i">{i > 0 && <i aria-hidden>→</i>}<span className={`cx-stage${s === start ? " start" : ""}${now === s ? " now" : ""}`}>{s}</span></span>)}</span>;
+}
+
+/** An earlier reading with the very same words (Yhul's "streak" counts intimacy's words). */
+const sameWordsAs = (s: CueSignal, all: CueSignal[]) => (s.kind !== "words" || !s.words.length ? undefined
+  : all.slice(0, all.indexOf(s)).find((x) => x.kind === "words" && JSON.stringify(x.words) === JSON.stringify(s.words)));
+
+/** "84 words · last 4 messages", "messages in a row with 2+ of intimacy's words · last 6" */
+function readingText(s: CueSignal, all: CueSignal[]): string {
+  if (s.kind !== "words") return signalText(s);
+  const same = sameWordsAs(s, all);
+  const count = same ? `${same.key}'s words` : `${s.words.length} ${s.words.length === 1 ? "word" : "words"}`;
+  const who = s.from === "user" ? ", yours" : s.from === "ai" ? ", the AI's" : "";
+  return s.measure === "streak" ? `messages in a row with ${s.perMessage}+ of ${count} · last ${s.last}${who}` : `${count} · last ${s.last} messages${who}`;
+}
+
+// ------------------------------------------------------------------ Try It, inside the editor
+
+function TryBand({ svc, cue, sessions, initialSessionId, onResult, onClose }: {
+  svc: AppServices; cue: Cue; sessions: Session[]; initialSessionId: string | null; onResult: (r: TryResult | null) => void; onClose: () => void;
+}) {
+  const [sessionId, setSessionId] = useState(initialSessionId && sessions.some((s) => s.id === initialSessionId) ? initialSessionId : sessions[0]?.id ?? "");
+  const [path, setPath] = useState<Message[]>([]);
+  const [messageId, setMessageId] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!sessionId) return;
+    void (async () => {
+      const last = await svc.store.latestMessage(sessionId);
+      const p = last ? await svc.store.pathTo(last.id) : [];
+      setPath(p);
+      setMessageId(p.at(-1)?.id ?? "");
+    })();
+  }, [svc, sessionId]);
+  useEffect(() => {
+    if (!sessionId || !messageId) { onResult(null); return; }
+    let live = true;
+    const t = setTimeout(() => {
+      setError("");
+      svc.chat.turns.tryCue(sessionId, messageId, cue).then((r) => { if (live) onResult(r); }).catch((e: unknown) => { if (live) { onResult(null); setError(errorText(e)); } });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [svc, sessionId, messageId, cue, onResult]);
+  return (
+    <div className="cx-try" role="region" aria-label="Try It" data-testid="cue-try-it">
+      <b>Try It</b>
+      {sessions.length ? <>
+        <span>on</span>
+        <select className="pick-select" aria-label="Chat" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
+          {sessions.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+        </select>
+        <span>the reply after</span>
+        <select className="pick-select cx-try-msg" aria-label="Message" value={messageId} onChange={(e) => setMessageId(e.target.value)}>
+          {path.map((m, i) => <option key={m.id} value={m.id}>#{i + 1} · {m.content.slice(0, 60)}</option>)}
+        </select>
+      </> : <span className="hint">Make a chat first: Try It reads its messages.</span>}
+      <span className="grow" />
+      <span className="hint">Nothing is saved · edits update it</span>
+      <Button small onClick={onClose}>Close</Button>
+      {error && <div className="error-bar inline" role="alert">{error}</div>}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ a part (a group of texts)
+
+const SHOW = 10;
+
+function PartCard({ g, n, many, values, paths, result, onChange, onRemove }: {
+  g: CueGroup; n: number; many: boolean; values: CueValue[]; paths: Paths; result: TryResult | null;
+  onChange: (g: CueGroup) => void; onRemove: () => void;
+}) {
+  const [settings, setSettings] = useState(false);
+  // a part with one text shows it open: a one-text cue is just its text (draft board 5)
+  const [open, setOpen] = useState<string | null>(g.items.length === 1 ? g.items[0]!.id : null);
+  const [all, setAll] = useState(false);
+  const [onlyHits, setOnlyHits] = useState(false);
+  const up = (patch: Partial<CueGroup>) => onChange({ ...g, ...patch });
+  const upItem = (id: string, patch: Partial<CueText>) => up({ items: g.items.map((x) => (x.id === id ? { ...x, ...patch } : x)) });
+  const sv = stageView(g, values);
+  const short = oneOfShort(g.items.map((t) => t.oneOf));
+  const report = result?.report.groups.find((x) => x.key === g.key);
+  const hits = new Set(report?.picked.map((x) => x.id) ?? []);
+  const p = g.placement;
+  const always = g.pick === "all" ? g.items.filter(isAlways) : [];
+  const split = always.length > 0 && always.length < g.items.length;
+  const visible = (list: CueText[]) => (onlyHits ? list.filter((t) => hits.has(t.id)) : list);
+  const addText = (base?: Partial<CueText>) => { const t = { ...emptyText(), ...base }; up({ items: [...g.items, t] }); setOpen(t.id); setAll(true); };
+  const rowProps = (t: CueText) => ({
+    t, short, pick: g.pick, open: open === t.id, hit: result ? hits.has(t.id) : undefined, paths,
+    onOpen: () => setOpen(open === t.id ? null : t.id),
+    onChange: (patch: Partial<CueText>) => upItem(t.id, patch),
+    onRemove: () => { up({ items: g.items.filter((x) => x.id !== t.id) }); setOpen(null); },
+    onDuplicate: () => { const c = { ...structuredClone(t), id: uid(), title: t.title ? `${t.title} (copy)` : "" }; const i = g.items.findIndex((x) => x.id === t.id); up({ items: [...g.items.slice(0, i + 1), c, ...g.items.slice(i + 1)] }); setOpen(c.id); },
+    shares: t.oneOf ? g.items.filter((x) => x.id !== t.id && x.oneOf === t.oneOf).map((x) => titleOf(x)) : [],
+    oneOfNames: [...new Set(g.items.map((x) => x.oneOf).filter(Boolean))],
+  });
+  const tokensOf = (list: CueText[]) => list.reduce((s, t) => s + (t.text.trim() ? estimateTokens(t.text) : 0), 0);
+  const rows = (list: CueText[]) => {
+    const shown = visible(list);
+    const cut = !all && !onlyHits && shown.length > SHOW + 2 ? shown.slice(0, SHOW) : shown;
+    return { cut, more: shown.length - cut.length };
+  };
+  const plain = rows(split ? g.items.filter((t) => !isAlways(t)) : g.items);
+
+  return (
+    <div className="cx-part" data-testid="cue-group">
+      <div className="cx-sec-h">
+        <span className="cx-k write">Writes</span>
+        <input className="cx-part-name" aria-label="Part name" value={g.name} placeholder={`Part ${n}`} onChange={(e) => up({ name: e.target.value })} />
+        {many && <span className="hint">part {n}</span>}
+      </div>
+      <div className="cx-box">
+        <div className="cx-part-top">
+          <span className="cx-sentence">{partSentence(g, sv?.key).map((x, i) => (x.strong ? <b key={i}>{x.text}</b> : <span key={i}>{x.text}</span>))}</span>
+          <span className="grow" />
+          {report ? <span className="cx-tok">{report.picked.length} go in</span> : <span className="cx-tok">{g.items.length} {g.items.length === 1 ? "text" : "texts"}</span>}
+          {result && <button type="button" className="link quiet" aria-pressed={onlyHits} onClick={() => setOnlyHits(!onlyHits)}>{onlyHits ? "Show all" : "Only what goes in"}</button>}
+          <Button small aria-expanded={settings} data-testid="cue-part-settings" onClick={() => setSettings(!settings)}>Settings</Button>
+        </div>
+        {settings && (
+          <div className="cx-settings" data-testid="cue-place">
+            <label className="cx-fld"><span>Picks</span>
+              <select className="pick-select" aria-label="How it picks" value={g.pick} onChange={(e) => up({ pick: e.target.value as CueGroup["pick"] })}>
+                {PICKS.map((x) => <option key={x.value} value={x.value}>{x.label} — {x.sub}</option>)}
+              </select></label>
+            {(g.pick === "random" || g.pick === "rotate") && <label className="cx-fld"><span>Don't repeat the last</span><NumberBox label="Don't repeat the last N" value={g.noRepeat} min={0} max={100} onCommit={(noRepeat) => up({ noRepeat })} /></label>}
+            <label className="cx-fld"><span>Chance %</span><NumberBox label="Part chance" value={g.chance} min={0} max={100} onCommit={(chance) => up({ chance })} /></label>
+            <label className="cx-fld"><span>Then wait (messages)</span><NumberBox label="Cooldown in messages" value={g.cooldown} min={0} max={1000} onCommit={(cooldown) => up({ cooldown })} /></label>
+            <div className="cx-fld wide"><span>Where it goes</span>
+              <div className="row-line wrap">
+                <select className="pick-select" aria-label="Where it goes" value={p.position} onChange={(e) => up({ placement: { ...p, position: e.target.value as typeof p.position } })}>
+                  {POSITIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                </select>
+                {p.position === "atDepth" && <><NumberBox label="Messages back" value={p.depth} min={0} max={1000} onCommit={(depth) => up({ placement: { ...p, depth } })} /><span className="hint">back, as</span></>}
+                {(p.position === "atDepth" || p.position === "agentPrompts") && (
+                  <select className="pick-select" aria-label="As" value={p.role} onChange={(e) => up({ placement: { ...p, role: e.target.value as typeof p.role } })}>
+                    <option value="system">System</option><option value="user">User</option><option value="assistant">AI</option>
+                  </select>)}
+                {p.position === "outlet" && <input aria-label="Outlet name" placeholder="outlet name" value={p.outletName} onChange={(e) => up({ placement: { ...p, outletName: e.target.value } })} />}
+              </div></div>
+            <label className="cx-fld wide"><span>Wrap <Help text="Text around what was picked; {{text}} is where it goes. Empty: just the text." /></span>
+              <input aria-label="Wrap" placeholder="Empty: just the text. Example: [Direction: {{text}}]" value={g.wrap} onChange={(e) => up({ wrap: e.target.value })} /></label>
+            <div className="row-line end"><ConfirmButton label="Delete This Part" confirmLabel="Delete it and its texts" onConfirm={onRemove} /></div>
+          </div>
+        )}
+
+        {sv ? (
+          <StageTable g={g} sv={sv} hits={result ? hits : null} onlyHits={onlyHits} all={all} open={open} rowProps={rowProps} onShowAll={() => setAll(true)}
+            onToggle={(id, stage) => {
+              const has = sv.of.get(id)!;
+              const next = has.has(stage) ? [...has].filter((x) => x !== stage) : [...has, stage];
+              if (!next.length) return;
+              upItem(id, { when: sv.stages.filter((s) => next.includes(s)).map((s) => ({ path: `value.${sv.key}`, op: "equals" as const, value: s })), logic: "any" });
+            }} />
+        ) : <>
+          {split && !onlyHits && <div className="cx-sub-h">Always <em>· in every reply · ~{tokensOf(always).toLocaleString()} tokens</em></div>}
+          {split && <ul className="cx-texts">{visible(always).map((t) => <TextRow key={t.id} {...rowProps(t)} />)}</ul>}
+          {split && !onlyHits && <div className="cx-sub-h">When their words or tests match <em>· {g.items.length - always.length}{g.items.some((t) => t.oneOf) ? " · only one per “one of” name" : ""}</em></div>}
+          <ul className="cx-texts">{plain.cut.map((t) => <TextRow key={t.id} {...rowProps(t)} />)}</ul>
+          {plain.more > 0 && <div className="cx-more-row"><span className="hint">{plain.more} more</span><button type="button" className="link" onClick={() => setAll(true)}>Show all</button></div>}
+        </>}
+        <div className="cx-part-foot">
+          {all && g.items.length > SHOW + 2 && <button type="button" className="link quiet" onClick={() => setAll(false)}>Show fewer</button>}
+          <span className="grow" />
+          <button type="button" className="link" data-testid="cue-add-text" onClick={() => addText(sv ? { when: [{ path: `value.${sv.key}`, op: "equals", value: sv.stages[1] ?? sv.stages[0]! }] } : undefined)}>+ Add a Text</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const titleOf = (t: CueText) => t.title || t.text.trim().split(/\s+/).slice(0, 8).join(" ") || "Empty text";
+
+type RowProps = {
+  t: CueText; short: (n: string) => string; pick: CueGroup["pick"]; open: boolean; hit: boolean | undefined; paths: Paths;
+  onOpen: () => void; onChange: (patch: Partial<CueText>) => void; onRemove: () => void; onDuplicate: () => void;
+  shares: string[]; oneOfNames: string[];
+};
+
+/** The tags under a text's title: its words, chance, from message, one of. */
+function TextTags({ t, short, pick, skipWhen = false }: { t: CueText; short: (n: string) => string; pick: CueGroup["pick"]; skipWhen?: boolean }) {
+  const kw = t.words?.keys.length ? keyWords(t.words.keys) : null;
+  const tags: ReactNode[] = [];
+  if (kw) tags.push(<span key="w" className="cx-tag words">{kw.words.slice(0, 4).map((w, i) => (i === 0 ? <b key={i}>{w}</b> : <span key={i}> · {w}</span>))}{kw.words.length > 4 && <i> +{kw.words.length - 4}</i>}{kw.patterns > 0 && <i>{kw.patterns === 1 && t.words!.keys.length === 1 ? " · one pattern" : ""}</i>}</span>);
+  if (kw && t.words!.last !== 4) tags.push(<span key="l" className="cx-tag">last {t.words!.last}</span>);
+  if (!skipWhen && t.when.length) tags.push(<span key="c" className="cx-tag">when {testsText(t.when, t.logic)}</span>);
+  if (t.chance < 100) tags.push(<span key="p" className="cx-tag">{t.chance}%</span>);
+  if (t.minMessages) tags.push(<span key="m" className="cx-tag">from message {t.minMessages}</span>);
+  if (pick === "random" && t.weight !== 100) tags.push(<span key="g" className="cx-tag">weight {t.weight}</span>);
+  if (t.oneOf) tags.push(<span key="o" className="cx-tag one">one of: {short(t.oneOf)}</span>);
+  if (!t.enabled) tags.push(<span key="x" className="cx-tag off">off</span>);
+  return tags.length ? <span className="cx-tags">{tags}</span> : null;
+}
+
+function TextRow(props: RowProps) {
+  const { t, open, hit, onOpen } = props;
+  return (
+    <li className={`cx-tx${open ? " open" : ""}${hit ? " hit" : ""}${t.enabled ? "" : " off"}`} data-testid="cue-text">
+      <button type="button" className="cx-tx-head" aria-expanded={open} onClick={onOpen}>
+        <span className="cx-mark" aria-label={hit ? "Goes in" : undefined} />
+        <span className="cx-tx-t">{titleOf(props.t)}</span>
+        <span className="cx-tok">{t.text.trim() ? estimateTokens(t.text) : ""}</span>
+        <TextTags t={t} short={props.short} pick={props.pick} />
+      </button>
+      {open && <TextEditor {...props} />}
+    </li>
+  );
+}
+
+function StageTable({ g, sv, hits, onlyHits, all, open, rowProps, onToggle, onShowAll }: {
+  g: CueGroup; sv: NonNullable<ReturnType<typeof stageView>>; hits: Set<string> | null; onlyHits: boolean; all: boolean; open: string | null;
+  rowProps: (t: CueText) => RowProps; onToggle: (id: string, stage: string) => void; onShowAll: () => void;
+}) {
+  const used = sv.stages.filter((s) => g.items.some((t) => sv.of.get(t.id)?.has(s)) || s !== sv.stages[0]);
+  const list = onlyHits && hits ? g.items.filter((t) => hits.has(t.id)) : g.items;
+  const shown = !all && !onlyHits && list.length > SHOW + 2 ? list.slice(0, SHOW) : list;
+  return <>
+    <div className="cx-table-wrap">
+      <table className="cx-table" data-testid="cue-stage-table">
+        <thead><tr><th scope="col">Text</th>{used.map((s) => <th key={s} scope="col">{s}</th>)}<th scope="col" className="tk">tokens</th></tr></thead>
+        <tbody>
+          {shown.map((t) => {
+            const rp = rowProps(t);
+            return [
+              <tr key={t.id} className={`${hits?.has(t.id) ? "hit" : ""}${t.enabled ? "" : " off"}`} data-testid="cue-text">
+                <td><button type="button" className="cx-tx-link" aria-expanded={open === t.id} onClick={rp.onOpen}>{titleOf(t)}</button>
+                  <TextTags t={t} short={rp.short} pick={rp.pick} skipWhen /></td>
+                {used.map((s) => {
+                  const on = sv.of.get(t.id)!.has(s);
+                  const last = on && sv.of.get(t.id)!.size === 1;
+                  return <td key={s}><button type="button" className={`cx-dotc${on ? " on" : ""}`} aria-pressed={on} disabled={last}
+                    aria-label={`${titleOf(t)} at ${s}`} title={last ? "A text needs at least one stage; delete it instead" : on ? `Not at ${s}` : `Also at ${s}`} onClick={() => onToggle(t.id, s)} /></td>;
+                })}
+                <td className="tk cx-tok">{t.text.trim() ? estimateTokens(t.text) : ""}</td>
+              </tr>,
+              open === t.id ? <tr key={`${t.id}-ed`} className="cx-table-ed"><td colSpan={used.length + 2}><TextEditor {...rp} /></td></tr> : null,
+            ];
+          })}
+        </tbody>
+      </table>
+    </div>
+    <div className="cx-more-row">
+      <span className="hint">per stage: {used.map((s) => `${s} ${g.items.filter((t) => sv.of.get(t.id)?.has(s)).length}`).join(" · ")}</span>
+      {list.length > shown.length && <><span className="hint">· {list.length - shown.length} more</span><button type="button" className="link" onClick={onShowAll}>Show all</button></>}
+    </div>
+  </>;
+}
+
+// ------------------------------------------------------------------ a text, opened
+
+function TextEditor({ t, pick, paths, onChange, onRemove, onDuplicate, onOpen, shares, oneOfNames }: RowProps) {
+  const w = t.words ?? { keys: [], also: [], not: [], last: 4, from: "both" as const, wholeWords: true, caseSensitive: false };
+  const upW = (patch: Partial<typeof w>) => onChange({ words: { ...w, ...patch } });
+  const [extra, setExtra] = useState<{ words: boolean; also: boolean; not: boolean; tests: boolean }>({ words: w.keys.length > 0, also: w.also.length > 0, not: w.not.length > 0, tests: t.when.length > 0 });
+  const always = !w.keys.length && !t.when.length && !extra.tests && !extra.words;
+  const wordsOn = extra.words || w.keys.length > 0;
+  const listId = `oneof-${t.id}`;
+  return (
+    <div className="cx-open">
+      <div className="cx-open-top">
+        <input className="cx-open-title" aria-label="Text title" placeholder="Title (optional)" value={t.title} onChange={(e) => onChange({ title: e.target.value })} />
+        <Switch label="Text on" checked={t.enabled} onChange={(enabled) => onChange({ enabled })} /><span className="hint">{t.enabled ? "On" : "Off"}</span>
+        <Button small variant="plain" onClick={onDuplicate}>Duplicate</Button>
+        <ConfirmButton label="Delete" confirmLabel="Delete this text" onConfirm={onRemove} />
+        <Button small onClick={onOpen}>Close</Button>
+      </div>
+      <AutoText className="cx-prose" aria-label="Text" placeholder="What goes into the prompt. Macros work: {{char}}, {{user}}, {{value.name}}…" value={t.text} onChange={(e) => onChange({ text: e.target.value })} />
+      <span className="cx-tok">{t.text.trim() ? `${estimateTokens(t.text)} tokens` : "empty"}</span>
+
+      <div className="cx-when">
+        <span className="cx-when-l">Goes in when</span>
+        {always ? <div className="row-line wrap"><span>every time this part runs</span>
+          <button type="button" className="link" onClick={() => setExtra({ ...extra, words: true })} data-testid="cue-add-words">+ only when a word shows up…</button>
+          <button type="button" className="link" onClick={() => setExtra({ ...extra, tests: true })}>+ only when a test passes…</button>
+        </div> : <>
+          {wordsOn && <>
+            <div className="row-line wrap"><span>any of these words shows up in the last</span>
+              <NumberBox label="Messages the words are looked for in" value={w.last} min={1} max={100} onCommit={(last) => upW({ last })} /><span>messages</span></div>
+            <ChipInput value={w.keys} label="Needs one of these words" placeholder="Type a word and press Enter, or paste a list" onChange={(keys) => upW({ keys })} wholeWords={w.wholeWords} onSplit={(wholeWords) => upW({ wholeWords })} />
+          </>}
+          {wordsOn && extra.also && <><span className="hint">and also one of these</span><ChipInput value={w.also} label="And one of these" placeholder="Words…" onChange={(also) => upW({ also })} /></>}
+          {wordsOn && extra.not && <><span className="hint">but none of these</span><ChipInput value={w.not} label="But none of these" placeholder="Words…" onChange={(not) => upW({ not })} /></>}
+          {(extra.tests || t.when.length > 0) && <Conditions list={t.when} logic={t.logic} paths={paths} onChange={(when, logic) => onChange({ when, logic })} />}
+          <div className="row-line wrap cx-links">
+            {!wordsOn && <button type="button" className="link" onClick={() => setExtra({ ...extra, words: true })}>+ words…</button>}
+            {wordsOn && !extra.also && <button type="button" className="link" onClick={() => setExtra({ ...extra, also: true })}>+ and also one of…</button>}
+            {wordsOn && !extra.not && <button type="button" className="link" onClick={() => setExtra({ ...extra, not: true })}>+ but none of…</button>}
+            {!extra.tests && !t.when.length && <button type="button" className="link" onClick={() => setExtra({ ...extra, tests: true })}>+ a test (a value, a tracker…)</button>}
+            {wordsOn && <label className="cue-check"><input type="checkbox" checked={w.wholeWords} onChange={(e) => upW({ wholeWords: e.target.checked })} /> Whole words</label>}
+          </div>
+        </>}
+      </div>
+
+      <div className="cx-line">
+        <span className="cx-g">Chance <NumberBox label="Text chance" value={t.chance} min={0} max={100} onCommit={(chance) => onChange({ chance })} />%</span>
+        <span className="cx-g">From message <NumberBox label="Only after this many messages" value={t.minMessages} min={0} max={10000} onCommit={(minMessages) => onChange({ minMessages })} /></span>
+        {pick === "random" && <span className="cx-g">Weight <NumberBox label="Weight" value={t.weight} min={0} max={10000} onCommit={(weight) => onChange({ weight })} /></span>}
+        <span className="cx-g">One of <input className="cue-val" list={listId} aria-label="Only one of the texts with this name" placeholder="a name" value={t.oneOf} onChange={(e) => onChange({ oneOf: e.target.value })} />
+          <datalist id={listId}>{oneOfNames.map((n) => <option key={n} value={n} />)}</datalist>
+          <Help text="Texts with the same name here: only one of them goes in (by weight), like a lorebook inclusion group." /></span>
+        {shares.length > 0 && <span className="hint">with {shares.slice(0, 2).join(", ")}{shares.length > 2 ? ` and ${shares.length - 2} more` : ""}: only one goes in</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Words as chips: Enter or comma adds, a pasted list adds them all, × removes. A /pattern/ of plain words can be split. */
+function ChipInput({ value, label, placeholder, onChange, wholeWords, onSplit, collapseAt = 40 }: {
+  value: string[]; label: string; placeholder?: string; onChange: (v: string[]) => void;
+  /** Splitting a pattern: the whole-word setting the split words need (only asked for when it differs). */
+  wholeWords?: boolean; onSplit?: (wholeWords: boolean) => void; collapseAt?: number;
+}) {
+  const [draft, setDraft] = useState("");
+  const [all, setAll] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const add = (text: string) => {
+    const items = listOf(text);
+    if (!items.length) return;
+    onChange([...value, ...items.filter((w) => !value.includes(w))]);
+    setDraft("");
+  };
+  const shown = all || value.length <= collapseAt ? value : value.slice(0, collapseAt);
+  return (
+    <div className="cx-chips" onClick={(e) => { if (e.target === e.currentTarget) input.current?.focus(); }}>
+      {shown.map((w, i) => {
+        const split = w.startsWith("/") ? splitRegexKey(w) : null;
+        return (
+          <span key={w + i} className={`cx-chip${w.startsWith("/") ? " re" : ""}`}>{w}
+            {split && <button type="button" className="cx-chip-split" title="Turn this pattern into separate words you can edit"
+              onClick={() => { const next = [...value]; next.splice(i, 1, ...split.words.filter((x) => !value.includes(x))); onChange(next); if (onSplit && wholeWords !== split.whole) onSplit(split.whole); }}>Split into words</button>}
+            <button type="button" aria-label={`Remove ${w}`} onClick={() => onChange(value.filter((_, j) => j !== i))}>×</button>
+          </span>
+        );
+      })}
+      {shown.length < value.length && <button type="button" className="cx-chip more" onClick={() => setAll(true)}>+{value.length - shown.length} more</button>}
+      <input ref={input} aria-label={label} placeholder={value.length ? "" : placeholder} value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || (e.key === "," && !draft.trim().startsWith("/"))) { e.preventDefault(); add(draft); }
+          else if (e.key === "Backspace" && !draft && value.length) onChange(value.slice(0, -1));
+        }}
+        onPaste={(e) => { const text = e.clipboardData.getData("text"); if (/[\n,]/.test(text)) { e.preventDefault(); add(draft + text); } }}
+        onBlur={() => add(draft)} />
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ remembers: a value as a ladder, rules as sentences
+
+function ValueCard({ v, paths, taken, now, onChange, onRemove }: { v: CueValue; paths: Paths; taken: Set<string>; now: unknown; onChange: (v: CueValue) => void; onRemove: () => void }) {
+  const [editing, setEditing] = useState<number | null>(null);
+  const up = (patch: Partial<CueValue>) => onChange({ ...v, ...patch });
+  const stages = valueStages(v);
+  const move = (i: number, by: number) => { const s = [...stages]; const [x] = s.splice(i, 1); s.splice(i + by, 0, x!); up({ stages: s }); };
+  const moveRule = (i: number, by: number) => { const r = [...v.rules]; const [x] = r.splice(i, 1); r.splice(i + by, 0, x!); up({ rules: r }); setEditing(null); };
+  return (
+    <div className="cx-value" data-testid="cue-value">
+      <div className="row-line wrap cx-value-h">
+        <KeyBox value={v.key} taken={taken} label="Value name" onCommit={(key) => up({ key })} />
+        <span className="hint">starts as</span>
+        <input className="cue-val" aria-label="Starting value" value={String(v.initial)} onChange={(e) => up({ initial: scalar(e.target.value) })} />
+        <span className="grow" />
+        <label className="cue-check"><Switch label="Show in Scene" checked={v.showInScene} onChange={(showInScene) => up({ showInScene })} /> Show in Scene</label>
+        <IconButton label="Remove this value" onClick={onRemove}><Icon name="close" size={13} /></IconButton>
+      </div>
+      {stages.length > 1 && (
+        <div className="cx-ladder edit" aria-label="Stages, in order">
+          {stages.map((s, i) => (
+            <span key={s} className="cx-ladder-i">{i > 0 && <i aria-hidden>→</i>}
+              <span className={`cx-stage${s === String(v.initial) ? " start" : ""}${now !== undefined && String(now) === s ? " now" : ""}`}>
+                {i > 0 && <button type="button" aria-label={`Move ${s} left`} onClick={() => move(i, -1)}>‹</button>}{s}
+                {i < stages.length - 1 && <button type="button" aria-label={`Move ${s} right`} onClick={() => move(i, 1)}>›</button>}</span></span>
+          ))}
+          <Help text="The order the stages show in, here and in a part's table. It doesn't change what the rules do." />
+        </div>
+      )}
+      <ol className="cx-rules">
+        {v.rules.map((r, i) => (
+          editing === i ? (
+            <li key={i} className="editing" data-testid="cue-rule">
+              <span className="cx-n">{i + 1}</span>
+              <div className="cx-rule-ed">
+                <div className="row-line wrap">
+                  <select className="pick-select" aria-label="What the rule does" value={r.do} onChange={(e) => up({ rules: v.rules.map((x, j) => (j === i ? { ...x, do: e.target.value as typeof r.do } : x)) })}>
+                    <option value="set">set it to</option><option value="add">add</option><option value="reset">start over</option>
+                  </select>
+                  {r.do !== "reset" && <input className="cue-val" aria-label="Rule value" value={String(r.value)} onChange={(e) => up({ rules: v.rules.map((x, j) => (j === i ? { ...x, value: scalar(e.target.value) } : x)) })} />}
+                  <span className="hint">when</span>
+                </div>
+                <Conditions list={r.when} logic={r.logic} paths={paths} label="When" onChange={(when, logic) => up({ rules: v.rules.map((x, j) => (j === i ? { ...x, when, logic } : x)) })} />
+                <div className="row-line wrap">
+                  {i > 0 && <Button small variant="plain" onClick={() => moveRule(i, -1)}>Move Up</Button>}
+                  {i < v.rules.length - 1 && <Button small variant="plain" onClick={() => moveRule(i, 1)}>Move Down</Button>}
+                  <span className="grow" />
+                  <Button small variant="plain" onClick={() => { up({ rules: v.rules.filter((_, j) => j !== i) }); setEditing(null); }}>Delete Rule</Button>
+                  <Button small onClick={() => setEditing(null)}>Done</Button>
+                </div>
+              </div>
+            </li>
+          ) : (
+            <li key={i} data-testid="cue-rule">
+              <span className="cx-n">{i + 1}</span>
+              <button type="button" className="cx-rule" onClick={() => setEditing(i)} aria-label={`Edit rule ${i + 1}`}>
+                <span className="cx-rule-set">{r.do === "set" ? <>→ <span className="cx-pill mem">{String(r.value) || "(empty)"}</span></> : r.do === "add" ? <>+ <span className="cx-pill mem">{String(r.value)}</span></> : <>→ start over</>}</span>
+                <span className="cx-rule-when">{r.when.length ? <>when {r.when.map((c, j) => <span key={j}>{j > 0 && (r.logic === "any" ? " or " : " and ")}<CondWords c={c} /></span>)}</> : "always"}</span>
+              </button>
+            </li>
+          )
+        ))}
+        <li className="else">
+          <span className="cx-n" />
+          <span className="cx-rule-set">→ {v.otherwise === "reset" ? <span className="cx-pill">{String(v.initial) || "(empty)"}</span> : "stays as it was"}</span>
+          <span className="cx-rule-when">{v.rules.length ? "otherwise" : "on every reply"} · <button type="button" className="link quiet" onClick={() => up({ otherwise: v.otherwise === "reset" ? "keep" : "reset" })}>{v.otherwise === "reset" ? "keep it instead" : "start over instead"}</button></span>
+        </li>
+      </ol>
+      <div className="row-line wrap"><button type="button" className="link" data-testid="cue-add-rule" onClick={() => { up({ rules: [...v.rules, { when: [], logic: "all", do: "set", value: "" }] }); setEditing(v.rules.length); }}>+ Add a Rule</button>
+        <span className="hint">· the first rule that matches wins</span></div>
+    </div>
+  );
+}
+
+function CondWords({ c }: { c: CueCondition }) {
+  const m = /^(signal|value)\.(.+)$/.exec(c.path);
+  const name = m ? m[2]! : c.path;
+  const op = OPS.find((o) => o.value === c.op)?.label ?? c.op;
+  return <><span className={`cx-pill ${m?.[1] === "signal" ? "read" : m?.[1] === "value" ? "mem" : ""}`}>{name}</span> {op}{c.op !== "exists" && c.op !== "missing" ? ` ${c.value}` : ""}</>;
+}
+
+// ------------------------------------------------------------------ reads
+
+function SignalRow({ s, all, taken, live, onChange, onRemove }: {
+  s: CueSignal; all: CueSignal[]; taken: Set<string>; live?: { value: unknown; detail?: string }; onChange: (s: CueSignal) => void; onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const up = (patch: Record<string, unknown>) => onChange({ ...s, ...patch } as CueSignal);
+  const kind = SIGNAL_KINDS.find((k) => k.kind === s.kind)!;
+  const preview = s.kind === "words" && !sameWordsAs(s, all) ? keyWords(s.words).words : [];
+  return (
+    <div className={`cx-rd${open ? " open" : ""}`} data-testid="cue-signal">
+      <div className="cx-rd-h">
+        <KeyBox value={s.key} taken={taken} label="Signal name" onCommit={(key) => up({ key })} />
+        <span className="cx-rd-what"><b>{kind.label}</b> · {readingText(s, all)}{live ? <> · <span className="cx-live">= {String(live.value)}</span>{live.detail ? ` (${live.detail})` : ""}</> : null}</span>
+        <Button small variant="plain" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Done" : "Edit"}</Button>
+        <IconButton label="Remove this reading" onClick={onRemove}><Icon name="close" size={13} /></IconButton>
+      </div>
+      {!open && preview.length > 0 && (
+        <span className="cx-words">{preview.slice(0, 14).map((w, i) => <span key={i} className="cx-word">{w}</span>)}{preview.length > 14 && <span className="cx-word more">+{preview.length - 14}</span>}</span>
+      )}
+      {open && <div className="cx-rd-body">
+        {s.kind === "words" && <>
+          <ChipInput value={s.words} label="Words or phrases" placeholder="Type a word and press Enter, or paste a list (/patterns/ work)" onChange={(words) => up({ words })} wholeWords={s.wholeWords} onSplit={(wholeWords) => up({ wholeWords })} />
+          <div className="row-line wrap">
+            <select className="pick-select" aria-label="What it counts" value={s.measure} onChange={(e) => up({ measure: e.target.value })}>
+              <option value="matches">Counts how many times they show up</option>
+              <option value="streak">Counts messages in a row that have them</option>
+            </select>
+            {s.measure === "streak" && <><span>with at least</span><NumberBox label="Matches a message needs" value={s.perMessage} min={1} max={100} onCommit={(perMessage) => up({ perMessage })} /></>}
+            <span>in the last</span><NumberBox label="Messages read" value={s.last} min={1} max={100} onCommit={(last) => up({ last })} /><span>messages, from</span>
+            <select className="pick-select" aria-label="Whose messages" value={s.from} onChange={(e) => up({ from: e.target.value })}>
+              <option value="both">both</option><option value="user">you</option><option value="ai">the AI</option>
+            </select>
+          </div>
+          <div className="row-line wrap">
+            <label className="cue-check"><input type="checkbox" checked={s.wholeWords} onChange={(e) => up({ wholeWords: e.target.checked })} /> Whole words</label>
+            <label className="cue-check"><input type="checkbox" checked={s.ignoreNegated} onChange={(e) => up({ ignoreNegated: e.target.checked })} /> Skip after “not / never / no”</label>
+            <label className="cue-check"><input type="checkbox" checked={s.caseSensitive} onChange={(e) => up({ caseSensitive: e.target.checked })} /> Match case</label>
+            <Help text="Counting words is fast but can be fooled (a fight can look like a kiss). Try It shows which words matched. A tracker field can replace a word reading without changing the rest." />
+          </div>
+        </>}
+        {s.kind === "messages" && (
+          <div className="row-line wrap"><span>Count</span>
+            <select className="pick-select" aria-label="Which messages" value={s.count} onChange={(e) => up({ count: e.target.value })}>
+              <option value="both">all messages on this branch</option><option value="user">your messages</option><option value="ai">the AI's messages</option>
+            </select></div>
+        )}
+        {s.kind === "chance" && <div className="row-line wrap"><span>Yes, with a chance of</span><NumberBox label="Chance in percent" value={s.percent} min={0} max={100} onCommit={(percent) => up({ percent })} /><span>%</span></div>}
+        {s.kind === "clock" && (
+          <div className="row-line wrap"><span>Read</span>
+            <select className="pick-select" aria-label="What the clock gives" value={s.read} onChange={(e) => up({ read: e.target.value })}>
+              <option value="period">the part of the day (morning, afternoon, evening, night)</option><option value="hour">the hour (0–23)</option>
+            </select></div>
+        )}
+        {s.kind === "tracker" && <div className="row-line wrap"><span>Field</span><input aria-label="Tracker field" placeholder="world.location, or another cue: cue-name.value" value={s.path} onChange={(e) => up({ path: e.target.value })} /></div>}
+        <div className="row-line wrap"><span className="hint">Kind</span>
+          <select className="pick-select" aria-label="Kind of reading" value={s.kind} onChange={(e) => onChange(CueSignalSchema.parse({ key: s.key, kind: e.target.value, ...(e.target.value === "tracker" ? { path: "world.location" } : {}) }))}>
+            {SIGNAL_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label} — {k.sub}</option>)}
+          </select></div>
+      </div>}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ small parts
 
 function freeKey(base: string, taken: Set<string>): string {
   const b = base.toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/^[^a-z]+/, "") || "value";
@@ -320,7 +925,7 @@ function KeyBox({ value, taken, label, onCommit }: { value: string; taken: Set<s
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
   const bad = !keyOk(text) || taken.has(text);
-  return <input className={`cue-key${bad ? " bad" : ""}`} aria-label={label} value={text} title={bad ? "Lower-case letters, digits and _, starting with a letter; not used twice" : undefined}
+  return <input className={`cue-key cx-key${bad ? " bad" : ""}`} aria-label={label} value={text} title={bad ? "Lower-case letters, digits and _, starting with a letter; not used twice" : "Its name, used in rules and macros"}
     onChange={(e) => setText(e.target.value.toLowerCase().replace(/\s+/g, "_"))}
     onBlur={() => { if (!bad && text !== value) onCommit(text); else setText(value); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />;
 }
@@ -328,70 +933,13 @@ function KeyBox({ value, taken, label, onCommit }: { value: string; taken: Set<s
 /** A list typed one item per line (commas also split, except inside /regex/). */
 const listOf = (text: string) => text.split(/\n/).flatMap((line) => (/^\s*\//.test(line) ? [line.trim()] : line.split(","))).map((x) => x.trim()).filter(Boolean);
 
-function ListBox({ value, label, placeholder, onCommit }: { value: string[]; label: string; placeholder?: string; onCommit: (v: string[]) => void }) {
-  const [text, setText] = useState(value.join("\n"));
-  useEffect(() => setText(value.join("\n")), [value]);
-  return <AutoText aria-label={label} placeholder={placeholder} value={text} maxShare={0.3} onChange={(e) => setText(e.target.value)}
-    onBlur={() => { const next = listOf(text); if (JSON.stringify(next) !== JSON.stringify(value)) onCommit(next); }} />;
-}
-
-function SignalCard({ s, taken, onChange, onRemove }: { s: CueSignal; taken: Set<string>; onChange: (s: CueSignal) => void; onRemove: () => void }) {
-  const kind = SIGNAL_KINDS.find((k) => k.kind === s.kind)!;
-  const up = (patch: Record<string, unknown>) => onChange({ ...s, ...patch } as CueSignal);
-  return (
-    <div className="cue-card" data-testid="cue-signal">
-      <div className="row-line wrap">
-        <KeyBox value={s.key} taken={taken} label="Signal name" onCommit={(key) => up({ key })} />
-        <span className="hint">=</span>
-        <b className="cue-kind">{kind.label}</b>
-        <span className="hint grow">{signalText(s)}</span>
-        <IconButton label="Remove this signal" onClick={onRemove}><Icon name="close" size={13} /></IconButton>
-      </div>
-      {s.kind === "words" && <>
-        <ListBox value={s.words} label="Words or phrases" placeholder="One per line: kiss, hand on her waist, /regex/i…" onCommit={(words) => up({ words })} />
-        <div className="row-line wrap">
-          <select className="pick-select" aria-label="What it counts" value={s.measure} onChange={(e) => up({ measure: e.target.value })}>
-            <option value="matches">How many times they show up</option>
-            <option value="streak">Messages in a row that have them</option>
-          </select>
-          {s.measure === "streak" && <><span>with at least</span><NumberBox label="Matches a message needs" value={s.perMessage} min={1} max={100} onCommit={(perMessage) => up({ perMessage })} /></>}
-          <span>in the last</span><NumberBox label="Messages read" value={s.last} min={1} max={100} onCommit={(last) => up({ last })} /><span>messages, from</span>
-          <select className="pick-select" aria-label="Whose messages" value={s.from} onChange={(e) => up({ from: e.target.value })}>
-            <option value="both">both</option><option value="user">you</option><option value="ai">the AI</option>
-          </select>
-        </div>
-        <div className="row-line wrap">
-          <label className="cue-check"><input type="checkbox" checked={s.wholeWords} onChange={(e) => up({ wholeWords: e.target.checked })} /> Whole words</label>
-          <label className="cue-check"><input type="checkbox" checked={s.ignoreNegated} onChange={(e) => up({ ignoreNegated: e.target.checked })} /> Skip after “not / never / no”</label>
-          <label className="cue-check"><input type="checkbox" checked={s.caseSensitive} onChange={(e) => up({ caseSensitive: e.target.checked })} /> Match case</label>
-          <Help text="Counting words is fast but can be fooled (a fight can look like a kiss). Try It shows which words matched. A tracker field can replace a word signal without changing the rest." />
-        </div>
-      </>}
-      {s.kind === "messages" && (
-        <div className="row-line wrap"><span>Count</span>
-          <select className="pick-select" aria-label="Which messages" value={s.count} onChange={(e) => up({ count: e.target.value })}>
-            <option value="both">all messages on this branch</option><option value="user">your messages</option><option value="ai">the AI's messages</option>
-          </select></div>
-      )}
-      {s.kind === "chance" && <div className="row-line wrap"><span>Yes, with a chance of</span><NumberBox label="Chance in percent" value={s.percent} min={0} max={100} onCommit={(percent) => up({ percent })} /><span>%</span></div>}
-      {s.kind === "clock" && (
-        <div className="row-line wrap"><span>Read</span>
-          <select className="pick-select" aria-label="What the clock gives" value={s.read} onChange={(e) => up({ read: e.target.value })}>
-            <option value="period">the part of the day (morning, afternoon, evening, night)</option><option value="hour">the hour (0–23)</option>
-          </select></div>
-      )}
-      {s.kind === "tracker" && <div className="row-line wrap"><span>Field</span><input aria-label="Tracker field" placeholder="world.location, or another cue: cue-name.value" value={s.path} onChange={(e) => up({ path: e.target.value })} /></div>}
-    </div>
-  );
-}
-
 function Conditions({ list, logic, paths, onChange, label = "Tests" }: {
-  list: CueCondition[]; logic: "all" | "any"; paths: Array<{ value: string; label: string }>; label?: string;
+  list: CueCondition[]; logic: "all" | "any"; paths: Paths; label?: string;
   onChange: (list: CueCondition[], logic: "all" | "any") => void;
 }) {
   const known = new Set(paths.map((p) => p.value));
   return (
-    <div className="cue-conds" aria-label={label}>
+    <div className="cue-conds cx-conds" aria-label={label}>
       {list.map((c, i) => {
         const custom = !known.has(c.path);
         const up = (patch: Partial<CueCondition>) => onChange(list.map((x, j) => (j === i ? { ...x, ...patch } : x)), logic);
@@ -411,7 +959,7 @@ function Conditions({ list, logic, paths, onChange, label = "Tests" }: {
           </div>
         );
       })}
-      <button type="button" className="link" onClick={() => onChange([...list, { path: paths[0]?.value ?? "", op: "equals", value: "" }], logic)}>+ {list.length ? "Another test" : "Add a test"}</button>
+      <button type="button" className="link cx-add-test" onClick={() => onChange([...list, { path: paths[0]?.value ?? "", op: "equals", value: "" }], logic)}>+ {list.length ? (logic === "any" ? "or…" : "and…") : "Add a test"}</button>
     </div>
   );
 }
@@ -424,144 +972,6 @@ const OPS: Array<{ value: CueCondition["op"]; label: string }> = [
 
 const scalar = (text: string): string | number => (text.trim() !== "" && Number.isFinite(Number(text)) ? Number(text) : text);
 
-function ValueCard({ v, paths, taken, onChange, onRemove }: { v: CueValue; paths: Array<{ value: string; label: string }>; taken: Set<string>; onChange: (v: CueValue) => void; onRemove: () => void }) {
-  const up = (patch: Partial<CueValue>) => onChange({ ...v, ...patch });
-  return (
-    <div className="cue-card" data-testid="cue-value">
-      <div className="row-line wrap">
-        <KeyBox value={v.key} taken={taken} label="Value name" onCommit={(key) => up({ key })} />
-        <span>starts as</span>
-        <input className="cue-val" aria-label="Starting value" value={String(v.initial)} onChange={(e) => up({ initial: scalar(e.target.value) })} />
-        <span className="grow" />
-        <label className="cue-check"><Switch label="Show in Scene" checked={v.showInScene} onChange={(showInScene) => up({ showInScene })} /> Show in Scene</label>
-        <IconButton label="Remove this value" onClick={onRemove}><Icon name="close" size={13} /></IconButton>
-      </div>
-      {v.rules.map((r, i) => (
-        <div key={i} className="cue-rule" data-testid="cue-rule">
-          <span className="cue-rule-n">{i === 0 ? "When" : "Else when"}</span>
-          <Conditions list={r.when} logic={r.logic} paths={paths} label="When" onChange={(when, logic) => up({ rules: v.rules.map((x, j) => (j === i ? { ...x, when, logic } : x)) })} />
-          <div className="row-line wrap">
-            <span>→</span>
-            <select className="pick-select" aria-label="What the rule does" value={r.do} onChange={(e) => up({ rules: v.rules.map((x, j) => (j === i ? { ...x, do: e.target.value as typeof r.do } : x)) })}>
-              <option value="set">set it to</option><option value="add">add</option><option value="reset">reset it</option>
-            </select>
-            {r.do !== "reset" && <input className="cue-val" aria-label="Rule value" value={String(r.value)} onChange={(e) => up({ rules: v.rules.map((x, j) => (j === i ? { ...x, value: scalar(e.target.value) } : x)) })} />}
-            <span className="grow" />
-            <IconButton label="Remove this rule" onClick={() => up({ rules: v.rules.filter((_, j) => j !== i) })}><Icon name="close" size={12} /></IconButton>
-          </div>
-        </div>
-      ))}
-      <div className="row-line wrap">
-        <button type="button" className="link" data-testid="cue-add-rule" onClick={() => up({ rules: [...v.rules, { when: [], logic: "all", do: "set", value: "" }] })}>+ Add a rule</button>
-        <span className="grow" />
-        <span>When no rule matches:</span>
-        <Segmented small label="When no rule matches" value={v.otherwise} onChange={(otherwise) => up({ otherwise })}
-          options={[{ value: "keep", label: "Keep It" }, { value: "reset", label: "Start Over" }]} />
-      </div>
-    </div>
-  );
-}
-
-function GroupCard({ g, paths, onChange, onRemove }: { g: CueGroup; paths: Array<{ value: string; label: string }>; onChange: (g: CueGroup) => void; onRemove: () => void }) {
-  const [open, setOpen] = useState<string | null>(g.items.length === 1 && !g.items[0]!.text ? g.items[0]!.id : null);
-  const up = (patch: Partial<CueGroup>) => onChange({ ...g, ...patch });
-  const p = g.placement;
-  const tokens = g.items.reduce((n, t) => n + (t.text.trim() ? estimateTokens(t.text) : 0), 0);
-  return (
-    <div className="cue-card cue-group" data-testid="cue-group">
-      <div className="row-line wrap">
-        <input className="te-group-name" aria-label="Group name" value={g.name} placeholder="Texts" onChange={(e) => up({ name: e.target.value })} />
-        <select className="pick-select" aria-label="How it picks" value={g.pick} onChange={(e) => up({ pick: e.target.value as CueGroup["pick"] })}>
-          {PICKS.map((x) => <option key={x.value} value={x.value}>{x.label} — {x.sub}</option>)}
-        </select>
-        <IconButton label="Remove this group" onClick={onRemove}><Icon name="close" size={13} /></IconButton>
-      </div>
-      <div className="row-line wrap">
-        {(g.pick === "random" || g.pick === "rotate") && <><span>Don't repeat the last</span><NumberBox label="Don't repeat the last N" value={g.noRepeat} min={0} max={100} onCommit={(noRepeat) => up({ noRepeat })} /></>}
-        <span>Chance</span><NumberBox label="Group chance" value={g.chance} min={0} max={100} onCommit={(chance) => up({ chance })} /><span>%</span>
-        <span>· then wait</span><NumberBox label="Cooldown in messages" value={g.cooldown} min={0} max={1000} onCommit={(cooldown) => up({ cooldown })} /><span>messages</span>
-      </div>
-      <label className="ae-fld"><span>Wrap <Help text="Around what was picked; {{text}} is where it goes. Empty = just the text." /></span>
-        <input aria-label="Wrap" placeholder="[Direction: {{text}}]" value={g.wrap} onChange={(e) => up({ wrap: e.target.value })} /></label>
-      <div className="row-line wrap" data-testid="cue-place">
-        <span>Where it goes</span>
-        <select className="pick-select" aria-label="Where it goes" value={p.position} onChange={(e) => up({ placement: { ...p, position: e.target.value as typeof p.position } })}>
-          {POSITIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-        </select>
-        {(p.position === "atDepth" || p.position === "agentPrompts") && <>
-          {p.position === "atDepth" && <><NumberBox label="Messages back" value={p.depth} min={0} max={1000} onCommit={(depth) => up({ placement: { ...p, depth } })} /><span>back, as</span></>}
-          <select className="pick-select" aria-label="As" value={p.role} onChange={(e) => up({ placement: { ...p, role: e.target.value as typeof p.role } })}>
-            <option value="system">System</option><option value="user">User</option><option value="assistant">AI</option>
-          </select>
-        </>}
-        {p.position === "outlet" && <input aria-label="Outlet name" placeholder="outlet name" value={p.outletName} onChange={(e) => up({ placement: { ...p, outletName: e.target.value } })} />}
-        <span className="hint grow">{placeText(p)} · {g.items.length} texts · ~{tokens} tokens in all</span>
-      </div>
-      <ul className="cue-texts">
-        {g.items.map((t, i) => {
-          const isOpen = open === t.id;
-          const upT = (patch: Partial<CueText>) => up({ items: g.items.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
-          const chips = [
-            t.when.length ? `when ${testsText(t.when, t.logic)}` : "",
-            t.words?.keys.length ? `words: ${t.words.keys.slice(0, 3).join(", ")}${t.words.keys.length > 3 ? "…" : ""}` : "",
-            t.chance < 100 ? `${t.chance}%` : "", t.minMessages ? `after ${t.minMessages} messages` : "", t.oneOf ? `one of “${t.oneOf}”` : "",
-            g.pick === "random" && t.weight !== 100 ? `weight ${t.weight}` : "",
-          ].filter(Boolean);
-          return (
-            <li key={t.id} className={`cue-text${isOpen ? " open" : ""}${t.enabled ? "" : " off"}`} data-testid="cue-text">
-              <button type="button" className="cue-text-head" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : t.id)}>
-                <b>{t.title || t.text.trim().split(/\s+/).slice(0, 8).join(" ") || "Empty text"}</b>
-                {chips.map((c) => <span key={c} className="agp-chip">{c}</span>)}
-                <span className="hint">{t.text.trim() ? `${estimateTokens(t.text)} tokens` : ""}</span>
-              </button>
-              {isOpen && (
-                <div className="cue-text-body">
-                  <div className="row-line wrap">
-                    <input aria-label="Text title" placeholder="Title (optional)" value={t.title} onChange={(e) => upT({ title: e.target.value })} />
-                    <label className="cue-check"><Switch label="Text on" checked={t.enabled} onChange={(enabled) => upT({ enabled })} /> On</label>
-                    <IconButton label="Remove this text" onClick={() => up({ items: g.items.filter((_, j) => j !== i) })}><Icon name="close" size={13} /></IconButton>
-                  </div>
-                  <AutoText aria-label="Text" placeholder="What goes into the prompt. Macros work: {{char}}, {{user}}, {{value.name}}…" value={t.text} onChange={(e) => upT({ text: e.target.value })} />
-                  <Conditions list={t.when} logic={t.logic} paths={paths} onChange={(when, logic) => upT({ when, logic })} />
-                  <div className="cue-words">
-                    <span className="hint">Its own trigger (optional): words in the last messages</span>
-                    <ListBox value={t.words?.keys ?? []} label="Needs one of these words" placeholder="Needs one of these words (one per line)" onCommit={(keys) => upT({ words: { ...wordsOf(t), keys } })} />
-                    {(t.words?.keys.length ?? 0) > 0 && <>
-                      <ListBox value={t.words?.also ?? []} label="And one of these" placeholder="…and one of these (optional)" onCommit={(also) => upT({ words: { ...wordsOf(t), also } })} />
-                      <ListBox value={t.words?.not ?? []} label="But none of these" placeholder="…but none of these (optional)" onCommit={(not) => upT({ words: { ...wordsOf(t), not } })} />
-                      <div className="row-line wrap"><span>in the last</span><NumberBox label="Messages the words are looked for in" value={t.words?.last ?? 4} min={1} max={100} onCommit={(last) => upT({ words: { ...wordsOf(t), last } })} /><span>messages</span>
-                        <label className="cue-check"><input type="checkbox" checked={t.words?.wholeWords ?? true} onChange={(e) => upT({ words: { ...wordsOf(t), wholeWords: e.target.checked } })} /> Whole words</label></div>
-                    </>}
-                  </div>
-                  <div className="row-line wrap">
-                    <span>Chance</span><NumberBox label="Text chance" value={t.chance} min={0} max={100} onCommit={(chance) => upT({ chance })} /><span>%</span>
-                    <span>· from message</span><NumberBox label="Only after this many messages" value={t.minMessages} min={0} max={10000} onCommit={(minMessages) => upT({ minMessages })} />
-                    {g.pick === "random" && <><span>· weight</span><NumberBox label="Weight" value={t.weight} min={0} max={10000} onCommit={(weight) => upT({ weight })} /></>}
-                    <span>· one of</span><input className="cue-val" aria-label="Only one of the texts with this name" placeholder="name" value={t.oneOf} onChange={(e) => upT({ oneOf: e.target.value })} />
-                    <Help text="Texts with the same name here: only one of them goes in (by weight), like a lorebook inclusion group." />
-                  </div>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      <div className="row-line"><button type="button" className="link" data-testid="cue-add-text" onClick={() => { const t = emptyText(); up({ items: [...g.items, t] }); setOpen(t.id); }}>+ Add a text</button></div>
-    </div>
-  );
-}
-
-const wordsOf = (t: CueText) => t.words ?? { keys: [], also: [], not: [], last: 4, from: "both" as const, wholeWords: true, caseSensitive: false };
-
-function Sec({ title, help, children }: { title: string; help?: string; children: ReactNode }) {
-  return (
-    <section className="ae-sec" aria-label={title}>
-      <h3 className="ae-sec-h">{title}{help && <Help text={help} />}</h3>
-      {children}
-    </section>
-  );
-}
-
 function NumberBox({ label, value, min, max, onCommit }: { label: string; value: number; min: number; max: number; onCommit: (n: number) => void }) {
   const [text, setText] = useState(String(value));
   useEffect(() => setText(String(value)), [value]);
@@ -570,74 +980,10 @@ function NumberBox({ label, value, min, max, onCommit }: { label: string; value:
     if (text.trim() !== "" && Number.isSafeInteger(n) && n >= min && n <= max) { if (n !== value) onCommit(n); }
     else setText(String(value));
   };
-  return <input type="number" className="num" aria-label={label} min={min} max={max} value={text} onChange={(e) => setText(e.target.value)}
+  return <input type="number" className="num cx-num" aria-label={label} min={min} max={max} value={text} onChange={(e) => setText(e.target.value)}
     onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setText(String(value)); }} />;
 }
 
-// ------------------------------------------------------------------ Try It
-
-/** What the cue would read, remember and write on a chat's message, with nothing saved (D-113 §7.2, like D-053). */
-export function CueTryIt({ svc, cue, sessions, initialSessionId, onClose }: { svc: AppServices; cue: CueInput; sessions: Session[]; initialSessionId: string | null; onClose: () => void }) {
-  const [sessionId, setSessionId] = useState(initialSessionId && sessions.some((s) => s.id === initialSessionId) ? initialSessionId : sessions[0]?.id ?? "");
-  const [path, setPath] = useState<Message[]>([]);
-  const [messageId, setMessageId] = useState("");
-  const [result, setResult] = useState<{ texts: CueOutput[]; report: CueReport; before: Record<string, unknown> | undefined } | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (!sessionId) return;
-    void (async () => {
-      const last = await svc.store.latestMessage(sessionId);
-      const p = last ? await svc.store.pathTo(last.id) : [];
-      setPath(p);
-      setMessageId(p.at(-1)?.id ?? "");
-    })();
-  }, [svc, sessionId]);
-  useEffect(() => {
-    if (!sessionId || !messageId) { setResult(null); return; }
-    let live = true;
-    setError("");
-    svc.chat.turns.tryCue(sessionId, messageId, cue).then((r) => { if (live) setResult(r); }).catch((e: unknown) => { if (live) { setResult(null); setError(errorText(e)); } });
-    return () => { live = false; };
-  }, [svc, sessionId, messageId, cue]);
-  const r = result?.report;
-  const show = (x: unknown) => (x === undefined || x === null || x === "" ? "—" : typeof x === "object" ? JSON.stringify(x) : String(x));
-  return (
-    <Modal title={`Try It · ${cue.name}`} onClose={onClose} testId="cue-try-it" className="modal-wide">
-      <div className="cue-try">
-        <div className="row-line wrap">
-          <span>On</span>
-          <select className="pick-select" aria-label="Chat" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
-            {sessions.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
-          </select>
-          <span>the reply after message</span>
-          <select className="pick-select" aria-label="Message" value={messageId} onChange={(e) => setMessageId(e.target.value)}>
-            {path.map((m, i) => <option key={m.id} value={m.id}>#{i + 1} · {m.content.slice(0, 50)}</option>)}
-          </select>
-          <span className="hint">Nothing is saved.</span>
-        </div>
-        {!sessions.length && <p className="hint">Make a chat first: Try It reads its messages.</p>}
-        {error && <div className="error-bar inline" role="alert">{error}</div>}
-        {r && (r.skipped ? <p className="hint" data-testid="cue-try-skipped">It would not run here: {r.skipped}.</p> : <>
-          <h4>Reads</h4>
-          {r.signals.length ? <ul className="cue-try-list">{r.signals.map((s) => <li key={s.key}><b>{s.key}</b> = {show(s.value)}{s.detail ? <span className="hint"> · {s.detail}</span> : null}</li>)}</ul> : <p className="hint">Nothing.</p>}
-          <h4>Remembers</h4>
-          {r.values.length ? <ul className="cue-try-list">{r.values.map((v) => <li key={v.key}><b>{v.key}</b>: {show(v.before)} → <b>{show(v.after)}</b> <span className="hint">· {v.why}</span></li>)}</ul> : <p className="hint">Nothing.</p>}
-          <h4>Writes</h4>
-          <ul className="cue-try-list" data-testid="cue-try-writes">
-            {r.groups.map((g) => (
-              <li key={g.key}><b>{g.name || g.key}</b>: {g.picked.length ? g.picked.map((x) => x.title).join(", ") : "nothing this turn"} <span className="hint">· {g.reason}{g.tokens ? ` · ${g.tokens} tokens` : ""}</span>
-                {result!.texts.filter((t) => t.groupKey === g.key).map((t, i) => <pre key={i} className="cue-try-text">{t.text}<span className="hint"> — {placeText(t.placement)}</span></pre>)}
-              </li>
-            ))}
-          </ul>
-          <p className="hint">Total: {r.tokens} tokens this turn.</p>
-        </>)}
-      </div>
-    </Modal>
-  );
-}
-
-/** "Import as: Lorebook · Cue" — a JanitorAI lorebook script can be facts about the world or writing rules (D-113 §6.1). */
 export function JanitorImportChoice({ files, onPick, onClose }: { files: string[]; onPick: (as: "lorebook" | "cue", splitRegex: boolean) => void; onClose: () => void }) {
   const [split, setSplit] = useState(true);
   return (

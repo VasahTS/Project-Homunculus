@@ -89,6 +89,8 @@ export const CueValue = z.object({
   otherwise: z.enum(["keep", "reset"]).default("keep"),
   /** Shown (and editable) in the chat's Scene tab, like a tracker field (D-113, decision 2). */
   showInScene: z.boolean().default(false),
+  /** The order its stages show in on screen (Library → Cues, D-119); empty = worked out from the rules. The engine ignores it. */
+  stages: z.array(z.string()).default([]),
 });
 export type CueValue = z.infer<typeof CueValue>;
 
