@@ -3,8 +3,31 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
-<!-- 0.4.0 release notes written by CODEX. -->
+<!-- 0.4.5 release notes written by CODEX. -->
+## 0.4.5 — 2026-11-12
+
+Use Cues to guide replies, send pictures to the Assistant even when your main model lacks vision, and turn a comic into a character card or story Kit.
+
+### Cues
+
+- **Rules that react to the chat without an AI call.** In **Library → Cues**, use words, message counts, chance, time of day or tracker values to decide what text goes into the prompt. Cues can remember values across turns and keep them separate for each branch. Swiping a reply keeps counters from advancing twice.
+- **See what a rule will do.** The editor summarizes what each cue reads, remembers and writes. Edit stages in a table, duplicate cues, or use **Try It** on any chat message without saving the result. After a reply, the **Reply** tab shows which cues ran and why. Values marked **Show in Scene** can be viewed and edited there.
+- **Use rules where you need them.** Enable a cue for a chat or story, tie it to a character, or turn it on for every chat. Existing **No AI call** agents move to Cues automatically. Import JanitorAI lorebook scripts as cues or lorebooks, or ask the Assistant to help turn an advanced script into cue rules.
+
+### Pictures and comics in the Assistant
+
+- **Pictures with text-only models.** Choose a vision model in **Assistant → Customize → Pictures**. It can describe an attachment for your main model and answer follow-up questions about it. Open **See Description** under a picture to review or correct the saved description.
+- **Import From a Comic.** Attach pictures, a folder, a CBZ or a ZIP. Reorder or skip pages, then choose manga or Western reading order. The Assistant presents an editable synopsis and cast and asks who you want to play. It can propose a shared character card, a persona or a story Kit. You can crop a panel to use as the card's portrait.
+- **Recover from oversized comic requests.** When a batch fails, the Assistant retries with smaller groups of pages, down to one page per request if needed. Each group after the first includes the preceding page for context.
+
+### Assistant and tracker improvements
+
+- **Share assistants and presets.** Import or export `.h2.json` files from **Assistant → Customize**. Exports leave out connections and model selections. Imports skip identical items and save conflicting versions as separate copies.
+- **More reliable lorebook edits.** The Assistant accepts the tool-call formats used by models such as MiniMax and Mimo through NanoGPT. It can read several entries at once, catches attempts to add duplicate entries and shows additions, edits and removals in draft cards.
+- **Move tracker fields between groups.** Drag a field onto another group or drop it on the header of a collapsed group.
+
 ## 0.4.0 — 2026-11-10
+<!-- 0.4.0 release notes written by CODEX. -->
 
 Organize your chats, jump back to a line you remember, and try an Assistant edit on a real conversation before committing to it. This release also adds JanitorAI browsing and a document-style editor for character cards.
 
