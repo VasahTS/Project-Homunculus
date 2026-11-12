@@ -14,6 +14,9 @@ import { AutoText, Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx
 import { AssistantMark } from "./AssistantMark.tsx";
 import { ModelPicker, modelMeta } from "./ModelPicker.tsx";
 import { ConfirmButton } from "./Help.tsx";
+import { ImportButton } from "./BundleButtons.tsx";
+import { saveExport } from "../files.ts";
+import { assistantFile, importAssistantFile, importSummary, type AssistantImport } from "../assistant/share.ts";
 
 type Tab = "assistants" | "presets" | "limits" | "usage";
 const tokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n));
@@ -46,10 +49,45 @@ function Split({ list, detail }: { list: React.ReactNode; detail: React.ReactNod
   return <div className="cust-split"><div className="cust-list">{list}</div><div className="cust-detail">{detail}</div></div>;
 }
 
+/** Export one assistant or preset (D-118). Returns a line for the status under the list, or null when cancelled. */
+async function exportItem(items: Parameters<typeof assistantFile>[0], name: string): Promise<string | null> {
+  try {
+    const where = await saveExport(assistantFile(items, name));
+    return where ? `Exported ${name} · ${where}` : null;
+  } catch (e) { return `Could not export ${name}: ${e instanceof Error ? e.message : String(e)}`; }
+}
+
+/** Reads Homunculus assistant files into the settings; one status line for all of them (D-118). */
+async function importFiles(s: AssistantSettings, files: File[]): Promise<{ next: AssistantSettings; results: AssistantImport[]; line: string }> {
+  let next = s;
+  const results: AssistantImport[] = [];
+  const errors: string[] = [];
+  for (const f of files) {
+    try { const r = importAssistantFile(next, await f.text()); next = r.settings; results.push(r); }
+    catch (e) { errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+  const line = [results.length ? importSummary(results) : "", ...errors].filter(Boolean).join(" · ");
+  return { next, results, line };
+}
+
+/** New + Import under a list, and the last export/import line. */
+function ListFoot({ newLabel, newTestId, onNew, what, onFiles, status }: {
+  newLabel: string; newTestId: string; onNew: () => void; what: string; onFiles: (files: File[]) => void; status: string;
+}) {
+  return <>
+    <div className="cust-list-foot">
+      <Button small variant="plain" onClick={onNew} data-testid={newTestId}><Icon name="plus" size={12} /> {newLabel}</Button>
+      <ImportButton small what={what} onFiles={onFiles} />
+    </div>
+    {status && <p className="hint cust-list-hint" role="status" data-testid="cust-share-status">{status}</p>}
+  </>;
+}
+
 // ------------------------------------------------------------------ Assistants
 
 function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put: (n: AssistantSettings) => void; svc: AppServices; connection: ConnectionState }) {
   const [sel, setSel] = useState(s.defaultAssistantId || s.assistants[0]?.id || "");
+  const [status, setStatus] = useState("");
   const a = s.assistants.find((x) => x.id === sel) ?? s.assistants[0];
   const set = (patch: Partial<AssistantPersona>) => a && put({ ...s, assistants: s.assistants.map((x) => (x.id === a.id ? { ...x, ...patch } : x)) });
   const add = (base?: AssistantPersona) => {
@@ -65,7 +103,11 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
             <span className="cust-item-t"><b>{x.name}{x.id === s.defaultAssistantId && <span className="cust-badge">Default</span>}</b><small>{x.description || "No description"}</small></span>
           </button>
         ))}
-        <Button small variant="plain" onClick={() => add()} data-testid="cust-new-assistant"><Icon name="plus" size={12} /> New Assistant</Button>
+        <ListFoot newLabel="New Assistant" newTestId="cust-new-assistant" onNew={() => add()} what="assistants and presets" status={status}
+          onFiles={(files) => void importFiles(s, files).then(({ next, results, line }) => {
+            put(next); setStatus(line);
+            const first = results.flatMap((r) => r.added).find((x) => x.kind === "assistant"); if (first) setSel(first.id);
+          })} />
       </>}
       detail={a && <div className="cust-form">
         <div className="cust-head">
@@ -105,6 +147,8 @@ function AssistantsTab({ s, put, svc, connection }: { s: AssistantSettings; put:
         </div>
         <div className="cust-actions">
           <Button small onClick={() => add(a)}>Duplicate</Button>
+          <Button small onClick={() => void exportItem({ assistants: [a] }, a.name).then((l) => l && setStatus(l))} data-testid="cust-export-assistant"
+            title="Save this assistant as a Homunculus file (.h2.json). Its connection and model stay here.">Export</Button>
           <span className="grow" />
           {a.builtin
             ? <Button small variant="plain" onClick={() => { const b = builtinAssistant(a.id); if (b) set({ ...b, connectionId: a.connectionId, model: a.model }); }}>Reset to the App's Version</Button>
@@ -150,6 +194,7 @@ export function ModelRow({ svc, connection, connectionId, model, onChange, onInf
 function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettings) => void }) {
   const [sel, setSel] = useState(s.defaultPresetId || s.presets[0]?.id || "");
   const p = s.presets.find((x) => x.id === sel) ?? s.presets[0];
+  const [status, setStatus] = useState("");
   const set = (patch: Partial<AssistantPreset>) => p && put({ ...s, presets: s.presets.map((x) => (x.id === p.id ? { ...x, ...patch } : x)) });
   const addRule = () => { if (p && rule.trim()) { set({ rules: [...p.rules, { id: crypto.randomUUID(), text: rule.trim(), on: true }] }); setRule(""); } };
   const addMemory = () => { if (p && mem.trim()) { set({ memory: [...p.memory, { id: crypto.randomUUID(), text: mem.trim(), from: "", at: Date.now() }] }); setMem(""); } };
@@ -170,7 +215,11 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
             <span className="cust-item-t"><b>{x.name}{x.id === s.defaultPresetId && <span className="cust-badge">Default</span>}</b><small>{x.rules.length} rules · {x.notes.length} notes · {x.memory.length} memories · ~{size(x)} tokens</small></span>
           </button>
         ))}
-        <Button small variant="plain" onClick={() => add()} data-testid="cust-new-preset"><Icon name="plus" size={12} /> New Preset</Button>
+        <ListFoot newLabel="New Preset" newTestId="cust-new-preset" onNew={() => add()} what="presets and assistants" status={status}
+          onFiles={(files) => void importFiles(s, files).then(({ next, results, line }) => {
+            put(next); setStatus(line);
+            const first = results.flatMap((r) => r.added).find((x) => x.kind === "preset"); if (first) setSel(first.id);
+          })} />
       </>}
       detail={p && <div className="cust-form">
         <div className="cust-head">
@@ -234,6 +283,8 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
         <div className="cust-actions">
           <span className="hint">~{size(p)} tokens in every request</span><span className="grow" />
           <Button small onClick={() => add(p)}>Duplicate</Button>
+          <Button small onClick={() => void exportItem({ presets: [p] }, p.name).then((l) => l && setStatus(l))} data-testid="cust-export-preset"
+            title="Save this preset as a Homunculus file (.h2.json), with its rules, notes and memory.">Export</Button>
           {s.presets.length > 1 && <ConfirmButton label="Delete" confirmLabel="Delete this preset" onConfirm={() => { const rest = s.presets.filter((x) => x.id !== p.id); put({ ...s, presets: rest, defaultPresetId: s.defaultPresetId === p.id ? rest[0]!.id : s.defaultPresetId }); setSel(rest[0]!.id); }} />}
         </div>
       </div>}

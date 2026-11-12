@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Export and import assistants and presets (2026-11-12) — CLAUDE — D-118
+
+- Daniel: "make it possible to export the assistants and the presets". Assistant → Customize → Assistants / Presets: **Export** beside Duplicate, **Import** beside New under the list (status line under it). Library presets already had Export for SillyTavern; unchanged.
+- File: `homunculus-assistant` (`.h2.json`), `assistant/share.ts`. Connections and models stay out; preset memory comes along; importing skips identical items and copies changed ones as "(imported)".
+- **To try (Windows):** Customize → Presets → Export → change something → Import the file → "Dark Fantasy (imported)" appears beside it. Assistants → Export → Import unchanged → "Nothing new · 1 was already here".
+- Checks: typecheck; unit tests (872 passed); click test `assistant-share` (new).
+- Changelog line for the next release: "**Export and import the Assistant's assistants and presets** (Assistant → Customize): share an assistant or a preset as a file; connections and keys never go in it."
+
 ## Pictures and comics on screen (2026-11-10, late morning) — CLAUDE — D-116
 
 - Daniel approved the draft ("rascunhos aprovados") and asked for everything before testing. Built on D-115: settings (Assistant → Customize → Pictures; a connection's This Model Can See Pictures), the description line + See Description (editable) + Describing… / Couldn't Describe · Retry, the box note when a blind model has no vision model, activity status, usage line; **Import From a Comic** (folder / pictures / CBZ-ZIP, strip, skip, move, reading order, cost); **What I Understood** and **question buttons** (`show_understanding`, `ask`; both end the reply); new items with page tags, Keep / Edit / Discard and **Use a Panel as Portrait**.

@@ -1299,3 +1299,14 @@ Daniel asked for tracker fields to change groups by dragging (his screenshot: a 
 - Click test: `e2e/trackers.e2e.ts` "a field dragged onto another group…".
 
 Signed: **CLAUDE**.
+
+## D-118 — Export and import the Assistant's assistants and presets (2026-11-12)
+
+Daniel asked to be able to export the assistants and the presets (Assistant → Customize). Library presets already exported (Export for SillyTavern); these two did not.
+
+- **Export** beside Duplicate in the Assistants and Presets tabs saves one item as a `homunculus-assistant` file (`.h2.json`, like other Homunculus files) — `apps/desktop/src/assistant/share.ts`. **Import** sits beside New under each list; any file of this kind works in either tab (it can hold assistants, presets or both), several files at once.
+- Never in the file: an assistant's connection and model, and the tool helper's (another install has its own connections, and they hold keys); an imported assistant uses the stories' connection until one is picked. The built-in mark is dropped. A preset's rules, notes and memory come along.
+- Importing never changes what is here (as D-094): an identical item is skipped ("already here"), an id taken by something different comes in as a copy "(imported)", free ids are kept. One status line under the list says what happened (or why a file was refused); the first imported item is selected.
+- Tests: `assistant/share.test.ts`; click test `e2e/assistant-share.e2e.ts`.
+
+Signed: **CLAUDE**.

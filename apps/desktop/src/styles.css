@@ -2539,6 +2539,7 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .cust-split { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; max-width: 980px; margin: 0 auto; align-items: start; }
 .cust-list { display: grid; gap: 4px; position: sticky; top: 0; }
 .cust-list-hint { margin: 0 4px 6px; }
+.cust-list-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; margin-top: 4px; }
 .cust-item { display: flex; gap: 10px; align-items: flex-start; border: 1px solid transparent; background: none; padding: 8px 10px; border-radius: calc(12px * var(--round)); text-align: left; color: var(--label); cursor: pointer; }
 .cust-item:hover { background: var(--fill); }
 .cust-item.on { background: var(--group); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
