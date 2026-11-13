@@ -4,7 +4,8 @@
 
 - Daniel answered the plan's questions (in `docs/ST-IMPORT-PLAN.md`): linked cards in Characters; editing one saves only in Homunculus; ST groups → a Story with that cast; ST tags → tags only.
 - Built, **no screens yet** (draft before code): `@homunculus/st-chats` (jsonl → tree: swipes as siblings, hidden lines kept but not sent, branches/checkpoints merged into the main chat, Author's Note / chat lorebook / locked persona read, one batch per chat); native folder access only inside folders picked in the system dialog (`folders.rs`, `tauri-plugin-dialog` new); `stFolder.ts` (find the ST user folder, count what is there; `secrets.json` never read).
-- **Next:** (1) the draft of the screens (pick → what was found → progress → report; Linked Folders) for Daniel; (2) the whole-folder run (order, links by name, groups → Stories, tags, report, undo, re-import); (3) linked folders (scan by size + date, update changed cards, ask when a card changed in both places).
+- **Draft waiting for Daniel:** `docs/drafts/st-import/index.html` (artifact GvoAMgJRnNMywoHe82w7XQ): 1 Settings → Library → SillyTavern group, 2 pick the folder / users, 3 what was found (switch per kind, chats by character, skipped list), 4 importing (bottom bar + stages, Pause/Cancel), 5 report (Undo This Import), 6 Linked Folders, 7 linked cards in Characters (marks: linked, edited here, changed in both, file missing, new), 8 changed in both places (Keep Mine / Take the File's / Keep Both).
+- **Next:** (1) Daniel's review of the draft; (2) the whole-folder run (order, links by name, groups → Stories, tags, report, undo, re-import); (3) linked folders (scan by size + date, update changed cards, ask when a card changed in both places).
 - Nothing to try in the app yet. New Rust dependency: `tauri-plugin-dialog` (first Windows build downloads it).
 - Checks: typecheck; unit tests; native tests (`cargo test`, 42 passed).
 

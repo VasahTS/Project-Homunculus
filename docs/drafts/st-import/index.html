@@ -1,0 +1,444 @@
+<title>SillyTavern Import Draft</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Review page of artboards: each artboard is the app in its Mono look (one dark world, like the app and earlier drafts).
+   Draft for D-126/D-127 (docs/ST-IMPORT-PLAN.md): the complete SillyTavern import and linked card folders. CLAUDE, 2026-11-13. */
+:root {
+  color-scheme: dark;
+  --window: #0d0d0d; --surface: #131313; --field: #161616; --pop: #141414;
+  --label: #f2f2f2; --label-2: #a1a1a1; --label-3: #7a7a7a;
+  --sep: rgba(242,242,242,.10); --edge: rgba(242,242,242,.18);
+  --fill: rgba(242,242,242,.05); --fill-hover: rgba(242,242,242,.09); --fill-sel: rgba(242,242,242,.13);
+  --ok: #4cc38a; --warn: #d9b46a; --bad: #e5484d;
+  --page: #080808;
+  --font-ui: "Geist", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--label); font: 13px/1.45 var(--font-ui); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 1px solid var(--label); outline-offset: 1px; }
+code { font-family: var(--font-mono); font-size: 12px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 40px; }
+header.top { display: grid; gap: 8px; max-width: 760px; }
+header.top h1 { font: 600 26px/1.15 var(--font-ui); letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--label-2); max-width: 68ch; }
+.kicker { font: 500 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--label-3); }
+.part { font: 600 13px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--label-2); border-top: 1px solid var(--sep); padding-top: 18px; margin: 0; }
+section.board { display: grid; gap: 12px; }
+.board-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.board-head h2 { font: 600 16px var(--font-ui); margin: 0; }
+.board-head .why { color: var(--label-2); max-width: 80ch; }
+.scroll { overflow-x: auto; border: 1px solid var(--sep); }
+.notes { margin: 0; padding-left: 18px; color: var(--label-2); display: grid; gap: 4px; max-width: 90ch; }
+.notes b { color: var(--label); font-weight: 500; }
+
+/* ---- the app frame ---- */
+.app { display: grid; grid-template-columns: 200px 1fr; min-width: 980px; height: 620px; background: var(--window); position: relative; overflow: hidden; }
+.app.short { height: 520px; }
+.side { border-right: 1px solid var(--sep); display: flex; flex-direction: column; padding: 12px 10px; gap: 2px; overflow: hidden; }
+.brand { padding: 2px 8px 10px; font-weight: 600; font-size: 15px; }
+.head { padding: 12px 8px 4px; font-weight: 600; color: var(--label-2); font-size: 12px; }
+.row { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; min-width: 0; font-size: 12.5px; color: var(--label-2); }
+.row.on { background: var(--fill-sel); color: var(--label); }
+.row .n { margin-left: auto; font: 10.5px var(--font-mono); color: var(--label-3); }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.bar { height: 44px; border-bottom: 1px solid var(--sep); display: flex; align-items: center; gap: 10px; padding: 0 18px; color: var(--label-2); flex: none; }
+.bar b { color: var(--label); font-weight: 500; font-size: 14px; }
+.bar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.page { flex: 1; padding: 22px 28px; display: grid; align-content: start; gap: 18px; overflow: hidden; }
+
+.btn { border: 1px solid var(--edge); background: none; padding: 5px 11px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.btn:hover { background: var(--fill); }
+.btn.primary { background: var(--label); color: var(--window); border-color: var(--label); font-weight: 500; }
+.btn.primary:hover { background: #dcdcdc; }
+.btn.small { padding: 2px 8px; font-size: 12px; }
+.btn.quiet { border-color: transparent; color: var(--label-2); }
+.btn.danger { color: var(--bad); }
+.muted { color: var(--label-2); }
+.faint { color: var(--label-3); }
+.mono { font-family: var(--font-mono); font-size: 11.5px; }
+svg.i { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* settings groups */
+.group { display: grid; gap: 0; max-width: 680px; }
+.group h3 { margin: 0 0 8px; font: 600 12px var(--font-ui); color: var(--label-2); }
+.set { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--sep); }
+.set + .set { border-top: none; }
+.set .t { display: grid; gap: 2px; min-width: 0; }
+.set .t b { font-weight: 500; }
+.set .t span { color: var(--label-2); font-size: 12px; }
+.set .act { margin-left: auto; display: flex; gap: 8px; }
+
+/* sheet (window over the app) */
+.sheet-bg { position: absolute; inset: 0; z-index: 6; background: rgba(0,0,0,.62); display: grid; place-items: center; }
+.sheet { width: 700px; max-width: 94%; max-height: 92%; background: var(--pop); box-shadow: 0 0 0 1px var(--edge), 0 16px 40px rgba(0,0,0,.6); display: grid; grid-template-rows: auto 1fr auto; }
+.sheet.wide { width: 760px; }
+.sh { padding: 12px 16px; border-bottom: 1px solid var(--sep); display: flex; gap: 10px; align-items: center; }
+.sh b { font-weight: 600; }
+.sh .steps { margin-left: auto; display: flex; gap: 12px; font: 11px var(--font-mono); color: var(--label-3); }
+.sh .steps .on { color: var(--label); }
+.sh .steps .done { color: var(--label-2); }
+.sb { padding: 14px 16px; display: grid; gap: 12px; overflow: auto; align-content: start; }
+.sf { border-top: 1px solid var(--sep); padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sf .hint { margin-right: auto; color: var(--label-2); font-size: 12px; }
+
+.drop { border: 1px dashed var(--edge); padding: 26px 20px; display: grid; gap: 10px; justify-items: center; text-align: center; }
+.drop b { font-size: 14px; font-weight: 500; }
+.path { font: 11.5px var(--font-mono); color: var(--label-2); background: var(--field); padding: 6px 10px; border: 1px solid var(--sep); }
+.choices { display: grid; gap: 0; }
+.choice { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border: 1px solid var(--sep); background: var(--surface); }
+.choice + .choice { border-top: none; }
+.choice.on { background: var(--fill-sel); }
+.radio { width: 12px; height: 12px; border: 1px solid var(--edge); border-radius: 50%; flex: none; display: grid; place-items: center; }
+.choice.on .radio::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--label); }
+
+/* found list */
+.found { display: grid; border: 1px solid var(--sep); }
+.kind { display: grid; grid-template-columns: 30px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 12px; }
+.kind + .kind { border-top: 1px solid var(--sep); }
+.kind .what { display: grid; gap: 1px; min-width: 0; }
+.kind .what b { font-weight: 500; }
+.kind .what span { color: var(--label-2); font-size: 12px; }
+.kind .count { font: 12px var(--font-mono); color: var(--label); text-align: right; }
+.kind .count small { display: block; color: var(--label-3); font-size: 10.5px; }
+.sw { width: 26px; height: 15px; border-radius: 8px; background: var(--fill-sel); position: relative; flex: none; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--label-3); }
+.sw.on { background: var(--label); }
+.sw.on::after { left: 13px; background: var(--window); }
+.open { font-size: 12px; color: var(--label-2); display: inline-flex; gap: 4px; align-items: center; }
+.sub { grid-column: 2 / -1; display: grid; gap: 0; border: 1px solid var(--sep); background: var(--field); margin-top: 4px; }
+.sub .r { display: grid; grid-template-columns: 16px 1fr 70px 90px; gap: 10px; align-items: center; padding: 5px 10px; font-size: 12px; }
+.sub .r + .r { border-top: 1px solid var(--sep); }
+.check { width: 12px; height: 12px; border: 1px solid var(--edge); display: grid; place-items: center; }
+.check.on { background: var(--label); border-color: var(--label); }
+.check.on::after { content: ""; width: 6px; height: 3px; border-left: 1.5px solid var(--window); border-bottom: 1.5px solid var(--window); transform: rotate(-45deg) translate(0,-1px); }
+.tag { font: 10.5px var(--font-mono); padding: 1px 6px; border: 1px solid var(--sep); color: var(--label-2); white-space: nowrap; }
+.tag.ok { color: var(--ok); border-color: rgba(76,195,138,.35); }
+.tag.warn { color: var(--warn); border-color: rgba(217,180,106,.35); }
+.skip { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--sep); background: var(--surface); }
+.skip .r { display: flex; gap: 8px; font-size: 12px; color: var(--label-2); }
+.skip .r b { color: var(--label); font-weight: 500; min-width: 190px; }
+
+/* progress toast + detail */
+.toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: 560px; background: var(--pop); box-shadow: 0 0 0 1px var(--edge), 0 10px 30px rgba(0,0,0,.55); padding: 10px 14px; display: grid; gap: 7px; z-index: 5; }
+.toast .l1 { display: flex; gap: 10px; align-items: center; }
+.toast .l1 b { font-weight: 500; }
+.toast .l1 .right { margin-left: auto; display: flex; gap: 6px; }
+.meter { height: 3px; background: var(--fill-sel); position: relative; overflow: hidden; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--label); }
+.toast .l2 { font: 11px var(--font-mono); color: var(--label-2); display: flex; gap: 12px; }
+.stages { display: grid; gap: 0; border: 1px solid var(--sep); }
+.stage { display: grid; grid-template-columns: 18px 160px 1fr 110px; gap: 10px; align-items: center; padding: 7px 12px; font-size: 12.5px; }
+.stage + .stage { border-top: 1px solid var(--sep); }
+.stage .st { font: 11px var(--font-mono); color: var(--label-3); text-align: right; }
+.stage.done .st { color: var(--ok); }
+.stage.now { background: var(--fill); }
+.stage.now .st { color: var(--label); }
+.dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--edge); }
+.stage.done .dot { background: var(--ok); border-color: var(--ok); }
+.stage.now .dot { background: var(--label); border-color: var(--label); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .stage.now .dot { animation: none; } }
+
+/* report */
+.sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--sep); }
+.sum div { padding: 10px 12px; display: grid; gap: 2px; }
+.sum div + div { border-left: 1px solid var(--sep); }
+.sum b { font: 500 20px var(--font-ui); }
+.sum span { color: var(--label-2); font-size: 12px; }
+.warnlist { display: grid; gap: 0; border: 1px solid var(--sep); }
+.warnlist .r { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; padding: 7px 12px; font-size: 12px; align-items: start; }
+.warnlist .r + .r { border-top: 1px solid var(--sep); }
+.warnlist .r .w { color: var(--warn); }
+
+/* characters grid */
+.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.cardc { display: grid; gap: 6px; }
+.portrait { aspect-ratio: 2 / 3; background: linear-gradient(160deg, #262626, #161616); border: 1px solid var(--sep); position: relative; overflow: hidden; }
+.portrait::before { content: ""; position: absolute; left: 30%; top: 22%; width: 40%; aspect-ratio: 1; border-radius: 50%; background: #2f2f2f; }
+.portrait::after { content: ""; position: absolute; left: 18%; top: 52%; width: 64%; height: 60%; border-radius: 40% 40% 0 0; background: #2a2a2a; }
+.portrait .mark { position: absolute; top: 6px; right: 6px; z-index: 1; background: rgba(13,13,13,.82); border: 1px solid var(--edge); padding: 2px 5px; display: inline-flex; gap: 4px; align-items: center; font: 10px var(--font-mono); color: var(--label-2); }
+.portrait .mark.warn { color: var(--warn); border-color: rgba(217,180,106,.45); }
+.portrait .mark.bad { color: var(--bad); border-color: rgba(229,72,77,.45); }
+.cardc .nm { font-weight: 500; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cardc .meta { font-size: 11px; color: var(--label-3); }
+.linked-row { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border: 1px solid var(--sep); background: var(--surface); font-size: 12px; color: var(--label-2); }
+.linked-row b { color: var(--label); font-weight: 500; }
+.linked-row .right { margin-left: auto; display: flex; gap: 8px; }
+
+/* compare */
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--sep); }
+.cmp > div { padding: 10px 12px; display: grid; gap: 6px; align-content: start; }
+.cmp > div + div { border-left: 1px solid var(--sep); }
+.cmp h4 { margin: 0; font: 600 12px var(--font-ui); display: flex; gap: 8px; align-items: center; }
+.cmp p { margin: 0; color: var(--label-2); font-size: 12px; }
+.del { background: rgba(229,72,77,.14); color: #f0a3a5; text-decoration: line-through; }
+.ins { background: rgba(76,195,138,.14); color: #9fe0bf; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M5 3l5 5-5 5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16"><path d="M3 6l5 5 5-5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13 8a5 5 0 11-1.5-3.5M13 3v2.5h-2.5"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 16 16"><path d="M5.5 3.5v9M10.5 3.5v9"/></symbol>
+  <symbol id="i-import" viewBox="0 0 16 16"><path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 16 16"><path d="M5 6.5H10a3 3 0 010 6H7M5 6.5L7.5 4M5 6.5L7.5 9"/></symbol>
+  <symbol id="i-miss" viewBox="0 0 16 16"><path d="M3.5 2.5h6l3 3v8h-9zM6 8l4 4M10 8l-4 4"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <span class="kicker">Draft · D-126 / D-127 · for Daniel</span>
+    <h1>Importing a whole SillyTavern folder, and linked card folders</h1>
+    <p>Eight screens with realistic data. Nothing here is built yet: the engine underneath is (chats, swipes, branches, folder access). Tell me what to change; the screens come after you approve.</p>
+  </header>
+
+  <h2 class="part">Part 1 · Import from SillyTavern</h2>
+
+  <!-- 1 -->
+  <section class="board">
+    <div class="board-head"><h2>1 · Where it starts</h2><span class="why">Settings → Library gets a SillyTavern group: the one-time import and the linked folders, side by side, because they answer the same question ("my cards are in SillyTavern").</span></div>
+    <div class="scroll"><div class="app short">
+      <aside class="side">
+        <div class="brand">Homunculus</div>
+        <div class="head">Settings</div>
+        <div class="row">General</div><div class="row">Appearance</div><div class="row">Chat</div>
+        <div class="row on">Library</div><div class="row">Connections</div><div class="row">Backups</div>
+      </aside>
+      <div class="main">
+        <div class="bar"><b>Library</b></div>
+        <div class="page">
+          <div class="group">
+            <h3>SillyTavern</h3>
+            <div class="set"><div class="t"><b>Import from SillyTavern</b><span>Everything at once: cards, chats (with swipes and branches), lorebooks, personas, presets, regex, Quick Replies, tags. Your SillyTavern folder is only read, never changed.</span></div><div class="act"><button class="btn primary"><svg class="i"><use href="#i-import"/></svg>Import…</button></div></div>
+            <div class="set"><div class="t"><b>Linked Folders</b><span>Folders of cards Homunculus keeps reading — new and changed cards show up by themselves. 1 linked.</span></div><div class="act"><button class="btn">Manage<svg class="i"><use href="#i-arrow"/></svg></button></div></div>
+          </div>
+          <div class="group">
+            <h3>Characters</h3>
+            <div class="set"><div class="t"><b>Import tags with cards</b><span>Tags written in the card come along.</span></div><div class="act"><span class="sw on"></span></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="notes"><li>Also reachable from the <b>empty Characters page</b> ("Import cards from SillyTavern") and the Home, which open the same window.</li></ul>
+  </section>
+
+  <!-- 2 -->
+  <section class="board">
+    <div class="board-head"><h2>2 · Pick the folder</h2><span class="why">One button opens the system's folder window. Any of the usual places works: the SillyTavern folder, <code>data</code>, or <code>data/default-user</code>. With several users, you choose one.</span></div>
+    <div class="scroll"><div class="app short">
+      <aside class="side"><div class="brand">Homunculus</div><div class="head">Settings</div><div class="row on">Library</div></aside>
+      <div class="main"><div class="bar"><b>Library</b></div><div class="page"></div></div>
+      <div class="sheet-bg"><div class="sheet">
+        <div class="sh"><b>Import from SillyTavern</b><span class="steps"><span class="on">1 Folder</span><span>2 What to bring</span><span>3 Import</span></span></div>
+        <div class="sb">
+          <div class="drop">
+            <b>Choose your SillyTavern folder</b>
+            <span class="muted">The folder where SillyTavern is installed is fine — Homunculus finds your data inside it.</span>
+            <button class="btn primary"><svg class="i"><use href="#i-folder"/></svg>Choose Folder…</button>
+          </div>
+          <div class="path">C:\Users\danie\SillyTavern</div>
+          <span class="muted">This folder has 2 SillyTavern users. Which one?</span>
+          <div class="choices">
+            <div class="choice on"><span class="radio"></span><b>default-user</b><span class="faint mono">812 cards · 1,204 chats</span></div>
+            <div class="choice"><span class="radio"></span><b>testing</b><span class="faint mono">14 cards · 6 chats</span></div>
+          </div>
+        </div>
+        <div class="sf"><span class="hint">Nothing is copied yet.</span><button class="btn quiet">Cancel</button><button class="btn primary">Next<svg class="i"><use href="#i-arrow"/></svg></button></div>
+      </div></div>
+    </div></div>
+    <ul class="notes"><li>A folder with no SillyTavern data: "No SillyTavern data here. Choose the SillyTavern folder or <code>data/default-user</code>."</li></ul>
+  </section>
+
+  <!-- 3 -->
+  <section class="board">
+    <div class="board-head"><h2>3 · What was found</h2><span class="why">One row per kind, counted before anything is written. Everything is on by default; chats can be picked by character. "Already here" is what a previous import brought (skipped unless changed).</span></div>
+    <div class="scroll"><div class="app" style="height:700px">
+      <aside class="side"><div class="brand">Homunculus</div><div class="head">Settings</div><div class="row on">Library</div></aside>
+      <div class="main"><div class="bar"><b>Library</b></div><div class="page"></div></div>
+      <div class="sheet-bg"><div class="sheet wide">
+        <div class="sh"><b>Import from SillyTavern</b><span class="faint mono">default-user</span><span class="steps"><span class="done">1 Folder</span><span class="on">2 What to bring</span><span>3 Import</span></span></div>
+        <div class="sb">
+          <div class="found">
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Characters</b><span>Cards with their pictures, embedded lorebooks and card regex</span></div><div class="count">812<small>3 already here</small></div><span></span></div>
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Chats</b><span>1,204 files → 1,077 chats (127 branches and checkpoints join their chat) · swipes kept</span></div><div class="count">1,204<small>412 MB</small></div><button class="btn small quiet">By character<svg class="i"><use href="#i-down"/></svg></button>
+              <div class="sub">
+                <div class="r"><span class="check on"></span><span>Yhul</span><span class="faint mono">212 files</span><span class="faint mono">48,310 msgs</span></div>
+                <div class="r"><span class="check on"></span><span>Lyra</span><span class="faint mono">96 files</span><span class="faint mono">22,904 msgs</span></div>
+                <div class="r"><span class="check on"></span><span>Fichas da Ordem</span><span class="faint mono">41 files</span><span class="faint mono">9,118 msgs</span></div>
+                <div class="r"><span class="check"></span><span>Assistant (test)</span><span class="faint mono">3 files</span><span class="faint mono">27 msgs</span></div>
+                <div class="r"><span></span><span class="faint">+ 389 more characters · Select All · Select None</span><span></span><span></span></div>
+              </div>
+            </div>
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Group chats</b><span>Each group becomes a Story with its cast; its chats are the story's chats</span></div><div class="count">9<small>31 chats</small></div><span></span></div>
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Lorebooks</b><span>Linked again to the cards, personas and chats that use them; your global ones stay global</span></div><div class="count">41</div><span></span></div>
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Personas</b><span>With their pictures and descriptions; your default persona stays the default</span></div><div class="count">12</div><span></span></div>
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Presets</b><span>Chat Completion presets ("Dark Fantasy" was in use)</span></div><div class="count">9</div><span></span></div>
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Regex</b><span>Global scripts; card and preset scripts come with them</span></div><div class="count">37</div><span></span></div>
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Quick Replies</b><span>"RP Control Panel" and 3 more sets</span></div><div class="count">4</div><span></span></div>
+            <div class="kind"><span class="sw on"></span><div class="what"><b>Tags</b><span>Written into the cards as tags</span></div><div class="count">230</div><span></span></div>
+          </div>
+          <div class="skip">
+            <div class="r"><b>Not brought</b></div>
+            <div class="r"><b>Text Completion settings · 64</b><span>Homunculus uses Chat Completion presets only</span></div>
+            <div class="r"><b>Backgrounds · 118 · Themes · 7</b><span>not used — Homunculus has its own looks</span></div>
+            <div class="r"><b>API keys</b><span>never read — set your connections up in Homunculus</span></div>
+          </div>
+        </div>
+        <div class="sf"><span class="hint">About 6 minutes · you can keep using the app.</span><button class="btn quiet">Back</button><button class="btn primary"><svg class="i"><use href="#i-import"/></svg>Import Everything</button></div>
+      </div></div>
+    </div></div>
+    <ul class="notes">
+      <li>Turning <b>Characters</b> off greys out chats of characters that aren't here yet (a chat needs its card).</li>
+      <li>The button says what it will do: "Import Everything", or "Import 6 Kinds" when some are off.</li>
+    </ul>
+  </section>
+
+  <!-- 4 -->
+  <section class="board">
+    <div class="board-head"><h2>4 · Importing</h2><span class="why">The window can close: a bar at the bottom keeps counting (like the card import), and the app stays usable. Clicking the bar opens the stages. Pause keeps what came in; Cancel stops (what came in stays, and Undo is in the report).</span></div>
+    <div class="scroll"><div class="app">
+      <aside class="side"><div class="brand">Homunculus</div><div class="head">Characters</div><div class="row on">All<span class="n">815</span></div><div class="row">From the Web<span class="n">47</span></div><div class="row">SillyTavern<span class="n">812</span></div></aside>
+      <div class="main">
+        <div class="bar"><b>Characters</b></div>
+        <div class="page">
+          <div class="stages" style="max-width:640px">
+            <div class="stage done"><span class="dot"></span><b>Tags</b><span class="muted">230</span><span class="st">done</span></div>
+            <div class="stage done"><span class="dot"></span><b>Lorebooks</b><span class="muted">41</span><span class="st">done</span></div>
+            <div class="stage done"><span class="dot"></span><b>Personas</b><span class="muted">12</span><span class="st">done</span></div>
+            <div class="stage done"><span class="dot"></span><b>Presets · Regex · QR</b><span class="muted">9 · 37 · 4</span><span class="st">done</span></div>
+            <div class="stage done"><span class="dot"></span><b>Characters</b><span class="muted">809 new · 3 already here</span><span class="st">done</span></div>
+            <div class="stage now"><span class="dot"></span><b>Chats</b><span class="muted">Yhul — "The Ashen Gate" · 4,210 messages</span><span class="st">312 / 1,077</span></div>
+            <div class="stage"><span class="dot"></span><b>Group chats</b><span class="muted">9 Stories</span><span class="st">waiting</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="toast">
+        <div class="l1"><b>Importing from SillyTavern</b><span class="muted">Chats 312 / 1,077</span><span class="right"><button class="btn small"><svg class="i"><use href="#i-pause"/></svg>Pause</button><button class="btn small quiet">Cancel</button></span></div>
+        <div class="meter"><i style="width:58%"></i></div>
+        <div class="l2"><span>Yhul — "The Ashen Gate"</span><span>about 3 min left</span></div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- 5 -->
+  <section class="board">
+    <div class="board-head"><h2>5 · Report</h2><span class="why">What came in (each line opens the place), what didn't and why, and one Undo for the whole import (everything it made goes to the Trash).</span></div>
+    <div class="scroll"><div class="app" style="height:660px">
+      <aside class="side"><div class="brand">Homunculus</div><div class="head">Settings</div><div class="row on">Library</div></aside>
+      <div class="main"><div class="bar"><b>Library</b></div><div class="page"></div></div>
+      <div class="sheet-bg"><div class="sheet wide">
+        <div class="sh"><b>SillyTavern import finished</b><span class="faint mono">default-user · 6 min 12 s</span></div>
+        <div class="sb">
+          <div class="sum">
+            <div><b>809</b><span>characters (3 already here)</span></div>
+            <div><b>1,077</b><span>chats · 214,880 messages</span></div>
+            <div><b>9</b><span>Stories from groups</span></div>
+            <div><b>103</b><span>lorebooks, personas, presets, regex, QR</span></div>
+          </div>
+          <div class="found">
+            <div class="kind"><span class="tag ok">✓</span><div class="what"><b>Chats</b><span>127 branches and checkpoints joined their chat as branches · 18,402 swipes kept</span></div><span></span><span class="open">Open<svg class="i"><use href="#i-arrow"/></svg></span></div>
+            <div class="kind"><span class="tag ok">✓</span><div class="what"><b>Lorebooks</b><span>41 · linked again: 63 cards, 4 personas, 22 chats · 2 global</span></div><span></span><span class="open">Open<svg class="i"><use href="#i-arrow"/></svg></span></div>
+            <div class="kind"><span class="tag ok">✓</span><div class="what"><b>Personas</b><span>12 · "Daniel" is the default</span></div><span></span><span class="open">Open<svg class="i"><use href="#i-arrow"/></svg></span></div>
+          </div>
+          <div class="warnlist">
+            <div class="r"><svg class="i w"><use href="#i-warn"/></svg><span>3 chats had broken lines (skipped): <b>Lyra – 2024-3-2@…</b> line 812, and 2 more</span><button class="btn small quiet">Show</button></div>
+            <div class="r"><svg class="i w"><use href="#i-warn"/></svg><span>4 chats belong to cards that aren't in the folder (deleted in SillyTavern): kept with the name only</span><button class="btn small quiet">Show</button></div>
+            <div class="r"><svg class="i w"><use href="#i-warn"/></svg><span>11 regex scripts were switched off until you approve them (they came with cards)</span><button class="btn small quiet">Review</button></div>
+          </div>
+          <div class="skip">
+            <div class="r"><b>Not brought</b><span>Text Completion settings (64), backgrounds (118), themes (7), API keys (never read)</span></div>
+          </div>
+        </div>
+        <div class="sf"><button class="btn quiet danger"><svg class="i"><use href="#i-undo"/></svg>Undo This Import</button><span class="hint">Import again later: only new and changed things come in.</span><button class="btn primary">Done</button></div>
+      </div></div>
+    </div></div>
+  </section>
+
+  <h2 class="part">Part 2 · Linked folders (the external card source)</h2>
+
+  <!-- 6 -->
+  <section class="board">
+    <div class="board-head"><h2>6 · Linked Folders</h2><span class="why">Settings → Library → Linked Folders. Each folder: where it is, how many cards, when it was last checked. Homunculus checks at start, when you come back to the window, and with Check Now. It never writes into these folders.</span></div>
+    <div class="scroll"><div class="app short">
+      <aside class="side"><div class="brand">Homunculus</div><div class="head">Settings</div><div class="row on">Library</div></aside>
+      <div class="main">
+        <div class="bar"><b>Library</b><span class="faint">/</span><b>Linked Folders</b><span class="right"><button class="btn"><svg class="i"><use href="#i-refresh"/></svg>Check Now</button><button class="btn primary"><svg class="i"><use href="#i-link"/></svg>Link a Folder…</button></span></div>
+        <div class="page">
+          <div class="group" style="max-width:none">
+            <div class="set"><svg class="i"><use href="#i-folder"/></svg><div class="t"><b>characters</b><span class="mono">D:\Cards\SillyTavern\data\default-user\characters</span></div><div class="act"><span class="tag">812 cards</span><span class="tag ok">checked 2 min ago · 3 new</span><button class="btn small quiet">Show</button><button class="btn small quiet">Unlink…</button></div></div>
+            <div class="set"><svg class="i"><use href="#i-folder"/></svg><div class="t"><b>CardVault export</b><span class="mono">/home/friend/CardVault/library</span></div><div class="act"><span class="tag">1,031 cards</span><span class="tag warn">folder not found</span><button class="btn small quiet">Find…</button><button class="btn small quiet">Unlink…</button></div></div>
+          </div>
+          <ul class="notes">
+            <li><b>Unlink…</b> asks: "Keep its 812 cards as your own" (default) or "Move them to the Trash". Chats that use them keep working either way.</li>
+            <li>A folder that isn't there (unplugged drive): its cards stay, marked; nothing is removed.</li>
+          </ul>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- 7 -->
+  <section class="board">
+    <div class="board-head"><h2>7 · Linked cards in Characters</h2><span class="why">They live with your other cards, in a folder named after the linked folder, with a small link mark. Your edits stay in Homunculus; if the file changes too, the card asks which version to keep.</span></div>
+    <div class="scroll"><div class="app short">
+      <aside class="side">
+        <div class="brand">Homunculus</div>
+        <div class="head">Characters</div>
+        <div class="row">All<span class="n">1,859</span></div>
+        <div class="row">From the Web<span class="n">47</span></div>
+        <div class="row on"><svg class="i"><use href="#i-link"/></svg>characters<span class="n">812</span></div>
+        <div class="row"><svg class="i"><use href="#i-link"/></svg>CardVault export<span class="n">1,031</span></div>
+      </aside>
+      <div class="main">
+        <div class="bar"><b>characters</b><span class="faint mono">linked · D:\Cards\…\characters</span><span class="right"><button class="btn small"><svg class="i"><use href="#i-refresh"/></svg>Check Now</button></span></div>
+        <div class="page">
+          <div class="linked-row"><svg class="i"><use href="#i-link"/></svg><span><b>3 new cards</b> appeared in this folder since you last looked</span><span class="right"><button class="btn small quiet">Show Them</button></span></div>
+          <div class="grid">
+            <div class="cardc"><div class="portrait"><span class="mark"><svg class="i" style="width:10px;height:10px"><use href="#i-link"/></svg>linked</span></div><span class="nm">Yhul</span><span class="meta">fantasy · 212 chats</span></div>
+            <div class="cardc"><div class="portrait"><span class="mark"><svg class="i" style="width:10px;height:10px"><use href="#i-link"/></svg>edited here</span></div><span class="nm">Lyra</span><span class="meta">your edits · file unchanged</span></div>
+            <div class="cardc"><div class="portrait"><span class="mark warn"><svg class="i" style="width:10px;height:10px"><use href="#i-warn"/></svg>changed in both</span></div><span class="nm">Seraphine</span><span class="meta">choose a version</span></div>
+            <div class="cardc"><div class="portrait"><span class="mark bad"><svg class="i" style="width:10px;height:10px"><use href="#i-miss"/></svg>file missing</span></div><span class="nm">Old Mercenary</span><span class="meta">chats still work</span></div>
+            <div class="cardc"><div class="portrait"><span class="mark"><svg class="i" style="width:10px;height:10px"><use href="#i-link"/></svg>new</span></div><span class="nm">Captain Ivo</span><span class="meta">added 2 min ago</span></div>
+            <div class="cardc"><div class="portrait"><span class="mark"><svg class="i" style="width:10px;height:10px"><use href="#i-link"/></svg>linked</span></div><span class="nm">Fichas da Ordem</span><span class="meta">rpg · 41 chats</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li><b>File missing:</b> the card stays with its chats; the card's sheet offers "Keep as My Own Card" or "Move to Trash".</li>
+      <li>A file changed and you never edited the card: it simply updates (the old version goes to History), no question.</li>
+      <li>Linked cards can be moved into your own folders too; the link mark follows them.</li>
+    </ul>
+  </section>
+
+  <!-- 8 -->
+  <section class="board">
+    <div class="board-head"><h2>8 · Changed in both places</h2><span class="why">Opens when you click a card marked "changed in both". Only the fields that differ are shown, side by side.</span></div>
+    <div class="scroll"><div class="app short">
+      <aside class="side"><div class="brand">Homunculus</div><div class="head">Characters</div><div class="row on"><svg class="i"><use href="#i-link"/></svg>characters<span class="n">812</span></div></aside>
+      <div class="main"><div class="bar"><b>characters</b></div><div class="page"></div></div>
+      <div class="sheet-bg"><div class="sheet wide">
+        <div class="sh"><svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg><b>Seraphine changed in both places</b></div>
+        <div class="sb">
+          <span class="muted">You edited her here on Nov 10, and the file in <span class="mono">characters</span> changed on Nov 12 (your card manager, or SillyTavern).</span>
+          <div class="cmp">
+            <div><h4>Yours (Homunculus)</h4><p>Description: …a healer of the northern temple, <span class="ins">quiet and stubborn, who never lies to the sick</span>.</p><p>Greetings: 3</p></div>
+            <div><h4>The file's</h4><p>Description: …a healer of the northern temple<span class="del">, quiet and stubborn</span><span class="ins"> who hides a cursed past</span>.</p><p>Greetings: <span class="ins">4</span></p></div>
+          </div>
+          <span class="faint">Both versions stay in the card's History either way.</span>
+        </div>
+        <div class="sf"><span class="hint"></span><button class="btn">Keep Both (as two cards)</button><button class="btn">Take the File's</button><button class="btn primary">Keep Mine</button></div>
+      </div></div>
+    </div></div>
+  </section>
+</div>
