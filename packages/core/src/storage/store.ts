@@ -38,6 +38,9 @@ function rowToMessage(r: MessageRow): Message {
   });
 }
 
+/** Marks a character read by `listCharactersLight` (its card's embedded lorebook left out); the value is its id. D-122. */
+const LIGHT_MARK = "__homunculusLightFrom";
+
 /** A table of JSON documents validated by a schema (characters, personas, agents…). */
 class DocTable<S extends z.ZodType<{ id: string }>> {
   constructor(
@@ -187,7 +190,7 @@ export class SqlStore implements StateRepository, MessageTree {
 
   // ------------------------------------------------------------ characters
   async saveCharacter(input: CharacterInput): Promise<Character> {
-    const c = Character.parse(input);
+    const c = await this.restoreLightOriginal(Character.parse(input));
     const before = await this.getCharacter(c.id);
     await this.db.execute(
       `INSERT INTO characters (id, name, data, updated_at) VALUES (?, ?, ?, ?)
@@ -207,6 +210,68 @@ export class SqlStore implements StateRepository, MessageTree {
   async listCharacters(): Promise<Character[]> {
     const rows = await this.db.select<{ data: string }>("SELECT data FROM characters WHERE trashed_at IS NULL ORDER BY name COLLATE NOCASE");
     return rows.map((r) => Character.parse(JSON.parse(r.data)));
+  }
+
+  /**
+   * The library's characters for lists (D-122): the embedded lorebook of each imported card is left out of `original`
+   * (it is already a lorebook of its own, linked to the card, and it was often most of the data read at start). Such a
+   * character carries a mark; `saveCharacter` and `withFullOriginal` put the book back, so nothing is ever lost.
+   */
+  async listCharactersLight(): Promise<Character[]> {
+    let rows: Array<{ data: string; had: number | null }>;
+    try {
+      rows = await this.db.select<{ data: string; had: number | null }>(
+        `SELECT json_remove(data, '$.original.data.character_book') AS data, json_type(data, '$.original.data.character_book') IS NOT NULL AS had
+         FROM characters WHERE trashed_at IS NULL ORDER BY name COLLATE NOCASE`);
+    } catch {
+      return this.listCharacters(); // a SQLite without JSON functions: the full list
+    }
+    return rows.map((r) => {
+      const c = Character.parse(JSON.parse(r.data));
+      if (Number(r.had) && c.original && typeof c.original === "object") {
+        const o = c.original as { data?: Record<string, unknown> };
+        if (o.data && typeof o.data === "object") o.data[LIGHT_MARK] = c.id;
+      }
+      return c;
+    });
+  }
+
+  /** Is there a lorebook made from this character's card? Without reading every lorebook (D-122: import read them all
+   *  for each card, so importing many cards with books slowed down card after card). */
+  async hasCardLorebook(characterId: string): Promise<boolean> {
+    try {
+      const rows = await this.db.select<{ id: string }>(
+        "SELECT id FROM lorebooks WHERE trashed_at IS NULL AND json_extract(data, '$.source.kind') = 'card' AND json_extract(data, '$.source.characterId') = ? LIMIT 1", [characterId]);
+      return rows.length > 0;
+    } catch {
+      return (await this.lorebooks.list()).some((b) => b.source.kind === "card" && b.source.characterId === characterId);
+    }
+  }
+
+  /** Lorebooks whose name (or SillyTavern file name) is `name`: a card's linked world. Without reading every book. */
+  async lorebooksNamed(name: string): Promise<Lorebook[]> {
+    try {
+      const rows = await this.db.select<{ data: string }>(
+        `SELECT data FROM lorebooks WHERE trashed_at IS NULL AND (name = ? OR json_extract(data, '$.source.fileName') IN (?, ?)) ORDER BY name COLLATE NOCASE`, [name, name, `${name}.json`]);
+      return rows.map((r) => Lorebook.parse(JSON.parse(r.data))).filter((b) => b.name === name || (b.source.fileName ?? "").replace(/\.json$/i, "") === name);
+    } catch {
+      return (await this.lorebooks.list()).filter((b) => b.name === name || (b.source.fileName ?? "").replace(/\.json$/i, "") === name);
+    }
+  }
+
+  /** A character from the light list made whole again (its card's embedded lorebook back in `original`). */
+  async withFullOriginal(c: Character): Promise<Character> {
+    return this.restoreLightOriginal(c);
+  }
+
+  private async restoreLightOriginal(c: Character): Promise<Character> {
+    const data = (c.original as { data?: Record<string, unknown> } | undefined)?.data;
+    if (!data || typeof data !== "object" || !(LIGHT_MARK in data)) return c;
+    const from = String(data[LIGHT_MARK]);
+    const { [LIGHT_MARK]: _mark, ...rest } = data;
+    const [row] = await this.db.select<{ book: string | null }>("SELECT json_extract(data, '$.original.data.character_book') AS book FROM characters WHERE id = ?", [from]);
+    const book = row?.book ? JSON.parse(row.book) : undefined;
+    return { ...c, original: { ...(c.original as object), data: { ...rest, ...(book !== undefined ? { character_book: book } : {}) } } as Character["original"] };
   }
 
   /** Sessions whose cast includes this character (trashed sessions only when asked). */
@@ -708,20 +773,56 @@ export class SqlStore implements StateRepository, MessageTree {
     return rows.map(rowToMessage);
   }
 
-  /** The conversation from the first message down to `messageId`. */
+  /**
+   * The conversation from the first message down to `messageId`, read in one query (D-122). It used to read one message
+   * at a time up the tree: a 2000-message chat was 2000 round trips before every reply. UNION (not UNION ALL) stops on a
+   * cycle; the walk below reports it, and a missing parent, exactly as before.
+   */
   async pathTo(messageId: string): Promise<Message[]> {
-    const path: Message[] = [];
+    const rows = await this.db.select<MessageRow>(
+      `WITH RECURSIVE up(id) AS (
+         SELECT ? UNION SELECT m.parent_id FROM messages m JOIN up ON m.id = up.id WHERE m.parent_id IS NOT NULL
+       ) SELECT messages.* FROM messages JOIN up ON messages.id = up.id`, [messageId]);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return this.walkUp(messageId, (id) => byId.get(id)).map(rowToMessage);
+  }
+
+  /** Ids only, root first (the world state's walk). One query, like pathTo. */
+  async pathIdsTo(messageId: string): Promise<string[]> {
+    const rows = await this.db.select<{ id: string; parent_id: string | null }>(
+      `WITH RECURSIVE up(id) AS (
+         SELECT ? UNION SELECT m.parent_id FROM messages m JOIN up ON m.id = up.id WHERE m.parent_id IS NOT NULL
+       ) SELECT messages.id, messages.parent_id FROM messages JOIN up ON messages.id = up.id`, [messageId]);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return this.walkUp(messageId, (id) => byId.get(id)).map((r) => r.id);
+  }
+
+  private walkUp<R extends { id: string; parent_id: string | null }>(messageId: string, get: (id: string) => R | undefined): R[] {
+    const path: R[] = [];
     const seen = new Set<string>();
     let current: string | null = messageId;
     while (current) {
       if (seen.has(current)) throw new Error(`Message tree has a cycle at "${current}"`);
       seen.add(current);
-      const m = await this.getMessage(current);
-      if (!m) throw new Error(`Message "${current}" not found`);
-      path.push(m);
-      current = m.parentId;
+      const r = get(current);
+      if (!r) throw new Error(`Message "${current}" not found`);
+      path.push(r);
+      current = r.parent_id;
     }
     return path.reverse();
+  }
+
+  /** Agents' and user's deltas and snapshots of many messages at once (WorldState.resolve, D-122). */
+  async stateRowsFor(ids: string[]): Promise<{ deltas: Map<string, StateDelta>; user: Map<string, StateDelta>; snapshots: Map<string, ResolvedState> }> {
+    const deltas = new Map<string, StateDelta>(), user = new Map<string, StateDelta>(), snapshots = new Map<string, ResolvedState>();
+    for (let i = 0; i < ids.length; i += 400) {
+      const chunk = ids.slice(i, i + 400);
+      const marks = chunk.map(() => "?").join(", ");
+      for (const r of await this.db.select<{ message_id: string; delta: string }>(`SELECT message_id, delta FROM state_deltas WHERE message_id IN (${marks})`, chunk)) deltas.set(r.message_id, StateDelta.parse(JSON.parse(r.delta)));
+      for (const r of await this.db.select<{ message_id: string; delta: string }>(`SELECT message_id, delta FROM state_user_deltas WHERE message_id IN (${marks})`, chunk)) user.set(r.message_id, StateDelta.parse(JSON.parse(r.delta)));
+      for (const r of await this.db.select<{ message_id: string; state: string }>(`SELECT message_id, state FROM state_snapshots WHERE message_id IN (${marks})`, chunk)) snapshots.set(r.message_id, JSON.parse(r.state) as ResolvedState);
+    }
+    return { deltas, user, snapshots };
   }
 
   async parentOf(messageId: string): Promise<string | null | undefined> {
@@ -769,6 +870,54 @@ export class SqlStore implements StateRepository, MessageTree {
     const rows = await this.db.select<{ id: string; parent_id: string | null; created_at: number }>(
       "SELECT id, parent_id, created_at FROM messages WHERE session_id = ? ORDER BY created_at, id", [sessionId]);
     return rows.map((r) => ({ id: r.id, parentId: r.parent_id, createdAt: Number(r.created_at) }));
+  }
+
+  // ---- chat lists in a few queries (D-122): the sidebar and the chat lists used to ask 4 queries per chat on every refresh
+
+  /** Per chat: how many messages and the newest time. Cheap (one aggregate); tells which chats changed. */
+  async messageStats(): Promise<Map<string, { count: number; last: number }>> {
+    const rows = await this.db.select<{ session_id: string; n: number; last: number }>(
+      "SELECT session_id, COUNT(*) AS n, MAX(created_at) AS last FROM messages GROUP BY session_id");
+    return new Map(rows.map((r) => [r.session_id, { count: Number(r.n), last: Number(r.last) }]));
+  }
+
+  /** The newest message of each chat (the same one `latestMessage` returns), in one query. */
+  async latestMessages(): Promise<Map<string, Message>> {
+    const rows = await this.db.select<MessageRow>(
+      `SELECT m.* FROM messages m JOIN (SELECT session_id, MAX(created_at) AS t FROM messages GROUP BY session_id) x
+         ON m.session_id = x.session_id AND m.created_at = x.t ORDER BY m.id DESC`);
+    const out = new Map<string, Message>();
+    for (const r of rows) if (!out.has(r.session_id)) out.set(r.session_id, rowToMessage(r));
+    return out;
+  }
+
+  /** Tree links of several chats at once, by chat (same shape and order as `messageLinks`). */
+  async messageLinksOf(sessionIds: string[]): Promise<Map<string, Array<{ id: string; parentId: string | null; createdAt: number }>>> {
+    const out = new Map<string, Array<{ id: string; parentId: string | null; createdAt: number }>>();
+    for (let i = 0; i < sessionIds.length; i += 300) {
+      const chunk = sessionIds.slice(i, i + 300);
+      const rows = await this.db.select<{ id: string; parent_id: string | null; created_at: number; session_id: string }>(
+        `SELECT id, parent_id, created_at, session_id FROM messages WHERE session_id IN (${chunk.map(() => "?").join(", ")}) ORDER BY created_at, id`, chunk);
+      for (const r of rows) {
+        const list = out.get(r.session_id) ?? [];
+        list.push({ id: r.id, parentId: r.parent_id, createdAt: Number(r.created_at) });
+        out.set(r.session_id, list);
+      }
+    }
+    return out;
+  }
+
+  /** Every saved branch, by chat (same order as `listBranches`). */
+  async branchesBySession(): Promise<Map<string, Branch[]>> {
+    const rows = await this.db.select<{ id: string; session_id: string; name: string; head_message_id: string | null; end_message_id?: string | null }>(
+      "SELECT * FROM branches ORDER BY name");
+    const out = new Map<string, Branch[]>();
+    for (const r of rows) {
+      const list = out.get(r.session_id) ?? [];
+      list.push(Branch.parse({ id: r.id, sessionId: r.session_id, name: r.name, headMessageId: r.head_message_id, endMessageId: r.end_message_id ?? null }));
+      out.set(r.session_id, list);
+    }
+    return out;
   }
 
   /** Deletes messages for good, with everything kept per message (world state, runs, notes, records). D-032. */

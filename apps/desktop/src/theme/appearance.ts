@@ -10,7 +10,9 @@ import { applyMessageLook } from "../messageLook.ts";
 import { isIconSet, setIconSet, type IconSetId } from "./iconSets.ts";
 
 export type MotionSpeed = "calm" | "normal" | "quick";
-export interface MotionPrefs { on: boolean; speed: MotionSpeed; followSystem: boolean }
+export interface MotionPrefs { on: boolean; speed: MotionSpeed; followSystem: boolean;
+  /** D-122: fewer blurs and arrival animations. "auto" = on in the Linux app (WebKitGTK draws them slowly). */
+  light?: "auto" | "on" | "off" }
 export interface LookTweaks { accent?: string; storyFont?: "prose" | "ui"; storySize?: number; /** D-086 */ icons?: IconSetId;
   /** The user's dialogue / narration colors for this look only (D-088: they were one color for every look). */
   dialogue?: string; narration?: string }
@@ -84,6 +86,7 @@ function apply(): void {
   root.dataset.motion = motionOff() ? "off" : "on";
   root.dataset.motionSpeed = state.motion.speed;
   root.dataset.followSystem = state.motion.followSystem ? "yes" : "no";
+  root.dataset.light = lightEffects() ? "on" : "off";
   root.style.setProperty("--motion-k", String(MOTION_FACTOR[state.motion.speed]));
 }
 
@@ -181,6 +184,15 @@ export function motionOff(): boolean {
     && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 export const motionFactor = (): number => MOTION_FACTOR[state.motion.speed];
+
+/** The Linux desktop app (Tauri on WebKitGTK), where blurs and many animations at once cost the most. */
+export const onLinuxApp = (): boolean => typeof navigator !== "undefined" && typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
+  && /Linux/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent);
+/** Light effects (D-122): no blur behind panels, short arrivals. */
+export function lightEffects(): boolean {
+  const v = state.motion.light ?? "auto";
+  return v === "on" || (v === "auto" && onLinuxApp());
+}
 
 export function useAppearance(): AppearanceState {
   return useSyncExternalStore((f) => { listeners.add(f); return () => listeners.delete(f); }, () => state, () => state);

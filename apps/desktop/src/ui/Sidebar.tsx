@@ -15,7 +15,7 @@ import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
 import { Button, Icon, IconButton } from "./kit.tsx";
 import { CASCADE, useEnter, useSlidingPill } from "./motion.ts";
-import { turns, useTurns, type LiveTurn } from "../turns.ts";
+import { turns, useTurnPhases, type TurnPhase } from "../turns.ts";
 import { usePrefs } from "../prefs.ts";
 import { SidebarChats } from "./SidebarChats.tsx";
 
@@ -67,11 +67,11 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
   /** Home (D-086): the item at the top and a click on the name. */
   onOpenHome?: () => void;
 }) {
-  const live = useTurns();
+  const live = useTurnPhases();
   const prefs = usePrefs();
   /** What a chat with a turn running shows instead of its last line. */
   const working = (id: string) => {
-    const t: LiveTurn | undefined = live.get(id);
+    const t: TurnPhase | undefined = live.get(id);
     if (!t || t.phase === "done") return null;
     // ■ stops the reply without opening the chat (inside the row's button, so a span that acts as one)
     const stop = (e: { stopPropagation: () => void; preventDefault: () => void }) => { e.stopPropagation(); e.preventDefault(); turns.stop(id); };

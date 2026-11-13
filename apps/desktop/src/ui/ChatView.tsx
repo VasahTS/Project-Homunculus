@@ -24,7 +24,7 @@ import { WhoPicker } from "./WhoPicker.tsx";
 import { PersonaPicker, type PersonaChoice } from "./PersonaPicker.tsx";
 import { AvatarDot } from "./Sidebar.tsx";
 import type { AppServices } from "../core-instance.ts";
-import { turns, useTurn, type LiveTurn, type StreamTo } from "../turns.ts";
+import { turns, useTurn, useTurnQuiet, type LiveTurn, type StreamTo } from "../turns.ts";
 import type { ConnectionState } from "../connection.ts";
 import { coveredChapterLabels, deletableFrom, nextBranchName, type Chapter, type ChatBranch, type ConnectionConfig, type ModelInfo, type ProviderDefinition } from "@homunculus/core";
 import { PromptCharacter } from "./PromptCharacter.tsx";
@@ -155,7 +155,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const loadSeq = useRef(0);
   const requestedHead = useRef<string | null>(null);
   // ---- this chat's turn (turns.ts): it runs outside this screen, so it survives leaving the chat
-  const turn = useTurn(session.id);
+  // without each word: the streaming bubble below follows the words, so the chat doesn't re-render per token (D-122)
+  const turn = useTurnQuiet(session.id);
   /** A turn is running: the reply may already be on screen while trackers still work. */
   const busy = !!turn && turn.phase !== "done";
   const manual = turn?.phase === "agents" ? turn.manual : undefined;
@@ -169,7 +170,6 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   /** A reply being written right now: where it hangs, the user's words (if any) and what has arrived so far. */
   const pending: Pending | null = turn?.phase === "writing" ? turn : behind && lastWriting.current?.id === turn?.id ? lastWriting.current : null;
   // Settings → Chat (D-082): a live reply revealed evenly ("Smooth text")
-  const liveText = useSmoothText(pending?.text ?? "", prefs.smoothText && !!pending, prefs.smoothSpeed);
   const [sceneKey, setSceneKey] = useState(0);
   const [tab, setTab] = useBackState<InspectorTab>("scene"); // inspector tabs are moves for M4/M5 (D-097)
   /** Memory opens as a window from the top bar (D-105). */
@@ -362,6 +362,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     }
     if (stickRef.current && !holdRef.current) toEnd();
   }, [path, pending, shownExtra]);
+  /** The streaming bubble grew: follow it, like a new message. */
+  const onReplyGrow = () => { if (stickRef.current && !holdRef.current) toEnd(); };
 
   /** Starts a turn in turns.ts (it keeps going if you leave this chat). */
   function run(start: { parentId: string | null; userText?: string }, task: (signal: AbortSignal, stream: StreamTo) => Promise<string | null>) {
@@ -942,17 +944,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               </li>
             )}
             {pending && (
-              <li className={`msg ${storyInfo ? "narrator" : "character"} streaming fresh`} data-testid="streaming">
-                {storyInfo && prefs.avatarShape !== "hidden" && <div className="msg-side"><CardPicture className="chat-avatar" name={storyInfo.name} avatar={storyInfo.avatar} /></div>}
-                <div className="who">{storyInfo?.name ?? leadChar?.name ?? "…"} {!pending.text && !pending.reasoning && memStatus?.startsWith("Recalling") ? <span className="hint" data-testid="memory-recalling">{memStatus}</span> : pending.reasoning && !pending.text ? "is thinking…" : "is writing…"}</div>
-                {pending.reasoning && prefs.thinking !== "hidden" && (
-                  <details className="reasoning" data-testid="reasoning-live" open={prefs.thinking === "open" || undefined}>
-                    <summary>Reasoning</summary>
-                    <div className="reasoning-text">{pending.reasoning}</div>
-                  </details>
-                )}
-                <div className="text prose">{pending.text ? <MessageText text={show(liveText)} richHtml /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
-              </li>
+              <StreamingReply sessionId={session.id} fallback={pending} storyInfo={storyInfo} leadName={leadChar?.name} memStatus={memStatus}
+                avatarShape={prefs.avatarShape} thinking={prefs.thinking} smooth={prefs.smoothText} smoothSpeed={prefs.smoothSpeed} show={show} onGrow={onReplyGrow} />
             )}
           </ol>
           <div ref={endRef} />
@@ -1225,5 +1218,36 @@ function ChatSize({ messages, load, refreshKey }: { messages: number; refreshKey
     <span className={`chat-size${full >= 0.9 ? " near-full" : ""}`} data-testid="chat-size" title={title}>
       ~{short(size.used)}{size.limit ? <span className="chat-size-limit"> / {short(size.limit)}</span> : null} tokens <span className="chat-size-count">· {messages} msg</span>
     </span>
+  );
+}
+
+
+/**
+ * The reply being written (D-122): the only part of the chat that follows every word. It used to be drawn by ChatView,
+ * so each token re-rendered the whole chat (every message on screen, the inspector).
+ */
+function StreamingReply({ sessionId, fallback, storyInfo, leadName, memStatus, avatarShape, thinking, smooth, smoothSpeed, show, onGrow }: {
+  sessionId: string; fallback: Pending; storyInfo?: { name: string; avatar?: Avatar | undefined } | undefined; leadName?: string | undefined; memStatus?: string | undefined | null;
+  avatarShape: string; thinking: string; smooth: boolean; smoothSpeed: number; show: (t: string) => string; onGrow: () => void;
+}) {
+  const live = useTurn(sessionId);
+  const text = live?.text ?? fallback.text;
+  const reasoning = live?.reasoning ?? fallback.reasoning;
+  const liveText = useSmoothText(text, smooth, smoothSpeed);
+  const grow = useRef(onGrow);
+  grow.current = onGrow;
+  useEffect(() => { grow.current(); }, [liveText, reasoning]);
+  return (
+    <li className={`msg ${storyInfo ? "narrator" : "character"} streaming fresh`} data-testid="streaming">
+      {storyInfo && avatarShape !== "hidden" && <div className="msg-side"><CardPicture className="chat-avatar" name={storyInfo.name} avatar={storyInfo.avatar} /></div>}
+      <div className="who">{storyInfo?.name ?? leadName ?? "…"} {!text && !reasoning && memStatus?.startsWith("Recalling") ? <span className="hint" data-testid="memory-recalling">{memStatus}</span> : reasoning && !text ? "is thinking…" : "is writing…"}</div>
+      {reasoning && thinking !== "hidden" && (
+        <details className="reasoning" data-testid="reasoning-live" open={thinking === "open" || undefined}>
+          <summary>Reasoning</summary>
+          <div className="reasoning-text">{reasoning}</div>
+        </details>
+      )}
+      <div className="text prose">{text ? <MessageText text={show(liveText)} richHtml /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
+    </li>
   );
 }

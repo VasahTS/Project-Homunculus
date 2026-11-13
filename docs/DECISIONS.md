@@ -1364,3 +1364,21 @@ Decided and built:
 - Tests: `packages/core/test/storage.test.ts` (previews, counting); click tests `e2e/big-library.e2e.ts` (new: progress, only the cards on screen, preview vs full picture, the highlight after switching places — it fails on the old code), `assistant-context` (offers).
 
 Signed: **CLAUDE**.
+
+## D-122 — Performance session, part 1: few queries for long chats and chat lists, streaming that doesn't redraw the app, lighter start (2026-11-13)
+
+Daniel (translated): "I want a session to make the app much smoother, faster and more professional" — start with items 1–3 of `docs/PERFORMANCE-PLAN.md`, "and also the ones you proposed before". Nothing changes on screen except one new switch (Light effects).
+
+- **Message paths in one query.** `SqlStore.pathTo` is one `WITH RECURSIVE … UNION` query (it read one message per query up the tree; a 2000-message chat was 2000 round trips before every reply, edit and refresh). Same order, same "cycle" and "not found" errors (`walkUp`). `pathIdsTo` for ids only.
+- **World state in a few queries.** `WorldState.resolve` takes the path from `pathIdsTo` and the deltas, user deltas and snapshots of the whole path from `stateRowsFor` (chunks of 400), when the repository offers them; the old walk stays for other repositories. Test: a 600-message path = 1 query for `pathTo`, under 40 for the state (was about 700, or 1800 the first time).
+- **Streaming redraws only the reply.** `App` and `Sidebar` follow `useTurnPhases()` (a copy only when a chat starts, changes phase or ends); `ChatView` follows `useTurnQuiet()` (everything but the words); the words are drawn by `StreamingReply`, the only part that re-renders per token (it also does the smooth text and asks the chat to follow it). Before, every token re-ran the whole app.
+- **Chat lists in 3–4 queries.** `refresh()` got every chat's last line, time, length and branches with 4 queries per chat; now `messageStats`, `latestMessages`, `branchesBySession` for all chats, and `messageLinksOf` only for chats whose messages or branches changed since the last look (`chatStatsCache`). `refresh()` reads everything side by side (it waited for each read), and chat-only actions (rename, setup, trackers on/off) use `refreshChats()` (a new chat keeps the full refresh: rare, and it also catches changes made outside the screens); a new picture only reloads pictures.
+- **Light character list.** `listCharactersLight` leaves each card's embedded lorebook (`original.data.character_book`, already a linked lorebook) out of the list read at start, and marks the character; `saveCharacter` and `withFullOriginal` (export) put the book back, from the row the mark names (so a duplicate keeps it too). Test: save from a light copy, duplicate, export — `original` is identical.
+- **Import:** adopting a card's book no longer reads every lorebook (`hasCardLorebook`, `lorebooksNamed` by query) — importing many cards with books slowed down card after card.
+- **Big pages load when first opened** (`lazyPage`: Card Browser, Cues, Settings, preset / tracker / agent editors, Directors; "Loading…" for a moment the first time). The start script is ~0.35 MB smaller; the Assistant and the Vault are still in it (next step).
+- **Long lists:** Vault grids over 80 items use `VirtualCards` (unless sorted in "Default order", which has group headings); the list beside the character editor, Add a Card, Add Context and the Trash skip drawing rows off screen (`content-visibility`, where the WebView supports it). Long chats already draw the newest 50 (Settings → Chat).
+- **Light effects** (Customize → Motion: Auto / On / Off; Auto = on in the Linux app): no blur behind panels and popovers, short arrival animations, no page fade-up. `data-light` on `<html>`.
+- Not done: start-up installers in parallel (small gain, order matters between them); splitting the Assistant and Vault out of the start script; `React.memo` on chat message rows (the rows are written inline; `StreamingReply` already removes the per-token cost).
+- Tests: `packages/core/test/query-count.test.ts` (new: query counts, same paths and states, cycle/missing errors, the light list never losing `original`); full click suite.
+
+Signed: **CLAUDE**.

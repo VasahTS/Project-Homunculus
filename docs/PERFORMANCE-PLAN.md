@@ -58,6 +58,10 @@ trip from the WebView to the native side, so "many small queries" is the main en
 12. **Workers for heavy work:** lorebook scans on big books, token counting of long prompts, picture previews
     (`OffscreenCanvas` where the WebView has it) off the main thread, so typing never stutters.
 
+## Status
+
+Done in D-122 (2026-11-13): 1, 2 (without `React.memo` on rows: the streaming bubble took the per-token cost), 3, 4 (embedded lorebooks left out of the list), 5 in part (the big settings/editor pages; the Assistant and the Vault still load at start), 7 in part, 8 (no more reading every lorebook per card), 9 (Light effects). Left: 6, the rest of 5, 10–12.
+
 ## Order for the session
 
 1 → 2 → 3 (each is small, testable and invisible), then 4, 5, 6. Measure after each. Priority 3 starts with drafts, one at

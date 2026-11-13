@@ -10,6 +10,7 @@ import { blocksText, narratorBlocks, narratorText, npcSheetFields, npcTagline, t
 import { ConfirmButton, Help } from "./Help.tsx";
 import { Button, Icon, IconButton, Switch } from "./kit.tsx";
 import { CardPicture, GalleryCard, SheetSection, SpoilerGate, type VaultTab } from "./Gallery.tsx";
+import { VirtualCards, VIRTUAL_FROM } from "./VirtualCards.tsx";
 import { StoryMark } from "./Sidebar.tsx";
 import { ImagePicker } from "./ImagePicker.tsx";
 import { SetupFields, SetupSection, type StorySetupProps } from "./SetupFields.tsx";
@@ -69,13 +70,18 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
           {isStories && !search.trim() && hero}
           {!search.trim() && folders}
           {search.trim() && onOpenFolder && <FolderHits hits={folderHits} onOpen={onOpenFolder} />}
-          <div className="gallery-cards" data-testid={`vault-${tab}`} ref={cardsRef}>
+          {visible.length > VIRTUAL_FROM && ordered.mode !== "original" ? <>
+            {/* many NPCs, narrators or stories: only the rows on screen (D-122) */}
+            {isStories && <div className="collection-heading"><h2>{search ? "Search results" : prefs?.view === "everything" ? "Every story" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
+            <VirtualCards items={visible} boxRef={cardsRef} testId={`vault-${tab}`} layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`}
+              render={(c) => <GalleryCard key={c.id} {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />} />
+          </> : <div className="gallery-cards" data-testid={`vault-${tab}`} ref={cardsRef}>
             {isStories && <div className="collection-heading"><h2>{search ? "Search results" : prefs?.view === "everything" ? "Every story" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
             {visible.map((c, i) => <Fragment key={c.id}>
               {ordered.mode === "original" && c.group && c.group !== visible[i - 1]?.group && <div className="gallery-group" role="heading" aria-level={3}>{c.group}</div>}
               <GalleryCard {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />
             </Fragment>)}
-          </div>
+          </div>}
           {visible.length === 0 && <p className="hint gallery-empty">{search ? (folderHits.length ? "No items match by name; open a folder above." : "Nothing matches, in any folder.") : emptyText}</p>}
         </div>
         {(isStories || selectedId) && <aside className="gallery-sheet" data-region="sheet">{isStories && <div className="collection-detail-label">Story details</div>}{sheet}</aside>}

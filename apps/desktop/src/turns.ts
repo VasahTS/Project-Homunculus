@@ -55,8 +55,15 @@ class TurnManager {
   /** A copy per change, so React sees a new value (useSyncExternalStore compares by reference). */
   private snapshot: ReadonlyMap<string, LiveTurn> = new Map();
 
+  /** Only each chat's phase (and error): a new copy when one starts, changes phase or ends — not on every word (D-122). */
+  private phaseSnapshot: ReadonlyMap<string, TurnPhase> = new Map();
+
   subscribe = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
   all = () => this.snapshot;
+  phases = () => this.phaseSnapshot;
+  /** Each chat's turn without following its words: a new copy only when something else changes (D-122). */
+  private quietSnapshot: ReadonlyMap<string, LiveTurn> = new Map();
+  quiet = () => this.quietSnapshot;
 
   private emit(sessionId: string) {
     const snapshot = new Map(this.snapshot);
@@ -64,6 +71,20 @@ class TurnManager {
     if (entry) snapshot.set(sessionId, publicView(entry));
     else snapshot.delete(sessionId);
     this.snapshot = snapshot;
+    const view = snapshot.get(sessionId);
+    const before = this.quietSnapshot.get(sessionId);
+    if (!view !== !before || (view && before && !sameButWords(view, before))) {
+      const quiet = new Map(this.quietSnapshot);
+      if (view) quiet.set(sessionId, view); else quiet.delete(sessionId);
+      this.quietSnapshot = quiet;
+    }
+    const was = this.phaseSnapshot.get(sessionId);
+    const now = entry ? { phase: entry.phase, error: entry.error } : undefined;
+    if (was?.phase !== now?.phase || was?.error !== now?.error) {
+      const phases = new Map(this.phaseSnapshot);
+      if (now) phases.set(sessionId, now); else phases.delete(sessionId);
+      this.phaseSnapshot = phases;
+    }
     for (const fn of this.listeners) fn();
   }
   private patch(sessionId: string, e: Entry, change: Partial<Entry>) {
@@ -184,6 +205,12 @@ class TurnManager {
   }
 }
 
+/** Two views of a turn equal apart from the words written so far. */
+function sameButWords(a: LiveTurn, b: LiveTurn): boolean {
+  for (const k of Object.keys(a) as Array<keyof LiveTurn>) if (k !== "text" && k !== "reasoning" && a[k] !== b[k]) return false;
+  return true;
+}
+
 function publicView(e: Entry): LiveTurn {
   return { sessionId: e.sessionId, id: e.id, branchId: e.branchId, phase: e.phase, parentId: e.parentId, userText: e.userText, text: e.text, reasoning: e.reasoning,
     head: e.head, headSeq: e.headSeq, error: e.error, manual: e.manual, activeAgents: e.activeAgents, agentSeq: e.agentSeq };
@@ -214,6 +241,21 @@ export const turns = new TurnManager();
 /** Every chat's turn (for the sidebar: which chats are writing). */
 export function useTurns(): ReadonlyMap<string, LiveTurn> {
   return useSyncExternalStore(turns.subscribe, turns.all);
+}
+
+/** A chat's phase while a turn runs. */
+export interface TurnPhase { phase: LiveTurn["phase"]; error?: string | undefined }
+
+/** Every chat's phase: for screens that only need to know who is writing (App, Sidebar). They no longer re-render on
+ *  every word of a reply (D-122: the whole app used to). */
+export function useTurnPhases(): ReadonlyMap<string, TurnPhase> {
+  return useSyncExternalStore(turns.subscribe, turns.phases);
+}
+
+/** One chat's turn, without re-rendering for each word (its `text`/`reasoning` may be behind): the chat screen; the
+ *  words themselves are drawn by the small streaming bubble, which uses `useTurn` (D-122). */
+export function useTurnQuiet(sessionId: string): LiveTurn | undefined {
+  return useSyncExternalStore(turns.subscribe, () => turns.quiet().get(sessionId));
 }
 
 /** One chat's turn, or undefined when nothing runs there. */

@@ -4,7 +4,7 @@
 // under the selected tab, and a value that just changed glows once. Everything is skipped when the system
 // asks for reduced motion, and nothing here carries meaning on its own (the UI is the same without it).
 import { useLayoutEffect, useRef, type RefObject } from "react";
-import { motionFactor, motionOff } from "../theme/appearance.ts";
+import { lightEffects, motionFactor, motionOff } from "../theme/appearance.ts";
 
 export const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 export const EASE_SPRING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
@@ -21,6 +21,7 @@ export interface EnterOptions { x?: number; y?: number; scale?: number; stagger?
 /** Fades and slides elements in, one after the other. Only the first `max` get a delay, so long lists don't drag. */
 export function enter(elements: Iterable<Element>, { x = 0, y = 10, scale = 1, stagger = 28, delay = 0, duration = 520, easing = EASE_OUT, max = 14 }: EnterOptions = {}): void {
   if (reducedMotion()) return;
+  if (lightEffects()) { max = Math.min(max, 4); stagger = Math.min(stagger, 30); duration = Math.min(duration, 360); } // D-122
   let i = 0;
   const below = window.innerHeight + 40;
   for (const el of elements) {
@@ -77,7 +78,7 @@ export function slideIn(elements: Iterable<Element>, dir: 1 | -1, distance = 16)
  * arrives as its parts, not as one slab. Only what is on screen moves.
  */
 export function pageIn(root: HTMLElement | null): void {
-  if (!root || reducedMotion() || typeof root.animate !== "function") return;
+  if (!root || reducedMotion() || lightEffects() || typeof root.animate !== "function") return;
   const rootH = root.getBoundingClientRect().height || window.innerHeight;
   const blocks: HTMLElement[] = [];
   const visit = (el: Element, depth: number) => {

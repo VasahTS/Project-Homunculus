@@ -28,11 +28,15 @@ export interface StateRepository {
   /** Optional cache (agents' + user's deltas up to and including this message, without pins). */
   getSnapshot?(messageId: string): Promise<ResolvedState | undefined>;
   setSnapshot?(messageId: string, state: ResolvedState): Promise<void>;
+  /** Optional: deltas, user deltas and snapshots of many messages in a few queries (D-122). */
+  stateRowsFor?(ids: string[]): Promise<{ deltas: Map<string, StateDelta>; user: Map<string, StateDelta>; snapshots: Map<string, ResolvedState> }>;
 }
 
 /** Tells the state system how messages are connected. */
 export interface MessageTree {
   parentOf(messageId: string): Promise<string | null | undefined>;
+  /** Optional: the path's ids, root first, in one go (D-122). Throws on a cycle like the walk. */
+  pathIdsTo?(messageId: string): Promise<string[]>;
 }
 
 export class MemoryStateRepository implements StateRepository {
@@ -95,16 +99,21 @@ export class WorldState {
 
   /** The full state as it was right after `messageId` (null = before any message). */
   async resolve(sessionId: string, messageId: string | null): Promise<ResolvedState> {
-    const path: string[] = [];
-    const seen = new Set<string>();
-    let current: string | null | undefined = messageId;
-    while (current) {
-      if (seen.has(current)) throw new Error(`Message tree has a cycle at "${current}"`);
-      seen.add(current);
-      path.push(current);
-      current = await this.tree.parentOf(current);
+    let path: string[] = [];
+    if (messageId && this.tree.pathIdsTo && (await this.tree.parentOf(messageId)) !== undefined) {
+      path = await this.tree.pathIdsTo(messageId); // one query (D-122)
+    } else {
+      const seen = new Set<string>();
+      let current: string | null | undefined = messageId;
+      while (current) {
+        if (seen.has(current)) throw new Error(`Message tree has a cycle at "${current}"`);
+        seen.add(current);
+        path.push(current);
+        current = await this.tree.parentOf(current);
+      }
+      path.reverse(); // root first
     }
-    path.reverse(); // root first
+    if (this.repo.stateRowsFor) return this.resolveBatched(sessionId, path);
 
     // Start from the nearest snapshot on the path, if the repository keeps them.
     let state: ResolvedState = {};
@@ -121,6 +130,28 @@ export class WorldState {
       const delta = await this.repo.getDelta(id);
       if (delta) applyInto(state, delta);
       const user = await this.repo.getUserDelta(id);
+      if (user) applyInto(state, user);
+      if (this.repo.setSnapshot && (i + 1) % SNAPSHOT_EVERY === 0) await this.repo.setSnapshot(id, structuredClone(state));
+    }
+    applyInto(state, await this.repo.getPins(sessionId));
+    return state;
+  }
+
+  /** Same as the walk in resolve, with the path's rows read together (one or a few queries instead of 2–3 per message). */
+  private async resolveBatched(sessionId: string, path: string[]): Promise<ResolvedState> {
+    const rows = await this.repo.stateRowsFor!(path);
+    let state: ResolvedState = {};
+    let start = 0;
+    for (let i = path.length - 1; i >= 0; i--) {
+      if ((i + 1) % SNAPSHOT_EVERY !== 0) continue;
+      const snap = rows.snapshots.get(path[i]!);
+      if (snap) { state = structuredClone(snap); start = i + 1; break; }
+    }
+    for (let i = start; i < path.length; i++) {
+      const id = path[i]!;
+      const delta = rows.deltas.get(id);
+      if (delta) applyInto(state, delta);
+      const user = rows.user.get(id);
       if (user) applyInto(state, user);
       if (this.repo.setSnapshot && (i + 1) % SNAPSHOT_EVERY === 0) await this.repo.setSnapshot(id, structuredClone(state));
     }

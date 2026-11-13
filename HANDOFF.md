@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Performance session, part 1 (2026-11-13) — CLAUDE — D-122
+
+- Daniel: "pode começar" on `docs/PERFORMANCE-PLAN.md` items 1–3, plus the earlier list. Done: message paths and world state in a few queries (were one per message); streaming redraws only the reply (`StreamingReply`, `useTurnQuiet`, `useTurnPhases`); chat lists in 3–4 queries with a cache, `refresh()` reads in parallel, `refreshChats()` for chat-only actions; light character list (embedded books left out, put back on save/export); import no longer reads every lorebook per card; big pages load on first open (`lazyPage`); Vault grids windowed; long row lists skip off-screen rows; **Light effects** (Customize → Motion, Auto = on in the Linux app).
+- **To try (Windows):** a long chat (1000+ messages): sending, swiping and editing should start faster; watch a reply stream — the sidebar and the rest stay still. Rename a chat with many chats: instant. Characters → Export a card that came with a lorebook → the PNG still carries it; edit and save that card → its lorebook is still in the export. Settings → Customize → Motion → Light effects: On → popovers and panels without blur, shorter arrivals. First open of Settings / Card Browser / Cues may show "Loading…" for a moment.
+- **To try (Linux, the friend):** Light effects should say "Auto (on)".
+- **Next (plan):** split the Assistant and the Vault out of the start script; start-up installers in parallel; skeletons and other "professional" items (drafts first).
+- Checks: typecheck; unit tests (892 passed; `query-count.test.ts` new); full click suite.
+- Changelog line for the next release: "**Faster with long chats and big libraries**: a long chat no longer reads its messages one by one before each reply, the chat list updates in a few steps, and while a reply streams only the reply is redrawn. **Light effects** (Settings → Customize → Motion): fewer blurs and shorter animations, on by itself on Linux."
+
 ## Many cards on Linux, a friend's visual bugs, sound in the AppImage (2026-11-13) — CLAUDE — D-121
 
 - Daniel relayed a friend (Linux AppImage, 1000 cards): minutes to start, 30 s to open Characters, 14 GB idle, killed by WebKitGTK while scrolling; import with no progress; no sound ("appsrc not found"); visual bugs (Start from, empty import box, Unsaved Changes buttons, Assistant actions only on hover, "Use Browse", the sidebar highlight off after switching places); the Assistant attaching the chat and character by itself.

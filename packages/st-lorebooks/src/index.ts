@@ -518,8 +518,7 @@ export function embeddedBookOf(c: Character): Obj | undefined {
 export async function adoptEmbeddedLorebook(store: SqlStore, character: Character, newId: () => string = () => crypto.randomUUID()): Promise<Lorebook | undefined> {
   const cb = embeddedBookOf(character);
   if (!cb) return undefined;
-  const all = await store.lorebooks.list();
-  if (all.some((b) => b.source.kind === "card" && b.source.characterId === character.id)) return undefined;
+  if (await store.hasCardLorebook(character.id)) return undefined;
   const book = await store.saveLorebook({ id: newId(), ...lorebookFromCardBook(cb, `${character.name}'s lorebook`, character.id) });
   await store.saveCharacter({ ...character, lorebookIds: [...new Set([...character.lorebookIds, book.id])] });
   return book;
@@ -560,7 +559,7 @@ export async function linkImportedLorebook(store: SqlStore, book: Lorebook): Pro
 export async function linkCharacterToNamedBooks(store: SqlStore, c: Character): Promise<Lorebook[]> {
   const world = (c.original as { data?: { extensions?: { world?: unknown } } } | undefined)?.data?.extensions?.world;
   if (typeof world !== "string" || !world.trim()) return [];
-  const named = (await store.lorebooks.list()).filter((b) => b.name === world || (b.source.fileName ?? "").replace(/\.json$/i, "") === world);
+  const named = await store.lorebooksNamed(world);
   const add = named.filter((b) => !c.lorebookIds.includes(b.id));
   if (add.length) await store.saveCharacter({ ...c, lorebookIds: [...c.lorebookIds, ...add.map((b) => b.id)] });
   return add;

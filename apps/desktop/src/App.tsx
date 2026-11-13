@@ -3,6 +3,8 @@
 // 2026-10-28 (slice 1, D-019): versions of characters, personas, history, the Trash; (slice 1b, D-020): Settings.
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazyPage } from "./ui/lazyPage.tsx";
+import { AgentTryIt } from "./ui/AgentTryIt.tsx"; // small, and opened as a window over the editor: loaded at start
 import { useGuardedNavigation, WorkToast } from "./ui/ux.tsx";
 import { backForwardOf, goMove, isClaimed, openLayers, pressEscape, recordMove, takeQuietScreen } from "./ui/back-button.ts";
 import { pageIn, slideTab } from "./ui/motion.ts";
@@ -11,21 +13,19 @@ import { directorProfiles, bundleExtras, bundleFile, collectBundle, countsText, 
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, importStLorebook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
 import { LorebookEditor } from "./ui/LorebookEditor.tsx";
-import { PresetEditor } from "./ui/PresetEditor.tsx";
 import { servicesReady, type AppServices } from "./core-instance.ts";
 import { useConnections } from "./connection.ts";
 import { UpdateBar } from "./ui/UpdateBar.tsx";
 import { useUpdates } from "./updates.ts";
-import { SettingsPage, type SettingsTab } from "./ui/SettingsPage.tsx";
+import type { SettingsTab } from "./ui/SettingsPage.tsx";
 import { imageFileToPngAvatar, readFileBytes, saveExport } from "./files.ts";
 import { fullPicture, makePreview, rememberPreview } from "./pictures.ts";
 import { CropHost } from "./ui/ImageCropper.tsx";
 import { cardPngForSite, importCharacterFile, importFromSite, picturePng } from "./importCharacters.ts";
-import { CardBrowser } from "./ui/CardBrowser.tsx";
 import { desktopCardSites } from "./cardSites.ts";
 import { loadChat as loadAssistantChat } from "./assistant/engine.ts";
 import { ChatView } from "./ui/ChatView.tsx";
-import { turns, useTurns } from "./turns.ts";
+import { turns, useTurnPhases } from "./turns.ts";
 import { FolderSelect, FolderView, folderAndBelow, folderLabel, VirtualTile, type FolderItem } from "./ui/Folders.tsx";
 import { DEFAULT_PREFS, type CollectionPrefs, type FolderHit } from "./ui/CollectionTools.tsx";
 
@@ -40,16 +40,11 @@ import { CharacterGallery, CharacterSheet, type VaultTab } from "./ui/Gallery.ts
 import { KitSheet, SaveNpcSheet, type NpcDraft, type SaveNpcChoice, NarratorEditor, NewStorySheet, NpcEditor, narratorCard, npcCard, StoryHero, StorySheet, storyCard, VaultPage, type FieldSetOption, type NewStoryChoice } from "./ui/Vault.tsx";
 import { changesIn, StoryPage, type NewChatChoice, type StoryChat } from "./ui/StoryPage.tsx";
 import type { SetupNames, StorySetupProps } from "./ui/SetupFields.tsx";
-import { TrackerEditor } from "./ui/TrackerEditor.tsx";
 import { CharactersPage, LorebooksPage, PersonasPage, PresetsPage, TrackersPage, TrashPage } from "./ui/LibraryPages.tsx";
 import { AgentsPage } from "./ui/AgentsPage.tsx";
-import { AgentEditor } from "./ui/AgentEditor.tsx";
-import { AgentTryIt } from "./ui/AgentTryIt.tsx";
 import type { AgentDraft } from "./agent-draft.ts";
 import { blankAgent, deleteAgent, listAgents, saveAgent } from "./agents.ts";
 import { cueFromJanitorText, isJanitorLorebook, listCues } from "./cues.ts";
-import { JanitorImportChoice } from "./ui/CuesPage.tsx";
-import { CuesPage } from "./ui/CuesPage.tsx";
 import { cueNames } from "./ui/promptSources.ts";
 import { LoreChangeTag, LoreVersionBar } from "./ui/LoreVersions.tsx";
 import { PersonaEditor } from "./ui/PersonaEditor.tsx";
@@ -73,7 +68,6 @@ import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
-import { DirectorsPage } from "./ui/DirectorPane.tsx";
 import { ImportButton } from "./ui/BundleButtons.tsx";
 import { applyDefaultAppearance, loadAppearance, toggleSafeMode } from "./theme/appearance.ts";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, withFieldSet, withTracker, type Tracker, type TrackerDraft, sampleFor } from "./trackers.ts";
@@ -96,6 +90,16 @@ type View =
   | { kind: "story"; id: string }
   | { kind: "kit"; id: string }
   | { kind: "card-browser" };
+// D-122: big pages load the first time they are opened, not at start (the app was one 2.6 MB script)
+const PresetEditor = lazyPage(() => import("./ui/PresetEditor.tsx").then((m) => m.PresetEditor));
+const SettingsPage = lazyPage(() => import("./ui/SettingsPage.tsx").then((m) => m.SettingsPage));
+const CardBrowser = lazyPage(() => import("./ui/CardBrowser.tsx").then((m) => m.CardBrowser));
+const TrackerEditor = lazyPage(() => import("./ui/TrackerEditor.tsx").then((m) => m.TrackerEditor));
+const AgentEditor = lazyPage(() => import("./ui/AgentEditor.tsx").then((m) => m.AgentEditor));
+const CuesPage = lazyPage(() => import("./ui/CuesPage.tsx").then((m) => m.CuesPage));
+const JanitorImportChoice = lazyPage(() => import("./ui/CuesPage.tsx").then((m) => m.JanitorImportChoice));
+const DirectorsPage = lazyPage(() => import("./ui/DirectorPane.tsx").then((m) => m.DirectorsPage));
+
 export interface Notice { kind: "ok" | "warn" | "error"; title: string; lines: string[]; action?: { label: string; run: () => void } }
 /** Work that takes a while, with how far it is (D-121). */
 export interface WorkProgress { id: string; title: string; done: number; total: number; detail?: string }
@@ -390,6 +394,8 @@ export function App() {
   // ---- pictures (D-121): lists get small previews, read in one go and only what changed since the last look; the full
   // picture is read where it is shown big (pictures.ts). Pictures saved before previews existed get theirs in the
   // background, a few at a time, so the app opens at once even with a thousand cards.
+  /** Per chat: its length and branch count, and what they were worked out from (D-122). */
+  const chatStatsCache = useRef(new Map<string, { sig: string; length: number; branches: number }>());
   /** The card import running now (D-121): files picked meanwhile join it. */
   const importRun = useRef<{ queue: File[]; done: number; total: number } | null>(null);
   const pictureSince = useRef(0);
@@ -447,23 +453,64 @@ export function App() {
     const [st, na, np, ki, fo] = await Promise.all([s.store.listStories(), s.store.narrators.list(), s.store.npcs.list(), s.store.kits.list(), s.store.listFolders()]);
     setStories(st); setNarrators(na); setNpcs(np); setKits(ki); setFolders(fo);
     const maps: Partial<Record<FolderKind, Record<string, string>>> = {};
-    for (const k of ["character", "npc", "narrator", "lorebook", "kit", "story"] as const) maps[k] = await s.store.folderMap(k);
+    const kinds = ["character", "npc", "narrator", "lorebook", "kit", "story"] as const;
+    (await Promise.all(kinds.map((k) => s.store.folderMap(k)))).forEach((m, i) => { maps[kinds[i]!] = m; });
     setFolderMaps(maps);
     // pictures of everything (characters, personas, versions, stories, narrators, NPCs, kits share one table)
     await loadPictures(s);
   }, [loadPictures]);
 
+  /** Every chat's last line, time, length and branches (D-122: 3–4 queries for all chats, trees read again only when changed). */
+  const loadChatStats = useCallback(async (s: AppServices, ss: Session[]) => {
+    const lines: Record<string, string> = {};
+    const counts: Record<string, number> = {};
+    const msgs: Record<string, number> = {};
+    const times: Record<string, number> = {};
+    // D-122: every chat's last line, time, length and branches in 3–4 queries (it was 4 per chat); the tree of a chat is
+    // read again only when its messages or branches changed since the last look
+    const [stats, latest, branchRows] = await Promise.all([s.store.messageStats(), s.store.latestMessages(), s.store.branchesBySession()]);
+    const cache = chatStatsCache.current;
+    const sigOf = (id: string) => `${stats.get(id)?.count ?? 0}:${stats.get(id)?.last ?? 0}:${latest.get(id)?.id ?? ""}:${JSON.stringify(branchRows.get(id) ?? [])}`;
+    const stale = ss.filter((x) => cache.get(x.id)?.sig !== sigOf(x.id)).map((x) => x.id);
+    const links = stale.length ? await s.store.messageLinksOf(stale) : new Map<string, Array<{ id: string; parentId: string | null; createdAt: number }>>();
+    for (const id of stale) {
+      const l = links.get(id) ?? [];
+      const parent = new Map(l.map((k) => [k.id, k.parentId]));
+      let length = 0;
+      for (let at: string | null | undefined = latest.get(id)?.id; at && length <= l.length; at = parent.get(at)) length++;
+      cache.set(id, { sig: sigOf(id), length, branches: l.length ? resolveBranches(l, branchRows.get(id) ?? [], () => "new").branches.length : 0 });
+    }
+    for (const x of ss) {
+      const m = latest.get(x.id);
+      if (m) { lines[x.id] = lastLineOf(m.content); times[x.id] = m.createdAt; msgs[x.id] = cache.get(x.id)?.length ?? 0; }
+      counts[x.id] = cache.get(x.id)?.branches ?? 0;
+    }
+    setLastLines(lines);
+    setBranchCounts(counts);
+    setMessageCounts(msgs);
+    setLastTimes(times);
+  }, []);
+
+  /** After a change to chats only (rename, setup, new chat): the chats and their lines, nothing else (D-122). */
+  const refreshChats = useCallback(async (s: AppServices) => {
+    const ss = await s.store.listSessions();
+    setSessions(ss);
+    await loadChatStats(s, ss);
+  }, [loadChatStats]);
+
   const refresh = useCallback(async (s: AppServices) => {
-    const [ss, cs, ts, ps, def, tr, pr] = await Promise.all([s.store.listSessions(), s.store.listCharacters(), listTrackers(s.store),
-      s.store.personas.list(), s.store.getDefaultSetup(), s.store.listTrash(), s.store.presets.list()]);
-    setPresets(pr);
-    setLorebooks(await s.store.lorebooks.list());
-    setLoreSettings(await s.store.getLoreSettings());
+    // D-122: one round of reads side by side (they used to wait for each other)
+    const [ss, cs, ts, ps, def, tr, pr, books, loreSet, gRegex, okRegex, ags, cueList] = await Promise.all([s.store.listSessions(), s.store.listCharactersLight(), listTrackers(s.store),
+      s.store.personas.list(), s.store.getDefaultSetup(), s.store.listTrash(), s.store.presets.list(), s.store.lorebooks.list(), s.store.getLoreSettings(),
+      s.store.getGlobalRegex(), s.store.getApprovedRegex(), listAgents(s.store), listCues(s.store)]);
     void loadMessageLook(s.store);
     void loadAppearance(s.store);
-    setGlobalRegex(await s.store.getGlobalRegex());
-    setApprovedRegex(await s.store.getApprovedRegex());
     void loadQuickReplies(s.store);
+    setPresets(pr);
+    setLorebooks(books);
+    setLoreSettings(loreSet);
+    setGlobalRegex(gRegex);
+    setApprovedRegex(okRegex);
     setSessions(ss);
     setCharacters(cs);
     setPersonas(ps);
@@ -471,26 +518,12 @@ export function App() {
     setDefaultSetupState(def);
     setTrash(tr);
     setTrackers(ts);
-    setAgents(await listAgents(s.store));
-    const cueList = await listCues(s.store);
+    setAgents(ags);
     setCues(cueList);
     cueNames.clear(); for (const c of cueList) cueNames.set(c.id, c.name);
-    await refreshVault(s);
-    const lines: Record<string, string> = {};
-    const counts: Record<string, number> = {};
-    const msgs: Record<string, number> = {};
-    const times: Record<string, number> = {};
-    for (const x of ss) {
-      const m = await s.store.latestMessage(x.id);
-      if (m) { lines[x.id] = lastLineOf(m.content); times[x.id] = m.createdAt; msgs[x.id] = (await s.store.pathTo(m.id)).length; }
-      counts[x.id] = await branchCountOf(s, x.id);
-    }
-    setLastLines(lines);
-    setBranchCounts(counts);
-    setMessageCounts(msgs);
-    setLastTimes(times);
+    await Promise.all([refreshVault(s), loadChatStats(s, ss)]);
     return { ss, cs };
-  }, [refreshVault]);
+  }, [refreshVault, loadChatStats]);
 
   useEffect(() => {
     let cancelled = false;
@@ -515,7 +548,7 @@ export function App() {
   }, [refresh]);
 
   // A reply finished in a chat that is not on screen: say so, with a way there (Daniel, 30/10).
-  const live = useTurns();
+  const live = useTurnPhases();
   const phases = useRef(new Map<string, string>());
   useEffect(() => {
     for (const [id, t] of live) {
@@ -640,7 +673,7 @@ export function App() {
     const { session } = await svc.chat.createSession({
       title: `Session with ${c?.name ?? "…"}${label ? ` (${label})` : ""}`, cast: [{ characterId, variantId }],
     });
-    await refresh(svc);
+    await refresh(svc); // a new chat is rare: a full look (also catches changes made outside the screens)
     setActiveId(session.id);
     setView({ kind: "session" });
   };
@@ -648,7 +681,7 @@ export function App() {
   const renameSession = async (title: string) => {
     if (!active) return;
     await svc.store.saveSession({ ...active, title });
-    await refresh(svc);
+    await refreshChats(svc);
   };
 
   /** Moves something to the Trash and offers Undo. Throws a readable error when a story still uses it. */
@@ -916,7 +949,7 @@ export function App() {
 
   const updateSession = async (s: Session) => {
     await svc.store.saveSession(s);
-    await refresh(svc);
+    await refreshChats(svc);
   };
 
   const saveCharacter = async (c: Character) => {
@@ -1013,7 +1046,7 @@ export function App() {
   const toggleAgent = async (id: string, on: boolean) => {
     if (!active) return;
     await svc.store.saveSession(withTracker(active, id, on, storyLayerOf(active)));
-    await refresh(svc);
+    await refreshChats(svc);
   };
 
   const onDeleteTracker = async (id: string) => {
@@ -1036,7 +1069,7 @@ export function App() {
       const now = await svc.store.getSession(id);
       if (!now) return;
       await svc.store.saveSession(change(now, storyLayerOf(now)));
-      await refresh(svc);
+      await refreshChats(svc);
     });
     trackerWrites.current = run.catch(() => {});
     return run;
@@ -1118,7 +1151,7 @@ export function App() {
   const changeAvatar = async (ownerKey: string, file: File | null) => {
     try {
       await svc.store.setAvatar(ownerKey, file ? await imageFileToPngAvatar(file) : null);
-      await refresh(svc);
+      await loadPictures(svc); // only the pictures changed (D-122)
     } catch (e) {
       setNotice({ kind: "error", title: "Could not change the image", lines: [errorText(e)] });
     }
@@ -1131,7 +1164,8 @@ export function App() {
       // the card carries its lorebook (the one it came with, edits included), like SillyTavern does
       // the full picture, never the small preview lists use (D-121)
       const picture = avatar ? await fullPicture(avatar) : undefined;
-      const where = await saveExport(await exporter.export(characterWithBook(c, await bookForCardExport(svc.store, c)), picture));
+      const whole = await svc.store.withFullOriginal(c); // the list leaves the card's embedded book out (D-122)
+      const where = await saveExport(await exporter.export(characterWithBook(whole, await bookForCardExport(svc.store, whole)), picture));
       if (!where) return;
       setNotice({ kind: "ok", title: `Exported ${c.name}`, lines: [`Saved to: ${where}`] });
     } catch (e) {
@@ -1506,7 +1540,7 @@ export function App() {
   };
   const renameChat = async (sessionId: string, title: string) => {
     const x = sessions.find((y) => y.id === sessionId);
-    if (x) { await svc.store.saveSession({ ...x, title }); await refresh(svc); }
+    if (x) { await svc.store.saveSession({ ...x, title }); await refreshChats(svc); }
   };
   const trashChat = async (sessionId: string) => {
     const x = sessions.find((y) => y.id === sessionId);

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ACCENTS, activeLook, allLooks, copyLook, deleteLook, exportLook, importLook, isBuiltin, resetTweaks, saveLook, setActiveLook,
-  setMotion, setTweaks, useAppearance, useSafeMode, type MotionSpeed,
+  setMotion, setTweaks, useAppearance, useSafeMode, onLinuxApp, type MotionSpeed,
 } from "../theme/appearance.ts";
 import { BUILTIN_PROFILES, type AppearanceProfile } from "../theme/themes.ts";
 import { ICON_SET_NAMES, type IconSetId } from "../theme/iconSets.ts";
@@ -191,6 +191,10 @@ export function CustomizeSection({ notify }: { notify: (title: string, lines?: s
           <Switch label="Follow the system's reduce motion" checked={st.motion.followSystem} onChange={(followSystem) => void setMotion({ followSystem })} />
         </Row>
         {motionOffBySystem && <p className="hint">Animations are off while system reduced motion is on.</p>}
+        <Row label="Light effects" help="No blur behind panels and shorter arrivals, for a smoother window on slower computers. Auto: on in the Linux app, where these effects are slow to draw.">
+          <Segmented small label="Light effects" value={st.motion.light ?? "auto"} onChange={(light: "auto" | "on" | "off") => void setMotion({ light })}
+            options={[{ value: "auto", label: onLinuxApp() ? "Auto (on)" : "Auto (off)" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]} />
+        </Row>
       </Group>
 
       <Group icon="tool" title="Advanced">
