@@ -11,7 +11,7 @@ export function AboutSection({ u }: { u: Updates }) {
     <div className="settings-page" data-testid="about">
       <Group title="Homunculus">
         <Row label="Version"><span className="about-version">{u.current}</span></Row>
-        <Row label="Last start" help="How long this start took, step by step: the window, the database, the setup, reading your library, the first screen. Send it to Claude if starting feels slow."><StartTime /></Row>
+        <Row label="Last start" wide help="How long this start took, step by step: the window, the database, the setup, reading your library, the first screen. Send it to Claude if starting feels slow."><StartTime /></Row>
         <Row label="Diagnostics" wide help="Measures the app now and writes a report to copy or save: the system, how much is in your library, sizes and how long each read takes. Only numbers — no names, texts, messages or keys. Works on any computer."><Diagnostics version={u.current} /></Row>
         <Row label="Updates" help="Checks GitHub on startup. Select Update & Restart to install. On Linux .deb, download and install the package. Your data stays in place.">
           <span className="about-update">

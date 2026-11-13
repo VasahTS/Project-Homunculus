@@ -21,7 +21,7 @@ export function LorebookChips({ ids, books, onChange, onOpen, help, bare = false
       <div className="lore-link-row">
         {linked.map((b) => (
           <span key={b.id} className="lore-key big">
-            {onOpen ? <button type="button" className="link quiet" onClick={() => onOpen(b.id)}>{b.name}</button> : b.name}
+            {onOpen ? <button type="button" className="link quiet" title={b.name} onClick={() => onOpen(b.id)}>{b.name}</button> : b.name}
             {b.source.kind === "card" && <span className="hint">· from the card</span>}
             <button type="button" aria-label={`Remove ${b.name}`} onClick={() => onChange(ids.filter((x) => x !== b.id))}>×</button>
           </span>

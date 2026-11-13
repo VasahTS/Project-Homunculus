@@ -4678,3 +4678,18 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .diag-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .diag-note { color: var(--label-2); }
 .diag-report { width: 100%; min-height: 260px; font: 11.5px/1.5 var(--font-mono); white-space: pre; overflow: auto; resize: vertical; }
+/* the character editor's side column (Daniel 11/13, screenshot): nothing runs past its edge */
+.ce-sheet { grid-template-columns: 270px minmax(0, 1fr); }
+.ce-side .segmented { display: flex; width: 100%; }
+.ce-side .segmented > button { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.25; text-align: center; padding-block: 4px; }
+.ce-side .card-kind, .ce-side .lore-link, .ce-side .lore-link-row { min-width: 0; max-width: 100%; }
+.ce-side .card-kind-hint { display: block; overflow-wrap: anywhere; }
+.ce-side .lore-key { max-width: 100%; min-width: 0; white-space: nowrap; overflow: hidden; }
+.ce-side .lore-key > .link, .ce-side .lore-key > .hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-side .lore-key > .link { flex: 0 1 auto; }
+.ce-side .lore-key > .hint { flex: 0 1000 auto; }
+.ce-side .lore-key > button { flex: none; }
+.ce-side .lore-link-row > .btn, .ce-side .lore-link-row > button { max-width: 100%; }
+.ce-side .ce-meter-sum { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
+/* Settings rows with a long value: the label keeps its width, the value wraps under it */
+.row.row-wide .about-version { text-align: left; white-space: normal; overflow-wrap: anywhere; }
