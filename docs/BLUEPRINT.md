@@ -345,7 +345,7 @@ Rules:
 
 ### 7.4 Data: backup and import
 - An automatic database backup before upgrading (already exists, D-008) + **scheduled backup** + "export everything".
-- **Import the whole SillyTavern/Homunculus v1 folder** at once (cards, personas, lorebooks, presets, chats), with a report of what came in and what did not.
+- **Import the whole SillyTavern/Homunculus v1 folder** at once (cards, personas, lorebooks, presets, chats), with a report of what came in and what did not. ✅ D-128 (Settings → Library); linked card folders D-129.
 
 ### 7.5 Tests
 - "Same as ST" tests for the prompt and lorebooks (same input → same result).

@@ -177,6 +177,8 @@ export interface BuiltStChat {
   /** Messages read (all files) and messages stored (the shared starts of branches are stored once). */
   read: number;
   stored: number;
+  /** Swipes SillyTavern did not show, kept as sibling replies. */
+  swipes: number;
 }
 
 /**
@@ -191,6 +193,7 @@ export function buildStChatTree(group: { main: ParsedStChat; branches?: ParsedSt
   const keyOf = (speaker: Speaker, text: string) => `${JSON.stringify(speaker)}\n${text}`;
   const speakerFor = (l: StChatLine): Speaker => (l.isUser ? { kind: "user" } : l.isNarrator ? { kind: "narrator" } : opts.speakerOf(l));
   let read = 0;
+  let swipes = 0;
 
   const add = (parentId: string | null, l: StChatLine, speaker: Speaker, text: string, createdAt: number, reasoning: string | undefined, extraMeta: Obj): string => {
     const id = newId();
@@ -220,6 +223,7 @@ export function buildStChatTree(group: { main: ParsedStChat; branches?: ParsedSt
       others.forEach((s, n) => {
         if ((children.get(parent) ?? []).some((c) => c.key === keyOf(speaker, s.text))) return;
         add(parent, l, speaker, s.text, Math.min(s.sendDate || l.sendDate, l.sendDate) - (others.length - n), s.reasoning, { swipe: s.k });
+        swipes++;
       });
       parent = add(parent, l, speaker, l.text, l.sendDate, l.reasoning, l.swipes.length > 1 ? { swipe: l.swipeId } : {});
     }
@@ -228,7 +232,7 @@ export function buildStChatTree(group: { main: ParsedStChat; branches?: ParsedSt
 
   const branches: BuiltStChat["branches"] = [{ name: "Main", endMessageId: walk(group.main) }];
   for (const b of group.branches ?? []) branches.push({ name: b.name, endMessageId: walk(b) });
-  return { messages, branches, read, stored: messages.length };
+  return { messages, branches, read, stored: messages.length, swipes };
 }
 
 /** SillyTavern's Author's Note in `chat_metadata` → the chat's Author's Note (undefined when it has no text). */

@@ -74,17 +74,20 @@ function countCardTokens(c: Character): number {
 export const shortTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k tok` : `${n} tok`);
 
 /** One card of a grid. */
-export function GalleryCard({ name, avatar, by, summary, tags = [], size, selected, onClick, picture, dragId, testId }: {
+export function GalleryCard({ name, avatar, by, summary, tags = [], size, selected, onClick, picture, dragId, testId, mark }: {
   name: string; avatar?: Avatar | undefined; by?: string | undefined; summary?: string | undefined; tags?: string[]; size?: string | undefined; selected: boolean; onClick: () => void;
   /** A picture of its own (e.g. a story's people), instead of the avatar. */
   picture?: ReactNode;
   /** Can be dragged onto a folder (round 3). */
   dragId?: string | undefined;
   testId?: string;
+  /** A small mark on the picture (a linked card, D-129). */
+  mark?: ReactNode;
 }) {
   return (
-    <button type="button" className={`gallery-card${selected ? " on" : ""}`} onClick={onClick} aria-pressed={selected} aria-label={name} data-testid={testId} {...(dragId ? dragItem(dragId, name, avatar) : {})}>
+    <button type="button" className={`gallery-card${selected ? " on" : ""}${mark ? " has-mark" : ""}`} onClick={onClick} aria-pressed={selected} aria-label={name} data-testid={testId} {...(dragId ? dragItem(dragId, name, avatar) : {})}>
       {picture ?? <CardPicture name={name} avatar={avatar} />}
+      {mark}
       <span className="gallery-body">
         <strong className="gallery-name">{name}</strong>
         {by && <span className="gallery-by">{by}</span>}
@@ -127,7 +130,7 @@ export function SheetSection({ title, children, lines = 6, prose = false }: { ti
 }
 
 /** Library → Characters: the cards, and the selected one's sheet (or the editor, when editing). */
-export function CharacterGallery({ lead, tabs, title = "Library", characters, avatars, selectedId, importHelp, onSelect, onNew, onImport, sheet, folders, inFolder, folderOf, chatsOf, activity = {}, prefs, onPrefs, folderHits, onOpenFolder, onBrowse }: {
+export function CharacterGallery({ lead, tabs, title = "Library", characters, avatars, selectedId, importHelp, onSelect, onNew, onImport, sheet, folders, inFolder, folderOf, chatsOf, activity = {}, prefs, onPrefs, folderHits, onOpenFolder, onBrowse, markOf, onImportSt }: {
   lead: ReactNode;
   tabs?: ReactNode;
   title?: string;
@@ -154,6 +157,10 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   folderHits?: (q: string) => FolderHit[]; onOpenFolder?: (id: string) => void;
   /** Opens the Card Browser (D-081). */
   onBrowse?: () => void;
+  /** A mark on a card's picture (linked cards, D-129). */
+  markOf?: (c: Character) => ReactNode;
+  /** Opens Import from SillyTavern (D-128). */
+  onImportSt?: () => void;
 }) {
   const [q, setQ] = useState("");
   const ordered = useCollectionOrder("characters", characters);
@@ -192,13 +199,14 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
           <VirtualCards items={shown} boxRef={cards} testId="character-list" layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`} render={(c) => (
             <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={c.id}
               by={(searching || everything) && where(c) ? where(c) : chatsOf ? chatsOf(c) : c.variants.length ? `${c.variants.length + 1} versions: Main, ${c.variants.map((v) => v.label).join(", ")}` : c.creator ? `by ${c.creator}` : undefined}
-              summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.tracked === false ? ["Not tracked", ...c.tags] : c.tags} size={shortTokens(cardTokens(c))} />
+              summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.tracked === false ? ["Not tracked", ...c.tags] : c.tags} size={shortTokens(cardTokens(c))} mark={markOf?.(c)} />
           )} />
           {characters.length === 0 && <button type="button" className="gallery-card add" onClick={() => fileInput.current?.click()}>
             <Icon name="import" size={26} />
             <span>Import cards from SillyTavern</span>
             <span className="hint">PNG or JSON, several at once</span>
           </button>}
+          {characters.length === 0 && onImportSt && <p className="hint gallery-empty"><a href="#" data-testid="empty-st-import" onClick={(e) => { e.preventDefault(); onImportSt(); }}>Import your whole SillyTavern folder (cards, chats, lorebooks…)</a></p>}
           {characters.length === 0 && onBrowse && <p className="hint gallery-empty"><a href="#" data-testid="empty-browse" onClick={(e) => { e.preventDefault(); onBrowse(); }}>or find characters in the Card Browser</a></p>}
           {characters.length > 0 && shown.length === 0 && <p className="hint gallery-empty">{searching ? (hits.length ? "No character matches by name; open a folder above." : "No character or folder matches.") : "Nothing here yet. Drag cards here, or pick a Folder on a card's sheet."}</p>}
         </div>
@@ -216,7 +224,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
  * completo antes de abrir o chat"). Versions are tabs (what you see is that version); Continue opens the newest chat,
  * New Chat starts one with the version shown.
  */
-export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNames, onChat, onEdit, onTurnIntoStory, onExport, onContinue, latestTitle, chats, folder, folderName, onCloseSheet }: {
+export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNames, onChat, onEdit, onTurnIntoStory, onExport, onContinue, latestTitle, chats, folder, folderName, onCloseSheet, notice }: {
   c: Character; avatar?: Avatar | undefined; avatars?: Record<string, Avatar>; lorebookNames: string[]; storyNames: string[];
   /** A new chat with this version (null = Main). */
   onChat: (variantId: string | null) => void; onEdit: () => void; onTurnIntoStory: () => void; onExport?: (() => void) | undefined;
@@ -231,6 +239,8 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
   folderName?: string | undefined;
   /** Closes the sheet (× in the reading view). */
   onCloseSheet?: (() => void) | undefined;
+  /** A line under the title (a linked card, D-129). */
+  notice?: ReactNode;
 }) {
   const [vid, setVid] = useBackState<string | null>(null);
   const [reading, setReading] = useState(false);
@@ -262,6 +272,7 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
         <div className="vs-title"><h2>{shown.name}</h2>{facts.length > 0 && <span className="hint">{facts.join(", ")}</span>}</div>
         <span className="gallery-tag big">~{shortTokens(cardTokens(shown))}</span>
       </div>
+      {notice}
       {c.variants.length > 0 && (
         <Segmented small label="Version" value={vid ?? ""} onChange={(v) => setVid(v || null)}
           options={[{ value: "", label: "Main" }, ...c.variants.map((v) => ({ value: v.id, label: v.label }))]} />

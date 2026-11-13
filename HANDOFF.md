@@ -1,5 +1,16 @@
 # HANDOFF — Homunculus 2
 
+## SillyTavern import and linked card folders — built (2026-11-13) — CLAUDE — D-128, D-129
+
+- Daniel approved the draft ("pode prosseguir e terminar"). Built the whole thing on the engine of D-125…D-127.
+- **Import from SillyTavern** (Settings → Library, new tab; also the empty Characters page): pick the folder → users → what to bring (switch per kind, chats by character, not brought) → runs in the background with a bar (Pause / Cancel) → report (Open, warnings, Undo This Import). Groups become Stories; tags become card tags; lorebooks, personas and chats linked by name; global lorebooks kept global. A second import skips what came in. `stImport.ts`, `ui/StImport.tsx`.
+- **Linked Folders** (Settings → Library): Link a Folder… → its cards appear in Characters in a folder with its name, with marks (linked, new, edited here, changed in both, file missing); checked at start, on window focus (30 s) and Check Now; Choose a Version… on the card's sheet; Unlink… keeps or trashes the cards. Desktop only. `linkedCards.ts`, `ui/LinkedFolders.tsx`.
+- **To try (Windows):** Settings → Library → Import… → choose your SillyTavern folder → look at the counts → Import Everything → keep using the app while the bar runs → report → open a chat that had swipes and branches (the branch menu shows the ST branches). Then Settings → Library → Link a Folder… → pick SillyTavern's `characters` folder (or a copy) → the cards appear in Characters › characters; edit one card in Homunculus and change the same card's file outside → come back to the window → "changed in both" → open the card → Choose a Version…
+- **For the friend (Linux):** Link a Folder… with the card manager's folder; new cards there show up when the window comes back.
+- Not done (in the plan's Status): updating items changed in ST since an earlier import; a live folder watch; subfolders of a linked folder as folders.
+- Checks: typecheck; unit tests (910 passed; new `stImport.test.ts`, `linkedCards.test.ts`); click tests (new `st-import`; full suite); native tests (`cargo test`, 42).
+- Changelog line for the next release: "**Import from SillyTavern** (Settings → Library): bring your whole SillyTavern folder at once — characters, chats with their swipes and branches, group chats as Stories, lorebooks, personas, presets, regex, Quick Replies and tags — with a report and Undo. **Linked Folders**: link a folder of cards (SillyTavern's characters folder, or a card manager's) and its cards stay in step with Characters; your edits stay yours, and if a card changed in both places you choose which version to keep."
+
 ## SillyTavern importer, engine part 1: chats and folder access (2026-11-13) — CLAUDE — D-126, D-127
 
 - Daniel answered the plan's questions (in `docs/ST-IMPORT-PLAN.md`): linked cards in Characters; editing one saves only in Homunculus; ST groups → a Story with that cast; ST tags → tags only.

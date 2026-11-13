@@ -22,9 +22,9 @@ import type { Updates } from "../updates.ts";
 import { AboutSection } from "./About.tsx";
 
 /** "customize" is the Appearance tab (its id kept from before Settings v2, D-082). */
-export type SettingsTab = "general" | "chat" | "customize" | "connections" | "defaults" | "lorebooks" | "data" | "about";
+export type SettingsTab = "general" | "chat" | "customize" | "connections" | "defaults" | "lorebooks" | "library" | "data" | "about";
 
-export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels, trackers, presets, defaultPresetId, personas, defaultPersonaId, defaultSetup, onSetDefaultSetup, onSetDefaultPersona, notify, lorebooks, loreSettings, onSaveLoreSettings, updates, trashCount = 0 }: {
+export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels, trackers, presets, defaultPresetId, personas, defaultPersonaId, defaultSetup, onSetDefaultSetup, onSetDefaultPersona, notify, lorebooks, loreSettings, onSaveLoreSettings, updates, trashCount = 0, library }: {
   lead: ReactNode;
   tab: SettingsTab;
   onTab: (t: SettingsTab) => void;
@@ -49,6 +49,8 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
   updates: Updates;
   /** Items in the Trash now (Settings → Data). */
   trashCount?: number;
+  /** Settings → Library: SillyTavern import and linked folders (D-128, D-129). */
+  library?: ReactNode;
 }) {
   const [q, setQ] = useState("");
   const searching = q.trim() !== "";
@@ -56,7 +58,7 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
   const defaults = <DefaultsSection c={c} trackers={trackers} presets={presets} defaultPresetId={defaultPresetId} personas={personas} defaultPersonaId={defaultPersonaId} defaultSetup={defaultSetup}
     onSetDefaultSetup={onSetDefaultSetup} onSetDefaultPersona={onSetDefaultPersona} />;
   const section = (t: SettingsTab) => t === "general" ? <GeneralSection /> : t === "chat" ? <ChatSection /> : t === "customize" ? <CustomizeSection notify={notify} />
-    : t === "data" ? <DataSection notify={notify} trashCount={trashCount} /> : t === "about" ? <AboutSection u={updates} /> : t === "lorebooks" ? lore
+    : t === "data" ? <DataSection notify={notify} trashCount={trashCount} /> : t === "about" ? <AboutSection u={updates} /> : t === "lorebooks" ? lore : t === "library" ? (library ?? null)
     : t === "connections" ? <ConnectionsSection c={c} providers={providers} test={test} listModels={listModels} notify={notify} /> : defaults;
   return (
     <SettingsLook.Provider value={true}>
@@ -75,7 +77,7 @@ export function SettingsPage({ lead, tab, onTab, c, providers, test, listModels,
 }
 
 /** Every tab whose rows can be searched; Connections is a list of saved connections, offered as a link instead. */
-const SEARCHABLE: SettingsTab[] = ["general", "chat", "customize", "defaults", "lorebooks", "data", "about"];
+const SEARCHABLE: SettingsTab[] = ["general", "chat", "customize", "defaults", "lorebooks", "library", "data", "about"];
 const CONNECTION_WORDS = /^(conn|api|key|model|provid|address|url|proxy|temper|sampl|think|reason|token|limit|backup conn)/;
 
 /** Search across tabs (D-082): every searchable tab is drawn, then rows that don't match are hidden. */
@@ -147,7 +149,7 @@ function SettingsTabs({ tab, onTab }: { tab: SettingsTab | null; onTab: (t: Sett
 
 const SECTIONS: Array<{ value: SettingsTab; label: string }> = [
   { value: "general", label: "General" }, { value: "chat", label: "Chat" }, { value: "customize", label: "Appearance" },
-  { value: "connections", label: "Connections" }, { value: "defaults", label: "Defaults" }, { value: "lorebooks", label: "Lorebooks" },
+  { value: "connections", label: "Connections" }, { value: "defaults", label: "Defaults" }, { value: "lorebooks", label: "Lorebooks" }, { value: "library", label: "Library" },
   { value: "data", label: "Data" }, { value: "about", label: "About" },
 ];
 

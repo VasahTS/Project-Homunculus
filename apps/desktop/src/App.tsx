@@ -2,7 +2,7 @@
 // trackers 2026-10-27; UI direction "I" (D-018): sidebar (Sessions, Library), toolbar per view, inspector in sessions;
 // 2026-10-28 (slice 1, D-019): versions of characters, personas, history, the Trash; (slice 1b, D-020): Settings.
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { lazyPage } from "./ui/lazyPage.tsx";
 import { AgentTryIt } from "./ui/AgentTryIt.tsx"; // small, and opened as a window over the editor: loaded at start
 import { useGuardedNavigation, WorkToast } from "./ui/ux.tsx";
@@ -66,6 +66,10 @@ import { OPEN_CHAT_EVENT } from "./ui/MessageText.tsx";
 import { playReplySound } from "./sounds.ts";
 import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
+import { nativeFolder, pickFolder, type PickedFolder } from "./stFolder.ts";
+import { checkLinkedFolder, fileOf, keepAsOwn, linkedStatuses, listLinkedFolders, readIndex, resolveLinked, unlinkFolder, compareLinked, type LinkedIndex } from "./linkedCards.ts";
+import { StImportBar, StImportReport, StImportWindow, stImportRun, useStImportRun } from "./ui/StImport.tsx";
+import { LibrarySettings, LinkedConflictSheet, LinkedMark, LinkedNotice, type LinkedApi } from "./ui/LinkedFolders.tsx";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
 import { ImportButton } from "./ui/BundleButtons.tsx";
@@ -669,6 +673,29 @@ export function App() {
     })();
     return () => { live = false; };
   }, [mode, svc]);
+  // ---- SillyTavern import (D-128) and linked card folders (D-129)
+  const [stOpen, setStOpen] = useState(false);
+  const stRun = useStImportRun();
+  const [linkedFolders, setLinkedFolders] = useState<PickedFolder[]>([]);
+  const [linkedIndex, setLinkedIndex] = useState<LinkedIndex>({});
+  const [linkedChecking, setLinkedChecking] = useState(false);
+  const [conflictOf, setConflictOf] = useState<string | null>(null);
+  const linkedStatus = useMemo(() => linkedStatuses(linkedIndex, characters), [linkedIndex, characters]);
+  const checkLinkedRef = useRef<(quiet: boolean) => Promise<void>>(async () => {});
+  const linkedBusy = useRef(false);
+  useEffect(() => {
+    if (!svc) return;
+    void (async () => {
+      setLinkedIndex(await readIndex(svc.store));
+      await checkLinkedRef.current(true); // at start
+    })();
+    if (!isDesktop) return;
+    // when you come back to the window (at most every 30 s)
+    let last = Date.now();
+    const on = () => { if (Date.now() - last > 30_000) { last = Date.now(); void checkLinkedRef.current(true); } };
+    window.addEventListener("focus", on);
+    return () => window.removeEventListener("focus", on);
+  }, [svc]);
   if (bootError) return <div className="boot error">Could not start: {bootError}</div>;
 
   if (!svc) return <div className="boot">Waking the homunculus…</div>;
@@ -1052,6 +1079,93 @@ export function App() {
     } catch (e) {
       setNotice({ kind: "error", title: "Nothing was imported", lines: [errorText(e)] });
     }
+  };
+
+  // ---- linked card folders (D-129): checked at start, when the window comes back, and with Check Now
+  checkLinkedRef.current = async (quiet: boolean) => {
+    if (!isDesktop || linkedBusy.current) return;
+    linkedBusy.current = true;
+    setLinkedChecking(true);
+    try {
+      const folders = await listLinkedFolders();
+      setLinkedFolders(folders);
+      const sum = { added: 0, updated: 0, conflicts: 0, missing: 0, errors: [] as string[] };
+      for (const f of folders.filter((x) => x.present !== false)) {
+        const r = await checkLinkedFolder(svc, f, nativeFolder(f), (done, total) => {
+          if (total > 12) setWork({ id: "linked", title: `Reading ${f.name}`, done, total, detail: "New and changed cards" });
+        });
+        sum.added += r.added; sum.updated += r.updated; sum.conflicts += r.conflicts; sum.missing += r.missing; sum.errors.push(...r.errors);
+      }
+      setWork((w) => (w?.id === "linked" ? null : w));
+      setLinkedIndex(await readIndex(svc.store));
+      const changed = sum.added + sum.updated + sum.conflicts + sum.missing;
+      if (changed) await refresh(svc);
+      if (changed || sum.errors.length || !quiet) {
+        const lines = [sum.added && `${sum.added} new card${sum.added === 1 ? "" : "s"}`, sum.updated && `${sum.updated} updated from their files`,
+          sum.conflicts && `${sum.conflicts} changed here and in the folder: open the card to choose a version`, sum.missing && `${sum.missing} file${sum.missing === 1 ? "" : "s"} missing (the cards stay)`,
+          ...sum.errors.slice(0, 5)].filter((x): x is string => !!x);
+        setNotice({ kind: sum.conflicts || sum.errors.length ? "warn" : "ok", title: changed ? "Linked folders checked" : "Linked folders are up to date", lines });
+      }
+    } catch (e) {
+      if (!quiet) setNotice({ kind: "error", title: "Couldn't check the linked folders", lines: [errorText(e)] });
+    } finally { linkedBusy.current = false; setLinkedChecking(false); }
+  };
+  const linkFolder = async () => {
+    try {
+      const f = await pickFolder("Choose a folder of cards to link", true);
+      if (!f) return;
+      setLinkedFolders(await listLinkedFolders());
+      await checkLinkedRef.current(false);
+    } catch (e) { setNotice({ kind: "error", title: "Couldn't link the folder", lines: [errorText(e)] }); }
+  };
+  const unlinkLinked = async (id: string, cards: "keep" | "trash") => {
+    const r = await unlinkFolder(svc, id, cards);
+    setLinkedFolders(await listLinkedFolders().catch(() => []));
+    setLinkedIndex(await readIndex(svc.store));
+    await refresh(svc);
+    setNotice({ kind: r.failed.length ? "warn" : "ok", title: "Folder unlinked", lines: [
+      r.kept ? `${r.kept} card${r.kept === 1 ? "" : "s"} kept as your own` : "", r.trashed ? `${r.trashed} moved to the Trash` : "",
+      r.failed.length ? `Kept (they are used by chats or stories): ${r.failed.slice(0, 5).join(", ")}` : "", "Nothing was deleted from the folder."].filter(Boolean) });
+  };
+  const linkedSource = (characterId: string) => {
+    const where = fileOf(linkedIndex, characterId);
+    const f = where ? linkedFolders.find((x) => x.id === where.folderId) : undefined;
+    return where && f ? { where, folder: f, src: nativeFolder(f) } : null;
+  };
+  const resolveConflict = async (characterId: string, choice: "mine" | "file" | "both") => {
+    const s = linkedSource(characterId);
+    setConflictOf(null);
+    if (!s) return;
+    try {
+      await resolveLinked(svc, s.src, characterId, choice);
+      setLinkedIndex(await readIndex(svc.store));
+      await refresh(svc);
+    } catch (e) { setNotice({ kind: "error", title: "Couldn't use that version", lines: [errorText(e)] }); }
+  };
+  const linkedLibrary: LinkedApi = {
+    folders: linkedFolders, index: linkedIndex, checking: linkedChecking,
+    onLink: () => void linkFolder(), onCheck: () => void checkLinkedRef.current(false),
+    onShow: (folderId) => { const item = linkedIndex[folderId]?.folderItemId; setView({ kind: "characters", id: null }); if (item) openFound("characters", () => {})(item); },
+    onUnlink: (id, cards) => void unlinkLinked(id, cards),
+  };
+  const linkedNoticeFor = (c: Character) => {
+    const status = linkedStatus.get(c.id);
+    const s = status ? linkedSource(c.id) : null;
+    if (!status) return undefined;
+    return <LinkedNotice status={status} folderName={s?.folder.name ?? "a linked folder"} onChoose={() => setConflictOf(c.id)}
+      onKeepOwn={() => void keepAsOwn(svc, c.id).then(async () => { setLinkedIndex(await readIndex(svc.store)); await refresh(svc); })}
+      onTrash={() => void trashCharacterFromSheet(c.id)} />;
+  };
+  const trashCharacterFromSheet = async (id: string) => {
+    try { await svc.store.moveToTrash("character", id); await refresh(svc); setView({ kind: "characters", id: null }); }
+    catch (e) { setNotice({ kind: "error", title: "Couldn't move it to the Trash", lines: [errorText(e)] }); }
+  };
+  const stReportOpen = (where: "characters" | "chats" | "lorebooks" | "personas" | "stories") => {
+    stImportRun.clear();
+    if (where === "characters" || where === "chats") setView({ kind: "characters", id: null });
+    else if (where === "lorebooks") setView({ kind: "lorebooks", id: null });
+    else if (where === "personas") setView({ kind: "personas", id: null });
+    else setView({ kind: "vault", tab: "stories", id: null });
   };
 
   /** fromSession: opened from the Scene tab, so Close goes back to the story. */
@@ -1703,14 +1817,15 @@ export function App() {
       <CharacterGallery lead={lead} title="Characters" characters={characters} avatars={avatars} selectedId={sheetOf?.id ?? null}
         activity={Object.fromEntries(characters.map((c) => [c.id, chatsWith(c.id)[0]?.when ?? 0]))}
         importHelp={importHelp} onSelect={(id) => setView({ kind: "characters", id })} onNew={() => setView({ kind: "characters", id: "new" })}
-        onImport={(files) => void importFiles(files)} onBrowse={() => setView({ kind: "card-browser" })}
+        onImport={(files) => void importFiles(files)} onBrowse={() => setView({ kind: "card-browser" })} onImportSt={() => setStOpen(true)}
+        markOf={(c) => { const st = linkedStatus.get(c.id); return st ? <LinkedMark status={st} /> : null; }}
         folders={folderView("character", "characters", "characters", characters.map((c) => ({ id: c.id, name: c.name, avatar: avatars[c.id] })))}
         prefs={prefsOf("characters")} onPrefs={setPrefs("characters")} folderHits={(q) => folderHits("character", q)} onOpenFolder={openFound("characters", () => {})}
         inFolder={(c) => inOpenFolder("character", "characters")(c.id)}
         folderOf={(c) => folderLabel(folders, mapOf("character")[c.id])}
         chatsOf={(c) => { const n = chatsWith(c.id); return n.length ? `${n.length} chat${n.length === 1 ? "" : "s"} · ${new Date(n[0]!.when).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "No chats yet"; }}
         sheet={sheetOf ? (
-          <CharacterSheet key={sheetOf.id} c={sheetOf} avatar={avatars[sheetOf.id]} avatars={avatars}
+          <CharacterSheet key={sheetOf.id} c={sheetOf} avatar={avatars[sheetOf.id]} avatars={avatars} notice={linkedNoticeFor(sheetOf)}
             lorebookNames={lorebooks.filter((b) => sheetOf.lorebookIds.includes(b.id)).map((b) => b.name)}
             storyNames={stories.filter((st) => st.narrator.kind === "card" && st.narrator.characterId === sheetOf.id).map((st) => st.name)}
             onContinue={chatsWith(sheetOf.id)[0] ? () => openChat(chatsWith(sheetOf.id)[0]!.session.id) : undefined}
@@ -1835,6 +1950,7 @@ export function App() {
   } else if (view.kind === "settings") {
     content = (
       <SettingsPage lead={lead} tab={view.tab} onTab={(tab) => setView({ kind: "settings", tab })} c={connection} updates={updates} trashCount={trash.length}
+        library={<LibrarySettings onImport={() => setStOpen(true)} linked={linkedLibrary} />}
         providers={svc.core.providers.all()} trackers={trackers} presets={presets} defaultPresetId={defaultPresetId} personas={personas} defaultPersonaId={defaultPersonaId}
         defaultSetup={defaultSetup} onSetDefaultSetup={setDefaultSetup} onSetDefaultPersona={setDefaultPersona}
         lorebooks={lorebooks} loreSettings={loreSettings} onSaveLoreSettings={async (x) => { setLoreSettings(await svc.store.setLoreSettings(x)); }}
@@ -2246,7 +2362,14 @@ export function App() {
       <div className="content" ref={contentRef}>
         <UpdateBar u={updates} />
         {noticeBar}
-        {work && <WorkToast work={work} />}
+        {work && !(stRun.phase === "running") && <WorkToast work={work} />}
+        <StImportBar />
+        {stOpen && <StImportWindow svc={svc} onClose={() => setStOpen(false)} onDone={() => void refresh(svc)} />}
+        {stRun.phase === "done" && <StImportReport svc={svc} report={stRun.report} onOpen={stReportOpen} onClose={() => stImportRun.clear()}
+          onUndone={() => { stImportRun.clear(); void refresh(svc); setNotice({ kind: "ok", title: "Import undone", lines: ["Everything it made is in the Trash."] }); }} />}
+        {conflictOf && byId[conflictOf] && (() => { const s = linkedSource(conflictOf); const mine = byId[conflictOf]!; return s ? (
+          <LinkedConflictSheet mine={mine} folderName={s.folder.name} onClose={() => setConflictOf(null)} onChoose={(c) => void resolveConflict(conflictOf, c)}
+            load={async () => (await compareLinked(svc, s.src, s.where.path))?.file ?? null} />) : null; })()}
         <CollectionOrderContext.Provider value={{ store: svc.store, prefs: collPrefs,
           onSort: (key, sort, seed) => setPrefs(key)({ ...prefsOf(key), sort, sortSeed: seed }),
           sources: { characters, stories, kits, narrators, npcs, personas, presets, lorebooks, trackers, agents, regex: globalRegex, trash }, sessions, lastTimes, defaultPersonaId }}>

@@ -8,7 +8,7 @@ import type { AppServices } from "./core-instance.ts";
 export const FROM_THE_WEB = "From the Web";
 /** Where a card from a site goes: a folder, the "From the Web" folder (made the first time), or none. */
 export type FolderChoice = { id: string } | "from-the-web" | null;
-export interface ImportOptions { source?: Character["source"]; folder?: FolderChoice; importTags?: boolean }
+export interface ImportOptions { source?: Character["source"]; folder?: FolderChoice; importTags?: boolean; /** More tags (SillyTavern's own tags, D-128). */ extraTags?: string[] }
 export interface Imported { character: Character; warnings: string[] }
 
 /** One file (PNG/JSON card, or anything a character importer reads). Same behaviour as Library → Import. Throws when it can't. */
@@ -28,6 +28,7 @@ export async function importCharacterFile(svc: Pick<AppServices, "core" | "store
 async function saveImported(svc: Pick<AppServices, "store">, character: Imported["character"] | Record<string, unknown>, avatar: Avatar | undefined, warnings: string[], opts: ImportOptions): Promise<Imported> {
   const id = crypto.randomUUID();
   let c: Character = { ...(character as Character), id, ...(opts.importTags === false ? { tags: [] } : {}), ...(opts.source ? { source: opts.source } : {}) };
+  if (opts.extraTags?.length) c = { ...c, tags: [...new Set([...(c.tags ?? []), ...opts.extraTags])] };
   // reads first, so the writes below go together
   const folderId = await resolveFolder(svc, opts.folder ?? null);
   const world = worldOf(c);

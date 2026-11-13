@@ -99,3 +99,8 @@ Homunculus **reads but never writes**. Cards added to the folder appear by thems
    progress, report data, undo, re-import.
 4. Draft of the screens (pick → found → progress → report; Linked Folders) with real data; then the screens.
 5. Linked folders.
+
+## Status (2026-11-13)
+
+Built after Daniel approved the draft: D-125 (batch writes), D-126 (chats), D-127 (folder access + scan), D-128 (whole-folder import, screens, report, undo, re-import), D-129 (linked folders, marks, choose a version, unlink).
+Left for later: updating items that changed in SillyTavern since an earlier import (they are skipped now); a live watch of linked folders; subfolders of a linked folder as folders in Characters; character sprites into the Gallery.
