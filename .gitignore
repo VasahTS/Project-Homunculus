@@ -24,3 +24,6 @@ dados/
 chaves.json
 *.key
 .env
+
+# a separate data folder for trying things (Open Homunculus (test data).bat)
+/test-data/
