@@ -13,7 +13,7 @@ import type { z } from "zod";
 import { chapterKey, type Chapter } from "../memory.ts";
 import { cleanQuickReplyData } from "../quick-replies.ts";
 import type { MessageTree, ResolvedState, StateRepository } from "../state.ts";
-import type { SqlDriver } from "./sql.ts";
+import { BatchingDriver, type SqlDriver } from "./sql.ts";
 
 interface MessageRow {
   id: string; session_id: string; parent_id: string | null;
@@ -127,6 +127,18 @@ export class SqlStore implements StateRepository, MessageTree {
     this.cues = new DocTable(db, "cues", Cue, { named: true });
   }
 
+  /**
+   * The same store whose writes wait and go to the database together, in one transaction (D-125). For work that writes
+   * many rows in a row (imports). Reads still see every write made before them. Call `flush()` at the end; until then
+   * nothing is saved, and a failed group saves none of its rows.
+   */
+  batched(): { store: SqlStore; flush: () => Promise<void> } {
+    const driver = new BatchingDriver(this.db);
+    const store = new SqlStore(driver);
+    store.previewMaker = this.previewMaker;
+    return { store, flush: () => driver.flush() };
+  }
+
   // ------------------------------------------------------------ folders (round 3, D-036): a tree per kind
   async listFolders(kind?: FolderKind): Promise<Folder[]> {
     const all = await this.folders.list();
@@ -189,8 +201,15 @@ export class SqlStore implements StateRepository, MessageTree {
   }
 
   // ------------------------------------------------------------ characters
-  async saveCharacter(input: CharacterInput): Promise<Character> {
+  /** `isNew`: the caller just made the id (an import), so there is no earlier version to read (D-125: no reads, so a
+   *  batched store sends the whole import of a card in one go). */
+  async saveCharacter(input: CharacterInput, opts: { isNew?: boolean } = {}): Promise<Character> {
     const c = await this.restoreLightOriginal(Character.parse(input));
+    if (opts.isNew) {
+      await this.db.execute("INSERT INTO characters (id, name, data, updated_at) VALUES (?, ?, ?, ?)", [c.id, c.name, JSON.stringify(c), Date.now()]);
+      await this.recordFirstVersion("character", c.id, c);
+      return c;
+    }
     const before = await this.getCharacter(c.id);
     await this.db.execute(
       `INSERT INTO characters (id, name, data, updated_at) VALUES (?, ?, ?, ?)
@@ -452,7 +471,12 @@ export class SqlStore implements StateRepository, MessageTree {
    * a save this soon after the last one replaces that last version in History instead of adding one, so a burst of
    * edits is one version and History keeps its older versions.
    */
-  async saveLorebook(input: LorebookInput, opts: { mergeHistoryWithinMs?: number } = {}): Promise<Lorebook> {
+  async saveLorebook(input: LorebookInput, opts: { mergeHistoryWithinMs?: number; isNew?: boolean } = {}): Promise<Lorebook> {
+    if (opts.isNew) {
+      const b = await this.lorebooks.save(input);
+      await this.recordFirstVersion("lorebook", b.id, b);
+      return b;
+    }
     const before = await this.lorebooks.get(Lorebook.parse(input).id);
     const b = await this.lorebooks.save(input);
     await this.recordHistory("lorebook", b.id, before, b, opts.mergeHistoryWithinMs ?? 0);
@@ -1070,6 +1094,12 @@ export class SqlStore implements StateRepository, MessageTree {
       `DELETE FROM item_history WHERE kind = ? AND item_id = ? AND id NOT IN (
          SELECT id FROM item_history WHERE kind = ? AND item_id = ? ORDER BY created_at DESC LIMIT ?)`,
       [kind, itemId, kind, itemId, SqlStore.HISTORY_LIMIT]);
+  }
+
+  /** The first version of an item just made (no history yet, nothing to read or trim). D-125. */
+  private async recordFirstVersion(kind: HistoryKind, itemId: string, after: unknown): Promise<void> {
+    await this.db.execute("INSERT INTO item_history (id, kind, item_id, data, created_at) VALUES (?, ?, ?, ?, ?)",
+      [crypto.randomUUID(), kind, itemId, JSON.stringify(after), Date.now()]);
   }
 
   /** Saved versions of an item, newest first (the first one is the current version). */

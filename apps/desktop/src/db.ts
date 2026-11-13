@@ -14,6 +14,8 @@ export async function openDatabase(): Promise<SqlDriver> {
     return {
       execute: async (sql, params) => { await db.execute(sql, params ?? []); },
       select: async <T,>(sql: string, params?: unknown[]) => db.select<T[]>(sql, params ?? []),
+      // D-125: many writes in one trip to the native side and one transaction (src-tauri/src/batch.rs)
+      batch: async (statements) => { await invoke("db_batch", { db: db.path, statements }); },
     };
   }
   const { default: initSqlJs } = await import("sql.js");

@@ -1,7 +1,7 @@
 // Homunculus 2 — SqlDriver backed by sql.js (SQLite compiled to WebAssembly).
 // Used by tests and by the browser preview. Author: CLAUDE, 2026-10-23.
 import type { Database } from "sql.js";
-import type { SqlDriver } from "./sql.ts";
+import type { SqlDriver, SqlStatement } from "./sql.ts";
 
 type BindValue = string | number | null | Uint8Array;
 
@@ -19,6 +19,18 @@ export class SqlJsDriver implements SqlDriver {
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
     this.db.run(sql, toBind(params));
+  }
+
+  /** One transaction: all or nothing (D-125). */
+  async batch(statements: SqlStatement[]): Promise<void> {
+    this.db.run("BEGIN");
+    try {
+      for (const s of statements) this.db.run(s.sql, toBind(s.params));
+      this.db.run("COMMIT");
+    } catch (e) {
+      this.db.run("ROLLBACK");
+      throw e;
+    }
   }
 
   async select<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {

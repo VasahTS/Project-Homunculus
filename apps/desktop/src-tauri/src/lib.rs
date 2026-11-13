@@ -6,6 +6,7 @@ use tauri::Manager;
 mod janny;
 mod botbooru;
 mod janitor;
+mod batch;
 mod pictures;
 
 // ---- Where the app keeps its data (D-030, CLAUDE 2026-10-29: portable mode, like SillyTavern).
@@ -702,6 +703,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             database_url,
+            batch::db_batch,
             data_location,
             backup_database,
             backups_info,

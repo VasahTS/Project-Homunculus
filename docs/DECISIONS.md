@@ -1407,3 +1407,16 @@ Daniel (translated): "no draft needed, finish the rest. Implement what you think
 - Tests: `pictures.rs` unit tests (addresses, preview vs full); full click suite; native tests (`cargo test`, 36).
 
 Signed: **CLAUDE**.
+
+## D-125 — Writes in one go: a native batch command, and a card import in one transaction (2026-11-13)
+
+Daniel (translated): "we need to continue with the optimization, then the complete SillyTavern import and the external card sources". The one item left from `docs/PERFORMANCE-PLAN.md` with a real gain was the native batch command (the idea from Aventuras' `db_transaction`), and the SillyTavern importer is exactly the work that needs it (a long chat is thousands of rows).
+- **`db_batch`** (`src-tauri/src/batch.rs`): a list of statements in one call to the native side, run in **one transaction on the SQL plugin's own pool** (no second writer, so no "database is locked"); all rows or none; values bound exactly like the plugin's `execute`. Allowed for the main window only (`permissions/app.toml`).
+- **`SqlDriver.batch`** (optional): the desktop driver calls `db_batch`, sql.js wraps the list in BEGIN/COMMIT, any other driver runs the statements one by one (`runTogether`).
+- **`BatchingDriver` / `SqlStore.batched()`**: a view of the store whose writes wait and go together on `flush()`. A read first sends what is waiting, so reads always see earlier writes (correct, just fewer trips when the code reads first and writes after). Up to 2000 waiting writes, then it sends them by itself.
+- **`isNew` on `saveCharacter` / `saveLorebook`**: an item whose id the caller just made skips reading its earlier version and the history count (one history row, nothing to trim).
+- **Importing a card** (`importCharacters.ts` `saveImported`, used by Library → Import and the Card Browser) reads first (its folder, the books its card names as its world), then writes the card, its picture, its embedded lorebook and its folder together: **one trip instead of about fourteen, and never half a card** (a failure saves nothing). The result is the same as before, with one history version instead of two (the card was saved twice: before and after its embedded book was linked).
+- Not moved yet: the writes of a turn (they read between writes; small gain per reply). The SillyTavern chat importer will write each chat as one batch.
+- Tests: `apps/desktop/src/importCharacters.test.ts` (one batch, same books and links, a failure saves nothing, reads see waiting writes); `batch.rs` unit tests (500 rows together; a failing statement saves none); click tests `big-library`, `cards`, `card-browser`, `lorebooks`, `untracked-cards`, `collections`.
+
+Signed: **CLAUDE**.

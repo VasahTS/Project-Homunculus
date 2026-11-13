@@ -94,3 +94,5 @@ Daniel (translated): "look at how each app is optimized for these heavy loads â€
 Next ideas, in order of value: pictures as cached URLs through a Tauri protocol; a native batch/transaction command (imports, the writes of a turn); the catalog's cached token counts and search text.
 
 Done in D-124: pictures by address (`h2pic://`), cached token counts, immediate feedback (skeleton while a chat is read, instant rename/Trash for chats, "Savingâ€¦"). Still an idea: a native batch/transaction command for imports.
+
+Done in D-125: the native batch command (`db_batch`, one transaction on the plugin's pool), `SqlStore.batched()`, and a card import in one go (one trip instead of ~14).

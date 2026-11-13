@@ -1,6 +1,6 @@
 // Importing characters: one path for Library → Import (files) and the Card Browser (cards from sites). CLAUDE, 2026-11-02 (T-009, D-081).
 import type { Avatar, Character } from "@homunculus/schemas";
-import { adoptEmbeddedLorebook, linkCharacterToNamedBooks } from "@homunculus/st-lorebooks";
+import { embeddedBookOf, lorebookFromCardBook } from "@homunculus/st-lorebooks";
 import { bytesToBase64, exportCardPng, importCardJson, parseCard, utf8 } from "@homunculus/st-cards";
 import type { CardFile, CardItem } from "@homunculus/card-browser";
 import type { AppServices } from "./core-instance.ts";
@@ -20,18 +20,39 @@ export async function importCharacterFile(svc: Pick<AppServices, "core" | "store
   return out;
 }
 
+/**
+ * Saves one imported card. D-125: everything it needs is read first (its folder, the books its card names as its world),
+ * then the card, its picture, its embedded lorebook and its folder are written together in one transaction — one trip
+ * to the database instead of about fourteen, and never half a card.
+ */
 async function saveImported(svc: Pick<AppServices, "store">, character: Imported["character"] | Record<string, unknown>, avatar: Avatar | undefined, warnings: string[], opts: ImportOptions): Promise<Imported> {
-  const c = character as Character;
-  const saved = await svc.store.saveCharacter({ ...c, id: crypto.randomUUID(), ...(opts.importTags === false ? { tags: [] } : {}), ...(opts.source ? { source: opts.source } : {}) });
-  if (avatar) await svc.store.setAvatar(saved.id, avatar);
-  const notes = [...warnings];
-  // its embedded lorebook becomes a lorebook linked to it; books it names as its world get linked too
-  const book = await adoptEmbeddedLorebook(svc.store, saved);
-  await linkCharacterToNamedBooks(svc.store, (await svc.store.getCharacter(saved.id)) ?? saved);
-  if (book) notes.unshift(`${saved.name}: its embedded lorebook "${book.name}" (${book.entries.length} entries) was added to your lorebooks and is used with ${saved.name}.`);
+  const id = crypto.randomUUID();
+  let c: Character = { ...(character as Character), id, ...(opts.importTags === false ? { tags: [] } : {}), ...(opts.source ? { source: opts.source } : {}) };
+  // reads first, so the writes below go together
   const folderId = await resolveFolder(svc, opts.folder ?? null);
-  if (folderId) await svc.store.setFolder("character", saved.id, folderId);
-  return { character: (await svc.store.getCharacter(saved.id)) ?? saved, warnings: notes };
+  const world = worldOf(c);
+  const named = world ? await svc.store.lorebooksNamed(world) : [];
+  // its embedded lorebook becomes a lorebook linked to it; books it names as its world get linked too
+  const embedded = embeddedBookOf(c);
+  const bookInput = embedded ? { id: crypto.randomUUID(), ...lorebookFromCardBook(embedded, `${c.name}'s lorebook`, id) } : undefined;
+  c = { ...c, lorebookIds: [...new Set([...(c.lorebookIds ?? []), ...(bookInput ? [bookInput.id] : []), ...named.map((b) => b.id)])] };
+
+  const { store, flush } = svc.store.batched();
+  const saved = await store.saveCharacter(c, { isNew: true });
+  if (avatar) await store.setAvatar(id, avatar);
+  const book = bookInput ? await store.saveLorebook(bookInput, { isNew: true }) : undefined;
+  if (folderId) await store.setFolder("character", id, folderId);
+  await flush();
+
+  const notes = [...warnings];
+  if (book) notes.unshift(`${saved.name}: its embedded lorebook "${book.name}" (${book.entries.length} entries) was added to your lorebooks and is used with ${saved.name}.`);
+  return { character: saved, warnings: notes };
+}
+
+/** The lorebook a card names as its world (SillyTavern's `data.extensions.world`). */
+function worldOf(c: Character): string | undefined {
+  const world = (c.original as { data?: { extensions?: { world?: unknown } } } | undefined)?.data?.extensions?.world;
+  return typeof world === "string" && world.trim() ? world : undefined;
 }
 
 /** The folder id for a choice; "from-the-web" finds the top-level folder by name or makes it. */
