@@ -66,6 +66,7 @@ import { OPEN_CHAT_EVENT } from "./ui/MessageText.tsx";
 import { playReplySound } from "./sounds.ts";
 import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
+import { bootMark } from "./bootTiming.ts";
 import { nativeFolder, pickFolder, type PickedFolder } from "./stFolder.ts";
 import { checkLinkedFolder, fileOf, keepAsOwn, linkedStatuses, listLinkedFolders, readIndex, resolveLinked, unlinkFolder, compareLinked, type LinkedIndex } from "./linkedCards.ts";
 import { StImportBar, StImportReport, StImportWindow, stImportRun, useStImportRun } from "./ui/StImport.tsx";
@@ -142,12 +143,19 @@ async function autoBackup(every: "off" | "daily" | "weekly", keep: number): Prom
 }
 
 async function renameOldStoryChats(s: AppServices) {
+  // once (D-130: it read every chat on every start)
+  if (await s.store.getAppSetting("storyChatsRenamed")) return;
   const names = Object.fromEntries((await s.store.listStories()).map((st) => [st.id, st.name]));
   for (const x of await s.store.listSessions()) {
     const m = x.storyId ? /^(.*), session (\d+)$/.exec(x.title) : null;
     if (m && m[1] === names[x.storyId!]) await s.store.saveSession({ ...x, title: `Chat ${m[2]}` });
   }
+  await s.store.setAppSetting("storyChatsRenamed", true);
 }
+
+/** Every chat's path length and branch count, kept between starts (D-130). */
+const CHAT_STATS_KEY = "chatStatsCache";
+const NO_ROWS: ChatRow[] = [];
 
 export function App() {
   const navigate = useGuardedNavigation();
@@ -401,6 +409,8 @@ export function App() {
   // background, a few at a time, so the app opens at once even with a thousand cards.
   /** Per chat: its length and branch count, and what they were worked out from (D-122). */
   const chatStatsCache = useRef(new Map<string, { sig: string; length: number; branches: number }>());
+  const chatStatsRun = useRef(0);
+  const chatStatsLoaded = useRef(false);
   /** The card import running now (D-121): files picked meanwhile join it. */
   const importRun = useRef<{ queue: File[]; done: number; total: number } | null>(null);
   const pictureSince = useRef(0);
@@ -496,33 +506,62 @@ export function App() {
 
   /** Every chat's last line, time, length and branches (D-122: 3–4 queries for all chats, trees read again only when changed). */
   const loadChatStats = useCallback(async (s: AppServices, ss: Session[]) => {
-    const lines: Record<string, string> = {};
-    const counts: Record<string, number> = {};
-    const msgs: Record<string, number> = {};
-    const times: Record<string, number> = {};
+    const run = ++chatStatsRun.current;
     // D-122: every chat's last line, time, length and branches in 3–4 queries (it was 4 per chat); the tree of a chat is
-    // read again only when its messages or branches changed since the last look
+    // read again only when its messages or branches changed since the last look.
+    // D-130: the cache is kept between starts (app setting), and the trees are read AFTER the window shows, 100 chats at a
+    // time: with 1700+ chats every start read every message of every chat before the first screen.
     const [stats, latest, branchRows] = await Promise.all([s.store.messageStats(), s.store.latestMessages(), s.store.branchesBySession()]);
     const cache = chatStatsCache.current;
+    if (!chatStatsLoaded.current) {
+      chatStatsLoaded.current = true;
+      const saved = await s.store.getAppSetting<Record<string, { sig: string; length: number; branches: number }>>(CHAT_STATS_KEY).catch(() => undefined);
+      for (const [id, v] of Object.entries(saved ?? {})) if (!cache.has(id)) cache.set(id, v);
+    }
     const sigOf = (id: string) => `${stats.get(id)?.count ?? 0}:${stats.get(id)?.last ?? 0}:${latest.get(id)?.id ?? ""}:${JSON.stringify(branchRows.get(id) ?? [])}`;
+    const publish = () => {
+      const lines: Record<string, string> = {};
+      const counts: Record<string, number> = {};
+      const msgs: Record<string, number> = {};
+      const times: Record<string, number> = {};
+      for (const x of ss) {
+        const m = latest.get(x.id);
+        const known = cache.get(x.id);
+        // until its tree is read, a chat shows every message it has (swipes included) and no branch count
+        if (m) { lines[x.id] = lastLineOf(m.content); times[x.id] = m.createdAt; msgs[x.id] = known?.length ?? stats.get(x.id)?.count ?? 0; }
+        counts[x.id] = known?.branches ?? 0;
+      }
+      setLastLines(lines);
+      setBranchCounts(counts);
+      setMessageCounts(msgs);
+      setLastTimes(times);
+    };
     const stale = ss.filter((x) => cache.get(x.id)?.sig !== sigOf(x.id)).map((x) => x.id);
-    const links = stale.length ? await s.store.messageLinksOf(stale) : new Map<string, Array<{ id: string; parentId: string | null; createdAt: number }>>();
-    for (const id of stale) {
-      const l = links.get(id) ?? [];
-      const parent = new Map(l.map((k) => [k.id, k.parentId]));
-      let length = 0;
-      for (let at: string | null | undefined = latest.get(id)?.id; at && length <= l.length; at = parent.get(at)) length++;
-      cache.set(id, { sig: sigOf(id), length, branches: l.length ? resolveBranches(l, branchRows.get(id) ?? [], () => "new").branches.length : 0 });
-    }
-    for (const x of ss) {
-      const m = latest.get(x.id);
-      if (m) { lines[x.id] = lastLineOf(m.content); times[x.id] = m.createdAt; msgs[x.id] = cache.get(x.id)?.length ?? 0; }
-      counts[x.id] = cache.get(x.id)?.branches ?? 0;
-    }
-    setLastLines(lines);
-    setBranchCounts(counts);
-    setMessageCounts(msgs);
-    setLastTimes(times);
+    for (const id of stale) cache.delete(id);
+    publish();
+    if (!stale.length) return;
+    const work = async () => {
+      for (let i = 0; i < stale.length; i += 100) {
+        if (run !== chatStatsRun.current) return; // a newer look started
+        const chunk = stale.slice(i, i + 100);
+        const links = await s.store.messageLinksOf(chunk);
+        for (const id of chunk) {
+          const l = links.get(id) ?? [];
+          const parent = new Map(l.map((k) => [k.id, k.parentId]));
+          let length = 0;
+          for (let at: string | null | undefined = latest.get(id)?.id; at && length <= l.length; at = parent.get(at)) length++;
+          cache.set(id, { sig: sigOf(id), length, branches: l.length ? resolveBranches(l, branchRows.get(id) ?? [], () => "new").branches.length : 0 });
+        }
+        if (run !== chatStatsRun.current) return;
+        publish();
+        await new Promise((r) => setTimeout(r, 0)); // let the screen breathe between chunks
+      }
+      // kept for the next start (only chats that still exist)
+      const keep = Object.fromEntries(ss.flatMap((x) => { const v = cache.get(x.id); return v ? [[x.id, v]] : []; }));
+      void s.store.setAppSetting(CHAT_STATS_KEY, keep).catch(() => {});
+    };
+    // a few chats (a new message, a rename): at once; many (the first start): in the background
+    if (stale.length <= 20) await work(); else void work();
   }, []);
 
   /** After a change to chats only (rename, setup, new chat): the chats and their lines, nothing else (D-122). */
@@ -568,8 +607,10 @@ export function App() {
       // Settings → Data (D-082): items in the Trash longer than chosen leave for good (ones still in use stay)
       if (p.emptyTrashDays > 0) await s.store.emptyTrashOlderThan(Date.now() - p.emptyTrashDays * 86_400_000).catch(() => 0);
       const { ss } = await refresh(s);
+      bootMark("library");
       if (cancelled) return;
       setSvc(s);
+      requestAnimationFrame(() => requestAnimationFrame(() => bootMark("shown")));
       setActiveId(ss[0]?.id ?? null);
       // Settings → General: where the app opens
       setHomeOpen(p.openAt === "home");
@@ -673,6 +714,33 @@ export function App() {
     })();
     return () => { live = false; };
   }, [mode, svc]);
+  // D-130: worked out when chats or characters change, not on every redraw (1700+ chats × 600+ characters)
+  const byIdMemo = useMemo(() => Object.fromEntries(characters.map((c) => [c.id, c])) as Record<string, Character>, [characters]);
+  const chatRowsByCharacter = useMemo(() => {
+    const out = new Map<string, ChatRow[]>();
+    for (const x of sessions) {
+      const characterId = x.cast[0]?.characterId;
+      if (x.storyId || !characterId) continue;
+      const vid = x.cast[0]?.variantId;
+      const label = vid ? byIdMemo[characterId]?.variants.find((v) => v.id === vid)?.label : undefined;
+      const rows = out.get(characterId) ?? [];
+      rows.push({ session: x, lastLine: lastLines[x.id] ?? "", messages: messageCounts[x.id] ?? 0, when: lastTimes[x.id] ?? x.createdAt,
+        badges: label ? <span className="hint">{label} version</span> : undefined });
+      out.set(characterId, rows);
+    }
+    for (const rows of out.values()) rows.sort((a, b) => b.when - a.when);
+    return out;
+  }, [sessions, byIdMemo, lastLines, messageCounts, lastTimes]);
+  const characterActivity = useMemo(() => Object.fromEntries(characters.map((c) => [c.id, chatRowsByCharacter.get(c.id)?.[0]?.when ?? 0])), [characters, chatRowsByCharacter]);
+  // ---- the character being edited, whole (D-130: the list leaves the card's repeated texts out of `original`)
+  const editCharId = view.kind === "characters" && view.edit && view.id && view.id !== "new" ? view.id : null;
+  const [editFull, setEditFull] = useState<Character | null>(null);
+  useEffect(() => {
+    if (!svc || !editCharId) { setEditFull(null); return; }
+    let live = true;
+    void svc.store.getCharacter(editCharId).then((c) => { if (live) setEditFull(c ?? null); }).catch(() => { if (live) setEditFull(null); });
+    return () => { live = false; };
+  }, [svc, editCharId, characters]);
   // ---- SillyTavern import (D-128) and linked card folders (D-129)
   const [stOpen, setStOpen] = useState(false);
   const stRun = useStImportRun();
@@ -700,7 +768,7 @@ export function App() {
 
   if (!svc) return <div className="boot">Waking the homunculus…</div>;
 
-  const byId = Object.fromEntries(characters.map((c) => [c.id, c]));
+  const byId = byIdMemo;
   const active = sessions.find((s) => s.id === activeId) ?? null;
   /** The Play screen's subject, as Assistant context (D-110). */
   const onScreen = (): Array<{ kind: AssistantReadKind; id: string; name: string }> => {
@@ -1717,20 +1785,8 @@ export function App() {
   const chatsLine = (rows: ChatRow[]) => rows.length ? `${rows.length} chat${rows.length === 1 ? "" : "s"} · ${new Date(rows[0]!.when).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "No chats yet";
   /** Every character's 1:1 chats, newest first, worked out once per render: asking per card went through every chat
    *  for every card (D-121, a library of 1000 cards). */
-  const chatRowsByCharacter = new Map<string, ChatRow[]>();
-  for (const x of sessions) {
-    const characterId = x.cast[0]?.characterId;
-    if (x.storyId || !characterId) continue;
-    const vid = x.cast[0]?.variantId;
-    const label = vid ? byId[characterId]?.variants.find((v) => v.id === vid)?.label : undefined;
-    const rows = chatRowsByCharacter.get(characterId) ?? [];
-    rows.push({ session: x, lastLine: lastLines[x.id] ?? "", messages: messageCounts[x.id] ?? 0, when: lastTimes[x.id] ?? x.createdAt,
-      badges: label ? <span className="hint">{label} version</span> : undefined });
-    chatRowsByCharacter.set(characterId, rows);
-  }
-  for (const rows of chatRowsByCharacter.values()) rows.sort((a, b) => b.when - a.when);
   /** A character's 1:1 chats, newest first. */
-  const chatsWith = (characterId: string): ChatRow[] => [...(chatRowsByCharacter.get(characterId) ?? [])];
+  const chatsWith = (characterId: string): ChatRow[] => chatRowsByCharacter.get(characterId) ?? NO_ROWS;
 
   const short = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 90);
   /** The folder an item is in, before its line (two cards with one name are told apart by it, D-064). */
@@ -1815,7 +1871,7 @@ export function App() {
     const sheetOf = view.id && view.id !== "new" ? byId[view.id] : characters.find((c) => inOpenFolder("character", "characters")(c.id));
     content = !(view.edit || view.id === "new") ? (
       <CharacterGallery lead={lead} title="Characters" characters={characters} avatars={avatars} selectedId={sheetOf?.id ?? null}
-        activity={Object.fromEntries(characters.map((c) => [c.id, chatsWith(c.id)[0]?.when ?? 0]))}
+        activity={characterActivity}
         importHelp={importHelp} onSelect={(id) => setView({ kind: "characters", id })} onNew={() => setView({ kind: "characters", id: "new" })}
         onImport={(files) => void importFiles(files)} onBrowse={() => setView({ kind: "card-browser" })} onImportSt={() => setStOpen(true)}
         markOf={(c) => { const st = linkedStatus.get(c.id); return st ? <LinkedMark status={st} /> : null; }}
@@ -1843,10 +1899,10 @@ export function App() {
         importHelp={importHelp}
         onSelect={(id) => setView({ kind: "characters", id, edit: true })} onNew={() => setView({ kind: "characters", id: "new" })}
         onImport={(files) => void importFiles(files)}
-        detail={editing === undefined ? null : (
+        detail={editing === undefined || (editing && editFull?.id !== editing.id) ? null : (
           <CharacterEditor
             key={view.id ?? "none"}
-            character={editing}
+            character={editing ? editFull : null}
             avatars={avatars}
             justSaved={view.justSaved ?? false}
             exporters={svc.core.characterExporters.all()}

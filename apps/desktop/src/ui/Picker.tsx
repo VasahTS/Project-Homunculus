@@ -54,6 +54,9 @@ const pic = (it: PickItem, size: number, cls = "") => it.avatar
   ? <img className={`pk-pic ${cls}`} style={{ width: size, height: size }} src={avatarUrl(it.avatar)} alt="" />
   : <span className={`pk-pic letter ${cls}`} style={{ width: size, height: size, fontSize: size * 0.42 }} aria-hidden>{(it.name || "?").slice(0, 1).toUpperCase()}</span>;
 
+/** Rows the Add… window draws at first, and adds with "Show more" (D-130). */
+const PICK_STEP = 60;
+
 export function Picker({ title, kinds, initial, onClose }: { title: string; kinds: PickKind[]; initial?: string; onClose: () => void }) {
   const [kindKey, setKindKey] = useState(initial ?? kinds[0]!.key);
   const kind = kinds.find((k) => k.key === kindKey) ?? kinds[0]!;
@@ -85,7 +88,11 @@ export function Picker({ title, kinds, initial, onClose }: { title: string; kind
     return kind.items.filter((it) => (kind.map[it.id] ?? null) === folder && (folder !== null || !it.group || !virtualIds.has(it.group)));
   }, [kind, term, folder, virtualOpen, view]);
   const recent = !term && folder === null && view === "folders" ? (kind.recent ?? []).map((id) => kind.items.find((it) => it.id === id)).filter((x): x is PickItem => !!x && !excluded.has(x.id)).slice(0, 6) : [];
-  const flat = [...recent, ...shown.filter((it) => !recent.includes(it))];
+  // the first rows, more on demand (D-130: the window drew every card at once); the keyboard cursor reaching the end shows more
+  const [limit, setLimit] = useState(PICK_STEP);
+  useEffect(() => { setLimit(PICK_STEP); }, [kind, term, folder, virtualOpen, view]);
+  const flatAll = [...recent, ...shown.filter((it) => !recent.includes(it))];
+  const flat = flatAll.slice(0, Math.max(limit, cursor + 1));
   const current = flat[Math.min(cursor, flat.length - 1)];
   const kids = all || virtualOpen ? [] : childrenOf(kind.folders, folder);
   const virtuals = all || folder !== null ? [] : (kind.virtual ?? []).filter((v) => kind.items.some((it) => it.group === v.id && !kind.map[it.id]));
@@ -98,7 +105,7 @@ export function Picker({ title, kinds, initial, onClose }: { title: string; kind
     onClose();
   };
   const keys = (e: KeyboardEvent) => {
-    if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, flat.length - 1)); }
+    if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, flatAll.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
     else if (e.key === "Enter") { e.preventDefault(); pick(current); }
   };
@@ -174,6 +181,7 @@ export function Picker({ title, kinds, initial, onClose }: { title: string; kind
             {recent.map((it, i) => row(it, i))}
             {recent.length > 0 && shown.some((it) => !recent.includes(it)) && <div className="pk-label">{view === "all" ? `All ${kind.label.toLowerCase()}` : folder === null ? "Not in a folder" : "In this folder"}</div>}
             {flat.slice(recent.length).map((it, i) => row(it, i + recent.length))}
+            {flatAll.length > flat.length && <button type="button" className="link pk-more" onClick={() => setLimit(flat.length + PICK_STEP)}>Show {Math.min(PICK_STEP, flatAll.length - flat.length)} more <span className="hint">({(flatAll.length - flat.length).toLocaleString("en-US")} more · search to narrow)</span></button>}
             {flat.length === 0 && <p className="hint pk-empty">{term ? `Nothing matches “${q.trim()}”.` : kids.length || virtuals.length ? "Open a folder." : "Nothing here yet."}</p>}
           </div>
         </div>

@@ -1,6 +1,7 @@
 // Homunculus 2 — boots the app's services exactly once, outside React. Author: CLAUDE, 2026-10-23.
 // (React may mount components twice in development; owning the core inside a
 // component made it get stuck on "loading core…" — caught by the e2e test.)
+import { bootMark } from "./bootTiming.ts";
 import { ChatService, HomunculusCore, SqlStore, coreMigrations, migrate, moveTextAgentsToCues } from "@homunculus/core";
 import { createOpenAICompatibleModule } from "@homunculus/provider-openai";
 import { createSillyTavernCardsModule } from "@homunculus/st-cards";
@@ -35,8 +36,10 @@ const STARTER = {
 };
 
 async function boot(): Promise<AppServices> {
+  bootMark("window"); // the page and its script loaded
   const driver = await openDatabase();
   await migrate(driver, coreMigrations, { beforeMigrate: backupBeforeMigrate });
+  bootMark("database");
   const store = new SqlStore(driver);
   // every picture saved gets a small copy for lists; full pictures are read only where shown big (D-121)
   store.previewMaker = makePreview;
@@ -78,6 +81,7 @@ async function boot(): Promise<AppServices> {
     await store.saveCharacter(STARTER);
     await chat.createSession({ title: `Session with ${STARTER.name}`, characterIds: [STARTER.id] });
   }
+  bootMark("setup");
   return { core, store, chat, isDesktop };
 }
 

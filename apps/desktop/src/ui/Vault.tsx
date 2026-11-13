@@ -11,6 +11,7 @@ import { ConfirmButton, Help } from "./Help.tsx";
 import { Button, Icon, IconButton, Switch, SaveButton } from "./kit.tsx";
 import { CardPicture, GalleryCard, SheetSection, SpoilerGate, type VaultTab } from "./Gallery.tsx";
 import { VirtualCards, VIRTUAL_FROM } from "./VirtualCards.tsx";
+import { PagerTop, usePaged } from "./Pager.tsx";
 import { StoryMark } from "./Sidebar.tsx";
 import { ImagePicker } from "./ImagePicker.tsx";
 import { SetupFields, SetupSection, type StorySetupProps } from "./SetupFields.tsx";
@@ -55,6 +56,9 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
   // the cards arrive one after another when the page opens, as on Characters (D-072; Daniel 11/03: "Stories has no motion")
   const cardsRef = useRef<HTMLDivElement>(null);
   useEnter(cardsRef, `open:${tab}`, undefined, { ...CASCADE, stagger: 60 });
+  // pages (D-130): the page goes back to 1 when the tab, the search, the folder or the sort changes
+  const paged = usePaged(visible, `${tab}|${search}|${recent}|${ordered.mode ?? ""}|${visible.length}|${visible[0]?.id ?? ""}`, { label: isStories ? "stories" : tab, keep: (c) => c.id === selectedId, testId: `vault-pager` });
+  const page = paged.items;
   return (
     <div className={`page${isStories ? " collection-page" : " resource-page"}`} data-region="collection">
       <Toolbar lead={lead} title={title} subtitle={isStories ? "Your worlds, their cast and every conversation." : undefined}
@@ -70,18 +74,20 @@ export function VaultPage({ lead, tab, selectedId, onSelect, newButton, search, 
           {isStories && !search.trim() && hero}
           {!search.trim() && folders}
           {search.trim() && onOpenFolder && <FolderHits hits={folderHits} onOpen={onOpenFolder} />}
-          {visible.length > VIRTUAL_FROM && ordered.mode !== "original" ? <>
+          <PagerTop id="vault-pager" />
+          {page.length > VIRTUAL_FROM && ordered.mode !== "original" ? <>
             {/* many NPCs, narrators or stories: only the rows on screen (D-122) */}
             {isStories && <div className="collection-heading"><h2>{search ? "Search results" : prefs?.view === "everything" ? "Every story" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
-            <VirtualCards items={visible} boxRef={cardsRef} testId={`vault-${tab}`} layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`}
+            <VirtualCards items={page} boxRef={cardsRef} testId={`vault-${tab}`} layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`}
               render={(c) => <GalleryCard key={c.id} {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />} />
           </> : <div className="gallery-cards" data-testid={`vault-${tab}`} ref={cardsRef}>
             {isStories && <div className="collection-heading"><h2>{search ? "Search results" : prefs?.view === "everything" ? "Every story" : "Your stories"}</h2><span>{visible.length} stories</span></div>}
-            {visible.map((c, i) => <Fragment key={c.id}>
-              {ordered.mode === "original" && c.group && c.group !== visible[i - 1]?.group && <div className="gallery-group" role="heading" aria-level={3}>{c.group}</div>}
+            {page.map((c, i) => <Fragment key={c.id}>
+              {ordered.mode === "original" && c.group && c.group !== page[i - 1]?.group && <div className="gallery-group" role="heading" aria-level={3}>{c.group}</div>}
               <GalleryCard {...c} selected={c.id === selectedId} onClick={() => onSelect(c.id)} />
             </Fragment>)}
           </div>}
+          {paged.pager}
           {visible.length === 0 && <p className="hint gallery-empty">{search ? (folderHits.length ? "No items match by name; open a folder above." : "Nothing matches, in any folder.") : emptyText}</p>}
         </div>
         {(isStories || selectedId) && <aside className="gallery-sheet" data-region="sheet">{isStories && <div className="collection-detail-label">Story details</div>}{sheet}</aside>}

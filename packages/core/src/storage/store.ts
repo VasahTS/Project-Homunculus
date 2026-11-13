@@ -232,15 +232,18 @@ export class SqlStore implements StateRepository, MessageTree {
   }
 
   /**
-   * The library's characters for lists (D-122): the embedded lorebook of each imported card is left out of `original`
-   * (it is already a lorebook of its own, linked to the card, and it was often most of the data read at start). Such a
-   * character carries a mark; `saveCharacter` and `withFullOriginal` put the book back, so nothing is ever lost.
+   * The library's characters for lists (D-122, D-130). `original` (the untouched imported card) repeats every text of
+   * the card, plus its embedded lorebook (already a lorebook of its own): those parts are left out here, so the list read
+   * at start carries each card once instead of twice. What lists use from `original` stays (spec, extensions such as the
+   * depth prompt and the card's regex, dates, favorite). Such a character carries a mark; `saveCharacter` and
+   * `withFullOriginal` put the left-out parts back from the database, so nothing is ever lost.
    */
   async listCharactersLight(): Promise<Character[]> {
     let rows: Array<{ data: string; had: number | null }>;
+    const paths = SqlStore.LIGHT_PARTS.map((k) => `'$.original.data.${k}'`).join(", ");
     try {
       rows = await this.db.select<{ data: string; had: number | null }>(
-        `SELECT json_remove(data, '$.original.data.character_book') AS data, json_type(data, '$.original.data.character_book') IS NOT NULL AS had
+        `SELECT json_remove(data, ${paths}) AS data, json_type(data, '$.original.data') = 'object' AS had
          FROM characters WHERE trashed_at IS NULL ORDER BY name COLLATE NOCASE`);
     } catch {
       return this.listCharacters(); // a SQLite without JSON functions: the full list
@@ -254,6 +257,10 @@ export class SqlStore implements StateRepository, MessageTree {
       return c;
     });
   }
+
+  /** The parts of `original.data` the light list leaves out: texts the character already holds, and the embedded book. */
+  static readonly LIGHT_PARTS = ["character_book", "description", "personality", "scenario", "first_mes", "mes_example", "alternate_greetings",
+    "group_only_greetings", "creator_notes", "creator_notes_multilingual", "system_prompt", "post_history_instructions"] as const;
 
   /** Is there a lorebook made from this character's card? Without reading every lorebook (D-122: import read them all
    *  for each card, so importing many cards with books slowed down card after card). */
@@ -288,9 +295,10 @@ export class SqlStore implements StateRepository, MessageTree {
     if (!data || typeof data !== "object" || !(LIGHT_MARK in data)) return c;
     const from = String(data[LIGHT_MARK]);
     const { [LIGHT_MARK]: _mark, ...rest } = data;
-    const [row] = await this.db.select<{ book: string | null }>("SELECT json_extract(data, '$.original.data.character_book') AS book FROM characters WHERE id = ?", [from]);
-    const book = row?.book ? JSON.parse(row.book) : undefined;
-    return { ...c, original: { ...(c.original as object), data: { ...rest, ...(book !== undefined ? { character_book: book } : {}) } } as Character["original"] };
+    const [row] = await this.db.select<{ full: string | null }>("SELECT json_extract(data, '$.original.data') AS full FROM characters WHERE id = ?", [from]);
+    const full = row?.full ? JSON.parse(row.full) as Record<string, unknown> : {};
+    const back = Object.fromEntries(SqlStore.LIGHT_PARTS.filter((k) => k in full).map((k) => [k, full[k]]));
+    return { ...c, original: { ...(c.original as object), data: { ...rest, ...back } } as Character["original"] };
   }
 
   /** Sessions whose cast includes this character (trashed sessions only when asked). */

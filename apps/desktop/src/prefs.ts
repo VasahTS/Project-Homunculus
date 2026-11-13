@@ -52,6 +52,8 @@ export interface AppPrefs {
   quickReplies: QuickReplyStyle;
   /** How many chats the sidebar's Recent lists outside pins and folders; 0 = all (D-108). */
   recentChats: number;
+  /** Characters, Stories and the Library's lists show this many at a time, with pages; 0 = all (D-130). */
+  perPage: number;
   // Appearance
   lineSpacing: number;
   /** Interface size in percent (the whole window zooms, like a browser). Daniel, 2026-11-08. */
@@ -71,10 +73,13 @@ export interface AppPrefs {
   openingSound: boolean;
 }
 
+/** Items per page (D-130); 0 = all. */
+export const PER_PAGE = [24, 48, 96, 200, 0];
+
 export const DEFAULT_PREFS: AppPrefs = {
   openAt: automated ? "last" : "home", replyNotice: true, replySound: "off", soundVolume: 60, customSound: "", customSoundName: "", systemNotify: false, spoilerFree: false,
   showTime: true, showNumber: true, showTokens: true, showModel: false, swipeArrows: true, gestures: false, chatWidth: "medium", thinking: "folded",
-  smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50, quickReplies: "bar", recentChats: 10,
+  smoothText: false, smoothSpeed: 60, followReply: true, autoContinue: false, continueTimes: 2, messagesToShow: 50, quickReplies: "bar", recentChats: 10, perPage: 48,
   lineSpacing: 1.72, uiScale: 100, avatarShape: "hidden", avatarSize: "medium", cardSize: "m",
   autoBackup: "off", keepBackups: 10, emptyTrashDays: 0, homeOffered: true, skipOpening: false, openingSound: true,
 };
@@ -155,6 +160,7 @@ export function cleanPrefs(saved: unknown): AppPrefs {
   if (!OPEN_AT.includes(out.openAt)) out.openAt = DEFAULT_PREFS.openAt;
   if (!QR_STYLES.includes(out.quickReplies)) out.quickReplies = DEFAULT_PREFS.quickReplies;
   if (!RECENT_CHATS.includes(out.recentChats)) out.recentChats = DEFAULT_PREFS.recentChats;
+  if (!PER_PAGE.includes(out.perPage)) out.perPage = DEFAULT_PREFS.perPage;
   return out;
 }
 

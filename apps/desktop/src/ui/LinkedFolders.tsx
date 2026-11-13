@@ -6,6 +6,7 @@ import type { Character } from "@homunculus/schemas";
 import type { LinkedIndex, LinkedStatus } from "../linkedCards.ts";
 import type { PickedFolder } from "../stFolder.ts";
 import { isDesktop } from "../db.ts";
+import { PER_PAGE, setPrefs, usePrefs } from "../prefs.ts";
 import { Button, Group, Icon, Row } from "./kit.tsx";
 import { Modal } from "./Vault.tsx";
 
@@ -33,6 +34,11 @@ export function LibrarySettings({ onImport, linked }: { onImport: () => void; li
       <Group icon="import" title="SillyTavern" testId="settings-sillytavern">
         <Row label="Import from SillyTavern" help="Everything at once: cards, chats (with swipes and branches), lorebooks, personas, presets, regex, Quick Replies, tags. Your SillyTavern folder is only read, never changed.">
           <Button small variant="prominent" onClick={onImport} data-testid="st-import-open"><Icon name="import" size={13} /> Import…</Button>
+        </Row>
+      </Group>
+      <Group icon="grid" title="Lists" testId="settings-lists">
+        <Row label="Items per page" help="Characters, Stories and the Library's lists show this many at a time, with pages. Also on the menu under each list.">
+          <PerPage />
         </Row>
       </Group>
       <Group icon="link" title="Linked Folders" testId="settings-linked"
@@ -138,5 +144,14 @@ export function LinkedConflictSheet({ mine, load, folderName, onChoose, onClose 
         <Button variant="prominent" onClick={() => onChoose("mine")}>Keep Mine</Button>
       </div>
     </Modal>
+  );
+}
+
+function PerPage() {
+  const p = usePrefs();
+  return (
+    <select aria-label="Items per page" value={p.perPage} onChange={(e) => void setPrefs({ perPage: Number(e.target.value) })} data-testid="settings-per-page">
+      {PER_PAGE.map((n) => <option key={n} value={n}>{n === 0 ? "All" : n}</option>)}
+    </select>
   );
 }

@@ -8,7 +8,7 @@
 // Floats in the functional (glass) layer. Two levels at most. Nothing critical at the bottom.
 import { ModeSwitch, type AppMode } from "./AssistantShell.tsx";
 import type { LibraryCategory, NavigationPlace, NavigationProfile } from "../theme/navigation.ts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Avatar, Character, Session, Story } from "@homunculus/schemas";
 import { variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
@@ -23,6 +23,11 @@ export interface SidebarSearchItem { id: string; name: string; kind: string; onO
 
 export type LibraryArea = "characters" | LibraryCategory;
 export type Place = NavigationPlace | "settings" | null;
+
+/** Search results shown at first, and added by "Show more" (D-130). */
+const SEARCH_STEP = 30;
+/** A story's chats listed under it in the sidebar; the rest are on its page (D-130). */
+const STORY_CHATS = 10;
 
 export function Sidebar({ sessions, stories, characters, avatars, lastLines, lastTimes = {}, branchCounts = {}, activeSessionId, activeStoryId, activeChatId = null, place, status,
   navigation, searchItems, mode, onMode, onOpenStories, onOpenSession, searchChats, onOpenChatAt, onRenameSession, onTrashSession, onOpenCharacter, onOpenStory, onNewStory, onOpenCharacters, onOpenCardBrowser, onOpenLibrary, onOpenVault, onOpenSettings, onOpenHome }: {
@@ -80,9 +85,15 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
         onClick={stop} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") stop(e); }}>■</span>}</span>;
   };
   const [q, setQ] = useState("");
+  // a search shows the first matches, more on demand (D-130: a one-letter search drew 1700+ chats)
+  const [searchShown, setSearchShown] = useState(SEARCH_STEP);
+  useEffect(() => { setSearchShown(SEARCH_STEP); }, [q]);
   /** Stories whose chats are shown (the active story's always are). */
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
-  const lead = (s: Session) => characters.find((c) => c.id === s.cast[0]?.characterId);
+  // D-130: lookups by id (a search per chat through every character was 1700 × 600 steps on every redraw)
+  const charById = useMemo(() => new Map(characters.map((c) => [c.id, c])), [characters]);
+  const storyById = useMemo(() => new Map(stories.map((st) => [st.id, st])), [stories]);
+  const lead = (s: Session) => (s.cast[0]?.characterId ? charById.get(s.cast[0].characterId) : undefined);
   /** The session's picture: the version's own picture when it has one. */
   const sessionAvatar = (s: Session, c: Character | undefined) => {
     if (!c) return undefined;
@@ -105,7 +116,11 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
     const t = setTimeout(() => { void searchRef.current?.(term).then((r) => { if (live) setHits(r); }).catch(() => {}); }, 200);
     return () => { live = false; clearTimeout(t); };
   }, [q]);
-  const storyName = (s: Session) => stories.find((st) => st.id === s.storyId)?.name;
+  const storyName = (s: Session) => (s.storyId ? storyById.get(s.storyId)?.name : undefined);
+  // the Recent list's rows, made again only when the chats change; a chat that is writing gets its status on top
+  const baseChats = useMemo(() => sessions.map((s) => ({ id: s.id, title: s.title, from: storyName(s) ?? lead(s)?.name, line: lastLines[s.id], when: lastTimes[s.id] ?? s.createdAt,
+    branches: branchCounts[s.id] })), [sessions, charById, storyById, lastLines, lastTimes, branchCounts]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sideChats = baseChats.some((c) => live.has(c.id)) ? baseChats.map((c) => { const w = working(c.id); return w ? { ...c, busy: w } : c; }) : baseChats;
   const chats = searching ? sessions.filter((s) => match(s.title) || match(lead(s)?.name ?? "") || match(storyName(s) ?? "") || hits[s.id]) : [];
   /** The words around the first match in a message, with the match marked. */
   const snippet = (text: string) => {
@@ -167,7 +182,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
       {searching && <>
         <div className="side-head"><span className="label-row">Chats</span></div>
         <ul className="side-list side-recent" data-testid="session-list">
-          {chats.map((s) => {
+          {chats.slice(0, searchShown).map((s) => {
             const c = lead(s);
             const st = storyName(s);
             return (
@@ -184,11 +199,12 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
             );
           })}
           {chats.length === 0 && <li className="side-empty">No chat matches.</li>}
+          {chats.length > searchShown && <li className="sc-more-row"><button type="button" className="sc-showmore" onClick={() => setSearchShown((n) => n + SEARCH_STEP)}>Show {Math.min(SEARCH_STEP, chats.length - searchShown)} more</button><span className="sc-left">{(chats.length - searchShown).toLocaleString("en-US")} more · type more to narrow</span></li>}
         </ul>
       </>}
       {searching && <section className="side-search-results" aria-label="Matching library items and characters">
         <div className="side-head">Characters and Library</div>
-        <ul className="side-list">{searchItems.filter((item) => match(item.name)).map((item) => <li key={item.id}>
+        <ul className="side-list">{searchItems.filter((item) => match(item.name)).slice(0, SEARCH_STEP).map((item) => <li key={item.id}>
           <button className="side-item" onClick={item.onOpen}><span className="side-text"><strong>{item.name}</strong><span>{item.kind}</span></span>
           </button></li>)}</ul>
       </section>}
@@ -217,13 +233,14 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
               </div>
               {open && (
                 <ul className="side-chats" data-testid={`story-chats-${st.id}`}>
-                  {chats.map((x) => (
+                  {chats.slice(0, STORY_CHATS).map((x) => (
                     <li key={x.id}>
                       <button className={`side-item side-chat${x.id === activeChatId ? " on" : ""}`} onClick={() => onOpenSession(x.id)} aria-current={x.id === activeChatId ? "page" : undefined}>
                         <span className="side-text"><strong>{x.title}{(branchCounts[x.id] ?? 1) > 1 && <span className="side-fork" title={`${branchCounts[x.id]} branches`}><Icon name="branch" size={11} />{branchCounts[x.id]}</span>}</strong>{working(x.id) ?? <span className="side-line">{lastLines[x.id] || "—"}</span>}</span>
                       </button>
                     </li>
                   ))}
+                  {chats.length > STORY_CHATS && <li><button type="button" className="sc-showmore" onClick={() => onOpenStory(st.id)}>All {chats.length} chats on the story's page</button></li>}
                 </ul>
               )}
             </li>
@@ -237,8 +254,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
       {!searching && (
         // D-108: Pinned → your folders → Recent, one line per chat
         <SidebarChats scope="play" testId="session-list" limit={prefs.recentChats} activeId={activeSessionId ?? activeChatId}
-          chats={sessions.map((s) => ({ id: s.id, title: s.title, from: storyName(s) ?? lead(s)?.name, line: lastLines[s.id], when: lastTimes[s.id] ?? s.createdAt,
-            branches: branchCounts[s.id], busy: working(s.id) ?? undefined }))}
+          chats={sideChats}
           onOpen={onOpenSession} onRename={onRenameSession} onTrash={onTrashSession}
           source={(id) => {
             const s = sessions.find((x) => x.id === id);

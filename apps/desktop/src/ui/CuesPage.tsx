@@ -2,6 +2,7 @@
 // A cue reacts to the chat without calling the AI. The editor is one page of sections, like the agent editor:
 // About · Where It Runs · Reads · Remembers · Writes. Every section can stay empty, so a simple rule is just a text;
 // the examples go from simple (Random Event) to complete (Opens Up Slowly, Boundary). It saves by itself.
+import { usePaged } from "./Pager.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Cue, CueSignal as CueSignalSchema, type Character, type CueCondition, type CueGroup, type CueInput, type CueReport, type CueSignal, type CueText, type CueValue, type Message, type Session, type SetupLayer, type Story } from "@homunculus/schemas";
 import { estimateTokens, isBundleText, type CueOutput } from "@homunculus/core";
@@ -39,6 +40,7 @@ export function CuesPage({ svc, lead, cues, stories, sessions, characters, defau
   const [examples, setExamples] = useState(false);
   const needle = q.trim().toLowerCase();
   const shown = cues.filter((c) => !needle || `${c.name} ${c.help}`.toLowerCase().includes(needle));
+  const paged = usePaged(shown, `${needle}|${shown.length}`, { label: "cues", keep: (c) => c.id === selectedId, testId: "cue-pager" }); // pages (D-130)
   const selected = cues.find((c) => c.id === selectedId) ?? null;
   const charName = (id: string) => characters.find((c) => c.id === id)?.name;
   const taken = cues.map((c) => c.namespace);
@@ -111,7 +113,7 @@ export function CuesPage({ svc, lead, cues, stories, sessions, characters, defau
           list={<>
             <SearchBox value={q} onChange={setQ} label="Search cues" />
             <ul className="master-list" data-testid="cue-list">
-              {shown.map((c) => (
+              {paged.items.map((c) => (
                 <li key={c.id}>
                   <button className={`master-item${c.id === selectedId ? " on" : ""}`} onClick={() => onSelect(c.id)} data-testid="cue-row">
                     <span className="ag-ico" aria-hidden>{c.icon || "⟡"}</span>
@@ -121,6 +123,7 @@ export function CuesPage({ svc, lead, cues, stories, sessions, characters, defau
               ))}
               {shown.length === 0 && <li className="side-empty">No cue matches.</li>}
             </ul>
+            {paged.pager}
           </>}
           detail={selected ? (
             <CueEditor key={selected.id} cue={selected} svc={svc} characters={characters} stories={stories} sessions={sessions} defaultSetup={defaultSetup}

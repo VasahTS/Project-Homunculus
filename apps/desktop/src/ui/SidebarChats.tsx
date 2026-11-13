@@ -3,7 +3,7 @@
 // (ChatsNav.tsx): pinned on top, a folder per group with its count, "Show N more", drag a chat onto a folder, and a folded
 // folder still shows the open chat and any chat that is writing. A folder is only a sidebar grouping: the chat still
 // lives on its character's sheet or its story's page. CLAUDE, 2026-11-10.
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   addFolder, ago, changeOrganization, deleteFolder, folderOf, foldFolder, groupChats, moveChat, pinChat, renameFolder, useChatOrganization,
   type ChatFolder, type ChatScope,
@@ -24,6 +24,9 @@ export interface SideChat {
 }
 
 const FOLDER_ROWS = 8;
+
+/** "Show more" adds this many rows at a time. */
+const MORE_STEP = 25;
 
 export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, onTrash, trashLabel = "Move to Trash", source, testId, empty, recentHelp }: {
   /** The tooltip of the Recent heading. */
@@ -46,11 +49,11 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
 }) {
   const org = useChatOrganization(scope);
   const change = (f: Parameters<typeof changeOrganization>[1]) => changeOrganization(scope, f);
-  const groups = groupChats(org, chats);
+  const groups = useMemo(() => groupChats(org, chats), [org, chats]);
   const [menu, setMenu] = useState<{ chatId?: string; folderId?: string; sub?: boolean } | null>(null);
   const [renaming, setRenaming] = useState<{ chatId?: string; folderId?: string; text: string } | null>(null);
   const [newFolder, setNewFolder] = useState<{ text: string; chatId?: string } | null>(null);
-  const [showAll, setShowAll] = useState<Record<string, boolean>>({});
+  const [showMore, setShowMore] = useState<Record<string, number>>({});
   const [dropOn, setDropOn] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -169,12 +172,23 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
     );
   };
 
-  /** Up to `n` rows, then "Show N more" / "Show less". */
+  /**
+   * Up to `n` rows, then "Show 25 more" a step at a time, and "Show less" (Daniel 11/13: "Show 1752 more" drew 1700+ chats at
+   * once). 0 = all (the old Settings choice).
+   */
   const more = (key: string, list: SideChat[], n: number) => {
-    const all = showAll[key] || n <= 0 || list.length <= n;
-    return { shown: all ? list : list.slice(0, n), toggle: list.length > n && n > 0
-      ? <li><button type="button" className="sc-showmore" onClick={() => setShowAll((s) => ({ ...s, [key]: !s[key] }))}>{showAll[key] ? "Show less" : `Show ${list.length - n} more`}</button></li>
-      : null };
+    if (n <= 0 || list.length <= n) return { shown: list, toggle: null };
+    const extra = showMore[key] ?? 0;
+    const limit = n + extra;
+    const left = list.length - limit;
+    const step = Math.min(MORE_STEP, left);
+    return { shown: list.slice(0, limit), toggle: (
+      <li className="sc-more-row">
+        {left > 0 && <button type="button" className="sc-showmore" onClick={() => setShowMore((s) => ({ ...s, [key]: extra + MORE_STEP }))} title={`${left} more`}>Show {step} more</button>}
+        {extra > 0 && <button type="button" className="sc-showmore" onClick={() => setShowMore((s) => ({ ...s, [key]: 0 }))}>Show less</button>}
+        {left > 0 && <span className="sc-left">{left.toLocaleString("en-US")} more</span>}
+      </li>
+    ) };
   };
 
   const folderBlock = ({ folder, chats: inside }: { folder: ChatFolder; chats: SideChat[] }) => {

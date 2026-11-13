@@ -20,6 +20,7 @@ import { CollectionTools, FolderHits, type CollectionPrefs, type FolderHit } fro
 import type { LibraryArea } from "./Sidebar.tsx";
 import { SortSelect, useCollectionOrder } from "./CollectionOrder.tsx";
 import { VirtualCards } from "./VirtualCards.tsx";
+import { PagerTop, usePaged } from "./Pager.tsx";
 
 const LIBRARY_TABS: Array<{ area: LibraryArea; label: string }> = [
   { area: "personas", label: "Personas" }, { area: "lorebooks", label: "Lorebooks" },
@@ -179,6 +180,8 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   const hits = searching && folderHits ? folderHits(q) : [];
   const where = (c: Character) => { const f = folderOf?.(c); return f ? `in ${f}` : everything ? "not in a folder" : undefined; };
   const shown = filtered.filter((c) => !recent || (activity[c.id] ?? 0) > 0);
+  // pages (D-130): the page goes back to 1 when the search, the folder, the view or the sort changes
+  const paged = usePaged(shown, `${q}|${everything}|${recent}|${ordered.mode ?? ""}|${shown.length}|${shown[0]?.id ?? ""}`, { label: "characters", keep: (c) => c.id === selectedId, testId: "character-pager" });
   return (
     <div className="page collection-page" data-region="collection">
       <Toolbar lead={lead} title={title} subtitle="Character cards and chats" center={tabs}
@@ -194,13 +197,14 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
         <div className={`gallery-grid${prefs ? ` portrait size-${prefs.size}` : ""}`}>
           {!searching && !everything && folders}
           {searching && onOpenFolder && <FolderHits hits={hits} onOpen={(id) => { setQ(""); onOpenFolder(id); }} />}
-          <div className="collection-heading"><h2>{searching ? "Search results" : everything ? "Every character" : "Your characters"}</h2><span>{shown.length} characters</span></div>
-          {/* only the rows on screen when there are many (D-121) */}
-          <VirtualCards items={shown} boxRef={cards} testId="character-list" layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`} render={(c) => (
+          <div className="collection-heading"><PagerTop id="character-pager" /><h2>{searching ? "Search results" : everything ? "Every character" : "Your characters"}</h2><span>{shown.length} characters</span></div>
+          {/* one page at a time (D-130), and of that page only the rows on screen when it is long (D-121) */}
+          <VirtualCards items={paged.items} boxRef={cards} testId="character-list" layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`} render={(c) => (
             <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={c.id}
               by={(searching || everything) && where(c) ? where(c) : chatsOf ? chatsOf(c) : c.variants.length ? `${c.variants.length + 1} versions: Main, ${c.variants.map((v) => v.label).join(", ")}` : c.creator ? `by ${c.creator}` : undefined}
               summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.tracked === false ? ["Not tracked", ...c.tags] : c.tags} size={shortTokens(cardTokens(c))} mark={markOf?.(c)} />
           )} />
+          {paged.pager}
           {characters.length === 0 && <button type="button" className="gallery-card add" onClick={() => fileInput.current?.click()}>
             <Icon name="import" size={26} />
             <span>Import cards from SillyTavern</span>
@@ -253,7 +257,7 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
       <button type="button" className="vs-pic-read" aria-label={`Read ${shown.name} full window`} onClick={() => setReading(true)}><CardPicture name={shown.name} avatar={pic} className="vs-pic" full /></button>
       {reading && <CardReader name={shown.name} where={`Characters${folderName ? ` · ${folderName}` : ""}`} byline={facts.join(" · ") || undefined} picture={pic} tags={shown.tags}
         actions={<>
-          {onContinue && <Button variant="prominent" onClick={() => { setReading(false); onContinue(); }}>Continue “{latestTitle}”</Button>}
+          {onContinue && <Button variant="prominent" className="vs-continue" title={`Continue “${latestTitle ?? ""}”`} onClick={() => { setReading(false); onContinue(); }}><span>Continue “{latestTitle}”</span></Button>}
           <Button variant={onContinue ? "bordered" : "prominent"} onClick={() => { setReading(false); onChat(vid); }}>{onContinue ? "+ New Chat" : "Chat Now"}</Button>
           <Button onClick={() => { setReading(false); onEdit(); }}><Icon name="pencil" size={13} /> Edit</Button>
           {onExport && <Button onClick={onExport}>Export</Button>}
@@ -278,7 +282,7 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
           options={[{ value: "", label: "Main" }, ...c.variants.map((v) => ({ value: v.id, label: v.label }))]} />
       )}
       <div className="vs-actions">
-        {onContinue && <Button variant="prominent" onClick={onContinue} data-testid="continue-chat">Continue “{latestTitle}”</Button>}
+        {onContinue && <Button variant="prominent" className="vs-continue" title={`Continue “${latestTitle ?? ""}”`} onClick={onContinue} data-testid="continue-chat"><span>Continue “{latestTitle}”</span></Button>}
         <Button variant={onContinue ? "bordered" : "prominent"} onClick={() => onChat(vid)} data-testid="new-chat-with">{onContinue ? "+ New Chat" : "Chat Now"}</Button>
         <Button onClick={onEdit}><Icon name="pencil" size={13} /> Edit</Button>
         <Button onClick={() => setReading(true)} data-testid="character-read">Read</Button>

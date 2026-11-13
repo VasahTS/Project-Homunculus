@@ -45,7 +45,8 @@ export function ChatList({ chats, search, onOpen, onRename, onExport, onTrash, o
 }) {
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Awaited<ReturnType<ChatSearch>> | null>(null);
-  const [all, setAll] = useState(false);
+  /** Rows shown beyond `initial` (D-130: "Show all" drew hundreds of chats at once; now 25 at a time). */
+  const [extra, setExtra] = useState(0);
   const [menu, setMenu] = useState<{ id: string; exp: boolean } | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
   const seq = useRef(0);
@@ -69,7 +70,8 @@ export function ChatList({ chats, search, onOpen, onRename, onExport, onTrash, o
 
   const term = q.trim().toLowerCase();
   const matches = found === null ? null : chats.filter((c) => c.session.title.toLowerCase().includes(term) || found[c.session.id]);
-  const rows = matches ?? (all ? chats : chats.slice(0, initial));
+  const limit = initial + extra;
+  const rows = (matches ?? chats).slice(0, matches ? Math.max(limit, 50) : limit);
 
   return (
     <div className="chat-list" data-testid={testId}>
@@ -128,7 +130,11 @@ export function ChatList({ chats, search, onOpen, onRename, onExport, onTrash, o
       </div>
       <div className="cl-foot">
         {matches ? <span className="hint">{matches.length} of {chats.length} chats match “{q.trim()}”</span>
-          : chats.length > initial ? <button type="button" className="link" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${chats.length} chats`}</button> : <span />}
+          : chats.length > initial ? <span className="cl-more-links">
+            {chats.length > limit && <button type="button" className="link" onClick={() => setExtra((n) => n + 25)}>Show {Math.min(25, chats.length - limit)} more</button>}
+            {extra > 0 && <button type="button" className="link" onClick={() => setExtra(0)}>Show fewer</button>}
+            <span className="hint">{Math.min(limit, chats.length)} of {chats.length} chats</span>
+          </span> : <span />}
         {onNew && <button type="button" className="link" onClick={onNew}>+ New Chat</button>}
       </div>
     </div>

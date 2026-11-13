@@ -38,13 +38,23 @@ test("many cards: importing shows how far it is, and Characters builds only the 
   const built = await list.locator(".gallery-card").count();
   expect(built).toBeGreaterThan(4);
   expect(built).toBeLessThan(80);
-  // scrolling to the end builds the cards there (and lets go of the first ones)
+  // pages (D-130): 48 at a time, the page numbers under them
+  const pager = page.getByTestId("character-pager");
+  await expect(pager).toContainText("1–48 of 101 characters");
   const names = () => list.locator(".gallery-card").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
   const before = await names();
-  await page.locator(".gallery-grid").evaluate((el) => { el.scrollTop = el.scrollHeight; });
-  await expect.poll(async () => (await names()).filter((n) => !before.includes(n)).length).toBeGreaterThan(0);
-  expect((await names()).length).toBeLessThan(80);
+  await pager.getByRole("button", { name: "3", exact: true }).click();
+  await expect(pager).toContainText("97–101 of 101 characters");
+  await expect.poll(async () => (await names()).length).toBe(5);
   expect(await names()).not.toContain(before[0]);
+  // All on one page: still only the rows on screen are built, and scrolling to the end builds the cards there
+  await pager.getByTestId("pager-size").selectOption("0");
+  await expect.poll(async () => (await names()).length).toBeLessThan(80);
+  const top = await names();
+  await page.locator(".gallery-grid").evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect.poll(async () => (await names()).filter((n) => !top.includes(n)).length).toBeGreaterThan(0);
+  expect((await names()).length).toBeLessThan(80);
+  await page.getByTestId("character-pager").getByTestId("pager-size").selectOption("48");
   // a search still finds any card
   await page.getByLabel("Search characters").fill("Card 0042");
   await expect(list.getByRole("button")).toHaveCount(1);

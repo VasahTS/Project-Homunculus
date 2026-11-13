@@ -2,6 +2,7 @@
 // 2026-10-28 (slice 1): Personas and the Trash.
 // Characters and Trackers share this master-detail shape; future library kinds (personas, lorebooks,
 // presets, agents) reuse it.
+import { usePaged } from "./Pager.tsx";
 import { quietNextScreen } from "./back-button.ts";
 import { dragItem } from "./Folders.tsx";
 import { ImportButton } from "./BundleButtons.tsx";
@@ -79,6 +80,8 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
   const setCollapsed = (v: boolean) => { setCollapsedState(v); try { localStorage.setItem(LIST_KEY, v ? "1" : "0"); } catch { /* a convenience only */ } };
   const fileInput = useRef<HTMLInputElement>(null);
   const shown = characters.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase()));
+  // pages (D-130)
+  const paged = usePaged(shown, `${q}|${shown.length}|${shown[0] ? JSON.stringify(Object.values(shown[0]).slice(0, 1)) : ""}`, { label: "characters", keep: (c) => c.id === selectedId, testId: "library-character-pager" });
   // the list arrives one row after another when the page opens (D-072)
   const listEl = useRef<HTMLUListElement>(null);
   useEnter(listEl, "open", undefined, { ...CASCADE, y: 10, stagger: 45, max: 12 });
@@ -97,7 +100,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
           <div className="master-head"><SearchBox value={q} onChange={setQ} label="Search characters" />
             <IconButton label="Hide the list" onClick={() => setCollapsed(true)}><Icon name="sidebar" size={15} /></IconButton></div>
           <ul className="master-list" data-testid="character-list" ref={listEl}>
-            {shown.map((c) => (
+            {paged.items.map((c) => (
               <li key={c.id}>
                 <button className={`master-item${c.id === selectedId ? " on" : ""}`} onClick={() => onSelect(c.id)} aria-label={c.name}>
                   <AvatarDot name={c.name} avatar={avatars[c.id]} size={36} />
@@ -107,6 +110,7 @@ export function CharactersPage({ lead, tabs, characters, avatars, selectedId, im
             ))}
             {shown.length === 0 && <li className="side-empty">{characters.length ? "No character matches." : "No characters yet. Create or import one."}</li>}
           </ul>
+          {paged.pager}
         </>}
         detail={detail ?? <EmptyDetail text="Select a character to edit it." />}
         collapsed={collapsed} onExpand={() => setCollapsed(false)}
@@ -131,6 +135,8 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
   const [q, setQ] = useState("");
   const ordered = useCollectionOrder("trackers", trackers);
   const shown = ordered.items.filter((t) => t.agent.name.toLowerCase().includes(q.trim().toLowerCase()));
+  // pages (D-130)
+  const paged = usePaged(shown, `${q}|${shown.length}|${shown[0] ? JSON.stringify(Object.values(shown[0]).slice(0, 1)) : ""}`, { label: "trackers", keep: (t) => t.agent.id === selectedId, testId: "tracker-pager" });
   return (
     <div className="page">
       <Toolbar lead={lead} title="Trackers" center={tabs} subtitle="Values the AI keeps up to date after each reply"
@@ -139,7 +145,7 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
         list={<>
           <SearchBox value={q} onChange={setQ} label="Search trackers" />
           <ul className="master-list" data-testid="tracker-list">
-            {shown.map((t) => (
+            {paged.items.map((t) => (
               <li key={t.agent.id}>
                 <button className={`master-item${t.agent.id === selectedId ? " on" : ""}`} onClick={() => onSelect(t.agent.id)}>
                   <span className="side-icon big"><Icon name="trackers" /></span>
@@ -149,6 +155,7 @@ export function TrackersPage({ lead, tabs, trackers, selectedId, onSelect, onNew
             ))}
             {shown.length === 0 && <li className="side-empty">{trackers.length ? "No tracker matches." : "No trackers yet."}</li>}
           </ul>
+          {paged.pager}
         </>}
         detail={detail ?? <EmptyDetail text="Select a tracker to edit it. Enable trackers in the chat's Scene tab." />}
       />
@@ -175,6 +182,8 @@ export function PersonasPage({ lead, tabs, personas, avatars, defaultId, selecte
   const fileInput = useRef<HTMLInputElement>(null);
   const ordered = useCollectionOrder("personas", personas);
   const shown = ordered.items.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
+  // pages (D-130)
+  const paged = usePaged(shown, `${q}|${shown.length}|${shown[0] ? JSON.stringify(Object.values(shown[0]).slice(0, 1)) : ""}`, { label: "personas", keep: (p) => p.id === selectedId, testId: "persona-pager" });
   return (
     <div className="page">
       <Toolbar lead={lead} title="Personas" center={tabs} subtitle="Who you are in the story"
@@ -189,7 +198,7 @@ export function PersonasPage({ lead, tabs, personas, avatars, defaultId, selecte
         list={<>
           <SearchBox value={q} onChange={setQ} label="Search personas" />
           <ul className="master-list" data-testid="persona-list">
-            {shown.map((p) => (
+            {paged.items.map((p) => (
               <li key={p.id}>
                 <button className={`master-item${p.id === selectedId ? " on" : ""}`} onClick={() => onSelect(p.id)} aria-label={p.name}>
                   <AvatarDot name={p.name} avatar={avatars[p.id]} size={36} />
@@ -202,6 +211,7 @@ export function PersonasPage({ lead, tabs, personas, avatars, defaultId, selecte
             ))}
             {shown.length === 0 && <li className="side-empty">{personas.length ? "No persona matches." : "No personas yet. Without one, you are called “User”."}</li>}
           </ul>
+          {paged.pager}
         </>}
         detail={detail ?? <EmptyDetail text="Select a persona to edit it." />}
       />
@@ -227,6 +237,8 @@ export function PresetsPage({ lead, tabs, presets, defaultId, selectedId, import
   const fileInput = useRef<HTMLInputElement>(null);
   const ordered = useCollectionOrder("presets", presets);
   const shown = ordered.items.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
+  // pages (D-130)
+  const paged = usePaged(shown, `${q}|${shown.length}|${shown[0] ? JSON.stringify(Object.values(shown[0]).slice(0, 1)) : ""}`, { label: "presets", keep: (p) => p.id === selectedId, testId: "preset-pager" });
   return (
     <div className="page">
       <Toolbar lead={lead} title="Presets" center={tabs} subtitle="Prompt blocks and sampling"
@@ -241,7 +253,7 @@ export function PresetsPage({ lead, tabs, presets, defaultId, selectedId, import
         list={<>
           <SearchBox value={q} onChange={setQ} label="Search presets" />
           <ul className="master-list" data-testid="preset-list">
-            {shown.map((p) => (
+            {paged.items.map((p) => (
               <li key={p.id}>
                 <button className={`master-item${p.id === selectedId ? " on" : ""}`} onClick={() => onSelect(p.id)} aria-label={p.name}>
                   <span className="side-icon big"><Icon name="preset" /></span>
@@ -254,6 +266,7 @@ export function PresetsPage({ lead, tabs, presets, defaultId, selectedId, import
             ))}
             {shown.length === 0 && <li className="side-empty">{presets.length ? "No preset matches." : "No presets yet."}</li>}
           </ul>
+          {paged.pager}
         </>}
         detail={detail ?? <EmptyDetail text="Select a preset to edit it." />}
       />
@@ -287,6 +300,8 @@ export function LorebooksPage({ lead, tabs, books, usedBy, selectedId, importHel
   const searching = q.trim() !== "";
   const ordered = useCollectionOrder("lorebooks", books);
   const shown = ordered.items.filter((b) => (searching ? b.name.toLowerCase().includes(q.trim().toLowerCase()) : !inFolder || inFolder(b.id)));
+  // pages (D-130)
+  const paged = usePaged(shown, `${q}|${shown.length}|${shown[0] ? JSON.stringify(Object.values(shown[0]).slice(0, 1)) : ""}`, { label: "lorebooks", keep: (b) => b.id === selectedId, testId: "lorebook-pager" });
   const from = (b: Lorebook) => (b.source.kind === "card" ? "from a card" : b.source.kind === "stFile" ? "from SillyTavern" : "");
   return (
     <div className={`page lore-page${detail ? " has-detail" : ""}`}>
@@ -311,7 +326,7 @@ export function LorebooksPage({ lead, tabs, books, usedBy, selectedId, importHel
           <SearchBox value={q} onChange={setQ} label="Search lorebooks" />
           {!searching && folders}
           <ul className="master-list" data-testid="lorebook-list">
-            {shown.map((b) => (
+            {paged.items.map((b) => (
               <li key={b.id}>
                 <button className={`master-item${b.id === selectedId ? " on" : ""}`} onClick={() => onSelect(b.id)} aria-label={b.name} {...dragItem(b.id, b.name)}>
                   <span className="side-icon big"><Icon name="book" /></span>
@@ -324,6 +339,7 @@ export function LorebooksPage({ lead, tabs, books, usedBy, selectedId, importHel
             ))}
             {shown.length === 0 && <li className="side-empty">{searching ? "No lorebook matches." : books.length ? "Nothing here yet. Drag lorebooks onto a folder, or pick its Folder in the editor." : "Create or import your first lorebook."}</li>}
           </ul>
+          {paged.pager}
         </>}
         detail={detail ?? <EmptyDetail text="Select a lorebook to edit it." />}
       />
@@ -343,6 +359,7 @@ export function TrashPage({ lead, tabs, items, onRestore, onDeleteForever, onEmp
   onEmpty: () => void;
 }) {
   const ordered = useCollectionOrder("trash", items);
+  const paged = usePaged(ordered.items, `${ordered.items.length}|${ordered.mode ?? ""}`, { label: "items", testId: "trash-pager" }); // pages (D-130)
   return (
     <div className="page">
       <Toolbar lead={lead} title="Trash" center={tabs} subtitle={items.length ? `${items.length} item(s)` : "Empty"}
@@ -352,7 +369,7 @@ export function TrashPage({ lead, tabs, items, onRestore, onDeleteForever, onEmp
         </>} />
       <div className="trash-page">
         <ul className="trash-list" data-testid="trash-list">
-          {ordered.items.map((it) => (
+          {paged.items.map((it) => (
             <li key={`${it.kind}:${it.id}`} className="trash-item">
               <span className="trash-kind">{KIND_LABEL[it.kind]}</span>
               <span className="side-text"><strong>{it.name}</strong><span>moved to the Trash {new Date(it.trashedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span></span>
@@ -362,6 +379,7 @@ export function TrashPage({ lead, tabs, items, onRestore, onDeleteForever, onEmp
           ))}
           {items.length === 0 && <li className="side-empty">The Trash is empty.</li>}
         </ul>
+        {paged.pager}
       </div>
     </div>
   );

@@ -1,5 +1,15 @@
 # HANDOFF — Homunculus 2
 
+## Pages, a lighter start, a sweep for lists drawn whole (2026-11-13) — CLAUDE — D-130
+
+- Daniel: 666 characters all at once, 5–10 s to open, Recent's "Show 1752 more", lorebooks/personas/presets all at once, a long chat name breaking the card's sheet; then "a complete sweep of the app for problems like this, focused on optimization, Linux is worse".
+- Built: pages (‹ 1 2 3 … ›, items per page) on Characters, the Vault, the Library lists and the Trash (`ui/Pager.tsx`, pref `perPage`, Settings → Library); "Show 25 more" steps in the sidebar and chat lists; capped sidebar search; the Add… window shows 60 at a time; long chat names cut; a lighter character list at start (no repeated texts from `original`); chat statistics kept between starts and read after the window shows; memoised per-render work in App and Sidebar; Settings → About → Last start (timing by step).
+- **To try (Windows):** close and open the app → Settings → About → "Last start" (send Claude the line if it still feels slow). Characters: pages at the bottom, the "48 per page" menu; Library → Lorebooks / Personas / Presets: pages under the list. Sidebar: Recent → "Show 25 more". Open a character with a long chat name: the sheet stays in place. Edit a card → Text → Compare… → Original Import still shows the imported card. Export a card: the PNG has everything.
+- First start after updating: the branch counts in the sidebar fill in after a few seconds (read once in the background, then kept).
+- Next if the "library" step is still slow: lorebooks read light at start.
+- Checks: typecheck; unit tests; full click suite.
+- Changelog line for the next release: "**Big libraries, fast**: Characters, Stories and every Library list now have pages (choose how many per page); the sidebar and chat lists show more 25 at a time instead of everything; starting the app reads much less (each card once, chat statistics remembered between starts), and Settings → About shows how long the start took. A long chat name no longer breaks the character's sheet."
+
 ## SillyTavern import and linked card folders — built (2026-11-13) — CLAUDE — D-128, D-129
 
 - Daniel approved the draft ("pode prosseguir e terminar"). Built the whole thing on the engine of D-125…D-127.

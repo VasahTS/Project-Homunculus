@@ -4649,3 +4649,28 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .lf-field b { font-weight: 500; color: var(--label-2); }
 .lf-field span { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 140px; overflow-y: auto; }
 .gallery-card.has-mark { position: relative; }
+/* a long chat name never widens the character's sheet (Daniel 11/13: "quando o nome do chat é muito grande buga a visualização") */
+.gallery-sheet, .gallery-sheet > * { min-width: 0; }
+.gallery-sheet { overflow-x: hidden; }
+.vs-actions > * { min-width: 0; max-width: 100%; }
+.btn.vs-continue { min-width: 0; max-width: 100%; overflow: hidden; }
+.btn.vs-continue > span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-rows, .chat-list { min-width: 0; }
+.sc-more-row { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.sc-left { margin-left: auto; padding-right: 8px; font-size: 11px; color: var(--label-3); font-variant-numeric: tabular-nums; }
+.cl-more-links { display: inline-flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.pk-more { display: block; padding: 8px 12px; text-align: left; }
+/* long lists draw only the rows on screen (D-130): lorebook entries, chats, Library lists */
+/* (not on rows that open a menu inside them: the paint containment would cut the menu off) */
+.master-list > li { content-visibility: auto; contain-intrinsic-block-size: auto 48px; }
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 12px 0 4px; grid-column: 1 / -1; }
+.pager-btn { min-width: 28px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--label-2); font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.pager-btn:hover:not(:disabled) { background: var(--fill); color: var(--label); }
+.pager-btn.on { background: var(--fill-selected); color: var(--label); font-weight: 600; }
+.pager-btn:disabled { opacity: 0.35; cursor: default; }
+.pager-gap { color: var(--label-3); padding: 0 2px; }
+.pager-count { margin-left: auto; color: var(--label-3); font-size: 12px; font-variant-numeric: tabular-nums; padding: 0 6px; }
+.pager-size { font-size: 12px; }
+.pager-top { display: block; height: 0; }
+.master-detail .pager, .lore-page .pager { padding: 8px 4px; }
+.master-detail .pager .pager-count { margin-left: 0; flex-basis: 100%; order: 2; padding: 4px 0 0; }

@@ -79,3 +79,27 @@ describe("the light character list (D-122)", () => {
     expect((await store.withFullOriginal(light!)).original).toEqual(card);
   });
 });
+
+describe("the light character list carries each card once (D-130)", () => {
+  const long = "a long description ".repeat(400);
+  const card = { spec: "chara_card_v2", spec_version: "2.0", data: {
+    name: "Mira", description: long, personality: "p ".repeat(300), scenario: "s ".repeat(300), first_mes: "hi ".repeat(300), mes_example: "ex ".repeat(400),
+    alternate_greetings: ["g1 ".repeat(200), "g2 ".repeat(200)], creator_notes: "notes ".repeat(200), system_prompt: "sys", post_history_instructions: "post",
+    create_date: "2024-01-05", tags: ["t"], extensions: { fav: true, world: "Old Roads", depth_prompt: { prompt: "note", depth: 4 }, regex_scripts: [{ scriptName: "r" }] } } };
+  it("leaves the repeated texts out, keeps what lists use, and gives the whole card back on save and export", async () => {
+    const { store } = await countingStore();
+    await store.saveCharacter({ id: "c1", name: "Mira", description: long, original: card });
+    const full = JSON.stringify(await store.getCharacter("c1"));
+    const [light] = await store.listCharactersLight();
+    expect(JSON.stringify(light).length).toBeLessThan(full.length * 0.6);
+    const data = (light!.original as { data: Record<string, unknown> }).data;
+    expect(data.extensions).toEqual(card.data.extensions);
+    expect(data.create_date).toBe("2024-01-05");
+    expect(data.description).toBeUndefined();
+    await store.saveCharacter({ ...light!, personality: "edited" });
+    const back = await store.getCharacter("c1");
+    expect(back!.personality).toBe("edited");
+    expect(back!.original).toEqual(card);
+    expect((await store.withFullOriginal(light!)).original).toEqual(card);
+  });
+});
