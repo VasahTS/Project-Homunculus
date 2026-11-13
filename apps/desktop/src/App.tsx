@@ -9,7 +9,7 @@ import { useGuardedNavigation, WorkToast } from "./ui/ux.tsx";
 import { backForwardOf, goMove, isClaimed, openLayers, pressEscape, recordMove, takeQuietScreen } from "./ui/back-button.ts";
 import { pageIn, slideTab } from "./ui/motion.ts";
 import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type Cue, type RegexScript, type AssistantReadKind } from "@homunculus/schemas";
-import { directorProfiles, bundleExtras, bundleFile, collectBundle, countsText, importBundle, parseBundle, type BundleRoot } from "@homunculus/core";
+import { directorProfiles, lorebookEntryCount, bundleExtras, bundleFile, collectBundle, countsText, importBundle, parseBundle, type BundleRoot } from "@homunculus/core";
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, importStLorebook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
 import { LorebookEditor } from "./ui/LorebookEditor.tsx";
@@ -155,6 +155,8 @@ async function renameOldStoryChats(s: AppServices) {
 
 /** Every chat's path length and branch count, kept between starts (D-130). */
 const CHAT_STATS_KEY = "chatStatsCache";
+/** The first read of the library, shared by the start's effect if React runs it twice (D-132). */
+let firstLoad: Promise<{ s: AppServices; p: Awaited<ReturnType<typeof loadPrefs>>; ss: Session[] }> | null = null;
 const NO_ROWS: ChatRow[] = [];
 
 export function App() {
@@ -581,7 +583,7 @@ export function App() {
     // D-122: one round of reads side by side (they used to wait for each other)
     // each read is timed during the start (Settings → About → Last start, D-130)
     const [ss, cs, ts, ps, def, tr, pr, books, loreSet, gRegex, okRegex, ags, cueList] = await Promise.all([bootPart("chats", s.store.listSessions()), bootPart("characters", s.store.listCharactersLight()), bootPart("trackers", listTrackers(s.store)),
-      bootPart("personas", s.store.personas.list()), s.store.getDefaultSetup(), bootPart("trash", s.store.listTrash()), bootPart("presets", s.store.presets.list()), bootPart("lorebooks", s.store.lorebooks.list()), s.store.getLoreSettings(),
+      bootPart("personas", s.store.personas.list()), s.store.getDefaultSetup(), bootPart("trash", s.store.listTrash()), bootPart("presets", s.store.presets.list()), bootPart("lorebooks", s.store.listLorebooksLight()), s.store.getLoreSettings(),
       bootPart("regex", s.store.getGlobalRegex()), s.store.getApprovedRegex(), bootPart("agents", listAgents(s.store)), bootPart("cues", listCues(s.store))]);
     void loadMessageLook(s.store);
     void loadAppearance(s.store);
@@ -607,7 +609,8 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    servicesReady.then(async (s) => {
+    // D-132: the library is read ONCE per start — React runs this twice in development, and both runs read everything
+    firstLoad ??= servicesReady.then(async (s) => {
       await bootPart("old chat names", renameOldStoryChats(s));
       const p = await bootPart("settings", loadPrefs(s.store));
       void loadChatOrganization(s.store);
@@ -615,6 +618,9 @@ export function App() {
       if (p.emptyTrashDays > 0) await bootPart("trash cleanup", s.store.emptyTrashOlderThan(Date.now() - p.emptyTrashDays * 86_400_000).catch(() => 0));
       const { ss } = await refresh(s);
       bootMark("library");
+      return { s, p, ss };
+    });
+    firstLoad.then(({ s, p, ss }) => {
       if (cancelled) return;
       setSvc(s);
       requestAnimationFrame(() => requestAnimationFrame(() => bootMark("shown")));
@@ -748,6 +754,15 @@ export function App() {
     void svc.store.getCharacter(editCharId).then((c) => { if (live) setEditFull(c ?? null); }).catch(() => { if (live) setEditFull(null); });
     return () => { live = false; };
   }, [svc, editCharId, characters]);
+  // ---- the lorebook being edited, whole (D-132: the list leaves the entries out)
+  const editBookId = view.kind === "lorebooks" && !view.draft && view.id ? view.id : null;
+  const [bookFull, setBookFull] = useState<Lorebook | null>(null);
+  useEffect(() => {
+    if (!svc || !editBookId) { setBookFull(null); return; }
+    let live = true;
+    void svc.store.lorebooks.get(editBookId).then((b) => { if (live) setBookFull(b ?? null); }).catch(() => { if (live) setBookFull(null); });
+    return () => { live = false; };
+  }, [svc, editBookId, lorebooks]);
   // ---- SillyTavern import (D-128) and linked card folders (D-129)
   const [stOpen, setStOpen] = useState(false);
   const stRun = useStImportRun();
@@ -1805,7 +1820,7 @@ export function App() {
     ...npcs.map((n) => ({ kind: "npc" as const, id: n.id, name: n.name, line: inFolder("npc", n.id, short(n.notes)) })),
     ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, line: inFolder("story", x.id, short(x.description || x.scenario)) })),
     ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, line: inFolder("kit", x.id, short(x.description || x.scenario)) })),
-    ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${b.entries.length} entries`) })),
+    ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${lorebookEntryCount(b)} entries`) })),
     ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help) })),
     ...presets.map((x) => ({ kind: "preset" as const, id: x.id, name: x.name, line: `${x.blocks.length} blocks` })),
     ...cues.map((x) => ({ kind: "cue" as const, id: x.id, name: x.name, line: x.help || `${x.groups.reduce((n, g) => n + g.items.length, 0)} texts` })),
@@ -1971,7 +1986,8 @@ export function App() {
         ) : null} />
     );
   } else if (view.kind === "lorebooks") {
-    const editing = view.draft ?? (view.id ? lorebooks.find((b) => b.id === view.id) : undefined);
+    // the whole book (with its entries) once read; the light one from the list is never edited (D-132)
+    const editing = view.draft ?? (view.id && bookFull?.id === view.id ? bookFull : undefined);
     content = (
       <LorebooksPage lead={backSession ? loreLead : pageLead} books={lorebooks} selectedId={view.draft ? null : view.id}
         globalIds={defaultSetup.lorebooks && defaultSetup.lorebooks.mode !== "keep" ? defaultSetup.lorebooks.add : []}

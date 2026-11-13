@@ -57,17 +57,26 @@ async fn pool(db: &PathBuf) -> Result<&'static SqlitePool, String> {
     }).await
 }
 
-/// The picture's type and bytes, or None when there is no such picture.
+/// The picture's type and bytes, or None when there is no such picture. D-132: a preview is read on its own (the full
+/// picture, ~1 MB, is read only when the full one is asked for, or when no preview exists yet).
 pub async fn read_picture(pool: &SqlitePool, copy: &Copy, key: &str) -> Result<Option<(String, Vec<u8>)>, String> {
-    let row: Option<(String, String, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT mime, data_base64, preview_mime, preview_base64 FROM character_avatars WHERE character_id = ?")
+    if *copy == Copy::Preview {
+        let row: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+            "SELECT preview_mime, preview_base64 FROM character_avatars WHERE character_id = ?")
+            .bind(key).fetch_optional(pool).await.map_err(|e| e.to_string())?;
+        match row {
+            None => return Ok(None),
+            Some((Some(pm), Some(p))) if !p.is_empty() => {
+                let bytes = base64::engine::general_purpose::STANDARD.decode(p.trim()).map_err(|e| e.to_string())?;
+                return Ok(Some((pm, bytes)));
+            }
+            _ => {} // no preview yet: the full picture stands in
+        }
+    }
+    let row: Option<(String, String)> = sqlx::query_as("SELECT mime, data_base64 FROM character_avatars WHERE character_id = ?")
         .bind(key).fetch_optional(pool).await.map_err(|e| e.to_string())?;
-    let Some((mime, full, preview_mime, preview)) = row else { return Ok(None) };
-    let (mime, data) = match (copy, preview_mime, preview) {
-        (Copy::Preview, Some(pm), Some(p)) if !p.is_empty() => (pm, p),
-        _ => (mime, full),
-    };
-    let bytes = base64::engine::general_purpose::STANDARD.decode(data.trim()).map_err(|e| e.to_string())?;
+    let Some((mime, full)) = row else { return Ok(None) };
+    let bytes = base64::engine::general_purpose::STANDARD.decode(full.trim()).map_err(|e| e.to_string())?;
     Ok(Some((mime, bytes)))
 }
 

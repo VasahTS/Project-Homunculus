@@ -40,6 +40,15 @@ function rowToMessage(r: MessageRow): Message {
 
 /** Marks a character read by `listCharactersLight` (its card's embedded lorebook left out); the value is its id. D-122. */
 const LIGHT_MARK = "__homunculusLightFrom";
+/** Marks a lorebook read by `listLorebooksLight` (its entries left out); the value says from where and how many. D-132. */
+const LIGHT_BOOK = "__homunculusLightBook";
+
+/** How many entries a lorebook has, also when it comes from the light list (D-132). */
+export function lorebookEntryCount(b: Pick<Lorebook, "entries" | "original">): number {
+  const o = b.original as Record<string, unknown> | undefined;
+  const mark = o && typeof o === "object" ? o[LIGHT_BOOK] as { entries?: number } | undefined : undefined;
+  return mark ? Number(mark.entries ?? 0) : b.entries.length;
+}
 
 /** A table of JSON documents validated by a schema (characters, personas, agents…). */
 class DocTable<S extends z.ZodType<{ id: string }>> {
@@ -376,7 +385,8 @@ export class SqlStore implements StateRepository, MessageTree {
    */
   async avatarVersions(since = 0): Promise<{ versions: Record<string, number>; ids: string[]; missing: string[]; latest: number }> {
     const rows = await this.db.select<{ character_id: string; updated_at: number; has_preview: number }>(
-      "SELECT character_id, updated_at, preview_base64 IS NOT NULL AS has_preview FROM character_avatars");
+      // only indexed columns (D-132: idx_avatars_versions), so no picture is read; a preview always has its type
+      "SELECT character_id, updated_at, preview_mime IS NOT NULL AS has_preview FROM character_avatars INDEXED BY idx_avatars_versions");
     const versions: Record<string, number> = {};
     const missing: string[] = [];
     let latest = since;
@@ -479,7 +489,49 @@ export class SqlStore implements StateRepository, MessageTree {
    * a save this soon after the last one replaces that last version in History instead of adding one, so a burst of
    * edits is one version and History keeps its older versions.
    */
+  /**
+   * The library's lorebooks for lists (D-132): without their entries (Daniel's 373 books held 11,727 entries, 47 MB read at
+   * start). Each carries a mark in `original` with how many entries it has (`lorebookEntryCount`); `saveLorebook` and
+   * `withFullLorebook` put the entries back from the database, so a book from this list can never lose them. A book whose
+   * `original` is not an object is read whole.
+   */
+  async listLorebooksLight(): Promise<Lorebook[]> {
+    let rows: Array<{ data: string; n: number | null; light: number | null }>;
+    try {
+      rows = await this.db.select<{ data: string; n: number | null; light: number | null }>(
+        `SELECT CASE WHEN json_type(data, '$.original') IS NULL OR json_type(data, '$.original') = 'object' THEN json_remove(data, '$.entries') ELSE data END AS data,
+                json_array_length(data, '$.entries') AS n,
+                json_type(data, '$.original') IS NULL OR json_type(data, '$.original') = 'object' AS light
+         FROM lorebooks WHERE trashed_at IS NULL ORDER BY name COLLATE NOCASE`);
+    } catch {
+      return this.lorebooks.list();
+    }
+    return rows.map((r) => {
+      const b = Lorebook.parse(JSON.parse(r.data));
+      if (!Number(r.light)) return b;
+      return { ...b, original: { ...((b.original as Record<string, unknown> | undefined) ?? {}), [LIGHT_BOOK]: { from: b.id, entries: Number(r.n ?? 0) } } as Lorebook["original"] };
+    });
+  }
+
+  /** A book from the light list made whole again (its entries read from the database). */
+  async withFullLorebook(b: Lorebook): Promise<Lorebook> {
+    return this.restoreLightBook(b);
+  }
+
+  private async restoreLightBook<T extends LorebookInput>(b: T): Promise<T> {
+    const o = b.original as Record<string, unknown> | undefined;
+    const mark = o && typeof o === "object" ? o[LIGHT_BOOK] as { from?: string } | undefined : undefined;
+    if (!mark) return b;
+    const { [LIGHT_BOOK]: _m, ...rest } = o!;
+    const original = Object.keys(rest).length ? rest : undefined;
+    // entries given (an editor that read the whole book) win; none given = the light list's empty ones: read them back
+    if (b.entries && b.entries.length) return { ...b, original } as T;
+    const [row] = await this.db.select<{ entries: string | null }>("SELECT json_extract(data, '$.entries') AS entries FROM lorebooks WHERE id = ?", [String(mark.from ?? b.id)]);
+    return { ...b, original, entries: row?.entries ? JSON.parse(row.entries) : [] } as T;
+  }
+
   async saveLorebook(input: LorebookInput, opts: { mergeHistoryWithinMs?: number; isNew?: boolean } = {}): Promise<Lorebook> {
+    input = await this.restoreLightBook(input);
     if (opts.isNew) {
       const b = await this.lorebooks.save(input);
       await this.recordFirstVersion("lorebook", b.id, b);

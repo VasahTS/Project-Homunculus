@@ -1494,3 +1494,13 @@ Daniel's "Last start" after D-130: "7.2 s · window 0.8 · database 0.3 · setup
 - Tests: `e2e/diagnostics.e2e.ts`.
 
 Signed: **CLAUDE**.
+
+## D-132 — Daniel's diagnostic report: lorebooks without entries at start, pictures rebuilt small-first, the start read once (2026-11-13)
+
+Daniel's report (D-131): start 8.8 s, library 6.1; slowest reads: lorebooks 4.8 (373 books, 11,727 entries, 47 MB), "stories & folders & pictures" 1.9 (pictures list 0.8 s), characters 1.2, presets 1.1 — each listed twice.
+- **The start read the library twice**: React runs the start's effect twice in development (Daniel runs the app from the code), and both runs read everything. The first read is now shared (`firstLoad`).
+- **Lorebooks without their entries at start** (`SqlStore.listLorebooksLight`, `lorebookEntryCount`, `withFullLorebook`): the list carries a mark in `original` with the entry count; `saveLorebook` puts the entries back from the database when a book from the list is saved with none (an editor that read the whole book saves its own). The lorebook editor reads the whole book when it opens (`bookFull`); counts in Library → Lorebooks and the Assistant come from the mark. Test: a rename from the list keeps all 40 entries and `original`.
+- **Pictures, small columns first (migration 13)**: `updated_at` and the preview sat after the full picture in each row, so listing which pictures exist and reading each 35 KB preview walked through the ~1 MB picture. The table is rebuilt once (`character_id, updated_at, preview_mime, preview_base64, mime, data_base64`) with an index for the list (`idx_avatars_versions`; `avatarVersions` uses only indexed columns). `h2pic` reads a preview on its own, the full picture only when asked or when no preview exists. The database is backed up before the migration as always (a copy of the whole file: the first start after updating takes longer once). Test: every picture and preview survives the rebuild.
+- Left: presets (60, 1.1 s at start — they keep the whole SillyTavern file in `original`) and the character list's own texts; next if the new report still points at them.
+
+Signed: **CLAUDE**.

@@ -159,4 +159,18 @@ export const coreMigrations: Migration[] = [
       "ALTER TABLE character_avatars ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0",
     ],
   },
+  {
+    version: 13,
+    name: "which pictures exist, without reading them (D-132)",
+    statements: [
+      // updated_at and the preview sat AFTER the full picture in each row, so listing which pictures exist, or reading one
+      // small preview, walked through the whole picture's data (Daniel: 963 MB of pictures, 0.8 s just to list them, ~1 MB
+      // read for each 35 KB preview). The table is rebuilt once with the small columns first, and an index answers the list.
+      "CREATE TABLE character_avatars_v13 (character_id TEXT PRIMARY KEY, updated_at INTEGER NOT NULL DEFAULT 0, preview_mime TEXT, preview_base64 TEXT, mime TEXT NOT NULL, data_base64 TEXT NOT NULL)",
+      "INSERT INTO character_avatars_v13 (character_id, updated_at, preview_mime, preview_base64, mime, data_base64) SELECT character_id, updated_at, preview_mime, preview_base64, mime, data_base64 FROM character_avatars",
+      "DROP TABLE character_avatars",
+      "ALTER TABLE character_avatars_v13 RENAME TO character_avatars",
+      "CREATE INDEX idx_avatars_versions ON character_avatars(character_id, updated_at, preview_mime)",
+    ],
+  },
 ];

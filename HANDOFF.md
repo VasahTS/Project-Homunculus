@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## Daniel's diagnostic report: lighter lorebooks, pictures rebuilt, the start read once (2026-11-13) — CLAUDE — D-132
+
+- From Daniel's report (start 8.8 s; lorebooks 4.8 s / 47 MB; pictures list 0.8 s; every read twice): the start's library read is shared (React ran it twice in development); lorebooks are read without entries at start (the editor reads the whole book); migration 13 rebuilds the pictures table with the small columns first + an index (previews no longer read the full picture).
+- **To try (Windows):** close the app → Pull origin → open it. **The first start takes longer once** (the database is backed up — a copy of ~1.3 GB — and the pictures table is rebuilt). Then close and open again → Settings → About → Last start, and Create Report → send it. Check: Library → Lorebooks shows each book's entry count; open a book: its entries are there; rename a book: its entries stay. Pictures still show everywhere; export a card: full picture.
+- Checks: typecheck; unit tests (913); native tests (42); full click suite (one timing test failed only in parallel, passes alone).
+
 ## Diagnostic report; the picture check no longer holds the start back (2026-11-13) — CLAUDE — D-131
 
 - Daniel's Last start: 7.2 s, of which "library 6.0". Found: the picture-by-address check waited up to 4 s before the first screen; now in the background. Last start also lists the slowest reads.

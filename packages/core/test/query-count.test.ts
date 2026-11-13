@@ -1,7 +1,7 @@
 // D-122: a long chat costs a few queries, not one per message (the desktop app pays a round trip for every query).
 import { describe, expect, it } from "vitest";
 import initSqlJs from "sql.js";
-import { SqlJsDriver, SqlStore, WorldState, coreMigrations, migrate, type SqlDriver } from "../src/index.ts";
+import { SqlJsDriver, SqlStore, WorldState, coreMigrations, lorebookEntryCount, migrate, type SqlDriver } from "../src/index.ts";
 
 async function countingStore() {
   const SQL = await initSqlJs();
@@ -101,5 +101,49 @@ describe("the light character list carries each card once (D-130)", () => {
     expect(back!.personality).toBe("edited");
     expect(back!.original).toEqual(card);
     expect((await store.withFullOriginal(light!)).original).toEqual(card);
+  });
+});
+
+describe("the light lorebook list (D-132)", () => {
+  const entries = Array.from({ length: 40 }, (_, i) => ({ id: `e${i}`, keys: [`k${i}`], content: "lore ".repeat(200) }));
+  it("leaves the entries out, counts them, and never loses them on save", async () => {
+    const { store } = await countingStore();
+    await store.saveLorebook({ id: "b1", name: "Old Roads", entries, original: { scan_depth: 4 } } as never);
+    await store.saveLorebook({ id: "b2", name: "Plain", entries: entries.slice(0, 2) } as never);
+    const list = await store.listLorebooksLight();
+    const b1 = list.find((b) => b.id === "b1")!;
+    expect(b1.entries).toEqual([]);
+    expect(lorebookEntryCount(b1)).toBe(40);
+    expect(lorebookEntryCount(list.find((b) => b.id === "b2")!)).toBe(2);
+    // renaming from the list (a copy of the light one) keeps every entry and the original as it was
+    await store.saveLorebook({ ...b1, name: "Older Roads" });
+    const back = await store.lorebooks.get("b1");
+    expect(back!.name).toBe("Older Roads");
+    expect(back!.entries).toHaveLength(40);
+    expect(back!.original).toEqual({ scan_depth: 4 });
+    expect((await store.withFullLorebook(b1)).entries).toHaveLength(40);
+    // an editor that read the whole book saves its own entries
+    await store.saveLorebook({ ...b1, entries: entries.slice(0, 3) });
+    expect((await store.lorebooks.get("b1"))!.entries).toHaveLength(3);
+  });
+});
+
+describe("pictures: the small columns first (D-132, migration 13)", () => {
+  it("keeps every picture and preview through the rebuild, and lists them from the index", async () => {
+    const SQL = await initSqlJs();
+    const db = new SqlJsDriver(new SQL.Database());
+    await migrate(db, coreMigrations.filter((m) => m.version <= 12));
+    await db.execute("INSERT INTO character_avatars (character_id, mime, data_base64, preview_mime, preview_base64, updated_at) VALUES (?, ?, ?, ?, ?, ?)", ["c1", "image/png", "FULL", "image/jpeg", "PREV", 5]);
+    await db.execute("INSERT INTO character_avatars (character_id, mime, data_base64, preview_mime, preview_base64, updated_at) VALUES (?, ?, ?, ?, ?, ?)", ["c2", "image/png", "FULL2", null, null, 7]);
+    expect(await migrate(db, coreMigrations)).toEqual([13]);
+    const cols = (await db.select<{ name: string }>("SELECT name FROM pragma_table_info('character_avatars')")).map((c) => c.name);
+    expect(cols).toEqual(["character_id", "updated_at", "preview_mime", "preview_base64", "mime", "data_base64"]);
+    const store = new SqlStore(db);
+    expect(await store.getAvatar("c1")).toEqual({ mime: "image/png", base64: "FULL" });
+    const v = await store.avatarVersions(0);
+    expect(v.versions).toEqual({ c1: 5, c2: 7 });
+    expect(v.missing).toEqual(["c2"]);
+    const p = await store.avatarPreviews(0);
+    expect(p.previews.c1).toEqual({ mime: "image/jpeg", base64: "PREV" });
   });
 });

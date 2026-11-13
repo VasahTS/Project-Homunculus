@@ -3,6 +3,7 @@
 // Characters and Trackers share this master-detail shape; future library kinds (personas, lorebooks,
 // presets, agents) reuse it.
 import { usePaged } from "./Pager.tsx";
+import { lorebookEntryCount } from "@homunculus/core";
 import { quietNextScreen } from "./back-button.ts";
 import { dragItem } from "./Folders.tsx";
 import { ImportButton } from "./BundleButtons.tsx";
@@ -332,7 +333,7 @@ export function LorebooksPage({ lead, tabs, books, usedBy, selectedId, importHel
                   <span className="side-icon big"><Icon name="book" /></span>
                   <span className="side-text">
                     <strong>{b.name}</strong>
-                    <span>{[searching ? folderOf?.(b.id) : "", `${b.entries.length} entr${b.entries.length === 1 ? "y" : "ies"}`, usedBy[b.id] || "not used", from(b)].filter(Boolean).join(" · ")}</span>
+                    <span>{[searching ? folderOf?.(b.id) : "", `${lorebookEntryCount(b)} entr${lorebookEntryCount(b) === 1 ? "y" : "ies"}`, usedBy[b.id] || "not used", from(b)].filter(Boolean).join(" · ")}</span>
                   </span>
                 </button>
               </li>
