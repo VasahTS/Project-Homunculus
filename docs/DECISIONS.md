@@ -1484,3 +1484,13 @@ Daniel (translated): "pagination doesn't seem to work, it shows all my 666 chara
 - Tests: `query-count.test.ts` (the light list carries each card once and gives the whole card back); full click suite.
 
 Signed: **CLAUDE**.
+
+## D-131 — Diagnostic report; the picture check no longer holds the start back (2026-11-13)
+
+Daniel's "Last start" after D-130: "7.2 s · window 0.8 · database 0.3 · setup 0.1 · library 6.0", "still a bit slow". Then: "wouldn't a kind of diagnostic tool make sense? I can test here or on any other PC with it and get a report of the app".
+- **The picture check (D-124 safety net) ran before the first screen**: one picture loaded by address, waiting up to 4 s, while the database was busy with every read of the start. It now runs in the background after the window shows; if it fails, pictures go back to data then.
+- **Last start** lists the slowest reads of the start too ("slowest reads: lorebooks 3.1 · characters 1.2 …", `bootPart`), and each step is counted once.
+- **Settings → About → Diagnostics → Create Report** (`diagnostics.ts`, `SqlStore.diagnostics()`): the system (app or preview, engine, platform, processors, window, data folder kind, interface size, items per page, Light effects), this start's steps and slowest reads, counts and sizes of every part of the library (characters and their `original`, chats, messages, branches, lorebooks and entries, pictures and previews, saved versions, agent runs, reply records, snapshots, the database file), each read of the start measured again one after another with its size, and the screen (elements, pictures, script memory, idle frame time). Copy or Save as File…. **Only numbers**: no name, text, message or key (a click test checks that a character's name and a message never appear). Works on any computer (the Linux friend too).
+- Tests: `e2e/diagnostics.e2e.ts`.
+
+Signed: **CLAUDE**.

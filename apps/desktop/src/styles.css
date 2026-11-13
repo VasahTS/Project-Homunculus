@@ -4674,3 +4674,7 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .pager-top { display: block; height: 0; }
 .master-detail .pager, .lore-page .pager { padding: 8px 4px; }
 .master-detail .pager .pager-count { margin-left: 0; flex-basis: 100%; order: 2; padding: 4px 0 0; }
+.diag { display: grid; gap: 8px; justify-items: end; width: 100%; }
+.diag-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.diag-note { color: var(--label-2); }
+.diag-report { width: 100%; min-height: 260px; font: 11.5px/1.5 var(--font-mono); white-space: pre; overflow: auto; resize: vertical; }

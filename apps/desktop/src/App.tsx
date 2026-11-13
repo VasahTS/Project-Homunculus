@@ -66,7 +66,7 @@ import { OPEN_CHAT_EVENT } from "./ui/MessageText.tsx";
 import { playReplySound } from "./sounds.ts";
 import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
-import { bootMark } from "./bootTiming.ts";
+import { bootMark, bootPart } from "./bootTiming.ts";
 import { nativeFolder, pickFolder, type PickedFolder } from "./stFolder.ts";
 import { checkLinkedFolder, fileOf, keepAsOwn, linkedStatuses, listLinkedFolders, readIndex, resolveLinked, unlinkFolder, compareLinked, type LinkedIndex } from "./linkedCards.ts";
 import { StImportBar, StImportReport, StImportWindow, stImportRun, useStImportRun } from "./ui/StImport.tsx";
@@ -449,13 +449,18 @@ export function App() {
       setWork((w) => (w?.id === "pictures" ? null : w));
     }
   }, []);
+  const loadPicturesRef = useRef<((s: AppServices) => Promise<void>) | null>(null);
   const loadPictures = useCallback(async (s: AppServices) => {
     if (picturesByAddress() && !addressChecked.current) {
-      // the first time: make sure one real picture loads by address; if not, pictures go back to data (safety net)
-      const v0 = await s.store.avatarVersions(0);
-      const probe = v0.ids[0];
-      if (probe && !(await addressWorks(probe, v0.versions[probe] ?? 0))) stopPictureAddresses();
-      addressChecked.current = !!probe;
+      // the first time: make sure one real picture loads by address; if not, pictures go back to data (safety net).
+      // D-130: checked in the background — waiting for it (up to 4 s) held the first screen back
+      addressChecked.current = true;
+      void (async () => {
+        const v0 = await s.store.avatarVersions(0);
+        const probe = v0.ids[0];
+        if (!probe) { addressChecked.current = false; return; }
+        if (!(await addressWorks(probe, v0.versions[probe] ?? 0))) { stopPictureAddresses(); pictureSince.current = 0; void loadPicturesRef.current?.(s); }
+      })();
     }
     if (picturesByAddress()) {
       // D-124 (desktop): no picture data at all, just which pictures exist and their version; the WebView loads each
@@ -491,6 +496,7 @@ export function App() {
     });
     if (missing.size) void fillPreviews(s, [...missing]);
   }, [fillPreviews]);
+  loadPicturesRef.current = loadPictures;
 
   /** Stories, narrators and NPCs (the Vault). */
   const refreshVault = useCallback(async (s: AppServices) => {
@@ -573,9 +579,10 @@ export function App() {
 
   const refresh = useCallback(async (s: AppServices) => {
     // D-122: one round of reads side by side (they used to wait for each other)
-    const [ss, cs, ts, ps, def, tr, pr, books, loreSet, gRegex, okRegex, ags, cueList] = await Promise.all([s.store.listSessions(), s.store.listCharactersLight(), listTrackers(s.store),
-      s.store.personas.list(), s.store.getDefaultSetup(), s.store.listTrash(), s.store.presets.list(), s.store.lorebooks.list(), s.store.getLoreSettings(),
-      s.store.getGlobalRegex(), s.store.getApprovedRegex(), listAgents(s.store), listCues(s.store)]);
+    // each read is timed during the start (Settings → About → Last start, D-130)
+    const [ss, cs, ts, ps, def, tr, pr, books, loreSet, gRegex, okRegex, ags, cueList] = await Promise.all([bootPart("chats", s.store.listSessions()), bootPart("characters", s.store.listCharactersLight()), bootPart("trackers", listTrackers(s.store)),
+      bootPart("personas", s.store.personas.list()), s.store.getDefaultSetup(), bootPart("trash", s.store.listTrash()), bootPart("presets", s.store.presets.list()), bootPart("lorebooks", s.store.lorebooks.list()), s.store.getLoreSettings(),
+      bootPart("regex", s.store.getGlobalRegex()), s.store.getApprovedRegex(), bootPart("agents", listAgents(s.store)), bootPart("cues", listCues(s.store))]);
     void loadMessageLook(s.store);
     void loadAppearance(s.store);
     void loadQuickReplies(s.store);
@@ -594,18 +601,18 @@ export function App() {
     setAgents(ags);
     setCues(cueList);
     cueNames.clear(); for (const c of cueList) cueNames.set(c.id, c.name);
-    await Promise.all([refreshVault(s), loadChatStats(s, ss)]);
+    await Promise.all([bootPart("stories & folders & pictures", refreshVault(s)), bootPart("chat lines", loadChatStats(s, ss))]);
     return { ss, cs };
   }, [refreshVault, loadChatStats]);
 
   useEffect(() => {
     let cancelled = false;
     servicesReady.then(async (s) => {
-      await renameOldStoryChats(s);
-      const p = await loadPrefs(s.store);
+      await bootPart("old chat names", renameOldStoryChats(s));
+      const p = await bootPart("settings", loadPrefs(s.store));
       void loadChatOrganization(s.store);
       // Settings → Data (D-082): items in the Trash longer than chosen leave for good (ones still in use stay)
-      if (p.emptyTrashDays > 0) await s.store.emptyTrashOlderThan(Date.now() - p.emptyTrashDays * 86_400_000).catch(() => 0);
+      if (p.emptyTrashDays > 0) await bootPart("trash cleanup", s.store.emptyTrashOlderThan(Date.now() - p.emptyTrashDays * 86_400_000).catch(() => 0));
       const { ss } = await refresh(s);
       bootMark("library");
       if (cancelled) return;

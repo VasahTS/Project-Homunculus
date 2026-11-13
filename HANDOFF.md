@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Diagnostic report; the picture check no longer holds the start back (2026-11-13) — CLAUDE — D-131
+
+- Daniel's Last start: 7.2 s, of which "library 6.0". Found: the picture-by-address check waited up to 4 s before the first screen; now in the background. Last start also lists the slowest reads.
+- Daniel's idea: **Settings → About → Diagnostics → Create Report** — a plain-text report of numbers (system, counts and sizes, each read timed, screen) to copy or save, from any computer. No names or texts.
+- **To try (Windows):** close and open the app → Settings → About: Last start (should be shorter) and "slowest reads" → Create Report → Copy → paste it to Claude. The friend on Linux can do the same.
+- **Next:** decide from the report (likely lorebooks read light at start, or the character list without its long texts).
+- Checks: typecheck; unit tests; click tests `diagnostics` (new), `settings-v2`, `big-library`, `cards`, `navigation`.
+
 ## Pages, a lighter start, a sweep for lists drawn whole (2026-11-13) — CLAUDE — D-130
 
 - Daniel: 666 characters all at once, 5–10 s to open, Recent's "Show 1752 more", lorebooks/personas/presets all at once, a long chat name breaking the card's sheet; then "a complete sweep of the app for problems like this, focused on optimization, Linux is worse".

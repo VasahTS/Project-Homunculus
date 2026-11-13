@@ -1125,6 +1125,46 @@ export class SqlStore implements StateRepository, MessageTree {
       [kind, itemId, kind, itemId, SqlStore.HISTORY_LIMIT]);
   }
 
+  /**
+   * Numbers for a diagnostic report (D-131): how many rows and how many bytes each part of the library holds. Only counts
+   * and sizes — never a name or a text. A query a database can't run is left out.
+   */
+  async diagnostics(): Promise<Array<{ label: string; value: number }>> {
+    const out: Array<{ label: string; value: number }> = [];
+    const one = async (label: string, sql: string) => {
+      try {
+        const [row] = await this.db.select<{ v: number | null }>(sql);
+        out.push({ label, value: Number(row?.v ?? 0) });
+      } catch { /* not in this database */ }
+    };
+    await one("characters", "SELECT COUNT(*) AS v FROM characters WHERE trashed_at IS NULL");
+    await one("characters: bytes", "SELECT SUM(LENGTH(data)) AS v FROM characters");
+    await one("characters: bytes of original", "SELECT SUM(LENGTH(json_extract(data, '$.original'))) AS v FROM characters");
+    await one("chats", "SELECT COUNT(*) AS v FROM sessions WHERE trashed_at IS NULL");
+    await one("chats: bytes", "SELECT SUM(LENGTH(data)) AS v FROM sessions");
+    await one("messages", "SELECT COUNT(*) AS v FROM messages");
+    await one("messages: bytes", "SELECT SUM(LENGTH(content)) + SUM(LENGTH(meta)) AS v FROM messages");
+    await one("branches", "SELECT COUNT(*) AS v FROM branches");
+    await one("lorebooks", "SELECT COUNT(*) AS v FROM lorebooks WHERE trashed_at IS NULL");
+    await one("lorebook entries", "SELECT SUM(json_array_length(data, '$.entries')) AS v FROM lorebooks WHERE trashed_at IS NULL");
+    await one("lorebooks: bytes", "SELECT SUM(LENGTH(data)) AS v FROM lorebooks");
+    await one("personas", "SELECT COUNT(*) AS v FROM personas WHERE trashed_at IS NULL");
+    await one("presets", "SELECT COUNT(*) AS v FROM presets WHERE trashed_at IS NULL");
+    await one("stories", "SELECT COUNT(*) AS v FROM stories WHERE trashed_at IS NULL");
+    await one("pictures", "SELECT COUNT(*) AS v FROM character_avatars");
+    await one("pictures: bytes (full)", "SELECT SUM(LENGTH(data_base64)) AS v FROM character_avatars");
+    await one("pictures: bytes (previews)", "SELECT SUM(LENGTH(preview_base64)) AS v FROM character_avatars");
+    await one("pictures without a preview", "SELECT COUNT(*) AS v FROM character_avatars WHERE preview_base64 IS NULL OR preview_base64 = ''");
+    await one("saved versions (history)", "SELECT COUNT(*) AS v FROM item_history");
+    await one("saved versions: bytes", "SELECT SUM(LENGTH(data)) AS v FROM item_history");
+    await one("agent runs", "SELECT COUNT(*) AS v FROM agent_runs");
+    await one("reply records", "SELECT COUNT(*) AS v FROM generation_records");
+    await one("world-state snapshots", "SELECT COUNT(*) AS v FROM state_snapshots");
+    await one("app settings: bytes", "SELECT SUM(LENGTH(value)) AS v FROM app_settings");
+    await one("database file: bytes", "SELECT page_count * page_size AS v FROM pragma_page_count(), pragma_page_size()");
+    return out;
+  }
+
   /** The first version of an item just made (no history yet, nothing to read or trim). D-125. */
   private async recordFirstVersion(kind: HistoryKind, itemId: string, after: unknown): Promise<void> {
     await this.db.execute("INSERT INTO item_history (id, kind, item_id, data, created_at) VALUES (?, ?, ?, ?, ?)",
