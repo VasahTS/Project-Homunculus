@@ -4570,3 +4570,12 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 :root[data-light="on"] .glass { backdrop-filter: none; -webkit-backdrop-filter: none; }
 :root[data-light="on"] .help-pop, :root[data-light="on"] .who-pop, :root[data-light="on"] .more-pop, :root[data-light="on"] .play-pop { background: var(--window); backdrop-filter: none; -webkit-backdrop-filter: none; }
 :root[data-light="on"] .sheet-scrim, :root[data-light="on"] .agent-try::backdrop, :root[data-light="on"] .ce-jump { backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* D-124: placeholders while something is read (the chat's messages, the library on first start) */
+.msg.skeleton { pointer-events: none; }
+.msg.skeleton .msg-body { display: grid; gap: 8px; width: min(560px, 100%); }
+.sk-line { display: block; height: 10px; border-radius: 5px; background: var(--fill); animation: sk-pulse 1.4s ease-in-out infinite; }
+.sk-line.short { width: 24%; height: 9px; }
+.sk-line.mid { width: 62%; }
+.msg.skeleton.user .msg-body { justify-self: end; width: min(360px, 80%); }
+@keyframes sk-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+:root[data-motion="off"] .sk-line { animation: none; }

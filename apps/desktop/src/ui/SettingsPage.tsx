@@ -12,7 +12,7 @@ import { keyNameOf, needsKey, newProfile, suggestName, type ConnectionState } fr
 import { cachedModels, ModelPicker, modelMeta } from "./ModelPicker.tsx";
 import type { Tracker } from "../trackers.ts";
 import { ConfirmButton, Help } from "./Help.tsx";
-import { Button, Group, Icon, Row, Segmented, SettingsLook, Switch } from "./kit.tsx";
+import { Button, Group, Icon, Row, Segmented, SettingsLook, Switch, SaveButton } from "./kit.tsx";
 import { ChatSection, DataSection, GeneralSection } from "./SettingsSections.tsx";
 import { useSlidingPill } from "./motion.ts";
 import { AuthorsNoteGroup } from "./AuthorsNote.tsx";
@@ -375,7 +375,7 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
         {result && <div className={`test-result ${result.ok ? "ok" : "bad"}`} role="status" data-testid="test-result">{result.ok ? "✓ " : "✗ "}{result.text}</div>}
         {error && <div className="error-bar inline" role="alert">{error}</div>}
         <div className="editor-actions">
-          <button className="btn btn-prominent" onClick={() => void save()}>{isNew ? "Create Connection" : "Save"}</button>
+          <SaveButton label={isNew ? "Create Connection" : "Save"} onSave={save} />
           {saved && !dirty && <span className="ok-text">✓ Saved</span>}
           <Button onClick={() => void runTest()} disabled={testing}>{testing ? "Testing…" : "Test Connection"}</Button>
           <Help text="Sends a tiny message ('Reply with just the word OK') with these settings, even before saving. It uses a few tokens." />

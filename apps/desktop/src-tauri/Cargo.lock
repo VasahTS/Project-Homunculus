@@ -1746,7 +1746,7 @@ dependencies = [
 
 [[package]]
 name = "homunculus"
-version = "0.2.0"
+version = "0.4.5"
 dependencies = [
  "base64 0.22.1",
  "keyring",
@@ -1754,6 +1754,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "sqlx",
  "tauri",
  "tauri-build",
  "tauri-plugin-notification",
@@ -1761,6 +1762,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-sql",
  "tauri-plugin-updater",
+ "tokio",
 ]
 
 [[package]]

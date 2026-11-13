@@ -16,7 +16,7 @@ import { effectiveCharacter, variantAvatarId, type CharacterExporter } from "@ho
 import { avatarUrl } from "../files.ts";
 import { cardSections, cleanGreetings } from "../cardSections.ts";
 import { Help } from "./Help.tsx";
-import { Button, IconButton, Icon, RiseText, Segmented } from "./kit.tsx";
+import { Button, IconButton, Icon, RiseText, Segmented, SaveButton } from "./kit.tsx";
 import { CASCADE, enter, useSlidingPill } from "./motion.ts";
 import { AutoText, Greetings, tokensText } from "./Greetings.tsx";
 import { FieldLabel, HistoryList, pruneVariants, useVersionedDraft, VersionBar, type HistoryField } from "./Versions.tsx";
@@ -629,7 +629,7 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
         </span>
         {exists && <button type="button" className="btn btn-bordered" title={`Start a chat with ${shownName === "?" ? "them" : shownName}${v.variant ? ` (${v.variant.label})` : ""}`}
           onClick={() => onStartSession(draft, variantId)}>Chat Now</button>}
-        <button type="button" className="btn btn-prominent" title="Ctrl+S" onClick={() => void save()}>{isNew && !saved ? "Create Character" : "Save"}</button>
+        <SaveButton label={isNew && !saved ? "Create Character" : "Save"} title="Ctrl+S" onSave={save} />
         <IconButton label="Close" onClick={onClose}><Icon name="close" size={14} /></IconButton>
       </div>
       {error && <div className="error-bar inline ce-error" role="alert">{error}</div>}

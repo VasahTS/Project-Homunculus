@@ -265,3 +265,20 @@ export function AutoText({ value, onEnter, maxShare = 0.5, className = "", ...re
   return <textarea ref={ref} rows={1} value={value} className={`auto-text ${className}`.trim()} {...rest}
     onKeyDown={(e) => { if (onEnter && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onEnter(); } rest.onKeyDown?.(e); }} />;
 }
+
+
+/**
+ * A Save button that says "Saving…" while the save runs (shown only past 150 ms, so quick saves don't flicker) and can't
+ * be pressed twice meanwhile. Its accessible name stays the label. D-124.
+ */
+export function SaveButton({ label, onSave, title, className = "btn btn-prominent" }: { label: string; onSave: () => unknown; title?: string; className?: string }) {
+  const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState(false);
+  const click = async () => {
+    if (busy) return;
+    setBusy(true);
+    const t = setTimeout(() => setShow(true), 150);
+    try { await onSave(); } finally { clearTimeout(t); setBusy(false); setShow(false); }
+  };
+  return <button type="button" className={className} title={title} aria-label={label} aria-busy={busy || undefined} disabled={show} onClick={() => void click()}>{show ? "Saving…" : label}</button>;
+}

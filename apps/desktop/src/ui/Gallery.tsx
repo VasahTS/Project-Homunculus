@@ -58,7 +58,16 @@ export function CardPicture({ name, avatar, className = "", full = false }: { na
 }
 
 /** Rough size of a card in the prompt: what a session sends of it. */
+const tokenCache = new WeakMap<Character, number>();
 export function cardTokens(c: Character): number {
+  // worked out once per version of a card (D-124, like Marinara's catalog): the grid and the sort ask for it often
+  const hit = tokenCache.get(c);
+  if (hit !== undefined) return hit;
+  const n = countCardTokens(c);
+  tokenCache.set(c, n);
+  return n;
+}
+function countCardTokens(c: Character): number {
   return estimateTokens([c.description, c.personality, c.scenario, c.systemPrompt, c.postHistoryInstructions, c.exampleMessages, c.firstMessages[0] ?? ""].join("\n"));
 }
 

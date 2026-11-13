@@ -92,3 +92,5 @@ Daniel (translated): "look at how each app is optimized for these heavy loads �
 | Database | — | — | WAL, busy timeout, `PRAGMA foreign_keys` | WAL and busy timeout come with the SQL plugin (sqlx defaults) |
 
 Next ideas, in order of value: pictures as cached URLs through a Tauri protocol; a native batch/transaction command (imports, the writes of a turn); the catalog's cached token counts and search text.
+
+Done in D-124: pictures by address (`h2pic://`), cached token counts, immediate feedback (skeleton while a chat is read, instant rename/Trash for chats, "Saving…"). Still an idea: a native batch/transaction command for imports.

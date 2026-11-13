@@ -932,6 +932,12 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               );
             })}
             {noteAt !== null && noteAt >= visible.length && visible.length > 0 && noteMark}
+            {/* D-124: while the chat is read, the shape of messages instead of an empty page */}
+            {headId === undefined && !pending && [0, 1, 2].map((i) => (
+              <li key={`sk${i}`} className={`msg skeleton${i === 1 ? " user" : ""}`} aria-hidden data-testid="message-skeleton">
+                <div className="msg-body"><span className="sk-line short" /><span className="sk-line" /><span className="sk-line" /><span className="sk-line mid" /></div>
+              </li>
+            ))}
             {path.length === 0 && !busy && headId !== undefined && (
               <li className="empty-chat">No messages yet. Write the first one below.</li>
             )}

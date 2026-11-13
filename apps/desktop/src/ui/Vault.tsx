@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, TrackerField, TrackerSchema, UserRole } from "@homunculus/schemas";
 import { blocksText, narratorBlocks, narratorText, npcSheetFields, npcTagline, type ListItem } from "@homunculus/core";
 import { ConfirmButton, Help } from "./Help.tsx";
-import { Button, Icon, IconButton, Switch } from "./kit.tsx";
+import { Button, Icon, IconButton, Switch, SaveButton } from "./kit.tsx";
 import { CardPicture, GalleryCard, SheetSection, SpoilerGate, type VaultTab } from "./Gallery.tsx";
 import { VirtualCards, VIRTUAL_FROM } from "./VirtualCards.tsx";
 import { StoryMark } from "./Sidebar.tsx";
@@ -354,7 +354,7 @@ export function NarratorEditor({ narrator, usedBy, avatar, onImage, onSave, onTr
           <span className="hint">{narrator.builtin ? "Comes with Homunculus. " : ""}{usedBy.length ? `Tells ${usedBy.map((n) => `“${n}”`).join(", ")}` : "Not used by a story yet"}</span></div>
         <span className="spacer" />
         {saved && <span className="ok-text">✓ Saved</span>}
-        <Button variant="prominent" onClick={() => void save()}>Save</Button>
+        <SaveButton label="Save" onSave={save} />
         <Button onClick={onDuplicate}>Duplicate</Button>
         {onExport && <Button onClick={() => void save().then((ok) => { if (ok) onExport(); })} data-testid="narrator-export" title="Save this narrator to a file, to keep or share">Export</Button>}
         {!narrator.builtin && <Button variant="destructive" small onClick={() => void onTrash().catch((e) => setError(errorText(e)))}>Move to Trash</Button>}
@@ -472,7 +472,7 @@ export function NpcEditor({ npc, fieldSets, stories, alsoIn, avatar, onImage, on
       <label><span className="field-label label-row">Notes <Help text="Your own notes. Not sent to the AI." /></span><textarea rows={2} aria-label="Notes" value={draft.notes} onChange={(e) => change({ notes: e.target.value })} /></label>
       {error && <div className="error-bar inline" role="alert">{error}</div>}
       <div className="vs-actions">
-        <Button variant="prominent" onClick={() => void save()}>Save</Button>
+        <SaveButton label="Save" onSave={save} />
         {saved && <span className="ok-text">✓ Saved</span>}
         {onCopy && <Button onClick={onCopy} title="A copy that changes on its own (e.g. this story's version of the NPC)">Make a Copy</Button>}
         {onExport && <Button onClick={() => void save().then((ok) => { if (ok) onExport(); })} data-testid="npc-export" title="Save this NPC to a file, to keep or share">Export</Button>}

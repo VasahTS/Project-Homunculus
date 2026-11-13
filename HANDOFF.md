@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Performance session, part 3 (2026-11-13) — CLAUDE — D-124
+
+- Daniel: "no draft needed, finish the rest; take the best of the other apps". Done: **pictures by address** (`h2pic://`, native, cached; app state holds addresses, exports read real data; safety net back to data); cached token counts; chat skeleton while loading; instant rename / Trash for chats with rollback; "Saving…" on editor Save buttons.
+- Verified in the real Linux app under Xvfb (pictures served by the protocol, previews made by WebKitGTK).
+- **To try (Windows):** pictures everywhere (Characters, chat avatars, sheets, Stories covers, Home) still show; change a picture → the new one shows at once; Export a card → the PNG has the full picture. Rename a chat → instant. Open a long chat → grey lines for a moment, then the messages.
+- **Next task (Daniel, 11/13):** the **complete SillyTavern importer** as planned before, and an **external card source**: link a SillyTavern library folder (a friend: "allow an external card source, so I can link my ST lib, I have an external card management thing").
+- Checks: typecheck; unit tests (895 passed); native tests (`cargo test`, 36 passed, 2 new); full click suite.
+- Changelog line for the next release: "**Lighter pictures**: the desktop app loads pictures by address, so they no longer take memory while off screen. Chats show their shape while loading; renaming a chat or sending it to the Trash is instant; Save buttons say Saving…"
+
 ## Performance session, part 2 (2026-11-13) — CLAUDE — D-123
 
 - Daniel: "pode terminar de fazer o que falta". The Assistant (`AssistantShell.tsx` for what start needs, `assistant/chats.ts` for its chat storage, the view lazy) and Text Mode load when first opened: start script 2.6 → 1.78 MB. Start-up installers stay in order on purpose (parallel writes risk "database is locked"). Streaming scroll checked. Streaming redraws at most once per frame. Daniel asked how SillyTavern / Marinara / Aventuras handle heavy loads: table and next ideas in `docs/PERFORMANCE-PLAN.md` (pictures as cached URLs through a Tauri protocol; a native batch/transaction command; cached token counts).

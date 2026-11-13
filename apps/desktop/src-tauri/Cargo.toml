@@ -23,6 +23,10 @@ tauri-plugin-opener = "2"
 # "Reply ready" as a Windows notification while the app is in the background (Settings → General, D-082).
 tauri-plugin-notification = "2"
 base64 = "0.22"
+# D-124: pictures served by address (h2pic://) read the database directly. The same sqlx and tokio the SQL plugin
+# already brings (no second SQLite): read-only use.
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio"] }
+tokio = { version = "1", features = ["sync"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Reuse the updater's reqwest and ring-backed rustls; no new TLS provider.

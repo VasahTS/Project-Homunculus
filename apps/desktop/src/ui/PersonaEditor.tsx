@@ -8,7 +8,7 @@ import { Persona, type Avatar, type HistoryEntry, type Lorebook } from "@homuncu
 import { variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
 import { Help } from "./Help.tsx";
-import { Button, Switch } from "./kit.tsx";
+import { Button, Switch, SaveButton } from "./kit.tsx";
 import { FieldLabel, HistoryList, pruneVariants, useVersionedDraft, VersionBar, type HistoryField } from "./Versions.tsx";
 
 type Fields = Pick<Persona, "name" | "description">;
@@ -171,7 +171,7 @@ export function PersonaEditor({ persona, avatars, isDefault, justSaved = false, 
         )}
         {error && <div className="error-bar inline" role="alert">{error}</div>}
         <div className="editor-actions">
-          <button className="btn btn-prominent" onClick={() => void save()}>{isNew && !saved ? "Create Persona" : "Save"}</button>
+          <SaveButton label={isNew && !saved ? "Create Persona" : "Save"} onSave={save} />
           {saved && <span className="ok-text">✓ Saved</span>}
           <span className="spacer" />
           {!isNew && <Button variant="destructive" onClick={() => void run(() => onTrash(draft.id))}>Move to Trash</Button>}

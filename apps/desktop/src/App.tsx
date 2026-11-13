@@ -19,7 +19,7 @@ import { UpdateBar } from "./ui/UpdateBar.tsx";
 import { useUpdates } from "./updates.ts";
 import type { SettingsTab } from "./ui/SettingsPage.tsx";
 import { imageFileToPngAvatar, readFileBytes, saveExport } from "./files.ts";
-import { fullPicture, makePreview, rememberPreview } from "./pictures.ts";
+import { addressWorks, fullPicture, makePreview, picturesByAddress, previewAddress, rememberPreview, stopPictureAddresses } from "./pictures.ts";
 import { CropHost } from "./ui/ImageCropper.tsx";
 import { cardPngForSite, importCharacterFile, importFromSite, picturePng } from "./importCharacters.ts";
 import { desktopCardSites } from "./cardSites.ts";
@@ -400,6 +400,8 @@ export function App() {
   /** The card import running now (D-121): files picked meanwhile join it. */
   const importRun = useRef<{ queue: File[]; done: number; total: number } | null>(null);
   const pictureSince = useRef(0);
+  /** Pictures by address were tried once with a real picture (D-124). */
+  const addressChecked = useRef(false);
   const pictureFill = useRef({ running: false, queue: new Set<string>(), failed: new Set<string>() });
   const fillPreviews = useCallback(async (s: AppServices, ids: string[]) => {
     const f = pictureFill.current;
@@ -419,7 +421,8 @@ export function App() {
           const preview = await makePreview(full).catch(() => null);
           if (preview) await s.store.setAvatarPreview(id, preview).catch(() => {});
           else f.failed.add(id); // can't be made (a picture the WebView can't open): show the picture itself
-          const shown = preview ?? full;
+          // by address (desktop): a new version, so the WebView asks again and gets the small copy
+          const shown = picturesByAddress() ? previewAddress(id, Date.now()) : preview ?? full;
           rememberPreview(id, shown);
           batch[id] = shown;
         }
@@ -433,6 +436,32 @@ export function App() {
     }
   }, []);
   const loadPictures = useCallback(async (s: AppServices) => {
+    if (picturesByAddress() && !addressChecked.current) {
+      // the first time: make sure one real picture loads by address; if not, pictures go back to data (safety net)
+      const v0 = await s.store.avatarVersions(0);
+      const probe = v0.ids[0];
+      if (probe && !(await addressWorks(probe, v0.versions[probe] ?? 0))) stopPictureAddresses();
+      addressChecked.current = !!probe;
+    }
+    if (picturesByAddress()) {
+      // D-124 (desktop): no picture data at all, just which pictures exist and their version; the WebView loads each
+      // by address when it is on screen, and keeps or frees it by itself
+      const v = await s.store.avatarVersions(pictureSince.current);
+      pictureSince.current = v.latest;
+      const failed = pictureFill.current.failed;
+      setAvatars((old) => {
+        const next: Record<string, Avatar> = {};
+        for (const id of v.ids) {
+          const version = v.versions[id];
+          const a = version !== undefined ? previewAddress(id, version) : old[id];
+          if (a) next[id] = a;
+        }
+        return next;
+      });
+      const todo = v.missing.filter((id) => !failed.has(id));
+      if (todo.length) void fillPreviews(s, todo);
+      return;
+    }
     const r = await s.store.avatarPreviews(pictureSince.current);
     pictureSince.current = r.latest;
     for (const [k, a] of Object.entries(r.previews)) rememberPreview(k, a);
@@ -681,14 +710,26 @@ export function App() {
 
   const renameSession = async (title: string) => {
     if (!active) return;
-    await svc.store.saveSession({ ...active, title });
+    const before = active;
+    setSessions((list) => list.map((y) => (y.id === before.id ? { ...y, title } : y))); // at once (D-124)
+    try { await svc.store.saveSession({ ...before, title }); }
+    catch (e) { setSessions((list) => list.map((y) => (y.id === before.id ? before : y))); setNotice({ kind: "error", title: "Could not rename the chat", lines: [errorText(e)] }); return; }
     await refreshChats(svc);
   };
 
   /** Moves something to the Trash and offers Undo. Throws a readable error when a story still uses it. */
   const toTrash = async (kind: TrashKind, id: string, name: string) => {
-    await svc.store.moveToTrash(kind, id);
-    await refresh(svc);
+    if (kind === "session") {
+      // a chat leaves the list at once; it comes back if it can't go (D-124). Only the chats and the Trash reload.
+      const before = sessions;
+      setSessions((list) => list.filter((x) => x.id !== id));
+      try { await svc.store.moveToTrash(kind, id); } catch (e) { setSessions(before); throw e; }
+      await refreshChats(svc);
+      setTrash(await svc.store.listTrash());
+    } else {
+      await svc.store.moveToTrash(kind, id);
+      await refresh(svc);
+    }
     setNotice({ kind: "ok", title: `“${name}” moved to the Trash`, lines: [], action: { label: "Undo", run: () => void restore({ kind, id, name, trashedAt: 0 }, true) } });
   };
 
@@ -1541,7 +1582,12 @@ export function App() {
   };
   const renameChat = async (sessionId: string, title: string) => {
     const x = sessions.find((y) => y.id === sessionId);
-    if (x) { await svc.store.saveSession({ ...x, title }); await refreshChats(svc); }
+    if (!x) return;
+    // the new name shows at once; if saving fails it goes back and says why (D-124)
+    setSessions((list) => list.map((y) => (y.id === sessionId ? { ...y, title } : y)));
+    try { await svc.store.saveSession({ ...x, title }); }
+    catch (e) { setSessions((list) => list.map((y) => (y.id === sessionId ? x : y))); setNotice({ kind: "error", title: "Could not rename the chat", lines: [errorText(e)] }); return; }
+    await refreshChats(svc);
   };
   const trashChat = async (sessionId: string) => {
     const x = sessions.find((y) => y.id === sessionId);

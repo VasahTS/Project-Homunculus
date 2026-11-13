@@ -6,6 +6,7 @@ use tauri::Manager;
 mod janny;
 mod botbooru;
 mod janitor;
+mod pictures;
 
 // ---- Where the app keeps its data (D-030, CLAUDE 2026-10-29: portable mode, like SillyTavern).
 // Portable: a file `portable.txt` next to Homunculus.exe → everything (database, backups, API keys,
@@ -629,6 +630,18 @@ pub fn run() {
         .manage(botbooru::BotbooruBridge::default())
         .manage(janitor::JanitorBridge::default())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        // D-124: pictures by address, read from the database (lists no longer carry them as text)
+        .register_asynchronous_uri_scheme_protocol("h2pic", |ctx, request, responder| {
+            let db = ctx.app_handle().try_state::<DataPlace>().map(|p| p.dir.join(DB_FILE));
+            let path = request.uri().path().to_string();
+            tauri::async_runtime::spawn(async move {
+                let response = match db {
+                    Some(db) => pictures::serve(db, path).await,
+                    None => tauri::http::Response::builder().status(503).body(Vec::new()).unwrap(),
+                };
+                responder.respond(response);
+            });
+        })
         .plugin(tauri_plugin_notification::init())
         // A hidden account window must not keep the app alive after its main window closes. CODEX, 2026-11-02.
         .on_window_event(|window, event| {

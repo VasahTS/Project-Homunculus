@@ -16,7 +16,7 @@ import { installStarterAgents } from "./agents.ts";
 import { installStarterCues } from "./cues.ts";
 import { installConnectionProfiles } from "./connection.ts";
 import { turns } from "./turns.ts";
-import { makePreview, setFullPictureSource } from "./pictures.ts";
+import { makePreview, setFullPictureSource, setPictureAddresses } from "./pictures.ts";
 
 export interface AppServices {
   core: HomunculusCore;
@@ -41,6 +41,11 @@ async function boot(): Promise<AppServices> {
   // every picture saved gets a small copy for lists; full pictures are read only where shown big (D-121)
   store.previewMaker = makePreview;
   setFullPictureSource((key) => store.getAvatar(key));
+  // D-124: the desktop app shows pictures by address (h2pic://, served from the database by the native side)
+  if (isDesktop) {
+    const { convertFileSrc } = await import("@tauri-apps/api/core");
+    setPictureAddresses((path) => convertFileSrc(path, "h2pic"));
+  }
   const core = new HomunculusCore({ tree: store, stateRepository: store });
   await core.loadModules([createOpenAICompatibleModule(), offlineAiModule, createSillyTavernCardsModule(), createSillyTavernPersonasModule(), createSillyTavernPresetsModule(), createSillyTavernLorebooksModule()]);
   const chat = new ChatService(core, store);

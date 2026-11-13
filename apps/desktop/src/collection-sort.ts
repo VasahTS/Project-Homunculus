@@ -1,6 +1,17 @@
 // Display sorting only: never mutate collection/execution order. Author: CODEX, 2026-11-03.
 import { estimateTokens } from "@homunculus/core";
 
+/** Token estimates per item object (D-124): sorting by tokens no longer re-counts every card on each render. */
+const tokenCache = new WeakMap<object, number>();
+function cachedTokens(item: unknown, texts: string[]): number {
+  const key = item && typeof item === "object" ? item : null;
+  const hit = key ? tokenCache.get(key) : undefined;
+  if (hit !== undefined) return hit;
+  const n = estimateTokens(texts.join("\n"));
+  if (key) tokenCache.set(key, n);
+  return n;
+}
+
 export const SORT_LABELS = { az: "A-Z", za: "Z-A", newest: "Newest", oldest: "Oldest", added: "Date added", favorites: "Favorites", recent: "Recent", mostChats: "Most chats", leastChats: "Least chats", mostTokens: "Most tokens", leastTokens: "Least tokens", random: "Random", original: "Default order" };
 export type SortMode = keyof typeof SORT_LABELS;
 export interface SortInfo { id: string; name: string; created?: number; added?: number; favorite?: boolean; recent?: number; chats?: number; tokens?: number }
@@ -57,7 +68,7 @@ export function itemSortInfo(kind: string, item: unknown, meta: { added?: number
   const favorite = [original.fav, object(original.extensions).fav, object(data.extensions).fav].some((v) => v === true || v === "true" || v === 1);
   return { id: itemId(item), name: String(r.name ?? ""), added: kind === "trash" ? numeric(r.trashedAt) : meta.added,
     created: kind === "trash" ? numeric(r.trashedAt) : numeric(r.createdAt) || timestamp(original.create_date ?? original.created_at) || (["agents", "trackers"].includes(kind) ? meta.added : meta.created),
-    favorite, tokens: (texts.some((s) => s.length) ? estimateTokens(texts.join("\n")) : 0) + nested, ...usage };
+    favorite, tokens: (texts.some((s) => s.length) ? cachedTokens(item, texts) : 0) + nested, ...usage };
 }
 export function preserveDisplayEdits<T extends { id: string }>(all: T[], shown: T[], next: T[]): T[] {
   const visible = new Set(shown.map((x) => x.id)), replacements = new Map(next.map((x) => [x.id, x])), existing = new Set(all.map((x) => x.id));

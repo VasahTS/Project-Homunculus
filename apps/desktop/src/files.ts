@@ -77,6 +77,7 @@ export async function imageFileToPngAvatar(file: File): Promise<Avatar> {
 const urls = new WeakMap<Avatar, string>();
 export const avatarUrl = (a: Avatar | undefined) => {
   if (!a) return undefined;
+  if (a.mime === "image/x-h2-address") return a.base64; // a picture by address (pictures.ts, D-124)
   let u = urls.get(a);
   if (!u) { u = `data:${a.mime};base64,${a.base64}`; urls.set(a, u); }
   return u;

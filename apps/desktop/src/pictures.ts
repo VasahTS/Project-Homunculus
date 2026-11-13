@@ -67,6 +67,47 @@ export async function makePreview(picture: Avatar): Promise<Avatar> {
   }
 }
 
+// ---- pictures by address (D-124, desktop app): an Avatar whose "base64" is an h2pic:// address
+
+/** The type that marks an address instead of picture data. Never stored; only in the screens' state. */
+export const ADDRESS_MIME = "image/x-h2-address";
+let makeAddress: ((path: string) => string) | null = null;
+/** Set once at start in the desktop app: how to turn "p:<version>:<key>" into an address the WebView loads. */
+export function setPictureAddresses(make: (path: string) => string): void { makeAddress = make; }
+export const picturesByAddress = (): boolean => makeAddress !== null;
+/** Back to pictures as data (the address didn't load: a safety net, should a WebView refuse the h2pic scheme). */
+export function stopPictureAddresses(): void { makeAddress = null; }
+
+/** Does a picture load by address? Tried once with a real picture before the app relies on addresses. */
+export function addressWorks(key: string, version: number): Promise<boolean> {
+  if (!makeAddress) return Promise.resolve(false);
+  const src = makeAddress(`p:${version}:${key}`);
+  return new Promise((resolve) => {
+    const img = new Image();
+    const t = setTimeout(() => resolve(false), 4000);
+    img.onload = () => { clearTimeout(t); resolve(img.naturalWidth > 0); };
+    img.onerror = () => { clearTimeout(t); resolve(false); };
+    img.src = src;
+  });
+}
+const addressOf = new WeakMap<Avatar, { key: string; version: number }>();
+/** A preview by address (the small copy; the full picture stands in until a preview exists). */
+export function previewAddress(key: string, version: number): Avatar {
+  const a = { mime: ADDRESS_MIME, base64: makeAddress!(`p:${version}:${key}`) };
+  addressOf.set(a, { key, version });
+  rememberPreview(key, a);
+  return a;
+}
+const fullAddresses = new WeakMap<Avatar, Avatar>();
+/** The full picture's address for a preview address (shown big), the same object each time. */
+function fullAddress(preview: Avatar): Avatar | undefined {
+  const info = addressOf.get(preview);
+  if (!info || !makeAddress) return undefined;
+  let a = fullAddresses.get(preview);
+  if (!a) { a = { mime: ADDRESS_MIME, base64: makeAddress(`f:${info.version}:${info.key}`) }; fullAddresses.set(preview, a); }
+  return a;
+}
+
 // ---- previews → the picture they stand for
 
 /** The key (owner id, or "<id>#<version>") of each preview the app holds, so any view can ask for its full picture. */
@@ -99,11 +140,13 @@ export function fullPicture(preview: Avatar): Promise<Avatar> {
 /** For a view that shows a picture big: the preview at once, then the full picture when it has been read. */
 export function useFullPicture(preview: Avatar | undefined): Avatar | undefined {
   const [full, setFull] = useState<{ of: Avatar; full: Avatar } | null>(null);
+  const byAddress = preview ? fullAddress(preview) : undefined;
   useEffect(() => {
-    if (!preview || !keyOfPreview.has(preview)) return;
+    if (!preview || byAddress || !keyOfPreview.has(preview)) return;
     let live = true;
     void fullPicture(preview).then((f) => { if (live) setFull({ of: preview, full: f }); });
     return () => { live = false; };
-  }, [preview]);
+  }, [preview, byAddress]);
+  if (byAddress) return byAddress; // the WebView loads the full picture by itself (D-124)
   return preview && full?.of === preview ? full.full : preview;
 }

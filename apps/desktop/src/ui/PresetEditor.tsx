@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttribut
 import { Preset, PromptMarker, type GenerationType, type HistoryEntry, type PresetBlock } from "@homunculus/schemas";
 import { estimateTokens, MARKER_LABELS } from "@homunculus/core";
 import { ConfirmButton, Help } from "./Help.tsx";
-import { Button, Group, Row, Switch } from "./kit.tsx";
+import { Button, Group, Row, Switch, SaveButton } from "./kit.tsx";
 import { HistoryList, type HistoryField } from "./Versions.tsx";
 import { move as moveItem, SortableList } from "./Sortable.tsx";
 import { Modal } from "./Vault.tsx";
@@ -281,7 +281,7 @@ export function PresetEditor({ preset, isNew, justSaved = false, isDefault, open
 
         {error && <div className="error-bar inline" role="alert">{error}</div>}
         <div className="editor-actions">
-          <button className="btn btn-prominent" onClick={() => void save()}>{isNew && !saved ? "Create Preset" : "Save"}</button>
+          <SaveButton label={isNew && !saved ? "Create Preset" : "Save"} onSave={save} />
           {saved && <span className="ok-text">✓ Saved</span>}
           {exists && <Button onClick={() => onExport(d)}>Export for SillyTavern</Button>}
           {exists && <Button variant="plain" onClick={() => onDuplicate(d)}>Duplicate</Button>}

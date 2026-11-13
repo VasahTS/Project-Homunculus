@@ -12,7 +12,7 @@ import { compactChat, connectionFor, deleteChat, describeAgain, pictureRouteFor,
 import { libraryCounts } from "../assistant/tools.ts";
 import { AssistantDetails } from "./AssistantDetails.tsx";
 import { AssistantMark } from "./AssistantMark.tsx";
-import { saveExport } from "../files.ts";
+import { avatarUrl, saveExport } from "../files.ts";
 import type { RichTurn } from "@homunculus/core";
 import { applyChange, applyTrash, approveNew, redoMove, saveDraftItem, trialKind, trialSides, undoCreate, undoMove } from "../assistant/tools.ts";
 import { DRAFT_BLOCK, GUIDES } from "../assistant/guides.ts";
@@ -888,7 +888,7 @@ function ContextPicker({ library, picked, onAdd, onClose, startKind, firstIds = 
             const on = sel.has(`${e.kind}:${e.id}`);
             return (
               <button key={`${e.kind}:${e.id}`} type="button" className={`asst-card${on ? " sel" : ""}`} aria-pressed={on} onClick={() => toggle(e)}>
-                {e.avatar ? <img src={`data:${e.avatar.mime};base64,${e.avatar.base64}`} alt="" /> : <span className="asst-card-ph" aria-hidden><KindMark kind={e.kind} /></span>}
+                {e.avatar ? <img src={avatarUrl(e.avatar)} alt="" decoding="async" loading="lazy" /> : <span className="asst-card-ph" aria-hidden><KindMark kind={e.kind} /></span>}
                 <span className="asst-card-t"><b>{e.name}</b><small>{words ? `${KIND_ONE[e.kind]} · ` : ""}{e.line}</small></span>
                 <span className="asst-ck" aria-hidden>{on ? "✓" : ""}</span>
               </button>

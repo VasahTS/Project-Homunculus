@@ -1396,3 +1396,14 @@ Daniel (translated): "finish what is left" of `docs/PERFORMANCE-PLAN.md`.
 - Tests: click test `assistant-overflow` waits for the Assistant to load before reading its layout.
 
 Signed: **CLAUDE**.
+
+## D-124 — Performance session, part 3: pictures by address, cached token counts, immediate feedback (2026-11-13)
+
+Daniel (translated): "no draft needed, finish the rest. Implement what you think is best from the other apps and what makes sense for the app; it must be fast and light without giving up quality."
+- **Pictures by address (from Marinara / SillyTavern).** The desktop app no longer keeps pictures as text: a native protocol `h2pic://` (`src-tauri/src/pictures.rs`) reads a picture from `character_avatars` (preview, or full; the full one stands in while a preview is missing) with its own small read pool (the SQL plugin's sqlx and tokio, no second SQLite) and answers with a year-long `immutable` cache. The address carries the row's version (`p:<updated_at>:<key>`), so a changed picture is a new address. `SqlStore.avatarVersions` gives only ids, versions and missing previews; the app's `avatars` state holds address "pictures" (`ADDRESS_MIME`), `avatarUrl` returns the address, `useFullPicture` returns the full one's address; **exports still read the real full picture** (`fullPicture`). Safety net: at start one real picture is tried by address (`addressWorks`); if it doesn't load, the app goes back to pictures as data. Browser preview and click tests keep the data path. Checked in the real Linux app (WebKitGTK under Xvfb): previews were made, and pictures came through `h2pic://` (Windows uses `http://h2pic.localhost`, built by Tauri's `convertFileSrc`).
+- **Cached token counts (from Marinara's catalog):** `cardTokens` and the collection sort's token estimate are worked out once per card object (WeakMap).
+- **Immediate feedback:** the chat shows the shape of messages while it is read (`.msg.skeleton`); renaming a chat and moving a chat to the Trash change the list at once and go back with a notice if saving fails (only the chats and the Trash reload); Save buttons of the character, persona, preset, connection, narrator and NPC editors say "Saving…" past 150 ms and can't be pressed twice (`SaveButton`, accessible name unchanged).
+- **Not done:** a native batch/transaction command (Aventuras `db_transaction`) — the store reads between its writes (save = read, write, history), so batching needs the import rewritten around it; the gain is mostly in imports. Kept as an idea in the plan.
+- Tests: `pictures.rs` unit tests (addresses, preview vs full); full click suite; native tests (`cargo test`, 36).
+
+Signed: **CLAUDE**.

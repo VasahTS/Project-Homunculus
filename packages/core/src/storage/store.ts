@@ -343,6 +343,25 @@ export class SqlStore implements StateRepository, MessageTree {
     return { previews, ids, missing, latest };
   }
 
+  /**
+   * Like `avatarPreviews` but without the pictures themselves (D-124): the desktop app shows pictures by address
+   * (`h2pic://`), so it only needs which pictures exist, their version (`updated_at`) and which lack a preview.
+   */
+  async avatarVersions(since = 0): Promise<{ versions: Record<string, number>; ids: string[]; missing: string[]; latest: number }> {
+    const rows = await this.db.select<{ character_id: string; updated_at: number; has_preview: number }>(
+      "SELECT character_id, updated_at, preview_base64 IS NOT NULL AS has_preview FROM character_avatars");
+    const versions: Record<string, number> = {};
+    const missing: string[] = [];
+    let latest = since;
+    for (const r of rows) {
+      const v = Number(r.updated_at);
+      latest = Math.max(latest, v);
+      if (v >= since) versions[r.character_id] = v;
+      if (!Number(r.has_preview) && v >= since) missing.push(r.character_id);
+    }
+    return { versions, ids: rows.map((r) => r.character_id), missing, latest };
+  }
+
   /** Saves the preview of a picture already stored (pictures saved before previews existed). D-121. */
   async setAvatarPreview(ownerId: string, preview: Avatar): Promise<void> {
     const p = Avatar.parse(preview);
