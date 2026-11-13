@@ -62,6 +62,8 @@ trip from the WebView to the native side, so "many small queries" is the main en
 
 Done in D-122 (2026-11-13): 1, 2 (without `React.memo` on rows: the streaming bubble took the per-token cost), 3, 4 (embedded lorebooks left out of the list), 5 in part (the big settings/editor pages; the Assistant and the Vault still load at start), 7 in part, 8 (no more reading every lorebook per card), 9 (Light effects). Left: 6, the rest of 5, 10–12.
 
+Done in D-123: the rest of 5 (the Assistant and Text Mode load when opened; start script 2.6 → 1.78 MB). 6 dropped on purpose (parallel writes at start risk "database is locked"; tiny gain). 10–12 wait for a draft.
+
 ## Order for the session
 
 1 → 2 → 3 (each is small, testable and invisible), then 4, 5, 6. Measure after each. Priority 3 starts with drafts, one at
@@ -74,3 +76,19 @@ a time (HANDOFF rule).
   bundles, story from card). A test that saving from the editor keeps `original`.
 - Smaller reloads: a screen that relied on the big refresh to see a change must call the right small one; the click
   suite catches most of these.
+
+## What the other apps do with heavy loads (read 2026-11-13, for ideas — not to copy)
+
+Daniel (translated): "look at how each app is optimized for these heavy loads — SillyTavern, Marinara, Aventuras — to know what you can do".
+
+| Technique | SillyTavern | Marinara Engine | Aventuras | Homunculus 2 |
+|---|---|---|---|---|
+| Small pictures in lists | thumbnails 96×144 JPEG on disk (`src/endpoints/thumbnails.js`, `image-metadata.js` `thumbnailDimensions`) | avatars are files, served by URL with `Cache-Control: immutable` (`routes/avatars.routes.ts`) | images in the DB | previews 320×480 in the DB (D-121). **Idea:** serve pictures through a Tauri protocol as URLs, so the WebView caches and frees them itself |
+| Light character list | `performance.lazyLoadCharacters` → shallow characters (`endpoints/characters.js` `toShallow`) | a cached catalog (search text and token counts worked out once, a generation number to know when it is stale) served in pages of 100 (`services/storage/character-catalog.ts`, `useInfiniteQuery`) | — | light list without embedded books (D-122). **Idea:** keep the catalog's token count and search text instead of working them out per render |
+| Long lists on screen | pagination of the character list | pages + `memo` on rows | a window of story entries (`StoryView.svelte`) | `VirtualCards`, `content-visibility` (D-121, D-122) |
+| Long chats | "messages to load" + Show more (`showMoreMessages`, `chat_truncation`) | messages by pages with a cursor (`?limit=&before=`) | entries by position; world-state snapshots by position | draw the newest 50 (memory v2); the path in one query (D-122) |
+| Streaming | the screen updates on an interval (`StreamingProcessor` + `Stopwatch.tick`) | the stream buffer redraws at most once per frame (`use-throttled-stream-buffer.ts`, `rafThrottle`); `ChatMessage` is `memo` | — | only `StreamingReply` redraws, at most once per frame (`useFrameValue`, D-123) |
+| Writes | debounced saves (`debounce_timeout`) | — | many statements in **one IPC call and one transaction** (`src-tauri/src/db_tx.rs` `db_transaction`) | one IPC call per statement. **Idea:** a native batch command for imports and turns (needs Rust) |
+| Database | — | — | WAL, busy timeout, `PRAGMA foreign_keys` | WAL and busy timeout come with the SQL plugin (sqlx defaults) |
+
+Next ideas, in order of value: pictures as cached URLs through a Tauri protocol; a native batch/transaction command (imports, the writes of a turn); the catalog's cached token counts and search text.

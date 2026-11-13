@@ -1382,3 +1382,17 @@ Daniel (translated): "I want a session to make the app much smoother, faster and
 - Tests: `packages/core/test/query-count.test.ts` (new: query counts, same paths and states, cycle/missing errors, the light list never losing `original`); full click suite.
 
 Signed: **CLAUDE**.
+
+## D-123 — Performance session, part 2: the Assistant and Text Mode leave the start script (2026-11-13)
+
+Daniel (translated): "finish what is left" of `docs/PERFORMANCE-PLAN.md`.
+- **The Assistant loads when first opened.** Its state, mode switch and sidebar (what the app needs at start) moved to `ui/AssistantShell.tsx`; the chat storage to `assistant/chats.ts` (engine.ts re-exports it). `AssistantView` — with the engine, tools, guides, cards, comic import and Customize behind it — is a `lazyPage`.
+- **Text Mode** (the character editor's Text layout, with CodeMirror) is a `lazyPage` inside `CharacterEditor`.
+- Start script: **2.6 MB → 1.78 MB** (with D-122's pages). The Vault stays in it: the Stories pages and shared pieces (`Modal`) are used at start.
+- **Not done, on purpose:** running the start-up installers side by side — they write, and parallel writes from several SQLite connections risk "database is locked" on the desktop app, for a gain of a few milliseconds. The reads of `refresh()` already run side by side (D-122).
+- Scrolling while a reply streams was checked: the chat follows the reply only while you are at the end (`StreamingReply` → `onGrow`), and stays put when you scrolled up.
+- The "professional" items of the plan (loading skeletons, "Saving…" on buttons, optimistic rename/move, heavy work off the main thread) change what you see or how screens behave: they wait for a draft (HANDOFF rule).
+- **Streaming at most once per frame** (`useFrameValue` in `StreamingReply`): a fast model sends several tokens per frame and each redraw formatted the whole reply again. A reset (a new reply) shows at once; one frame is pending at a time, so a fast stream can't starve it. The idea comes from Marinara's stream buffer and SillyTavern's streaming interval — see the comparison table in `docs/PERFORMANCE-PLAN.md` ("What the other apps do").
+- Tests: click test `assistant-overflow` waits for the Assistant to load before reading its layout.
+
+Signed: **CLAUDE**.

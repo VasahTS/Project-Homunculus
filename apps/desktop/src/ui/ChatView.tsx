@@ -1222,6 +1222,22 @@ function ChatSize({ messages, load, refreshKey }: { messages: number; refreshKey
 }
 
 
+/** The newest value, shown at most once per animation frame (a reset to "" shows at once). */
+function useFrameValue(value: string): string {
+  const [shown, setShown] = useState(value);
+  const latest = useRef(value);
+  const frame = useRef(0);
+  latest.current = value;
+  useEffect(() => {
+    if (value === shown) return;
+    if (!value || !value.startsWith(shown)) { setShown(value); return; } // not growth: no waiting
+    // one frame pending at a time (a new token must not push it back, or a fast stream would never draw)
+    if (!frame.current) frame.current = requestAnimationFrame(() => { frame.current = 0; setShown(latest.current); });
+  }, [value, shown]);
+  useEffect(() => () => { if (frame.current) cancelAnimationFrame(frame.current); }, []);
+  return shown;
+}
+
 /**
  * The reply being written (D-122): the only part of the chat that follows every word. It used to be drawn by ChatView,
  * so each token re-rendered the whole chat (every message on screen, the inspector).
@@ -1231,8 +1247,10 @@ function StreamingReply({ sessionId, fallback, storyInfo, leadName, memStatus, a
   avatarShape: string; thinking: string; smooth: boolean; smoothSpeed: number; show: (t: string) => string; onGrow: () => void;
 }) {
   const live = useTurn(sessionId);
-  const text = live?.text ?? fallback.text;
-  const reasoning = live?.reasoning ?? fallback.reasoning;
+  // at most one redraw per screen frame while words pour in: a fast model sends many tokens per frame, and each redraw
+  // formats the whole reply again (the idea from Marinara's stream buffer and SillyTavern's streaming interval, D-123)
+  const text = useFrameValue(live?.text ?? fallback.text);
+  const reasoning = useFrameValue(live?.reasoning ?? fallback.reasoning);
   const liveText = useSmoothText(text, smooth, smoothSpeed);
   const grow = useRef(onGrow);
   grow.current = onGrow;

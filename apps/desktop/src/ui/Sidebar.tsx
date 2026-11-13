@@ -6,7 +6,7 @@
 // "Recent" keeps the last chats at hand (10, one line each, with pins and folders since D-108).
 // 2026-10-29: a chat writing a reply in the background says so ("writing…"), and its story too, even folded.
 // Floats in the functional (glass) layer. Two levels at most. Nothing critical at the bottom.
-import { ModeSwitch, type AppMode } from "./Assistant.tsx";
+import { ModeSwitch, type AppMode } from "./AssistantShell.tsx";
 import type { LibraryCategory, NavigationPlace, NavigationProfile } from "../theme/navigation.ts";
 import { useEffect, useRef, useState } from "react";
 import type { Avatar, Character, Session, Story } from "@homunculus/schemas";

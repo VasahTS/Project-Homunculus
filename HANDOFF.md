@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## Performance session, part 2 (2026-11-13) — CLAUDE — D-123
+
+- Daniel: "pode terminar de fazer o que falta". The Assistant (`AssistantShell.tsx` for what start needs, `assistant/chats.ts` for its chat storage, the view lazy) and Text Mode load when first opened: start script 2.6 → 1.78 MB. Start-up installers stay in order on purpose (parallel writes risk "database is locked"). Streaming scroll checked. Streaming redraws at most once per frame. Daniel asked how SillyTavern / Marinara / Aventuras handle heavy loads: table and next ideas in `docs/PERFORMANCE-PLAN.md` (pictures as cached URLs through a Tauri protocol; a native batch/transaction command; cached token counts).
+- **To try (Windows):** first click on Assistant and first Text layout of a card may show "Loading…" for a moment; then as before.
+- **Next:** the "professional" items (skeletons, "Saving…", optimistic rename/move, heavy work off the main thread) — a draft first.
+- Checks: typecheck; unit tests (892 passed); full click suite.
+
 ## Performance session, part 1 (2026-11-13) — CLAUDE — D-122
 
 - Daniel: "pode começar" on `docs/PERFORMANCE-PLAN.md` items 1–3, plus the earlier list. Done: message paths and world state in a few queries (were one per message); streaming redraws only the reply (`StreamingReply`, `useTurnQuiet`, `useTurnPhases`); chat lists in 3–4 queries with a cache, `refresh()` reads in parallel, `refreshChats()` for chat-only actions; light character list (embedded books left out, put back on save/export); import no longer reads every lorebook per card; big pages load on first open (`lazyPage`); Vault grids windowed; long row lists skip off-screen rows; **Light effects** (Customize → Motion, Auto = on in the Linux app).

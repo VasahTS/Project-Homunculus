@@ -24,6 +24,7 @@ for (const width of [1366, 390]) test(`long Assistant code wraps at ${width}px`,
     };
   }, streamedCode);
   await page.getByRole("tab", { name: "Assistant", exact: true }).click();
+  await page.getByTestId("assistant-composer").waitFor(); // D-122: the Assistant loads its code the first time
   if (width < 700 && await page.getByTestId("assistant-details").isVisible()) await page.getByRole("button", { name: "Hide details", exact: true }).click();
   if (width < 700) await page.getByRole("button", { name: "Hide Sidebar", exact: true }).click();
   await page.getByLabel("Message to the Assistant").fill("Show the long code.");

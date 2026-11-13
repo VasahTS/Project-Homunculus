@@ -21,11 +21,11 @@ import { ASK_SPEC, questionText, UNDERSTANDING_SPEC, understoodText, WAITING_TOO
 export { TOOL_SPECS };
 
 const SETTINGS_KEY = "assistant.settings";
-const INDEX_KEY = "assistant.chats";
-const chatKey = (id: string) => `assistant.chat:${id}`;
+import { chatKey } from "./chats.ts";
 const OLD_RESULT = 400;
 
-export interface ChatRow { id: string; title: string; summary: string; updatedAt: number }
+export type { ChatRow } from "./chats.ts";
+import type { ChatRow } from "./chats.ts";
 
 // ------------------------------------------------------------------ storage (app settings: no new tables)
 
@@ -126,23 +126,9 @@ export function connectionFor(chat: Pick<AssistantChat, "connectionId" | "model"
   const model = chat?.model || (chat?.connectionId ? "" : assistant.model);
   return { ...base, ...(model ? { model } : {}), params: { ...base.params, temperature: assistant.temperature, ...(assistant.effort ? { reasoningEffort: assistant.effort } : {}) } };
 }
-export async function listChats(store: SqlStore): Promise<ChatRow[]> {
-  const v = await store.getAppSetting<ChatRow[]>(INDEX_KEY);
-  return (Array.isArray(v) ? v : []).sort((a, b) => b.updatedAt - a.updatedAt);
-}
-export async function loadChat(store: SqlStore, id: string): Promise<AssistantChat | undefined> {
-  const v = await store.getAppSetting(chatKey(id));
-  return v ? decodeHistory(AssistantChat.parse(v)) : undefined;
-}
-export async function saveChat(store: SqlStore, chat: AssistantChat): Promise<void> {
-  await store.setAppSetting(chatKey(chat.id), encodeHistory(chat));
-  const rows = (await listChats(store)).filter((r) => r.id !== chat.id);
-  await store.setAppSetting(INDEX_KEY, [{ id: chat.id, title: chat.title, summary: chat.summary, updatedAt: chat.updatedAt }, ...rows]);
-}
-export async function deleteChat(store: SqlStore, id: string): Promise<void> {
-  await store.setAppSetting(chatKey(id), null);
-  await store.setAppSetting(INDEX_KEY, (await listChats(store)).filter((r) => r.id !== id));
-}
+// D-122: the chat storage lives in chats.ts (light, loaded at start); re-exported here for the Assistant's screens
+export { deleteChat, listChats, loadChat, saveChat } from "./chats.ts";
+import { loadChat, saveChat } from "./chats.ts";
 
 // ------------------------------------------------------------------ the request
 

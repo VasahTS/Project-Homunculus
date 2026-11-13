@@ -21,7 +21,10 @@ import { CASCADE, enter, useSlidingPill } from "./motion.ts";
 import { AutoText, Greetings, tokensText } from "./Greetings.tsx";
 import { FieldLabel, HistoryList, pruneVariants, useVersionedDraft, VersionBar, type HistoryField } from "./Versions.tsx";
 import { parseCard } from "@homunculus/st-cards";
-import { TextMode, type CompareSource } from "./TextMode.tsx";
+import type { CompareSource } from "./TextMode.tsx";
+import { lazyPage } from "./lazyPage.tsx";
+// D-122: the Text layout (and its editor, CodeMirror) loads the first time it is opened
+const TextMode = lazyPage(() => import("./TextMode.tsx").then((m) => m.TextMode));
 import type { CardText, TextKey as DocKey } from "../textDoc.ts";
 
 const blank = (): Character => ({

@@ -23,7 +23,7 @@ import { fullPicture, makePreview, rememberPreview } from "./pictures.ts";
 import { CropHost } from "./ui/ImageCropper.tsx";
 import { cardPngForSite, importCharacterFile, importFromSite, picturePng } from "./importCharacters.ts";
 import { desktopCardSites } from "./cardSites.ts";
-import { loadChat as loadAssistantChat } from "./assistant/engine.ts";
+import { loadChat as loadAssistantChat } from "./assistant/chats.ts";
 import { ChatView } from "./ui/ChatView.tsx";
 import { turns, useTurnPhases } from "./turns.ts";
 import { FolderSelect, FolderView, folderAndBelow, folderLabel, VirtualTile, type FolderItem } from "./ui/Folders.tsx";
@@ -53,7 +53,7 @@ import { Toolbar } from "./ui/Toolbar.tsx";
 import { LibraryWorkspace } from "./ui/LibraryWorkspace.tsx";
 import { CollectionOrderContext } from "./ui/CollectionOrder.tsx";
 import { CommandPalette, type PaletteItem } from "./ui/CommandPalette.tsx";
-import { AssistantSidebar, AssistantView, useAssistant, type AppMode, type LibraryEntry } from "./ui/Assistant.tsx";
+import { AssistantSidebar, useAssistant, type AppMode, type LibraryEntry } from "./ui/AssistantShell.tsx";
 import { RegexPage } from "./ui/RegexScripts.tsx";
 import { QuickRepliesPage } from "./ui/QuickReplies.tsx";
 import { loadQuickReplies } from "./quickReplies.ts";
@@ -98,6 +98,7 @@ const TrackerEditor = lazyPage(() => import("./ui/TrackerEditor.tsx").then((m) =
 const AgentEditor = lazyPage(() => import("./ui/AgentEditor.tsx").then((m) => m.AgentEditor));
 const CuesPage = lazyPage(() => import("./ui/CuesPage.tsx").then((m) => m.CuesPage));
 const JanitorImportChoice = lazyPage(() => import("./ui/CuesPage.tsx").then((m) => m.JanitorImportChoice));
+const AssistantView = lazyPage(() => import("./ui/Assistant.tsx").then((m) => m.AssistantView));
 const DirectorsPage = lazyPage(() => import("./ui/DirectorPane.tsx").then((m) => m.DirectorsPage));
 
 export interface Notice { kind: "ok" | "warn" | "error"; title: string; lines: string[]; action?: { label: string; run: () => void } }
