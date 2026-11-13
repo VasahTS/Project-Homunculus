@@ -177,16 +177,12 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const { text, atts } = compose;
   const setText = (text: string) => setCompose(d => ({ ...d, text }));
   const setAtts = (next: AssistantAttachment[] | ((items: AssistantAttachment[]) => AssistantAttachment[])) => setCompose(d => ({ ...d, atts: typeof next === "function" ? next(d.atts) : next }));
-  // the screen it was opened from is offered as context, once per opening (D-110). D-121: offered, not attached — a friend
-  // found the chat and its character already in the box (and in the prompt) every time he opened the Assistant. A click
-  // on "+ Session with Lyra" adds it; sending or ✕ puts the offer away.
-  const [offered, setOffered] = useState(screen);
-  useEffect(() => { setOffered(screen); }, [screen]);
-  const offers = offered.filter((x) => !atts.some((y) => y.type === "item" && y.kind === x.kind && y.id === x.id));
-  const addOffer = (x: (typeof screen)[number]) => setAtts((a) => [...a, { type: "item" as const, kind: x.kind, id: x.id, name: x.name }]);
+  // D-110 attached the screen it was opened from; D-121: nothing is attached or offered by itself (Daniel: "unnecessary").
+  // "+" → Add a Chat… opens the chat list, with the chat you came from first.
+  const screenChats = screen.filter((x) => x.kind === "chat").map((x) => x.id);
   const [savingHistory, setSavingHistory] = useState(false);
   const [undoMessage, setUndoMessage] = useState<{ chatId: string; branch: string; message: AssistantMessage; index: number } | null>(null);
-  const [picking, setPicking] = useState(false);
+  const [picking, setPicking] = useState<false | "any" | "chat">(false);
   const [comic, setComic] = useState(false);
   const [settings, setSettings] = useState<AssistantSettings | null>(null);
   const [details, setDetailsRaw] = useState<boolean>(() => { try { return localStorage.getItem("homunculus.assistant.details") !== "off"; } catch { return true; } });
@@ -365,7 +361,6 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: body, reasoning: "", attachments: atts, steps: [], rounds: [], results: [], createdAt: now };
     const base = chat ?? AssistantChat.parse({ id: crypto.randomUUID(), createdAt: now, updatedAt: now, ...draft });
     const captured = compose;
-    setOffered([]); // the screen's offer is for the first message only
     await runFrom({ ...base, messages: [...base.messages, user], updatedAt: now }, () => setCompose(current => current === captured ? { text: "", atts: [] } : { ...current, atts: current.atts.filter(a => !captured.atts.includes(a)) }));
   };
   /** Writes the last reply again (results it made stay; undo them on their cards if needed). */
@@ -517,7 +512,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
             <p className="asst-knows">{library.length} library items available</p>
             <div className="asst-qs">
               {QUICK.map((q) => (
-                <button key={q.title} type="button" className="asst-q" onClick={() => { setText(q.prompt); if (q.title === "Build a Kit") setPicking(true); }}>
+                <button key={q.title} type="button" className="asst-q" onClick={() => { setText(q.prompt); if (q.title === "Build a Kit") setPicking("any"); }}>
                   <b>{q.title}</b><span>{q.text}</span>
                 </button>
               ))}
@@ -539,7 +534,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       <div className="asst-bottom"><div className="asst-col">
         {undoMessage && chat?.id === undoMessage.chatId && (chat.activeBranchId ?? "main") === undoMessage.branch && <div className="asst-deleted" role="status">Message deleted from this branch. <button className="link" disabled={busy} onClick={() => void undoDelete()}>Undo</button></div>}
         {error && <p className="asst-error" role="alert">{error}</p>}
-        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty, offers, onOffer: addOffer, onDropOffers: () => setOffered([]),
+        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking("any"), onPickChat: () => setPicking("chat"), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty,
           onComic: () => setComic(true),
           pictureNote: route === "drop" && settings ? { model: effective?.model ?? "", options: connection.profiles.filter((p) => p.id !== effective?.profileId).map((p) => ({ id: p.id, name: p.name })),
             onChoose: (id) => { const n = { ...settings, vision: { connectionId: id, model: "" } }; setSettings(n); void saveSettings(svc.store, n); } } : undefined }} />
@@ -548,7 +543,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       <input ref={fileInput} type="file" multiple hidden accept=".json,.jsonl,.md,.markdown,.txt,.csv,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" data-testid="assistant-file"
         onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; if (fs.length) void addFiles(fs); }} />
       {comic && <ComicImport onClose={() => setComic(false)} onStart={(t, p, o) => { setComic(false); void sendComic(t, p, o); }} costHint={comicCost} />}
-      {picking && <ContextPicker library={library} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
+      {picking && <ContextPicker library={library} startKind={picking === "chat" ? "chat" : undefined} firstIds={screenChats} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
         onClose={() => setPicking(false)}
         onAdd={(items) => { setAtts((a) => [...a.filter((x) => x.type !== "item"), ...items]); setPicking(false); }} />}
       {viewing && chat && settings && <RequestView chat={chat} messageId={viewing} settings={settings} svc={svc} route={route} onClose={() => setViewing(null)} />}
@@ -561,9 +556,9 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   );
 }
 
-function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false, offers = [], onOffer, onDropOffers, pictureNote, onComic }: {
-  /** What was on screen, offered as context (D-121): a click adds one. */
-  offers?: Array<{ kind: AssistantReadKind; id: string; name: string }>; onOffer?: (x: { kind: AssistantReadKind; id: string; name: string }) => void; onDropOffers?: () => void;
+function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false, onPickChat, pictureNote, onComic }: {
+  /** "+" → Add a Chat… (D-121). */
+  onPickChat?: () => void;
   /** The model can't see pictures and no vision model is chosen (D-115): a note on each picture, with a way to choose one. */
   pictureNote?: { model: string; options: Array<{ id: string; name: string }>; onChoose: (connectionId: string) => void };
   onComic?: () => void;
@@ -575,17 +570,6 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
     <div className="asst-comp" data-testid="assistant-composer"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length) onDropFiles([...e.dataTransfer.files]); }}>
-      {offers.length > 0 && onOffer && (
-        <div className="asst-offers" data-testid="assistant-offers">
-          <span className="asst-offers-label">From the screen you were on:</span>
-          {offers.map((x) => (
-            <button key={`${x.kind}:${x.id}`} type="button" className="asst-chip offer" onClick={() => onOffer(x)} aria-label={`Add ${x.name}`} title={`Add ${x.name} as context for this message`}>
-              <span aria-hidden>+</span><span className="asst-k" aria-hidden><KindMark kind={x.kind} /></span><span className="asst-chip-name">{x.name}</span>
-            </button>
-          ))}
-          {onDropOffers && <button type="button" className="asst-offers-x" aria-label="Don't offer these" title="Don't offer these" onClick={onDropOffers}>✕</button>}
-        </div>
-      )}
       {atts.length > 0 && (
         <div className="asst-ctx">
           {atts.map((a) => (
@@ -616,6 +600,9 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
             <button type="button" className="asst-pop-item" data-testid="assistant-add-context" onClick={() => { close(); onPick(); }}>
               <span className="asst-pop-emoji"><Icon name="book" size={14} /></span><span><b>Add Context…</b><small>Add library items with @</small></span>
             </button>
+            {onPickChat && <button type="button" className="asst-pop-item" data-testid="assistant-add-chat" onClick={() => { close(); onPickChat(); }}>
+              <span className="asst-pop-emoji"><Icon name="scroll" size={14} /></span><span><b>Add a Chat…</b><small>A whole chat or some of its messages</small></span>
+            </button>}
             <button type="button" className="asst-pop-item" onClick={() => { close(); onFiles(); }} aria-label="Attach">
               <span className="asst-pop-emoji"><Icon name="paperclip" size={14} /></span><span><b>Attach a File…</b><small>.json, .jsonl, .md, .txt, PNG cards, pictures</small></span>
             </button>
@@ -966,11 +953,13 @@ function TrialCard({ r }: { r: AssistantResult }) {
 
 // ------------------------------------------------------------------ Add context
 
-function ContextPicker({ library, picked, onAdd, onClose }: {
+function ContextPicker({ library, picked, onAdd, onClose, startKind, firstIds = [] }: {
+  /** Opens on this tab (Add a Chat… → Chats). */ startKind?: AssistantReadKind | undefined;
+  /** Shown first in their tab (the chat you came from). */ firstIds?: string[];
   library: LibraryEntry[]; picked: Array<Extract<AssistantAttachment, { type: "item" }>>;
   onAdd: (items: Array<Extract<AssistantAttachment, { type: "item" }>>) => void; onClose: () => void;
 }) {
-  const [kind, setKind] = useBackState<AssistantReadKind>("character");
+  const [kind, setKind] = useBackState<AssistantReadKind>(startKind ?? "character");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Map<string, LibraryEntry>>(() => new Map(picked.map((p) => [`${p.kind}:${p.id}`, { kind: p.kind, id: p.id, name: p.name, line: "" }])));
   /** A chat can be added whole or as a range of its messages (D-110): "#150–#212" goes in its name for the Assistant. */
@@ -983,7 +972,9 @@ function ContextPicker({ library, picked, onAdd, onClose }: {
   };
   const counts = useMemo(() => { const c: Partial<Record<AssistantReadKind, number>> = {}; for (const e of library) c[e.kind] = (c[e.kind] ?? 0) + 1; return c; }, [library]);
   const words = q.trim().toLowerCase();
-  const shown = library.filter((e) => (words ? `${e.name} ${e.line}`.toLowerCase().includes(words) : e.kind === kind)).slice(0, 300);
+  const first = (e: LibraryEntry) => (firstIds.includes(e.id) ? 0 : 1);
+  const shown = library.filter((e) => (words ? `${e.name} ${e.line}`.toLowerCase().includes(words) : e.kind === kind))
+    .sort((a, b) => first(a) - first(b)).slice(0, 300);
   const toggle = (e: LibraryEntry) => setSel((s) => { const n = new Map(s); const k = `${e.kind}:${e.id}`; if (n.has(k)) n.delete(k); else n.set(k, e); return n; });
   return (
     <Modal title="Add context" onClose={onClose} className="modal-wide asst-picker" testId="assistant-picker"

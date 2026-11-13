@@ -13,9 +13,11 @@ test("a change to a card offers Try It with its cost; Try It shows before and af
   });
   const before = await count();
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
-  // D-121: what was on screen is offered; take both (the chat and its character)
-  await page.getByTestId("assistant-offers").getByRole("button", { name: "Add Session with Lyra" }).click();
-  await page.getByTestId("assistant-offers").getByRole("button", { name: "Add Lyra", exact: true }).click();
+  // D-121: nothing comes along by itself; add the character
+  await page.getByTestId("assistant-plus").click();
+  await page.getByTestId("assistant-add-context").click();
+  await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();
+  await page.getByTestId("assistant-picker-add").click();
   await page.getByRole("textbox", { name: "Message to the Assistant" }).fill("Improve her description");
   await page.getByTestId("assistant-send").click();
   await expect(page.getByTestId("assistant-send")).toBeVisible({ timeout: 20_000 });

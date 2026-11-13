@@ -4232,14 +4232,6 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .asst-range input { width: 72px; }
 /* a chip the Assistant took from the screen you came from (D-110) */
 .asst-chip.auto { box-shadow: inset 0 0 0 1px var(--label-3); background: transparent; }
-/* D-121: what was on screen is offered, not attached — dashed "+" chips above the box; a click adds one */
-.asst-offers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--label-2); }
-.asst-offers-label { margin-right: 2px; }
-.asst-chip.offer { border: 0; font: inherit; font-size: 13px; color: var(--label-2); background: transparent; box-shadow: inset 0 0 0 1px var(--separator); padding: 3px 10px 3px 8px; cursor: pointer; transition: background var(--dur-fast), color var(--dur-fast); }
-.asst-chip.offer:hover { background: var(--fill); color: var(--label); }
-.asst-chip.offer > span:first-child { color: var(--accent); font-weight: 600; }
-.asst-offers-x { border: 0; background: none; color: var(--label-3); cursor: pointer; padding: 2px 6px; border-radius: calc(6px * var(--round)); }
-.asst-offers-x:hover { background: var(--fill); color: var(--label); }
 /* Try It on an Assistant change (D-111): asks first, then before | after */
 .asst-trial { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-control); background: var(--fill); font-size: 13px; min-width: 0; }
 .asst-trial p { margin: 0; }
