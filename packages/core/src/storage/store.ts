@@ -103,6 +103,11 @@ export class SqlStore implements StateRepository, MessageTree {
   readonly kits: DocTable<typeof Kit>;
   /** Cues (D-113): one validated JSON document each. */
   readonly cues: DocTable<typeof Cue>;
+  /**
+   * Makes the small copy of a picture that lists show (D-121). The app sets it (it needs a canvas); without one, pictures
+   * are saved with no preview and the app makes them later. A preview that can't be made is simply left out.
+   */
+  previewMaker: ((picture: Avatar) => Promise<Avatar | null>) | null = null;
 
   constructor(private readonly db: SqlDriver) {
     this.personas = new DocTable(db, "personas", Persona, { named: true, trashable: true });
@@ -234,11 +239,56 @@ export class SqlStore implements StateRepository, MessageTree {
       return;
     }
     const a = Avatar.parse(input);
+    const preview = await this.previewOf(a);
     await this.db.execute(
-      `INSERT INTO character_avatars (character_id, mime, data_base64) VALUES (?, ?, ?)
-       ON CONFLICT(character_id) DO UPDATE SET mime = excluded.mime, data_base64 = excluded.data_base64`,
-      [ownerId, a.mime, a.base64],
+      `INSERT INTO character_avatars (character_id, mime, data_base64, preview_mime, preview_base64, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(character_id) DO UPDATE SET mime = excluded.mime, data_base64 = excluded.data_base64,
+         preview_mime = excluded.preview_mime, preview_base64 = excluded.preview_base64, updated_at = excluded.updated_at`,
+      [ownerId, a.mime, a.base64, preview?.mime ?? null, preview?.base64 ?? null, Date.now()],
     );
+  }
+
+  private async previewOf(a: Avatar): Promise<Avatar | null> {
+    if (!this.previewMaker) return null;
+    try {
+      const p = await this.previewMaker(a);
+      return p ? Avatar.parse(p) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The small copies of the pictures for lists (D-121), read in one go: those changed at or after `since` (ms; 0 = all),
+   * the ids of every picture (so the app can drop removed ones), the ids still without a preview, and the newest change
+   * seen (pass it as `since` next time). Full pictures are never read here.
+   */
+  async avatarPreviews(since = 0): Promise<{ previews: Record<string, Avatar>; ids: string[]; missing: string[]; latest: number }> {
+    const ids = (await this.db.select<{ character_id: string }>("SELECT character_id FROM character_avatars")).map((r) => r.character_id);
+    const rows = await this.db.select<{ character_id: string; preview_mime: string | null; preview_base64: string | null; updated_at: number }>(
+      "SELECT character_id, preview_mime, preview_base64, updated_at FROM character_avatars WHERE updated_at >= ?", [since]);
+    const previews: Record<string, Avatar> = {};
+    const missing: string[] = [];
+    let latest = since;
+    for (const r of rows) {
+      latest = Math.max(latest, Number(r.updated_at));
+      if (r.preview_mime && r.preview_base64) previews[r.character_id] = { mime: r.preview_mime, base64: r.preview_base64 };
+      else missing.push(r.character_id);
+    }
+    return { previews, ids, missing, latest };
+  }
+
+  /** Saves the preview of a picture already stored (pictures saved before previews existed). D-121. */
+  async setAvatarPreview(ownerId: string, preview: Avatar): Promise<void> {
+    const p = Avatar.parse(preview);
+    await this.db.execute("UPDATE character_avatars SET preview_mime = ?, preview_base64 = ?, updated_at = ? WHERE character_id = ?",
+      [p.mime, p.base64, Date.now(), ownerId]);
+  }
+
+  /** How many characters are in the library (without reading them). */
+  async countCharacters(): Promise<number> {
+    const [row] = await this.db.select<{ n: number }>("SELECT COUNT(*) AS n FROM characters WHERE trashed_at IS NULL");
+    return Number(row?.n ?? 0);
   }
 
   async getAvatar(ownerId: string): Promise<Avatar | undefined> {

@@ -16,6 +16,7 @@ import { installStarterAgents } from "./agents.ts";
 import { installStarterCues } from "./cues.ts";
 import { installConnectionProfiles } from "./connection.ts";
 import { turns } from "./turns.ts";
+import { makePreview, setFullPictureSource } from "./pictures.ts";
 
 export interface AppServices {
   core: HomunculusCore;
@@ -37,6 +38,9 @@ async function boot(): Promise<AppServices> {
   const driver = await openDatabase();
   await migrate(driver, coreMigrations, { beforeMigrate: backupBeforeMigrate });
   const store = new SqlStore(driver);
+  // every picture saved gets a small copy for lists; full pictures are read only where shown big (D-121)
+  store.previewMaker = makePreview;
+  setFullPictureSource((key) => store.getAvatar(key));
   const core = new HomunculusCore({ tree: store, stateRepository: store });
   await core.loadModules([createOpenAICompatibleModule(), offlineAiModule, createSillyTavernCardsModule(), createSillyTavernPersonasModule(), createSillyTavernPresetsModule(), createSillyTavernLorebooksModule()]);
   const chat = new ChatService(core, store);
@@ -64,7 +68,7 @@ async function boot(): Promise<AppServices> {
   await installStarterNarrators(store); // once each: narrators for the three story modes + extras (D-058)
   // First run: a starter character and a first session, created here (once) and not in
   // React, which may run effects twice in development (that created 2 sessions — caught by e2e).
-  const isFirstRun = (await store.listCharacters()).length === 0 && (await store.listSessions()).length === 0;
+  const isFirstRun = (await store.countCharacters()) === 0 && (await store.listSessions()).length === 0;
   if (isFirstRun) {
     await store.saveCharacter(STARTER);
     await chat.createSession({ title: `Session with ${STARTER.name}`, characterIds: [STARTER.id] });

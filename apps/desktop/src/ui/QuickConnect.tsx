@@ -77,7 +77,9 @@ export function QuickConnect({ svc, c, session, storySetup, listModels, onChange
 }
 
 /** The menu itself: connections on the left, the viewed connection's models on the right (search, pins, typed IDs). */
-export function QuickConnectMenu({ svc, c, listModels, target, onManage, trigger, className = "" }: {
+export function QuickConnectMenu({ svc, c, listModels, target, onManage, trigger, className = "", openKey = 0 }: {
+  /** Opens the menu when it changes (another panel asking to pick a model, D-121). */
+  openKey?: number;
   svc: AppServices;
   c: ConnectionState;
   listModels: (config: ConnectionConfig, signal: AbortSignal) => Promise<ModelInfo[]>;
@@ -150,6 +152,8 @@ export function QuickConnectMenu({ svc, c, listModels, target, onManage, trigger
     setTimeout(() => search.current?.focus(), 0);
   };
   const close = () => setOpen(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (openKey) openMenu(); }, [openKey]);
   useEffect(() => {
     if (!open) return;
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); close(); } };

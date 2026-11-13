@@ -268,7 +268,7 @@ export function Sidebar({ sessions, stories, characters, avatars, lastLines, las
 export function AvatarDot({ name, avatar, size = 28 }: { name: string; avatar?: Avatar; size?: number }) {
   const style = { width: size, height: size, fontSize: Math.round(size * 0.45) };
   return avatar
-    ? <img className="avatar-dot" src={avatarUrl(avatar)} alt="" style={style} />
+    ? <img className="avatar-dot" src={avatarUrl(avatar)} alt="" style={style} decoding="async" loading="lazy" />
     : <span className="avatar-dot letter" aria-hidden style={style}>{(name || "?").slice(0, 1).toUpperCase()}</span>;
 }
 

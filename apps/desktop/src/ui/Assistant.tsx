@@ -177,14 +177,13 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const { text, atts } = compose;
   const setText = (text: string) => setCompose(d => ({ ...d, text }));
   const setAtts = (next: AssistantAttachment[] | ((items: AssistantAttachment[]) => AssistantAttachment[])) => setCompose(d => ({ ...d, atts: typeof next === "function" ? next(d.atts) : next }));
-  // the screen it was opened from becomes context, once per opening (D-110); dashed until the user sends or removes it
-  const [autoKeys, setAutoKeys] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (!screen.length) return;
-    setAtts((a) => [...a, ...screen.filter((x) => !a.some((y) => y.type === "item" && y.kind === x.kind && y.id === x.id)).map((x) => ({ type: "item" as const, kind: x.kind, id: x.id, name: x.name }))]);
-    setAutoKeys(new Set(screen.map((x) => `${x.kind}:${x.id}`)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen]);
+  // the screen it was opened from is offered as context, once per opening (D-110). D-121: offered, not attached — a friend
+  // found the chat and its character already in the box (and in the prompt) every time he opened the Assistant. A click
+  // on "+ Session with Lyra" adds it; sending or ✕ puts the offer away.
+  const [offered, setOffered] = useState(screen);
+  useEffect(() => { setOffered(screen); }, [screen]);
+  const offers = offered.filter((x) => !atts.some((y) => y.type === "item" && y.kind === x.kind && y.id === x.id));
+  const addOffer = (x: (typeof screen)[number]) => setAtts((a) => [...a, { type: "item" as const, kind: x.kind, id: x.id, name: x.name }]);
   const [savingHistory, setSavingHistory] = useState(false);
   const [undoMessage, setUndoMessage] = useState<{ chatId: string; branch: string; message: AssistantMessage; index: number } | null>(null);
   const [picking, setPicking] = useState(false);
@@ -192,6 +191,8 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   const [settings, setSettings] = useState<AssistantSettings | null>(null);
   const [details, setDetailsRaw] = useState<boolean>(() => { try { return localStorage.getItem("homunculus.assistant.details") !== "off"; } catch { return true; } });
   const setDetails = (on: boolean) => { setDetailsRaw(on); try { localStorage.setItem("homunculus.assistant.details", on ? "on" : "off"); } catch { /* private window */ } };
+  /** Bumped by Details → "Choose the model from the list": opens the model menu under the box. */
+  const [askModel, setAskModel] = useState(0);
   const [viewing, setViewing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -265,7 +266,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
   };
   const summary = settings && resolved ? (
     <PicksSummary settings={settings} picks={picks}
-      modelSwitch={<QuickConnectMenu svc={svc} c={connection} listModels={listModels} target={qcTarget} onManage={onManageConnections}
+      modelSwitch={<QuickConnectMenu svc={svc} c={connection} listModels={listModels} target={qcTarget} onManage={onManageConnections} openKey={askModel}
         trigger={(open, toggle) => (
           <button type="button" className={`asst-model-btn${open ? " on" : ""}`} data-testid="assistant-model" aria-expanded={open} title="Switch the model for this chat" onClick={toggle}>
             {shortModel(pickedModel)}
@@ -364,6 +365,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     const user: AssistantMessage = { id: crypto.randomUUID(), role: "user", text: body, reasoning: "", attachments: atts, steps: [], rounds: [], results: [], createdAt: now };
     const base = chat ?? AssistantChat.parse({ id: crypto.randomUUID(), createdAt: now, updatedAt: now, ...draft });
     const captured = compose;
+    setOffered([]); // the screen's offer is for the first message only
     await runFrom({ ...base, messages: [...base.messages, user], updatedAt: now }, () => setCompose(current => current === captured ? { text: "", atts: [] } : { ...current, atts: current.atts.filter(a => !captured.atts.includes(a)) }));
   };
   /** Writes the last reply again (results it made stay; undo them on their cards if needed). */
@@ -527,17 +529,17 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
             {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} pictures={pictureCtl(m)} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} onBranch={() => branchFrom(m)} onDelete={() => void removeMessage(m)} /> : (
               <Reply key={m.id} m={m} cards={{ busy, pages: comicPages, reading: lastReading, faces: castIds, onChange: (ri, next) => void decide(m, ri, next), onSend: (t) => void sendText(t) }} onSaveDraft={(kind, data) => saveDraft(m, kind, data)} onAct={(ri, w) => void act(m, ri, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit}
                 emoji={settings?.assistants.find((a) => a.name === m.used?.assistant)?.emoji}
-                onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} onBranch={!busy ? () => branchFrom(m) : undefined} onDelete={!busy ? () => void removeMessage(m) : undefined} versions={answerVersions(m)} />
+                latest={i === messages.length - 1} onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} onBranch={!busy ? () => branchFrom(m) : undefined} onDelete={!busy ? () => void removeMessage(m) : undefined} versions={answerVersions(m)} />
             )))}
             {live && runningId.current === st.activeId && <Reply m={live} live onAct={() => {}} onApplyAll={() => {}} onOpen={onOpenItem} onStartKit={onStartKit} emoji={resolved?.assistant.emoji} liveName={resolved?.assistant.name} compacting={compacting} />}
           </div>
         )}
       </div>
-      {away && <div className="asst-latest"><button className="btn" data-testid="assistant-latest" onClick={toEnd}>{live ? "Writing… ↓" : "Latest ↓"}</button></div>}
+      {away && <div className="asst-latest"><button className="btn btn-bordered" data-testid="assistant-latest" onClick={toEnd}>{live ? "Writing… ↓" : "Latest ↓"}</button></div>}
       <div className="asst-bottom"><div className="asst-col">
         {undoMessage && chat?.id === undoMessage.chatId && (chat.activeBranchId ?? "main") === undoMessage.branch && <div className="asst-deleted" role="status">Message deleted from this branch. <button className="link" disabled={busy} onClick={() => void undoDelete()}>Undo</button></div>}
         {error && <p className="asst-error" role="alert">{error}</p>}
-        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty, autoKeys,
+        <Composer {...{ text, setText, atts, setAtts, busy, onSend: () => void send(), onStop: () => abort.current?.abort(), onPick: () => setPicking(true), onFiles: () => fileInput.current?.click(), onDropFiles: (f: File[]) => void addFiles(f), picksBar, autoFocus: empty, offers, onOffer: addOffer, onDropOffers: () => setOffered([]),
           onComic: () => setComic(true),
           pictureNote: route === "drop" && settings ? { model: effective?.model ?? "", options: connection.profiles.filter((p) => p.id !== effective?.profileId).map((p) => ({ id: p.id, name: p.name })),
             onChoose: (id) => { const n = { ...settings, vision: { connectionId: id, model: "" } }; setSettings(n); void saveSettings(svc.store, n); } } : undefined }} />
@@ -553,14 +555,15 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     </section>
     {details && settings && <AssistantDetails chat={chat} live={runningId.current === st.activeId ? live : null} settings={settings} modelName={modelLabel} modelFrom={modelFrom}
       onSettings={(n) => { setSettings(n); void saveSettings(svc.store, n); }} onChat={updateChat} onCompact={() => void compactNow()} compacting={compacting}
-      onCustomize={(tab) => st.setPage("customize", tab)} onClose={() => setDetails(false)} />}
+      onCustomize={(tab) => st.setPage("customize", tab)} onClose={() => setDetails(false)} onPickModel={() => setAskModel((n) => n + 1)} />}
     </div>
     </TrialCtx.Provider>
   );
 }
 
-function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false, autoKeys, pictureNote, onComic }: {
-  autoKeys?: Set<string>;
+function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, onFiles, onDropFiles, picksBar, autoFocus = false, offers = [], onOffer, onDropOffers, pictureNote, onComic }: {
+  /** What was on screen, offered as context (D-121): a click adds one. */
+  offers?: Array<{ kind: AssistantReadKind; id: string; name: string }>; onOffer?: (x: { kind: AssistantReadKind; id: string; name: string }) => void; onDropOffers?: () => void;
   /** The model can't see pictures and no vision model is chosen (D-115): a note on each picture, with a way to choose one. */
   pictureNote?: { model: string; options: Array<{ id: string; name: string }>; onChoose: (connectionId: string) => void };
   onComic?: () => void;
@@ -572,11 +575,21 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
     <div className="asst-comp" data-testid="assistant-composer"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length) onDropFiles([...e.dataTransfer.files]); }}>
+      {offers.length > 0 && onOffer && (
+        <div className="asst-offers" data-testid="assistant-offers">
+          <span className="asst-offers-label">From the screen you were on:</span>
+          {offers.map((x) => (
+            <button key={`${x.kind}:${x.id}`} type="button" className="asst-chip offer" onClick={() => onOffer(x)} aria-label={`Add ${x.name}`} title={`Add ${x.name} as context for this message`}>
+              <span aria-hidden>+</span><span className="asst-k" aria-hidden><KindMark kind={x.kind} /></span><span className="asst-chip-name">{x.name}</span>
+            </button>
+          ))}
+          {onDropOffers && <button type="button" className="asst-offers-x" aria-label="Don't offer these" title="Don't offer these" onClick={onDropOffers}>✕</button>}
+        </div>
+      )}
       {atts.length > 0 && (
         <div className="asst-ctx">
           {atts.map((a) => (
-            <span key={a.id} className={`asst-chip${a.type === "image" ? " img" : ""}${a.type === "item" && autoKeys?.has(`${a.kind}:${a.id}`) ? " auto" : ""}`}
-              title={a.type === "item" && autoKeys?.has(`${a.kind}:${a.id}`) ? "Added from the screen you came from. ✕ removes it." : undefined}>
+            <span key={a.id} className={`asst-chip${a.type === "image" ? " img" : ""}`}>
               {a.type === "image" ? <img src={`data:${a.mime};base64,${a.base64}`} alt="" /> : <span className="asst-k" aria-hidden>{a.type === "item" ? <KindMark kind={a.kind} /> : <Icon name="file" size={14} />}</span>}
               <span className="asst-chip-name">{a.name}</span>
               <button type="button" aria-label={`Remove ${a.name}`} onClick={() => setAtts((x) => x.filter((y) => y.id !== a.id))}>✕</button>
@@ -694,7 +707,9 @@ function DescriptionBox({ a, onSave, onClose, visionName }: { a: Extract<Assista
   );
 }
 
-function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false, onSaveDraft, onBranch, onDelete, versions, cards }: {
+function Reply({ m, live = false, latest = false, onAct, onApplyAll, onOpen, onStartKit, onRegenerate, emoji, liveName, compacting = false, onSaveDraft, onBranch, onDelete, versions, cards }: {
+  /** The newest message: its actions always show (others on hover), like the chat's last message (D-121). */
+  latest?: boolean;
   /** Decision cards (D-115): edits on a card, answers sent as a message. */
   cards?: Omit<CardCtl, "onChange"> & { onChange: (i: number, next: AssistantResult) => void };
   onBranch?: () => void; onDelete?: () => void; versions?: { index: number; total: number; pick: (i: number) => void };
@@ -709,7 +724,7 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
   const last = m.steps.at(-1);
   const stepLine = live && last ? `${last.label}${last.label === "…" ? "" : "…"}` : m.steps.length === 1 ? m.steps[0]!.label : `${m.steps.length} steps`;
   return (
-    <div className="asst-ai" data-testid="assistant-reply" data-message-id={m.id}>
+    <div className={`asst-ai${latest ? " latest" : ""}`} data-testid="assistant-reply" data-message-id={m.id}>
       <span className={`asst-orb${live ? " live" : ""}`} aria-hidden><AssistantMark emoji={emoji || "✦"} size={14} /></span>
       <div className="asst-body">
         <div className="asst-meta"><b>{m.used?.assistant ?? liveName ?? "Assistant"}</b>{m.used?.model && <span>{m.used.model}</span>}<span>{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>{compacting && <span className="asst-busy">compacting older messages…</span>}</div>
@@ -725,8 +740,9 @@ function Reply({ m, live = false, onAct, onApplyAll, onOpen, onStartKit, onRegen
         {waiting > 1 && !live && <div className="asst-decide"><Button small variant="prominent" onClick={onApplyAll} data-testid="assistant-apply-all">Apply all {waiting}</Button></div>}
         {m.error && <p className="asst-error" role="alert">{m.error === "Stopped" || /abort/i.test(m.error) ? "Stopped." : m.error}</p>}
         {!live && <div className="asst-acts left">
-          {onRegenerate && <button type="button" onClick={onRegenerate} data-testid="assistant-regenerate"><Icon name="refresh" size={12} /> Again</button>}
+          {/* the usage first: the buttons after it fade in on hover without leaving a gap before it (D-121) */}
           {m.used && <span className="asst-usage" data-testid="assistant-usage">{usageLine(m)}</span>}
+          {onRegenerate && <button type="button" onClick={onRegenerate} data-testid="assistant-regenerate"><Icon name="refresh" size={12} /> Again</button>}
           {m.text && <button type="button" onClick={() => void navigator.clipboard?.writeText(m.text)}><Icon name="link" size={12} /> Copy</button>}
           {versions && <span className="asst-versions" aria-label="Answer Versions"><button type="button" aria-label="Previous Answer" disabled={versions.index === 0} onClick={() => versions.pick(versions.index - 1)}>‹</button><span data-testid="assistant-version">{versions.index + 1}/{versions.total}</span><button type="button" aria-label="Next Answer" disabled={versions.index === versions.total - 1} onClick={() => versions.pick(versions.index + 1)}>›</button></span>}
           {onBranch && <button type="button" onClick={onBranch}>Branch From Here</button>}

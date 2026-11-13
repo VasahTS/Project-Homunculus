@@ -72,4 +72,12 @@ export async function imageFileToPngAvatar(file: File): Promise<Avatar> {
   }
 }
 
-export const avatarUrl = (a: Avatar | undefined) => (a ? `data:${a.mime};base64,${a.base64}` : undefined);
+/** A picture as a URL for <img>. Made once per picture (D-121): every list re-render used to build a new copy of the
+ *  whole picture as text, for every card. */
+const urls = new WeakMap<Avatar, string>();
+export const avatarUrl = (a: Avatar | undefined) => {
+  if (!a) return undefined;
+  let u = urls.get(a);
+  if (!u) { u = `data:${a.mime};base64,${a.base64}`; urls.set(a, u); }
+  return u;
+};

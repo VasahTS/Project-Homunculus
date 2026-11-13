@@ -147,4 +147,16 @@ export const coreMigrations: Migration[] = [
       "CREATE TABLE cues (id TEXT PRIMARY KEY, name TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, trashed_at INTEGER)",
     ],
   },
+  {
+    version: 12,
+    name: "small previews of pictures (D-121)",
+    statements: [
+      // lists show a small copy of each picture; the full one is read only where it is shown big or exported.
+      // NULL preview = not made yet (pictures saved before this version get theirs in the background).
+      "ALTER TABLE character_avatars ADD COLUMN preview_mime TEXT",
+      "ALTER TABLE character_avatars ADD COLUMN preview_base64 TEXT",
+      // when the picture or its preview last changed, so the app reads only what changed since it last looked
+      "ALTER TABLE character_avatars ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0",
+    ],
+  },
 ];

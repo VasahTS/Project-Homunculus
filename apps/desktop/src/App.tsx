@@ -3,7 +3,7 @@
 // 2026-10-28 (slice 1, D-019): versions of characters, personas, history, the Trash; (slice 1b, D-020): Settings.
 // The look comes only from theme tokens + the appearance profile (theme/), so screens can evolve without a rewrite.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useGuardedNavigation } from "./ui/ux.tsx";
+import { useGuardedNavigation, WorkToast } from "./ui/ux.tsx";
 import { backForwardOf, goMove, isClaimed, openLayers, pressEscape, recordMove, takeQuietScreen } from "./ui/back-button.ts";
 import { pageIn, slideTab } from "./ui/motion.ts";
 import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type Cue, type RegexScript, type AssistantReadKind } from "@homunculus/schemas";
@@ -18,6 +18,7 @@ import { UpdateBar } from "./ui/UpdateBar.tsx";
 import { useUpdates } from "./updates.ts";
 import { SettingsPage, type SettingsTab } from "./ui/SettingsPage.tsx";
 import { imageFileToPngAvatar, readFileBytes, saveExport } from "./files.ts";
+import { fullPicture, makePreview, rememberPreview } from "./pictures.ts";
 import { CropHost } from "./ui/ImageCropper.tsx";
 import { cardPngForSite, importCharacterFile, importFromSite, picturePng } from "./importCharacters.ts";
 import { CardBrowser } from "./ui/CardBrowser.tsx";
@@ -96,6 +97,8 @@ type View =
   | { kind: "kit"; id: string }
   | { kind: "card-browser" };
 export interface Notice { kind: "ok" | "warn" | "error"; title: string; lines: string[]; action?: { label: string; run: () => void } }
+/** Work that takes a while, with how far it is (D-121). */
+export interface WorkProgress { id: string; title: string; done: number; total: number; detail?: string }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -152,7 +155,10 @@ export function App() {
   const [defaultPersonaId, setDefaultPersonaId] = useState<string | null>(null);
   const [trash, setTrash] = useState<TrashItem[]>([]);
   const [defaultSetup, setDefaultSetupState] = useState<SetupLayer>({});
+  /** Small previews of every picture, by owner key (D-121; the full picture: pictures.ts fullPicture). */
   const [avatars, setAvatars] = useState<Record<string, Avatar>>({});
+  /** Long work shown at the bottom of the window (D-121): importing cards, making the previews of pictures. */
+  const [work, setWork] = useState<WorkProgress | null>(null);
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   /** Cues (D-113): rules without an AI call. */
@@ -381,6 +387,61 @@ export function App() {
     return () => { window.removeEventListener("mouseup", act); window.removeEventListener("keydown", act); window.removeEventListener("mousedown", block, true); window.removeEventListener("auxclick", block, true); };
   }, []);
 
+  // ---- pictures (D-121): lists get small previews, read in one go and only what changed since the last look; the full
+  // picture is read where it is shown big (pictures.ts). Pictures saved before previews existed get theirs in the
+  // background, a few at a time, so the app opens at once even with a thousand cards.
+  /** The card import running now (D-121): files picked meanwhile join it. */
+  const importRun = useRef<{ queue: File[]; done: number; total: number } | null>(null);
+  const pictureSince = useRef(0);
+  const pictureFill = useRef({ running: false, queue: new Set<string>(), failed: new Set<string>() });
+  const fillPreviews = useCallback(async (s: AppServices, ids: string[]) => {
+    const f = pictureFill.current;
+    for (const id of ids) f.queue.add(id);
+    if (f.running) return;
+    f.running = true;
+    let done = 0;
+    try {
+      while (f.queue.size) {
+        const total = done + f.queue.size;
+        const batch: Record<string, Avatar> = {};
+        for (const id of [...f.queue].slice(0, 6)) {
+          f.queue.delete(id);
+          done++;
+          const full = await s.store.getAvatar(id).catch(() => undefined);
+          if (!full) continue;
+          const preview = await makePreview(full).catch(() => null);
+          if (preview) await s.store.setAvatarPreview(id, preview).catch(() => {});
+          else f.failed.add(id); // can't be made (a picture the WebView can't open): show the picture itself
+          const shown = preview ?? full;
+          rememberPreview(id, shown);
+          batch[id] = shown;
+        }
+        setAvatars((old) => ({ ...old, ...batch }));
+        if (total > 12) setWork({ id: "pictures", title: "Making small copies of your pictures", done, total, detail: "Only this once; the app is usable meanwhile." });
+        await new Promise((r) => setTimeout(r, 0)); // let the window breathe between batches
+      }
+    } finally {
+      f.running = false;
+      setWork((w) => (w?.id === "pictures" ? null : w));
+    }
+  }, []);
+  const loadPictures = useCallback(async (s: AppServices) => {
+    const r = await s.store.avatarPreviews(pictureSince.current);
+    pictureSince.current = r.latest;
+    for (const [k, a] of Object.entries(r.previews)) rememberPreview(k, a);
+    const failed = pictureFill.current.failed;
+    const missing = new Set(r.missing.filter((id) => !failed.has(id)));
+    setAvatars((old) => {
+      const next: Record<string, Avatar> = {};
+      for (const id of r.ids) {
+        const a = r.previews[id] ?? (missing.has(id) ? undefined : old[id]);
+        if (a) next[id] = a;
+      }
+      return next;
+    });
+    if (missing.size) void fillPreviews(s, [...missing]);
+  }, [fillPreviews]);
+
   /** Stories, narrators and NPCs (the Vault). */
   const refreshVault = useCallback(async (s: AppServices) => {
     const [st, na, np, ki, fo] = await Promise.all([s.store.listStories(), s.store.narrators.list(), s.store.npcs.list(), s.store.kits.list(), s.store.listFolders()]);
@@ -388,12 +449,9 @@ export function App() {
     const maps: Partial<Record<FolderKind, Record<string, string>>> = {};
     for (const k of ["character", "npc", "narrator", "lorebook", "kit", "story"] as const) maps[k] = await s.store.folderMap(k);
     setFolderMaps(maps);
-    // pictures of stories, narrators, NPCs and kits (29/10), in the same table as characters'
-    const av: Record<string, Avatar> = {};
-    const owned = [...st, ...na, ...np, ...ki];
-    for (const x of owned) { const a = await s.store.getAvatar(x.id); if (a) av[x.id] = a; }
-    setAvatars((old) => ({ ...Object.fromEntries(Object.entries(old).filter(([k]) => !owned.some((x) => x.id === k))), ...av }));
-  }, []);
+    // pictures of everything (characters, personas, versions, stories, narrators, NPCs, kits share one table)
+    await loadPictures(s);
+  }, [loadPictures]);
 
   const refresh = useCallback(async (s: AppServices) => {
     const [ss, cs, ts, ps, def, tr, pr] = await Promise.all([s.store.listSessions(), s.store.listCharacters(), listTrackers(s.store),
@@ -406,15 +464,12 @@ export function App() {
     setGlobalRegex(await s.store.getGlobalRegex());
     setApprovedRegex(await s.store.getApprovedRegex());
     void loadQuickReplies(s.store);
-    const av: Record<string, Avatar> = {};
-    for (const x of [...cs, ...ps]) Object.assign(av, await s.store.getAvatarsFor(x.id));
     setSessions(ss);
     setCharacters(cs);
     setPersonas(ps);
     setDefaultPersonaId(def.personaId ?? null);
     setDefaultSetupState(def);
     setTrash(tr);
-    setAvatars(av);
     setTrackers(ts);
     setAgents(await listAgents(s.store));
     const cueList = await listCues(s.store);
@@ -994,28 +1049,68 @@ export function App() {
 
   const pickFieldSet = (id: string, setId: string | null) => changeTrackers((s, above) => withFieldSet(s, id, setId, above));
 
+  /**
+   * Library → Import of character cards (D-121). One card at a time, with a progress bar, and each card shows up in the
+   * list as soon as it is saved (it used to look like nothing happened until every card was in). Files picked while an
+   * import runs join it instead of starting a second one.
+   */
   const importFiles = async (files: File[]) => {
+    if (importRun.current) {
+      importRun.current.queue.push(...files);
+      importRun.current.total += files.length;
+      setWork({ id: "import", title: "Importing cards", done: importRun.current.done, total: importRun.current.total, detail: `${files.length} more added` });
+      return;
+    }
+    const run = { queue: [...files], done: 0, total: files.length };
+    importRun.current = run;
     const imported: string[] = [];
     const problems: string[] = [];
     const warnings: string[] = [];
     let lastId: string | null = null;
-    for (const file of files) {
-      try {
-        for (const r of await importCharacterFile(svc, await readFileBytes(file), file.name)) {
-          imported.push(r.character.name);
-          warnings.push(...r.warnings);
-          lastId = r.character.id;
-        }
-      } catch (e) {
-        problems.push(`${file.name}: ${errorText(e)}`);
+    let fresh: Character[] = [];
+    let shownAt = 0;
+    // the new cards (and their pictures) go into the list every few cards, not after the last one
+    const show = async (force = false) => {
+      if (!force && Date.now() - shownAt < 400) return;
+      shownAt = Date.now();
+      if (fresh.length) {
+        const add = fresh;
+        fresh = [];
+        setCharacters((old) => [...old.filter((c) => !add.some((n) => n.id === c.id)), ...add]);
+        await loadPictures(svc);
       }
+      setWork({ id: "import", title: "Importing cards", done: run.done, total: run.total, detail: run.queue[0]?.name });
+      await new Promise((r) => setTimeout(r, 0)); // let the window paint
+    };
+    try {
+      await show(true);
+      for (let file = run.queue.shift(); file; file = run.queue.shift()) {
+        try {
+          for (const r of await importCharacterFile(svc, await readFileBytes(file), file.name)) {
+            imported.push(r.character.name);
+            warnings.push(...r.warnings);
+            lastId = r.character.id;
+            fresh.push(r.character);
+          }
+        } catch (e) {
+          problems.push(`${file.name}: ${errorText(e)}`);
+        }
+        run.done++;
+        await show();
+      }
+      await show(true);
+    } finally {
+      importRun.current = null;
+      setWork((w) => (w?.id === "import" ? null : w));
     }
     await refresh(svc);
     if (imported.length === 1 && lastId) setView({ kind: "characters", id: lastId });
+    const names = imported.length > 6 ? `${imported.slice(0, 5).join(", ")} and ${imported.length - 5} more` : imported.join(", ");
+    const lines = [...problems, ...warnings];
     setNotice({
       kind: problems.length ? (imported.length ? "warn" : "error") : warnings.length ? "warn" : "ok",
-      title: imported.length ? `Imported ${imported.length} character(s): ${imported.join(", ")}` : "Nothing was imported",
-      lines: [...problems, ...warnings],
+      title: imported.length ? `Imported ${imported.length} character(s): ${names}` : "Nothing was imported",
+      lines: lines.length > 30 ? [...lines.slice(0, 30), `…and ${lines.length - 30} more notes.`] : lines,
     });
   };
 
@@ -1034,7 +1129,9 @@ export function App() {
     if (!exporter) return;
     try {
       // the card carries its lorebook (the one it came with, edits included), like SillyTavern does
-      const where = await saveExport(await exporter.export(characterWithBook(c, await bookForCardExport(svc.store, c)), avatar));
+      // the full picture, never the small preview lists use (D-121)
+      const picture = avatar ? await fullPicture(avatar) : undefined;
+      const where = await saveExport(await exporter.export(characterWithBook(c, await bookForCardExport(svc.store, c)), picture));
       if (!where) return;
       setNotice({ kind: "ok", title: `Exported ${c.name}`, lines: [`Saved to: ${where}`] });
     } catch (e) {
@@ -1423,16 +1520,22 @@ export function App() {
       badges: changesIn(x.setup) > 0 ? <span className="changed-chip">{changesIn(x.setup)} change{changesIn(x.setup) === 1 ? "" : "s"}</span> : undefined }))
     .sort((a, b) => b.when - a.when);
   const chatsLine = (rows: ChatRow[]) => rows.length ? `${rows.length} chat${rows.length === 1 ? "" : "s"} · ${new Date(rows[0]!.when).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "No chats yet";
+  /** Every character's 1:1 chats, newest first, worked out once per render: asking per card went through every chat
+   *  for every card (D-121, a library of 1000 cards). */
+  const chatRowsByCharacter = new Map<string, ChatRow[]>();
+  for (const x of sessions) {
+    const characterId = x.cast[0]?.characterId;
+    if (x.storyId || !characterId) continue;
+    const vid = x.cast[0]?.variantId;
+    const label = vid ? byId[characterId]?.variants.find((v) => v.id === vid)?.label : undefined;
+    const rows = chatRowsByCharacter.get(characterId) ?? [];
+    rows.push({ session: x, lastLine: lastLines[x.id] ?? "", messages: messageCounts[x.id] ?? 0, when: lastTimes[x.id] ?? x.createdAt,
+      badges: label ? <span className="hint">{label} version</span> : undefined });
+    chatRowsByCharacter.set(characterId, rows);
+  }
+  for (const rows of chatRowsByCharacter.values()) rows.sort((a, b) => b.when - a.when);
   /** A character's 1:1 chats, newest first. */
-  const chatsWith = (characterId: string): ChatRow[] => sessions
-    .filter((x) => !x.storyId && x.cast[0]?.characterId === characterId)
-    .map((x) => {
-      const vid = x.cast[0]?.variantId;
-      const label = vid ? byId[characterId]?.variants.find((v) => v.id === vid)?.label : undefined;
-      return { session: x, lastLine: lastLines[x.id] ?? "", messages: messageCounts[x.id] ?? 0, when: lastTimes[x.id] ?? x.createdAt,
-        badges: label ? <span className="hint">{label} version</span> : undefined };
-    })
-    .sort((a, b) => b.when - a.when);
+  const chatsWith = (characterId: string): ChatRow[] => [...(chatRowsByCharacter.get(characterId) ?? [])];
 
   const short = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 90);
   /** The folder an item is in, before its line (two cards with one name are told apart by it, D-064). */
@@ -2062,6 +2165,7 @@ export function App() {
       <div className="content" ref={contentRef}>
         <UpdateBar u={updates} />
         {noticeBar}
+        {work && <WorkToast work={work} />}
         <CollectionOrderContext.Provider value={{ store: svc.store, prefs: collPrefs,
           onSort: (key, sort, seed) => setPrefs(key)({ ...prefsOf(key), sort, sortSeed: seed }),
           sources: { characters, stories, kits, narrators, npcs, personas, presets, lorebooks, trackers, agents, regex: globalRegex, trash }, sessions, lastTimes, defaultPersonaId }}>

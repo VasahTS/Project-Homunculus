@@ -1340,3 +1340,27 @@ Daniel: a friend's MiniMax M3.1 Flash and Mimo v2.5 Pro kept failing on lorebook
 - **Draft first:** a revision's `entries`/`variants` operations show on the draft card like the change card (+ new, ~ changed, − removed) instead of "[object Object]". `DRAFT_RULES` no longer contradicts the lorebook guide: a draft of an existing item holds only the changes, in `change`'s shape; "show the whole draft again" is only for new drafts; call guide(kind) before the first draft of a kind.
 - Tests: `apps/desktop/src/assistant/args.test.ts` (the real call shapes).
 - Not done (needs a UI draft first): checking a draft block when the reply ends and offering "Ask to fix" on the card.
+
+## D-121 — Many cards on Linux: small previews of pictures, only the cards on screen, an import you can see; a friend's visual bugs (2026-11-13)
+
+Daniel relayed a friend's report (Linux, the AppImage), translated: with 1000 cards the app took minutes to start and 30 s to open Characters, idled at **14 GB** on that page, crashed while scrolling (WebKitGTK: "Unable to shrink memory footprint of process (17095 MB) below the kill threshold (16384 MB). Killed"); importing 70 cards looked like nothing happened for 20 s and the cards all appeared at once; "you're clearly loading all the cards on startup". Plus visual bugs and no sound ("GStreamer element appsrc not found").
+
+What was wrong (measured in the browser with 120 cards of 1.6 MB: 306 MB of JS heap, 1.3 s to open Characters, 120 full pictures on the page):
+- `refresh()` read **every full picture** (one query each) and kept them as base64 text in React state; every list re-render built a new `data:` URL of each whole picture, for each card; every card drew its full picture.
+- Characters drew every card at once, and the arrival cascade started an animation on each of them.
+- Import saved everything first and refreshed once at the end, with no sign of progress.
+
+Decided and built:
+- **Previews (`pictures.ts`, migration 12):** `character_avatars` gains `preview_mime`, `preview_base64`, `updated_at`. `SqlStore.previewMaker` (set by the app: canvas, cover a 320×480 box, WebP or JPEG — PNG when see-through, since WebKitGTK can't write WebP) makes the preview whenever a picture is saved. `avatarPreviews(since)` returns the previews changed since the last look, all ids and those still missing, in one query; the app's `avatars` state holds **previews only**. Pictures saved before this version get theirs in the background, a few at a time, with a progress line ("Making small copies of your pictures", once). A picture that can't be previewed shows itself.
+- **Full picture only where shown big:** `useFullPicture` / `fullPicture` (a preview remembers its owner key; the last 8 full pictures are kept) in the character sheet, the reading view, the image picker; **exports always read the full picture** (`exportCharacter`).
+- `avatarUrl` makes one URL per picture (WeakMap); list pictures decode lazily.
+- **Only the cards on screen (`VirtualCards`):** lists over 80 cards keep a few screens of rows (columns read from the grid, rows measured, spacers keep the scroll); shorter lists are drawn whole as before. `enter()` no longer animates what is below the screen. A character's chats are grouped once per render (it went through every chat for every card).
+- **Import:** one card at a time with a bottom progress bar (`WorkToast`: "Importing cards · 37 / 70 · file name"), cards appear in the list as they are saved (every ~0.4 s), files picked meanwhile join the running import; the final notice names five and counts the rest.
+- **Sound in the AppImage:** `bundle.linux.appimage.bundleMediaFramework` and GStreamer plugins on the Linux build machine (`release.yml`; Daniel asked for the fix) and in the .deb's depends.
+- **Visual fixes:** the sliding highlight is placed by layout offsets, not screen position (an item still moving in left it a few pixels off for good — "Settings" with its highlight below it, on every place switch); "Start from → One of your cards" keeps its label readable with a long card name (the select shrinks and wraps); the empty-library import box has padding; the Unsaved Changes buttons have their styles (Stay looked disabled; Discard is now red); the Assistant's newest answer always shows its actions (others on hover) and the usage comes first; Details says the context size isn't known and **opens the model list** (was "Use Browse…").
+- **The Assistant offers the screen instead of attaching it** (changes D-110): "From the screen you were on: + Session with Lyra · + Lyra ✕". A click adds one; sending or ✕ puts the offer away. The friend found the chat and its character already in the box (and in the prompt) every time.
+- After: 120 cards → 53 MB heap, Characters opens in 0.19 s, 9 cards built on screen; import 21 s (was 18 s without previews; now visible and progressive).
+- Not done: the character list still reads every card's full JSON (with `original`) at start; `refresh()` still runs three queries per chat. Both are next if a big library is still slow to start.
+- Tests: `packages/core/test/storage.test.ts` (previews, counting); click tests `e2e/big-library.e2e.ts` (new: progress, only the cards on screen, preview vs full picture, the highlight after switching places — it fails on the old code), `assistant-context` (offers).
+
+Signed: **CLAUDE**.

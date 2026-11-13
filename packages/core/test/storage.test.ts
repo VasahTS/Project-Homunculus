@@ -28,7 +28,7 @@ describe("migrations", () => {
     await migrate(db, coreMigrations.filter((m) => m.version <= 2));
     await db.execute("INSERT INTO messages (id, session_id, parent_id, speaker, content, meta, created_at) VALUES ('m1','s1',NULL,'{\"kind\":\"user\"}','hello','{}',1)");
     await db.execute("INSERT INTO state_deltas (message_id, delta) VALUES ('m1', '{\"clock\":{\"t\":\"18:00\"}}')");
-    expect(await migrate(db, coreMigrations)).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(await migrate(db, coreMigrations)).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     const store = new SqlStore(db);
     expect(await store.getMessage("m1")).toMatchObject({ content: "hello", kind: "user" });
     expect(await new WorldState(store, store).resolve("s1", "m1")).toEqual({ clock: { t: "18:00" } });
@@ -130,6 +130,43 @@ describe("store", () => {
     await expect(store.setAvatar("c1", { mime: "text/plain", base64: "x" })).rejects.toThrow();
     await store.deleteCharacter("c1");
     expect(await store.getAvatar("c1")).toBeUndefined();
+  });
+
+  it("keeps a small preview of each picture and reads only what changed (D-121)", async () => {
+    const { store } = await newTestStore();
+    const big = { mime: "image/png", base64: "iVBORw0KGgoAAAA=" };
+    // no preview maker yet: the picture is saved, its preview is missing
+    await store.setAvatar("old", big);
+    let r = await store.avatarPreviews();
+    expect(r).toMatchObject({ ids: ["old"], missing: ["old"], previews: {} });
+    // the app's maker: every picture gets a small copy, saved with it
+    store.previewMaker = async (a) => ({ mime: "image/jpeg", base64: `small-${a.base64.length}` });
+    await store.setAvatar("c1", big);
+    await store.setAvatarPreview("old", { mime: "image/jpeg", base64: "made-later" });
+    r = await store.avatarPreviews();
+    expect(r.previews).toEqual({ c1: { mime: "image/jpeg", base64: "small-16" }, old: { mime: "image/jpeg", base64: "made-later" } });
+    expect(r.missing).toEqual([]);
+    expect(await store.getAvatar("c1")).toEqual(big); // the full picture is untouched
+    // next time only what changed since comes back, but every id is listed (a removed picture disappears)
+    await new Promise((res) => setTimeout(res, 3));
+    await store.setAvatar("c2", big);
+    await store.setAvatar("old", null);
+    const next = await store.avatarPreviews(r.latest + 1);
+    expect(Object.keys(next.previews)).toEqual(["c2"]);
+    expect(next.ids.sort()).toEqual(["c1", "c2"]);
+    // a maker that fails never blocks saving the picture
+    store.previewMaker = async () => { throw new Error("no canvas"); };
+    await store.setAvatar("c3", big);
+    expect(await store.getAvatar("c3")).toEqual(big);
+    expect((await store.avatarPreviews()).missing).toEqual(["c3"]);
+  });
+
+  it("counts characters without reading them", async () => {
+    const { store } = await newTestStore();
+    expect(await store.countCharacters()).toBe(0);
+    await store.saveCharacter({ id: "c1", name: "Lyra" });
+    await store.saveCharacter({ id: "c2", name: "Mira" });
+    expect(await store.countCharacters()).toBe(2);
   });
 
   it("rejects damaged data instead of passing it on", async () => {

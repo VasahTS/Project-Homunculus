@@ -22,8 +22,12 @@ export interface EnterOptions { x?: number; y?: number; scale?: number; stagger?
 export function enter(elements: Iterable<Element>, { x = 0, y = 10, scale = 1, stagger = 28, delay = 0, duration = 520, easing = EASE_OUT, max = 14 }: EnterOptions = {}): void {
   if (reducedMotion()) return;
   let i = 0;
+  const below = window.innerHeight + 40;
   for (const el of elements) {
     if (!(el instanceof HTMLElement) || typeof el.animate !== "function") continue;
+    // past the first few, what is below the screen isn't animated: nobody sees it, and a thousand animations at once
+    // stalled the Characters page on Linux (D-121)
+    if (i > max && el.getBoundingClientRect().top > below) { i++; continue; }
     el.animate(
       [{ opacity: 0, transform: `translate(${x}px, ${y}px) scale(${scale})` }, { opacity: 1, transform: "none" }],
       { duration: ms(duration), delay: ms(delay + Math.min(i, max) * stagger), easing, fill: "backwards" },
@@ -137,6 +141,25 @@ export function popIn(el: Element | null, from: { x?: number; y?: number } = { y
  * inside the (position: relative) container and pass the container; `selector` finds the selected item.
  * It follows resizes; the very first placement doesn't animate.
  */
+/**
+ * Where an element sits inside a container, as laid out — transforms ignored. The pill used to measure the screen
+ * (getBoundingClientRect), so an item still moving in (the sidebar's arrival, a page's fade-up) put the pill a few
+ * pixels off for good: "Settings" with its highlight under it (a friend on Linux, D-121).
+ */
+export function layoutOffset(el: HTMLElement, box: HTMLElement): { left: number; top: number } {
+  let left = 0, top = 0;
+  for (let cur: HTMLElement | null = el; cur && cur !== box;) {
+    left += cur.offsetLeft; top += cur.offsetTop;
+    const parent = cur.offsetParent as HTMLElement | null;
+    if (!parent || !box.contains(parent)) break;
+    if (parent !== box) { left += parent.clientLeft; top += parent.clientTop; }
+    cur = parent;
+  }
+  // boxes scrolled between the item and the container move it on screen without changing its offsets
+  for (let a = el.parentElement; a && a !== box; a = a.parentElement) { left -= a.scrollLeft; top -= a.scrollTop; }
+  return { left, top };
+}
+
 export function useSlidingPill(container: RefObject<HTMLElement | null>, pill: RefObject<HTMLElement | null>, selector: string, key: unknown): void {
   const placed = useRef(false);
   useLayoutEffect(() => {
@@ -146,13 +169,10 @@ export function useSlidingPill(container: RefObject<HTMLElement | null>, pill: R
     const place = (animate: boolean) => {
       const on = box.querySelector<HTMLElement>(selector);
       if (!on) { p.style.opacity = "0"; placed.current = false; return; }
-      const r = on.getBoundingClientRect();
-      const b = box.getBoundingClientRect();
-      const left = r.left - b.left + box.scrollLeft;
-      const top = r.top - b.top + box.scrollTop;
+      const { left, top } = layoutOffset(on, box);
       p.style.transition = animate && placed.current && !reducedMotion() ? "" : "none";
-      p.style.width = `${r.width}px`;
-      p.style.height = `${r.height}px`;
+      p.style.width = `${on.offsetWidth}px`;
+      p.style.height = `${on.offsetHeight}px`;
       p.style.transform = `translate(${left}px, ${top}px)`;
       p.style.opacity = "1";
       if (p.style.transition === "none") { void p.offsetWidth; p.style.transition = ""; }

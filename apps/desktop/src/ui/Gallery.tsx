@@ -9,6 +9,7 @@ import type { Avatar, Character } from "@homunculus/schemas";
 import { effectiveCharacter, estimateTokens } from "@homunculus/core";
 import { dragItem } from "./Folders.tsx";
 import { avatarUrl } from "../files.ts";
+import { useFullPicture } from "../pictures.ts";
 import { Help } from "./Help.tsx";
 import { Button, Icon, Segmented } from "./kit.tsx";
 import { Toolbar } from "./Toolbar.tsx";
@@ -18,6 +19,7 @@ import { CardReader } from "./CardReader.tsx";
 import { CollectionTools, FolderHits, type CollectionPrefs, type FolderHit } from "./CollectionTools.tsx";
 import type { LibraryArea } from "./Sidebar.tsx";
 import { SortSelect, useCollectionOrder } from "./CollectionOrder.tsx";
+import { VirtualCards } from "./VirtualCards.tsx";
 
 const LIBRARY_TABS: Array<{ area: LibraryArea; label: string }> = [
   { area: "personas", label: "Personas" }, { area: "lorebooks", label: "Lorebooks" },
@@ -45,10 +47,13 @@ export function VaultTabs({ tab, onOpen }: { tab: VaultTab; onOpen: (t: VaultTab
   );
 }
 
-/** A card's picture: the image, else a soft tile with the first letter. */
-export function CardPicture({ name, avatar, className = "" }: { name: string; avatar?: Avatar; className?: string }) {
-  return avatar
-    ? <img className={`card-pic ${className}`.trim()} src={avatarUrl(avatar)} alt="" />
+/** A card's picture: the image, else a soft tile with the first letter. `full`: shown big (a sheet), so the full picture
+ *  replaces the small preview lists use once it has been read (D-121). */
+export function CardPicture({ name, avatar, className = "", full = false }: { name: string; avatar?: Avatar | undefined; className?: string; full?: boolean }) {
+  const big = useFullPicture(full ? avatar : undefined);
+  const shown = full ? big : avatar;
+  return shown
+    ? <img className={`card-pic ${className}`.trim()} src={avatarUrl(shown)} alt="" decoding="async" loading={full ? undefined : "lazy"} />
     : <span className={`card-pic letter ${className}`.trim()} aria-hidden>{(name || "?").slice(0, 1).toUpperCase()}</span>;
 }
 
@@ -174,13 +179,12 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
           {!searching && !everything && folders}
           {searching && onOpenFolder && <FolderHits hits={hits} onOpen={(id) => { setQ(""); onOpenFolder(id); }} />}
           <div className="collection-heading"><h2>{searching ? "Search results" : everything ? "Every character" : "Your characters"}</h2><span>{shown.length} characters</span></div>
-          <div className="gallery-cards" data-testid="character-list" ref={cards}>
-          {shown.map((c) => (
+          {/* only the rows on screen when there are many (D-121) */}
+          <VirtualCards items={shown} boxRef={cards} testId="character-list" layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`} render={(c) => (
             <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={c.id}
               by={(searching || everything) && where(c) ? where(c) : chatsOf ? chatsOf(c) : c.variants.length ? `${c.variants.length + 1} versions: Main, ${c.variants.map((v) => v.label).join(", ")}` : c.creator ? `by ${c.creator}` : undefined}
               summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.tracked === false ? ["Not tracked", ...c.tags] : c.tags} size={shortTokens(cardTokens(c))} />
-          ))}
-          </div>
+          )} />
           {characters.length === 0 && <button type="button" className="gallery-card add" onClick={() => fileInput.current?.click()}>
             <Icon name="import" size={26} />
             <span>Import cards from SillyTavern</span>
@@ -227,7 +231,7 @@ export function CharacterSheet({ c, avatar, avatars = {}, lorebookNames, storyNa
     lorebookNames.length && `lorebook ${lorebookNames.join(", ")}`].filter(Boolean);
   return (
     <div className="view-sheet" data-testid="character-sheet">
-      <button type="button" className="vs-pic-read" aria-label={`Read ${shown.name} full window`} onClick={() => setReading(true)}><CardPicture name={shown.name} avatar={pic} className="vs-pic" /></button>
+      <button type="button" className="vs-pic-read" aria-label={`Read ${shown.name} full window`} onClick={() => setReading(true)}><CardPicture name={shown.name} avatar={pic} className="vs-pic" full /></button>
       {reading && <CardReader name={shown.name} where={`Characters${folderName ? ` · ${folderName}` : ""}`} byline={facts.join(" · ") || undefined} picture={pic} tags={shown.tags}
         actions={<>
           {onContinue && <Button variant="prominent" onClick={() => { setReading(false); onContinue(); }}>Continue “{latestTitle}”</Button>}

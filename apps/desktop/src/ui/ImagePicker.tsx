@@ -4,10 +4,11 @@
 import { useRef } from "react";
 import type { Avatar } from "@homunculus/schemas";
 import { avatarUrl } from "../files.ts";
+import { useFullPicture } from "../pictures.ts";
 import { Icon } from "./kit.tsx";
 import { cropImage } from "./ImageCropper.tsx";
 
-export function ImagePicker({ name, avatar, own = !!avatar, onChange, shape = "round", size = 64, testId }: {
+export function ImagePicker({ name, avatar: preview, own = !!preview, onChange, shape = "round", size = 64, testId }: {
   name: string;
   avatar?: Avatar | undefined;
   /** The picture shown is this item's own (else it is borrowed, e.g. a story showing its narrator's): only then "Remove". */
@@ -19,6 +20,8 @@ export function ImagePicker({ name, avatar, own = !!avatar, onChange, shape = "r
   testId?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  // a sheet can show it large: the full picture once read, not the small preview (D-121)
+  const avatar = useFullPicture(preview);
   const style = { width: size, height: size, fontSize: Math.round(size * 0.42) };
   const picture = avatar
     ? <img src={avatarUrl(avatar)} alt="" style={style} />

@@ -31,7 +31,9 @@ function Section({ title, icon, children, aside, open: start = true, testId }: {
 const Sent = ({ on, off = "Not in the last request" }: { on: boolean; off?: string }) =>
   <span className={`det-sent${on ? " on" : ""}`}>{on ? "● In the last request" : `○ ${off}`}</span>;
 
-export function AssistantDetails({ chat, live, settings, modelName, modelFrom, onSettings, onChat, onCompact, compacting, onCustomize, onClose }: {
+export function AssistantDetails({ chat, live, settings, modelName, modelFrom, onSettings, onChat, onCompact, compacting, onCustomize, onClose, onPickModel }: {
+  /** Opens the model list under the message box (where each model's context size is shown). */
+  onPickModel?: () => void;
   chat: AssistantChat | null; live: AssistantMessage | null; settings: AssistantSettings; modelName: string; modelFrom: string;
   onSettings: (s: AssistantSettings) => void; onChat: (c: AssistantChat) => void; onCompact: () => void; compacting: boolean;
   onCustomize: (tab: "assistants" | "presets" | "limits" | "usage") => void; onClose: () => void;
@@ -60,7 +62,10 @@ export function AssistantDetails({ chat, live, settings, modelName, modelFrom, o
         <div className="det-ctx-line"><b>{total ? `${estimated ? "~" : ""}${fmtK(total)}` : "—"}</b><span>{ctx ? `of ${fmtK(ctx)} (${pct}%)` : "used in the last request"}</span></div>
         <div className="det-meter"><i style={{ width: `${pct ?? Math.min(100, Math.round((total / 75_000) * 100))}%` }} className={pct !== null && pct > 80 ? "hot" : ""} /></div>
         {used?.parts && <div className="det-parts">{Object.entries(used.parts).filter(([, n]) => n > 0).map(([k, n]) => <div key={k}><span>{PART[k] ?? k}</span><b>{fmtK(n)}</b></div>)}</div>}
-        {!ctx && <p className="det-hint">Use Browse to show the model’s context limit.</p>}
+        {/* a friend: "it isn't clear what Browse actually is" (D-121) — say what is missing and open the list */}
+        {!ctx && <p className="det-hint" data-testid="det-context-unknown">The model’s context size isn’t known yet. {onPickModel
+          ? <><button type="button" className="link" onClick={onPickModel}>Choose the model from the list</button> (the model name under the message box) to show it.</>
+          : "Choose the model from the list under the message box to show it."}</p>}
         {estimated && total > 0 && <p className="det-hint">Estimated: the service did not report the prompt size.</p>}
         <div className="det-row"><span>Compact by itself at 80%</span>{chat && <Switch label="Auto-compact" checked={chat.autoCompact} onChange={(autoCompact) => onChat({ ...chat, autoCompact })} />}</div>
         {chat?.compact

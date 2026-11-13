@@ -5,12 +5,13 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, 
 import { createPortal } from "react-dom";
 import type { Avatar } from "@homunculus/schemas";
 import { avatarUrl } from "../files.ts";
+import { useFullPicture } from "../pictures.ts";
 import { IconButton, Icon, Button } from "./kit.tsx";
 import { useModalFocus } from "./ux.tsx";
 
 export interface ReaderSection { id: string; title: string; text: string; prose?: boolean }
 
-export function CardReader({ name, where, byline, picture, tags = [], actions, sections, greetings = [], greetingLabel = "Opening message", extra, onBack, onClose, onPrev, onNext, renderText }: {
+export function CardReader({ name, where, byline, picture: preview, tags = [], actions, sections, greetings = [], greetingLabel = "Opening message", extra, onBack, onClose, onPrev, onNext, renderText }: {
   name: string;
   /** "Card Browser · ChubAI", "Characters · Folklore"… */
   where: string;
@@ -30,6 +31,8 @@ export function CardReader({ name, where, byline, picture, tags = [], actions, s
   /** How a field's text is drawn (links, formatting); plain text by default. */
   renderText?: (text: string) => ReactNode;
 }) {
+  // shown big: the full picture, not the small preview lists use (D-121)
+  const picture = useFullPicture(preview);
   const box = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLElement>(null);
   const [g, setG] = useState(0);

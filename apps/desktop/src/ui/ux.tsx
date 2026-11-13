@@ -80,6 +80,17 @@ function UnsavedDialog({ pending, close, saveGuard }: { pending: { action: () =>
   const save = async () => { setSaving(true); try { if (await saveGuard()) leave(); else setError("Could not save. Choose Stay to review the fields."); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setSaving(false); } };
   return createPortal(<div className="sheet-layer"><div className="sheet-scrim" /><div ref={ref} className="unsaved-dialog glass" role="dialog" aria-modal="true" aria-label="Unsaved Changes" tabIndex={-1}>
     <h2>Unsaved Changes</h2><p>Save your changes before leaving?</p>{error && <p role="alert">{error}</p>}
-    <div className="unsaved-actions"><button className="btn" disabled={saving} onClick={close}>Stay</button><button className="btn" disabled={saving} onClick={leave}>Discard</button><button className="btn btn-prominent" disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save"}</button></div>
+    <div className="unsaved-actions"><button className="btn btn-bordered" disabled={saving} onClick={close}>Stay</button><button className="btn btn-destructive" disabled={saving} onClick={leave}>Discard</button><button className="btn btn-prominent" disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save"}</button></div>
   </div></div>, document.body);
+}
+
+/** Long work at the bottom of the window (D-121: importing cards, making picture previews): what, how far, a bar. CLAUDE. */
+export function WorkToast({ work }: { work: { title: string; done: number; total: number; detail?: string | undefined } }) {
+  const pct = work.total > 0 ? Math.min(100, Math.round((work.done / work.total) * 100)) : 0;
+  return createPortal(
+    <div className="work-toast" role="status" aria-live="polite" data-testid="work-progress">
+      <div className="work-head"><strong>{work.title}</strong><span className="work-count">{work.done} / {work.total}</span></div>
+      <div className="work-bar" role="progressbar" aria-valuemin={0} aria-valuemax={work.total} aria-valuenow={work.done}><span style={{ width: `${pct}%` }} /></div>
+      {work.detail && <span className="work-detail">{work.detail}</span>}
+    </div>, document.body);
 }

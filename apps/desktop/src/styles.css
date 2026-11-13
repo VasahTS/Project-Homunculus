@@ -1145,6 +1145,9 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .gallery-layout { flex: 1; min-height: 0; display: flex; gap: var(--gap-float); padding: 0 6px 6px; }
 .gallery-grid { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 10px; align-content: start; padding: 2px 4px 12px 2px; }
 .gallery-cards { display: contents; }
+/* D-121: a long list builds only the rows on screen; its cards are then a grid of their own with the same columns */
+.gallery-cards.virtual { display: grid; grid-column: 1 / -1; grid-template-columns: inherit; gap: inherit; justify-content: inherit; align-content: start; }
+.gallery-cards.virtual > .gallery-card { min-height: 0; }
 .gallery-card { display: flex; gap: 12px; align-items: stretch; min-height: 132px; padding: 10px; border: 0; border-radius: var(--radius-group); background: var(--surface); box-shadow: inset 0 0 0 1px var(--separator); text-align: left; cursor: pointer; color: var(--label); transition: background 0.15s, box-shadow 0.15s; }
 .gallery-card:hover { background: var(--fill-hover); }
 .gallery-card.on { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
@@ -1154,6 +1157,9 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .collection-page .gallery-card::after, .gallery-grid.portrait .gallery-card::after { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; box-shadow: inset 0 0 0 2px var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease-out); }
 .collection-page .gallery-card.on::after, .gallery-grid.portrait .gallery-card.on::after { opacity: 1; }
 .gallery-card.add { flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--separator); border: 0; color: var(--label-2); outline: 1.5px dashed var(--separator); outline-offset: -6px; }
+/* D-121: in the portrait grid the import box had no padding, so its text ran over the dashed line */
+.gallery-grid.portrait .gallery-card.add, .collection-page .gallery-card.add { padding: 22px 16px; min-height: 200px; gap: 6px; text-align: center; }
+.gallery-card.add > span { max-width: 100%; overflow-wrap: anywhere; }
 .gallery-card .card-pic, .gallery-card > .story-mark { width: 86px; height: 112px; }
 .gallery-card > .story-mark { border-radius: calc(8px * var(--round)); font-size: 34px !important; }
 .card-pic { flex: none; border-radius: calc(8px * var(--round)); object-fit: cover; object-position: top; }
@@ -1247,6 +1253,12 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .setup-row.choice-row { cursor: pointer; }
 .setup-row.choice-row.on { background: color-mix(in srgb, var(--accent) 9%, transparent); }
 .setup-row.choice-row.disabled { cursor: default; opacity: 0.7; }
+/* D-121 (a friend, Linux): "One of your cards" with a long card name in the list — the select took the whole row and
+   squeezed the label to one word per line under it. The label keeps room; the select shrinks, and drops to the next line
+   when the sheet is narrow. */
+.setup-row.choice-row { flex-wrap: wrap; }
+.setup-row.choice-row > .setup-k.grow { min-width: 160px; }
+.setup-row.choice-row > .pick-select { flex: 0 1 240px; width: 240px; min-width: 140px; text-overflow: ellipsis; }
 .setup-row input[type="radio"], .setup-check { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
 .setup-k { width: 150px; flex: none; display: flex; flex-direction: column; min-width: 0; }
 .setup-k.grow, .setup-row.column > .setup-k { width: auto; flex: 1; }
@@ -2612,6 +2624,9 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-acts button:hover { background: var(--fill); color: var(--label); }
 .asst-ai .asst-acts.left button { opacity: 0; transition: opacity var(--dur-fast); }
 .asst-ai:hover .asst-acts.left button, .asst-acts.left button:focus { opacity: 1; }
+/* D-121 (a friend: "stuff hidden, only shows on hover"): the newest answer always shows its actions; on touch, all do */
+.asst-ai.latest .asst-acts.left button, .asst-acts.left:focus-within button { opacity: 1; }
+@media (hover: none) { .asst-ai .asst-acts.left button, .asst-acts { opacity: 1; } }
 .asst-usage { font-size: 12px; color: var(--label-3); margin-right: 6px; font-variant-numeric: tabular-nums; font-family: var(--font-figures); }
 .asst-time { margin-left: 4px; }
 .asst-edit { display: grid; gap: 6px; width: min(560px, 80vw); }
@@ -3317,6 +3332,14 @@ input::placeholder, textarea::placeholder { font-family: var(--font-ui); }
 /* Continuity and supported-width UX improvements. CODEX, 2026-11-03. */
 .unsaved-dialog { position: relative; z-index: 1; width: min(440px, calc(100vw - 32px)); padding: 24px; background: var(--surface); border: 1px solid var(--separator); border-radius: var(--radius-panel); box-shadow: var(--shadow-pop); }
 .unsaved-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+/* D-121: long work (importing cards, making picture previews) at the bottom of the window. Solid, no blur: a blurred
+   layer over a scrolling list costs every frame on Linux (WebKitGTK). */
+.work-toast { position: fixed; z-index: 60; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; background: var(--window); color: var(--label); border-radius: var(--radius-group); box-shadow: inset 0 0 0 1px var(--separator), var(--shadow-pop); animation: rise var(--dur) var(--ease-out) backwards; }
+.work-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; }
+.work-count { color: var(--label-2); font-variant-numeric: tabular-nums; font-family: var(--font-figures); font-size: 12px; }
+.work-bar { height: 4px; border-radius: 2px; background: var(--fill); overflow: hidden; }
+.work-bar > span { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width 0.25s var(--ease-out); }
+.work-detail { color: var(--label-2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .composer-hint { color: var(--label-3); font-size: 11px; }
 .inspector-overlay-close { display: none; }
 .asst-scroll { overflow-anchor: none; }
@@ -4209,6 +4232,14 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .asst-range input { width: 72px; }
 /* a chip the Assistant took from the screen you came from (D-110) */
 .asst-chip.auto { box-shadow: inset 0 0 0 1px var(--label-3); background: transparent; }
+/* D-121: what was on screen is offered, not attached — dashed "+" chips above the box; a click adds one */
+.asst-offers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--label-2); }
+.asst-offers-label { margin-right: 2px; }
+.asst-chip.offer { border: 0; font: inherit; font-size: 13px; color: var(--label-2); background: transparent; box-shadow: inset 0 0 0 1px var(--separator); padding: 3px 10px 3px 8px; cursor: pointer; transition: background var(--dur-fast), color var(--dur-fast); }
+.asst-chip.offer:hover { background: var(--fill); color: var(--label); }
+.asst-chip.offer > span:first-child { color: var(--accent); font-weight: 600; }
+.asst-offers-x { border: 0; background: none; color: var(--label-3); cursor: pointer; padding: 2px 6px; border-radius: calc(6px * var(--round)); }
+.asst-offers-x:hover { background: var(--fill); color: var(--label); }
 /* Try It on an Assistant change (D-111): asks first, then before | after */
 .asst-trial { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-control); background: var(--fill); font-size: 13px; min-width: 0; }
 .asst-trial p { margin: 0; }

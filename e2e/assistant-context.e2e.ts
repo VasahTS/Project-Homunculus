@@ -1,25 +1,31 @@
-// D-110: the Assistant knows the screen it was opened from, and Add context has Chats (whole or a range) and the other parts.
+// D-110: the Assistant knows the screen it was opened from (D-121: offered, not attached), and Add context has Chats (whole or a range) and the other parts.
 import { expect, test } from "@playwright/test";
 import { newChatWith } from "./ui.ts";
 
-test("opened from a chat: the chat and its character come as dashed chips; ✕ removes one", async ({ page }) => {
+test("opened from a chat: the chat and its character are offered, not attached; a click adds one (D-121)", async ({ page }) => {
   await page.goto("/");
   await newChatWith(page);
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
   const box = page.getByTestId("assistant-composer");
-  await expect(box.locator(".asst-chip.auto")).toHaveCount(2);
-  await expect(box.locator(".asst-chip.auto").first()).toContainText("Session with Lyra");
-  await expect(box.locator(".asst-chip.auto").nth(1)).toContainText("Lyra");
+  const offers = box.getByTestId("assistant-offers");
+  await expect(offers.locator(".asst-chip.offer")).toHaveCount(2);
+  await expect(offers.locator(".asst-chip.offer").first()).toContainText("Session with Lyra");
+  await expect(offers.locator(".asst-chip.offer").nth(1)).toContainText("Lyra");
+  await expect(box.locator(".asst-ctx")).toHaveCount(0); // nothing goes to the AI unless asked
+  await offers.getByRole("button", { name: "Add Lyra", exact: true }).click();
+  await expect(box.locator(".asst-ctx .asst-chip")).toHaveCount(1);
+  await expect(box.locator(".asst-ctx .asst-chip")).toContainText("Lyra");
+  await expect(offers.locator(".asst-chip.offer")).toHaveCount(1);
+  await offers.getByRole("button", { name: "Don't offer these" }).click();
+  await expect(box.getByTestId("assistant-offers")).toHaveCount(0);
   await box.getByRole("button", { name: "Remove Lyra" }).click();
-  await expect(box.locator(".asst-chip")).toHaveCount(1);
+  await expect(box.locator(".asst-chip")).toHaveCount(0);
 });
 
 test("Add context → Chats: pick a chat and a range; Agents and Regex are there too", async ({ page }) => {
   await page.goto("/");
   await newChatWith(page);
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
-  await page.getByTestId("assistant-composer").locator(".asst-chip button").first().click();
-  await page.getByTestId("assistant-composer").locator(".asst-chip button").first().click();
   await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   const picker = page.getByTestId("assistant-picker");
@@ -41,8 +47,8 @@ test("D-114: opened from a cue, the cue comes as a chip; Add context has Cues", 
   await page.getByTestId("cue-row").filter({ hasText: "Grounded Complication" }).click();
   await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
   const box = page.getByTestId("assistant-composer");
-  await expect(box.locator(".asst-chip.auto")).toHaveCount(1);
-  await expect(box.locator(".asst-chip.auto")).toContainText("Grounded Complication");
+  await expect(box.locator(".asst-chip.offer")).toHaveCount(1);
+  await expect(box.locator(".asst-chip.offer")).toContainText("Grounded Complication");
   await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   const picker = page.getByTestId("assistant-picker");
