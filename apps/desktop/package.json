@@ -26,6 +26,7 @@
     "@homunculus/st-lorebooks": "0.0.1",
     "@homunculus/st-personas": "0.0.1",
     "@homunculus/st-presets": "0.0.1",
+    "@homunculus/st-chats": "0.0.1",
     "@homunculus/st-regex": "0.0.1",
     "@tauri-apps/api": "2.12.4",
     "@tauri-apps/plugin-notification": "^2.8.0",

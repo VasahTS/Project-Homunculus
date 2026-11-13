@@ -3,4 +3,4 @@
 [[permission]]
 identifier = "allow-main-commands"
 description = "Application commands stay available only to the local main window."
-commands.allow = ["database_url", "db_batch", "data_location", "backup_database", "backups_info", "prune_backups", "export_database", "secret_get", "secret_set", "secret_delete", "save_download", "update_channel", "web_search_page", "web_get", "card_site_request", "janny_card_url", "botbooru_request", "botbooru_window", "janitor_request", "janitor_window"]
+commands.allow = ["database_url", "db_batch", "folder_pick", "folders_linked", "folder_unlink", "folder_list", "folder_read", "data_location", "backup_database", "backups_info", "prune_backups", "export_database", "secret_get", "secret_set", "secret_delete", "save_download", "update_channel", "web_search_page", "web_get", "card_site_request", "janny_card_url", "botbooru_request", "botbooru_window", "janitor_request", "janitor_window"]

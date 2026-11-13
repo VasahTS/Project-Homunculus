@@ -1420,3 +1420,25 @@ Daniel (translated): "we need to continue with the optimization, then the comple
 - Tests: `apps/desktop/src/importCharacters.test.ts` (one batch, same books and links, a failure saves nothing, reads see waiting writes); `batch.rs` unit tests (500 rows together; a failing statement saves none); click tests `big-library`, `cards`, `card-browser`, `lorebooks`, `untracked-cards`, `collections`.
 
 Signed: **CLAUDE**.
+
+## D-126 — SillyTavern chats into the message tree (2026-11-13)
+
+Part of the complete SillyTavern importer (`docs/ST-IMPORT-PLAN.md`). New package `@homunculus/st-chats` (pure, no screens yet):
+- `parseStChat`: a `.jsonl` file → header (user, character, created, `chat_metadata`) and lines. Broken lines are skipped with a warning; a file without a header still reads. `stDate` reads every date shape ST has written (epoch s/ms, ISO, `2026-1-5@12h30m10s` with or without spaces and ms, the old "June 1, 2023 5:32pm"); dates are kept in order even when missing.
+- `buildStChatTree`: **swipes → sibling replies** (the one ST showed is the newest sibling, so it is the one shown; each keeps its own reasoning); `is_system` (hidden in ST) → kept with `visibility.ai = "none"`; `extra.type = "narrator"` → the narrator; the model and ST name kept in `meta.st`.
+- **ST branches and checkpoints merge into the main chat** (`groupStChats` follows `chat_metadata.main_chat`, also branches of branches): a line equal to one already in the tree at the same place (same speaker, text and parent) IS that message, so a branch shares its start with the main chat and a branch made from a swipe joins that swipe. One branch row per file ("Main", then each file's name).
+- `authorsNoteOf` (ST positions 0/1/2 → afterMain/inChat/beforeMain; roles 0/1/2), `chatLinksOf` (chat lorebook, locked persona — the caller turns names into ids).
+- `saveStChat`: the session, every message and the branch rows in **one batch** (D-125); `SqlStore.importMessages` writes the rows of `addMessage` and touches the session once. A 1,500-message chat is one trip.
+- Daniel's answers (11/13) for the rest of the importer: groups → a Story with that cast; ST tags → tags only; linked cards appear in Characters; editing a linked card saves only in Homunculus.
+- Tests: `packages/st-chats/test/st-chats.test.ts` (dates, parsing, metadata, swipes and hidden lines, branches + checkpoint from a swipe merged, a long chat in one batch).
+
+Signed: **CLAUDE**.
+
+## D-127 — Folders the user picked: scoped native access, and a SillyTavern folder scan (2026-11-13)
+
+For the complete SillyTavern importer and the linked card folders (`docs/ST-IMPORT-PLAN.md`).
+- **`src-tauri/src/folders.rs`**: `folder_pick` opens the system's folder dialog **from the native side** (`tauri-plugin-dialog`, with no dialog permission for the page) and gives the folder an id; `folder_list(id, sub, recursive)` (paths, sizes, dates; hidden entries and links pointing outside skipped; capped at 300,000) and `folder_read(id, path)` (raw bytes) work **only inside a picked folder**: no "..", no absolute paths, and the path is resolved on disk so a link can't lead outside. Linked folders are kept in `linked-folders.json` in the data folder (`folders_linked`, `folder_unlink`); a folder picked for an import is forgotten when the app closes. Nothing here writes into the user's folders.
+- **`apps/desktop/src/stFolder.ts`**: `FolderSource` (native, or `<input webkitdirectory>` in the browser preview and click tests), `findStUsers` (the picked folder itself, `data/<user>` — several users, default-user first — or the old `public/`), `scanSt` (cards, chats by card, group chats, lorebooks, personas, presets, Quick Replies, regex, tags, and what will be skipped and why). It reads only `settings.json`; `secrets.json` is never read, only named in the skipped list.
+- Tests: `folders.rs` (listing, never leaving the folder, links outside refused, linked folders remembered); `stFolder.test.ts`; `native-permissions.test.ts` covers the new commands.
+
+Signed: **CLAUDE**.

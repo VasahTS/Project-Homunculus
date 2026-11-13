@@ -7,6 +7,7 @@ mod janny;
 mod botbooru;
 mod janitor;
 mod batch;
+mod folders;
 mod pictures;
 
 // ---- Where the app keeps its data (D-030, CLAUDE 2026-10-29: portable mode, like SillyTavern).
@@ -14,8 +15,8 @@ mod pictures;
 // screen preferences) lives in the `data` folder beside it; copy the folder = move/back up everything.
 // The env var HOMUNCULUS_DATA points at such a folder too.
 // Otherwise: the usual per-user app folder (AppData\Roaming\com.vasahts.homunculus) and the keychain.
-struct DataPlace {
-    dir: PathBuf,
+pub(crate) struct DataPlace {
+    pub(crate) dir: PathBuf,
     portable: bool,
 }
 
@@ -628,6 +629,7 @@ async fn card_site_request(request: CardSiteRequest) -> Result<serde_json::Value
 pub fn run() {
     tauri::Builder::default()
         .manage(janny::JannyBridge::default())
+        .manage(folders::Folders::default())
         .manage(botbooru::BotbooruBridge::default())
         .manage(janitor::JanitorBridge::default())
         .plugin(tauri_plugin_sql::Builder::default().build())
@@ -644,6 +646,8 @@ pub fn run() {
             });
         })
         .plugin(tauri_plugin_notification::init())
+        // D-127: the folder dialog is opened by the native side only (folders.rs); the page has no dialog permission
+        .plugin(tauri_plugin_dialog::init())
         // A hidden account window must not keep the app alive after its main window closes. CODEX, 2026-11-02.
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
@@ -704,6 +708,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             database_url,
             batch::db_batch,
+            folders::folder_pick,
+            folders::folders_linked,
+            folders::folder_unlink,
+            folders::folder_list,
+            folders::folder_read,
             data_location,
             backup_database,
             backups_info,

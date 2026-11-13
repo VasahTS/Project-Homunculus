@@ -783,6 +783,27 @@ export class SqlStore implements StateRepository, MessageTree {
     return m;
   }
 
+  /**
+   * Many messages at once (an import, D-126): the same rows as `addMessage`, parents before children, and the session
+   * touched once at the end. In a batched store this is one trip.
+   */
+  async importMessages(inputs: MessageInput[]): Promise<Message[]> {
+    const out: Message[] = [];
+    for (const input of inputs) {
+      const m = Message.parse({ kind: input.speaker.kind === "user" ? "user" : "reply", ...input });
+      await this.db.execute(
+        `INSERT INTO messages (id, session_id, parent_id, speaker, content, meta, created_at, kind, visibility, reasoning)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [m.id, m.sessionId, m.parentId, JSON.stringify(m.speaker), m.content, JSON.stringify(m.meta), m.createdAt,
+          m.kind, JSON.stringify(m.visibility), m.reasoning ?? null],
+      );
+      out.push(m);
+    }
+    const sessions = [...new Set(out.map((m) => m.sessionId))];
+    for (const s of sessions) await this.db.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", [Date.now(), s]);
+    return out;
+  }
+
   async updateMessageContent(id: string, content: string): Promise<void> {
     await this.db.execute("UPDATE messages SET content = ? WHERE id = ?", [content, id]);
   }

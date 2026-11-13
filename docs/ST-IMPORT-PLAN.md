@@ -31,7 +31,7 @@ not") and D-125 (writes in one go). **Text plan first; a draft with real data af
    - Each chat is **one batch** (D-125): a 5,000-message chat is one trip to the database, not 5,000.
 2. **Group chats** (`groups/*.json` + `group chats/*.jsonl`): members (by card file name), disabled members (→ muted), the
    group's chats. A message's speaker is found by `original_avatar`, else by name.
-3. **Tags** (`settings.json` → `tags`, `tag_map`): card tags; tags marked as folders in ST (`folder_type`) → folders.
+3. **Tags** (`settings.json` → `tags`, `tag_map`): card tags only (Daniel, 11/13: no folders from tags).
    Favorites (`fav`) → pinned/favorite if the app has it, else a "Favorite" tag.
 4. **Links between things**: global lorebooks (`world_info.globalSelect`), extra books per card (`world_info.charLore`),
    the preset that was in use (named in the report).
@@ -83,15 +83,13 @@ Homunculus **reads but never writes**. Cards added to the folder appear by thems
 - **Unlink:** the cards stay as normal cards, or go to the Trash (asked).
 - **Safety:** native commands read only the linked folders; the list of linked folders is kept by the native side.
 
-### Questions for Daniel (decide before the draft)
+### Daniel's answers (2026-11-13)
 
-1. Where linked cards appear: in Characters with the others (a link mark and a folder named after the linked folder), or only
-   as a source in the Card Browser to add from?
-2. Editing a linked card: saved only in Homunculus (the file untouched; if the file changes later, ask which to keep), written
-   back into the file, or editing turns it into a normal card?
-3. SillyTavern groups become: a Story with that cast (its chats are the story's chats), or plain chats with several
-   characters?
-4. ST tags: card tags plus folders for the tags ST shows as folders, or tags only?
+1. Linked cards appear **in Characters** with the others: a link mark and a folder named after the linked folder.
+2. Editing a linked card is **saved only in Homunculus**; the file is never touched. If the file changes later, the app
+   asks which version to keep.
+3. A SillyTavern group becomes **a Story with that cast**; the group's chats are the story's chats.
+4. ST tags become **tags only** (no folders made from tags).
 
 ## Order of work
 

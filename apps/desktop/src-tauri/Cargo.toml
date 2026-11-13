@@ -22,6 +22,8 @@ keyring = { version = "3", features = ["windows-native", "apple-native", "linux-
 tauri-plugin-opener = "2"
 # "Reply ready" as a Windows notification while the app is in the background (Settings → General, D-082).
 tauri-plugin-notification = "2"
+# D-127: the system folder dialog (a SillyTavern folder to import, a linked folder of cards); opened from Rust only.
+tauri-plugin-dialog = "2"
 base64 = "0.22"
 # D-124: pictures served by address (h2pic://) read the database directly. The same sqlx and tokio the SQL plugin
 # already brings (no second SQLite): read-only use.

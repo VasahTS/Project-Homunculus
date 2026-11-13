@@ -1,12 +1,20 @@
 # HANDOFF — Homunculus 2
 
+## SillyTavern importer, engine part 1: chats and folder access (2026-11-13) — CLAUDE — D-126, D-127
+
+- Daniel answered the plan's questions (in `docs/ST-IMPORT-PLAN.md`): linked cards in Characters; editing one saves only in Homunculus; ST groups → a Story with that cast; ST tags → tags only.
+- Built, **no screens yet** (draft before code): `@homunculus/st-chats` (jsonl → tree: swipes as siblings, hidden lines kept but not sent, branches/checkpoints merged into the main chat, Author's Note / chat lorebook / locked persona read, one batch per chat); native folder access only inside folders picked in the system dialog (`folders.rs`, `tauri-plugin-dialog` new); `stFolder.ts` (find the ST user folder, count what is there; `secrets.json` never read).
+- **Next:** (1) the draft of the screens (pick → what was found → progress → report; Linked Folders) for Daniel; (2) the whole-folder run (order, links by name, groups → Stories, tags, report, undo, re-import); (3) linked folders (scan by size + date, update changed cards, ask when a card changed in both places).
+- Nothing to try in the app yet. New Rust dependency: `tauri-plugin-dialog` (first Windows build downloads it).
+- Checks: typecheck; unit tests; native tests (`cargo test`, 42 passed).
+
 ## Writes in one go: native batch command, card import in one transaction (2026-11-13) — CLAUDE — D-125
 
 - Daniel: "continue with the optimization, then the complete SillyTavern import and the external card sources". Done first: the last performance item with a real gain, which the ST importer needs (a long chat = thousands of rows).
 - `db_batch` (`src-tauri/src/batch.rs`, on the SQL plugin's own pool, one transaction), `SqlDriver.batch` (desktop → `db_batch`; sql.js → BEGIN/COMMIT), `BatchingDriver` + `SqlStore.batched()`, `isNew` on `saveCharacter` / `saveLorebook`. A card import (Library → Import and Card Browser) is now one trip instead of ~14, and a failure saves nothing.
 - **To try (Windows):** Characters → Import 50+ cards (some with embedded lorebooks): faster than before, the cards and their lorebooks come in as before (the notice still says "its embedded lorebook … was added"). A card from the Card Browser goes to "From the Web" as before.
 - Not compiled for Windows here (Linux `cargo test` only); the command is in the permission file and `native-permissions.test.ts` checks it.
-- **Next:** the complete SillyTavern importer and the external card source — text plan in `docs/ST-IMPORT-PLAN.md`, waiting for Daniel's answers before the draft.
+- **Next:** the complete SillyTavern importer and the external card source — see the entry above.
 - Checks: typecheck; unit tests (895 passed, 3 new); native tests (`cargo test`, 38 passed, 2 new); click tests `big-library`, `cards`, `card-browser`, `lorebooks`, `untracked-cards`, `collections` (27).
 - Changelog line for the next release: "**Faster card imports**: each card, its picture and its lorebook are saved in one step — quicker with big imports, and an import that fails never leaves half a card behind."
 
