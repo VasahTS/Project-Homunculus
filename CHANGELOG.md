@@ -3,6 +3,31 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
+## 0.5.0 — 2026-11-13
+
+Move an existing SillyTavern library into Homunculus, keep a folder of character cards linked, and work with large libraries and long chats more smoothly.
+
+### Import from SillyTavern
+
+- In **Settings → Library → Import from SillyTavern**, pick your SillyTavern folder and choose what to bring. Import characters, chats with their swipes and branches, group chats as Stories, lorebooks, personas, Chat Completion presets, regex, Quick Replies, and card tags.
+- Keep using the app during import. You can pause or cancel the import, review its report, and undo it. Importing the same folder again skips items already imported.
+
+### Linked card folders
+
+- In **Settings → Library → Linked Folders**, link a folder managed by SillyTavern or another card manager. Its cards appear in **Characters**. When a card changes both in Homunculus and in the external folder, open **Choose a Version** to decide what to keep.
+
+### Performance and diagnostics
+
+- **Large libraries.** Characters, Stories, Library lists, and Trash now use pages. Choose the page size in **Settings → Library**. Long chat lists show more results in smaller batches.
+- **Startup and pictures.** The desktop app reads smaller character and lorebook records at startup and loads image previews separately. The first launch after updating may take longer while Homunculus backs up the database and rebuilds its picture storage.
+- **Long chats and bulk imports.** Opening chats and preparing replies require fewer database reads. Streaming updates the visible reply without redrawing the whole app. Cards and their embedded lorebooks are saved together during import.
+- **Diagnostics.** In **Settings → About**, **Last start** shows where startup spent time. **Diagnostics** generates a report you can copy or save without including chat messages or character names.
+
+### Desktop fixes
+
+- **Light effects** reduce blur and animation and are enabled automatically on Linux. The Linux AppImage bundles the media components used for sounds.
+- Long chat and lorebook names fit their panels. The character editor sidebar and the **Last start** row now handle narrow layouts and long text more cleanly.
+
 <!-- 0.4.5 release notes written by CODEX. -->
 ## 0.4.5 — 2026-11-12
 
