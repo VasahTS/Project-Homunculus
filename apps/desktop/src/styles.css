@@ -1357,6 +1357,8 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .sheet.modal-small { width: min(720px, 100%); height: auto; max-height: 100%; }
 .modal-body { overflow-y: auto; padding: 16px 18px 20px; display: grid; gap: 12px; }
 .modal-body > label { display: grid; gap: 4px; }
+.modal-body > label.search-box { display: flex; }
+.modal-body > .row-line .grow { flex: 1; }
 .modal-body input { color: var(--label); padding: 8px 10px; }
 .modal-section { margin: 6px 0 0; font-size: var(--size-section); font-weight: 600; color: var(--label-2); }
 .choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -2148,6 +2150,23 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 /* Setup → Agents window (Daniel, 30/10) */
 .agents-pick .modal-body { gap: 10px; }
 .agents-pick-list { max-height: min(60vh, 520px); overflow-y: auto; }
+/* agent groups (D-134) */
+.ag-grp { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--separator); }
+.ag-grp-head { display: flex; align-items: center; gap: 8px; font-size: var(--size-small); color: var(--label-2); min-height: 26px; }
+.ag-grp-head .grow, .ag-grp-edit .grow, .director-stories .grow, .director-story-list .grow { flex: 1; min-width: 0; }
+.ag-grp-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ag-grp-chip { display: inline-flex; align-items: center; gap: 5px; transition: background .15s, color .15s, box-shadow .15s; }
+.ag-grp-chip small { color: var(--label-3); font-variant-numeric: tabular-nums; }
+.ag-grp-chip.part { box-shadow: inset 0 0 0 1px var(--separator); color: var(--label); }
+.ag-grp-chip.on { background: var(--accent); color: var(--accent-ink); }
+.ag-grp-chip.on small { color: inherit; opacity: .8; }
+.ag-grp-chip:disabled { opacity: .5; cursor: default; }
+.ag-grp-add { display: inline-flex; align-items: center; gap: 4px; background: none; border: 1px dashed var(--separator); }
+.ag-grp-name { display: inline-flex; align-items: center; gap: 6px; }
+.ag-grp-name input, .ag-grp-edit input { font: inherit; font-size: var(--size-small); padding: 4px 8px; border-radius: calc(6px * var(--round)); border: 1px solid var(--separator); background: var(--fill); color: var(--label); }
+.ag-grp-edit { display: flex; align-items: center; gap: 8px; }
+.ag-grp-edit input { width: 150px; flex: none; }
+.ag-grp-edit small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 /* "How it shows" as pictures (ShowPicker, Daniel 30/10) */
 .show-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
@@ -3939,6 +3958,10 @@ div.qr-opt { flex-direction: column; align-items: flex-start; gap: 6px; }
 .directors-detail { overflow-y: auto; padding: 16px 20px 24px; display: grid; gap: 16px; align-content: start; }
 .directors-detail .director-setup { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); align-items: start; gap: 16px; }
 .directors-stories { display: grid; gap: 6px; }
+.director-stories { display: grid; gap: 8px; }
+.director-story-list { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--separator); border-radius: calc(8px * var(--round)); max-height: 320px; overflow-y: auto; }
+.director-story-list li { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; font-size: 13px; color: var(--label); }
+.director-story-list li + li { border-top: 1px solid var(--separator); }
 .directors-detail .mem-setting-value input:not(.num) { width: 220px; }
 
 /* Notes, roomier (Daniel, 11/06: "the notes are too cramped as well") */

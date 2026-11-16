@@ -12,6 +12,7 @@ import type { AgentConfig, ConnectionProfile, Cue, Persona, Preset, SetupLayer }
 import { layerHasCue, layerWithCue } from "../cues.ts";
 import { kindOf, whenText } from "../agents.ts";
 import { layerFieldSet, layerHasTracker, layerWithFieldSet, layerWithStyle, layerWithTracker, type Tracker } from "../trackers.ts";
+import { changeAgentGroups, useAgentGroups } from "../agentGroups.ts";
 
 const INHERIT = "";
 const NONE = "__none__";
@@ -184,6 +185,8 @@ function AgentsSummary({ agents, chat, layer, above, onChange }: { agents: Agent
       </div>
       {open && (
         <Modal title={chat ? "Agents in this chat" : "Agents in this story"} onClose={() => { setOpen(false); setQ(""); }} testId="setup-agents-sheet" className="modal-small agents-pick">
+          <AgentGroupsBar agents={agents} isOn={isOn}
+            onSet={(ids, value) => onChange(ids.reduce((l, id) => layerWithTracker(l, id, value, inherited(id)), layer))} />
           <label className="search-box agents-pick-search"><Icon name="search" size={13} /><input autoFocus aria-label="Search agents" placeholder="Search agents" value={q} onChange={(e) => setQ(e.target.value)} /></label>
           <div className="setup-group agents-pick-list">
             {sorted.map((a) => <AgentRow key={a.id} a={a} chat={chat} layer={layer} above={above} onChange={onChange} />)}
@@ -246,6 +249,72 @@ function CuesSummary({ cues, chat, layer, above, onChange }: { cues: Cue[]; chat
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * Agent groups (D-134): a row of chips over the agents list. A chip switches all its agents on (or off when they are all
+ * on already); "Save as Group…" keeps the agents that are on now under a name; "Edit" renames, updates or deletes.
+ */
+function AgentGroupsBar({ agents, isOn, onSet }: { agents: AgentConfig[]; isOn: (a: AgentConfig) => boolean; onSet: (ids: string[], on: boolean) => void }) {
+  const groups = useAgentGroups();
+  const [naming, setNaming] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const byId = new Map(agents.map((a) => [a.id, a]));
+  const members = (ids: string[]) => ids.map((id) => byId.get(id)).filter((a): a is AgentConfig => !!a);
+  const onIds = agents.filter(isOn).map((a) => a.id);
+  const saveNew = () => {
+    const name = (naming ?? "").trim();
+    if (!name) return;
+    changeAgentGroups((g) => [...g, { id: `group-${crypto.randomUUID()}`, name, agentIds: onIds }]);
+    setNaming(null);
+  };
+  if (editing) return (
+    <div className="ag-grp editing" data-testid="agent-groups">
+      <span className="ag-grp-head"><b>Groups</b><span className="grow" /><Button small variant="plain" onClick={() => setEditing(false)}>Done</Button></span>
+      {groups.map((g) => (
+        <div key={g.id} className="ag-grp-edit" data-testid="agent-group-edit">
+          <input aria-label="Group name" defaultValue={g.name} onBlur={(e) => { const name = e.target.value.trim(); if (name && name !== g.name) changeAgentGroups((l) => l.map((x) => (x.id === g.id ? { ...x, name } : x))); }} />
+          <small className="hint grow">{members(g.agentIds).map((a) => a.name).join(" · ") || "No agents"}</small>
+          <Button small variant="plain" disabled={!onIds.length} title="The group becomes the agents that are on now"
+            onClick={() => changeAgentGroups((l) => l.map((x) => (x.id === g.id ? { ...x, agentIds: onIds } : x)))}>Use the Ones On</Button>
+          <Button small variant="plain" aria-label={`Delete ${g.name}`} onClick={() => changeAgentGroups((l) => l.filter((x) => x.id !== g.id))}>Delete</Button>
+        </div>
+      ))}
+      {!groups.length && <span className="hint">No groups left.</span>}
+    </div>
+  );
+  return (
+    <div className="ag-grp" data-testid="agent-groups">
+      <span className="ag-grp-head">
+        <b>Groups</b>
+        <span className="grow" />
+        {groups.length > 0 && <Button small variant="plain" onClick={() => setEditing(true)} data-testid="agent-groups-edit">Edit</Button>}
+      </span>
+      <div className="ag-grp-chips">
+        {groups.map((g) => {
+          const list = members(g.agentIds);
+          const n = list.filter(isOn).length;
+          const all = list.length > 0 && n === list.length;
+          return (
+            <button key={g.id} type="button" className={`fchip ag-grp-chip${all ? " on" : n ? " part" : ""}`} aria-pressed={all} disabled={!list.length}
+              title={`${all ? "Turn off" : "Turn on"}: ${list.map((a) => a.name).join(", ") || "no agents"}`}
+              onClick={() => onSet(list.map((a) => a.id), !all)} data-testid="agent-group-chip">
+              {all && <Icon name="check" size={11} />} {g.name} <small>{n && !all ? `${n}/${list.length}` : list.length}</small>
+            </button>
+          );
+        })}
+        {naming === null
+          ? onIds.length > 0 && <button type="button" className="fchip ag-grp-add" onClick={() => setNaming("")} data-testid="agent-group-new"><Icon name="plus" size={11} /> Save {onIds.length} as a Group…</button>
+          : <span className="ag-grp-name">
+              <input autoFocus aria-label="New group name" placeholder="Group name, e.g. RPG" value={naming}
+                onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveNew(); if (e.key === "Escape") { e.stopPropagation(); setNaming(null); } }} />
+              <Button small onClick={saveNew} disabled={!naming.trim()} data-testid="agent-group-save">Save</Button>
+              <Button small variant="plain" onClick={() => setNaming(null)}>Cancel</Button>
+            </span>}
+        {!groups.length && naming === null && <span className="hint">{onIds.length ? "Save the agents that are on as a group, to switch them all at once next time." : "Turn some agents on, then save them as a group to switch them all at once next time."}</span>}
+      </div>
+    </div>
   );
 }
 

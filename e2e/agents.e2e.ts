@@ -236,3 +236,36 @@ test("D-057: the editor picks a connection for one agent, and a note's switch fo
   await expect(sw).toHaveAttribute("aria-checked", "false");
   await expect(editor.getByTestId("agent-save-state")).toHaveText("✓ Saved");
 });
+
+test("agent groups (D-134): save the agents that are on as a group, then switch them all in one click", async ({ page }) => {
+  await page.goto("/");
+  await openLibrary(page, "Stories");
+  await page.getByRole("button", { name: "New Story", exact: true }).click();
+  const create = page.getByTestId("new-story");
+  await create.getByLabel("Story name").fill("Group Story");
+  await create.getByRole("button", { name: /Narrated adventure/ }).click();
+  await create.getByLabel("An empty story").check();
+  await create.getByTestId("setup-agents").getByRole("button", { name: "Choose Agents…" }).click();
+  const sheet = page.getByTestId("setup-agents-sheet");
+  await sheet.getByLabel("Continuity").check();
+  await sheet.getByLabel("Prose Polisher").check();
+  await sheet.getByTestId("agent-group-new").click();
+  await sheet.getByLabel("New group name").fill("RPG");
+  await sheet.getByTestId("agent-group-save").click();
+  const chip = sheet.getByTestId("agent-group-chip").filter({ hasText: "RPG" });
+  await expect(chip).toHaveAttribute("aria-pressed", "true");
+  await sheet.getByRole("button", { name: "Turn All Off" }).click();
+  await expect(sheet.getByLabel("Continuity")).not.toBeChecked();
+  await expect(chip).toHaveAttribute("aria-pressed", "false");
+  await page.screenshot({ path: "test-results/agent-groups-off.png" });
+  await chip.click();
+  await expect(sheet.getByLabel("Continuity")).toBeChecked();
+  await expect(sheet.getByLabel("Prose Polisher")).toBeChecked();
+  await sheet.getByLabel("Continuity").uncheck();
+  await expect(chip).toContainText("1/2");
+  await page.screenshot({ path: "test-results/agent-groups-part.png" });
+  await sheet.getByTestId("agent-groups-edit").click();
+  await page.screenshot({ path: "test-results/agent-groups-edit.png" });
+  await sheet.getByRole("button", { name: "Delete RPG" }).click();
+  await expect(sheet.getByTestId("agent-group-edit")).toHaveCount(0);
+});

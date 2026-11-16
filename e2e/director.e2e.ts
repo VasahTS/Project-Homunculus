@@ -184,3 +184,34 @@ test("a closed Director window stays closed when you come back to the chat", asy
   await openSession(page);
   await expect(win).toBeVisible();
 });
+
+test("Library → Directors lists only the stories that use it; Add Stories… picks from the rest (D-134)", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await page.goto("/");
+  for (const name of ["Moon Story", "Sun Story"]) {
+    await openLibrary(page, "Stories");
+    await page.getByRole("button", { name: "New Story", exact: true }).click();
+    const create = page.getByTestId("new-story");
+    await create.getByLabel("Story name").fill(name);
+    await create.getByRole("button", { name: /Narrated adventure/ }).click();
+    await create.getByLabel("An empty story").check();
+    await create.getByTestId("create-story").click();
+  }
+  await openLibrary(page, "Directors");
+  const lib = page.getByTestId("directors-page");
+  await expect(lib.getByTestId("directors-story")).toHaveCount(0);
+  await expect(lib.getByTestId("directors-stories")).toContainText("No story picks this Director yet.");
+  await lib.getByTestId("directors-add-stories").click();
+  const sheet = page.getByTestId("directors-add-sheet");
+  await sheet.getByLabel("Search stories").fill("moon");
+  await expect(sheet.getByTestId("directors-add-row")).toHaveCount(1);
+  await page.screenshot({ path: "test-results/director-add.png" });
+  await sheet.getByTestId("directors-add-row").getByRole("button").click();
+  await expect(sheet.getByTestId("directors-add-row")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(lib.getByTestId("directors-story")).toHaveText([/Moon Story/]);
+  await expect(lib.getByRole("button", { name: /Story Director/ }).first()).toContainText("1 story");
+  await page.screenshot({ path: "test-results/director-list.png" });
+  await lib.getByRole("button", { name: /Stop using .* in Moon Story/ }).click();
+  await expect(lib.getByTestId("directors-story")).toHaveCount(0);
+});

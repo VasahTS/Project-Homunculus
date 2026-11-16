@@ -167,7 +167,7 @@ export function QuestionCard({ r, busy, onChange, onSend, faces }: {
 type NewItem = Extract<AssistantResult, { type: "new" }>;
 const FIELD_LABEL: Record<string, string> = { description: "Description", personality: "Personality", scenario: "Scenario", first_mes: "First Message", firstMessages: "First Messages", mes_example: "Examples", exampleMessages: "Examples", openings: "Openings", name: "Name" };
 const labelOf = (k: string) => FIELD_LABEL[k] ?? k.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
-const KIND_ONE: Record<AssistantKind, string> = { character: "Character", persona: "Persona", lorebook: "Lorebook", tracker: "Tracker", kit: "Story Kit", narrator: "Narrator", preset: "Preset", cue: "Cue" };
+const KIND_ONE: Record<AssistantKind, string> = { character: "Character", persona: "Persona", lorebook: "Lorebook", tracker: "Tracker", kit: "Story Kit", narrator: "Narrator", preset: "Preset", cue: "Cue", story: "Story" };
 
 /**
  * A new item waiting for the user, shown open: each field with where it came from, Keep / Edit / Discard, and for a

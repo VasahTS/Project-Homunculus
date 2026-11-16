@@ -1512,3 +1512,14 @@ Signed: **CLAUDE**.
 - **No spell check or autocorrect anywhere**: `index.html` sets `spellcheck="false" autocorrect="off" autocapitalize="off"` on the page (boxes inherit it); a `focusin` listener in `main.tsx` turns it off on any box that asked for it on its own; the card's Text mode no longer turns it on. A choice in Settings can come later if someone wants it back.
 
 Signed: **CLAUDE**.
+
+## D-134 — Agent groups; the Assistant uses them on Kits and stories; Directors list only the stories that use them (2026-11-16)
+
+Daniel (translated): "let me create groups of agents, because having to select each agent one by one when making a Kit is unfair; let the Assistant use these groups when making a new Kit or editing a story if the user asks; fix the Director showing every story it could be used in — imagine the madness with many." No draft round: small additions to existing panels (as agreed for D-086/D-087); screenshots sent instead.
+
+- **Agent groups** (`agentGroups.ts`, app setting `agentGroups`): `{ id, name, agentIds }`. In a setup's **Choose Agents…** window (new story, story page, Kit, New Chat), a **Groups** row of chips over the list: a chip switches all its agents on, or off when they are all on (partly on shows "1/2"); **Save N as a Group…** keeps the agents that are on now under a name; **Edit** renames, "Use the Ones On" updates, Delete. Switching a group on copies its agents into the layer (BLUEPRINT §2.6: Kits copy) — changing a group never changes stories already set up. Groups hold agents only; trackers keep their own section.
+- **Assistant:** a Kit takes `agentIds` (ids or exact names) and `agentGroups` (group names); `find` kind "agent" lists the groups. **A story is now changeable, for its agents only** (`AssistantKind` gains "story"; `guide("story")` fields `agentIds`, `agentGroups`; never created or trashed from the Assistant). In both, the layer's agents become agentIds + the groups' agents (full replacement; trackers in the same list kept; "only" mode kept); a read shows the current `agentIds`. Unknown groups get a readable error with the list of groups.
+- **Library → Directors → Where it is used:** only the stories that use the Director, each with Remove (a search appears past 8); **Add Stories…** opens a searchable window with the rest ("uses X now" / "uses the default").
+- Fixed on the way: a search box directly inside a window wrapped its input under the icon (`.modal-body > label` was a grid); the windows' bottom-line hints now push their button to the right.
+
+Signed: **CLAUDE**.

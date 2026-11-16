@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Agent groups; the Assistant uses them; Directors list only their stories (2026-11-16) — CLAUDE — D-134
+
+- Daniel: groups of agents so a Kit doesn't need each agent picked one by one; the Assistant should use them for a new Kit or a story when asked; the Director's "Where it is used" listed every story.
+- Built: Groups row in **Choose Agents…** (chips switch a group on/off, Save N as a Group…, Edit); Assistant: Kit `agentIds`/`agentGroups`, story changeable for its agents only, `find` agent lists groups; Directors: only the stories that use it + **Add Stories…** with search.
+- **To try (Windows):** close the app → Pull origin → open it. Library → Kits (or a story's page) → Setup → Agents → Choose Agents… → check a few → "Save N as a Group…" → name it → Turn All Off → click the group's chip: all back on. Assistant: "make a Kit for a dungeon crawl with my <group> agents" and, on a story, "switch on my <group> agents in <story>" (a change card to approve). Library → Directors: only the stories that use it; Add Stories… → search → Use.
+- Checks: typecheck; unit tests (new `agent-groups.test.ts`); click tests `agents`, `director` (2 new).
+- Changelog line for the next release: "**Agent groups**: save the agents you use together as a group and switch them all on in one click when you set up a story or a Kit; the Assistant can use your groups too. Library → Directors now lists only the stories that use each Director, with Add Stories… to pick more."
+
 ## The Assistant's box grows; no spell check or autocorrect (2026-11-16) — CLAUDE — D-133
 
 - Daniel: the Assistant's box was too short to see what he wrote; the spell checker marked/"corrected" English as Portuguese.

@@ -1136,7 +1136,7 @@ function RequestView({ chat, messageId, settings, svc, onClose, route = "send" }
 
 // ------------------------------------------------------------------ drafts in replies ("Draft first")
 
-const KIND_NAME: Record<AssistantKind, string> = { persona: "Persona", character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator", preset: "Preset", cue: "Cue" };
+const KIND_NAME: Record<AssistantKind, string> = { persona: "Persona", character: "Character", lorebook: "Lorebook", tracker: "Tracker", kit: "Kit", narrator: "Narrator", preset: "Preset", cue: "Cue", story: "Story" };
 
 /** A reply's text with its draft blocks drawn as draft cards (Save to library, Copy, Show JSON). */
 /** Flint's sources row (D-067): site letters + "N read · M found"; open = the list of pages. */

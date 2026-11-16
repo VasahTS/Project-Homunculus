@@ -44,6 +44,7 @@ import { CharactersPage, LorebooksPage, PersonasPage, PresetsPage, TrackersPage,
 import { AgentsPage } from "./ui/AgentsPage.tsx";
 import type { AgentDraft } from "./agent-draft.ts";
 import { blankAgent, deleteAgent, listAgents, saveAgent } from "./agents.ts";
+import { initAgentGroups } from "./agentGroups.ts";
 import { cueFromJanitorText, isJanitorLorebook, listCues } from "./cues.ts";
 import { cueNames } from "./ui/promptSources.ts";
 import { LoreChangeTag, LoreVersionBar } from "./ui/LoreVersions.tsx";
@@ -614,6 +615,7 @@ export function App() {
       await bootPart("old chat names", renameOldStoryChats(s));
       const p = await bootPart("settings", loadPrefs(s.store));
       void loadChatOrganization(s.store);
+      void initAgentGroups(s.store);
       // Settings → Data (D-082): items in the Trash longer than chosen leave for good (ones still in use stay)
       if (p.emptyTrashDays > 0) await bootPart("trash cleanup", s.store.emptyTrashOlderThan(Date.now() - p.emptyTrashDays * 86_400_000).catch(() => 0));
       const { ss } = await refresh(s);
@@ -2457,7 +2459,7 @@ export function App() {
             listModels={listModels} onManageConnections={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }}
             userName={personas.find((p) => p.id === defaultPersonaId)?.name ?? ""}
             onChanged={() => void refresh(svc)}
-            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "persona") setView({ kind: "personas", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else if (kind === "preset") setView({ kind: "presets", id }); else if (kind === "cue") setView({ kind: "cues", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
+            onOpenItem={(kind, id) => { setMode("play"); if (kind === "character") setView({ kind: "characters", id, edit: true }); else if (kind === "lorebook") setView({ kind: "lorebooks", id }); else if (kind === "persona") setView({ kind: "personas", id }); else if (kind === "tracker") openTracker(id); else if (kind === "kit") setView({ kind: "kit", id }); else if (kind === "preset") setView({ kind: "presets", id }); else if (kind === "cue") setView({ kind: "cues", id }); else if (kind === "story") setView({ kind: "story", id }); else setView({ kind: "vault", tab: "narrators", id }); }}
             onStartKit={(id) => { const k = kits.find((x) => x.id === id); if (k) { setMode("play"); void startFromKit(k); } }} />
         ) : libraryCategory ? <LibraryWorkspace lead={lead} category={libraryCategory} navigation={COLLECTION_NAVIGATION}
           counts={{ kits: kits.length, narrators: narrators.length, npcs: npcs.length, personas: personas.length, lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, agents: agents.length, cues: cues.length, trash: trash.length }}

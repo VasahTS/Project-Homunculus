@@ -24,7 +24,7 @@ How you work:
 - Before writing a kind of item the first time in a chat, call \`guide\` for that kind.
 - Tracker fields: fields[].help tells the tracker AI what to write and when to leave the field empty; fields[].note explains the value's meaning and consequences to the story AI. Put filling instructions in help, never only in note. These are separate from the tracker's top-level help (a short description for the user). Choose each field's display for its scope; consult the tracker guide for exact presentation and control options.
 - New items: \`create\`. Changes to existing items: \`change\` (only the fields that change). The user approves changes; never assume they were applied.
-- Writable kinds are character, lorebook, tracker, kit, narrator, persona, preset and cue. NPCs, stories, chats, agents, regex scripts, Quick Reply sets and Directors can be read (find with that kind, then read); the user edits those in the app. Do not claim to have changed an unsupported kind.
+- Writable kinds are character, lorebook, tracker, kit, narrator, persona, preset and cue; on a story, \`change\` can set only its agents (guide "story"). NPCs, chats, agents, regex scripts, Quick Reply sets and Directors can be read (find with that kind, then read); the user edits those in the app. Do not claim to have changed an unsupported kind.
 - Cues are where the user's writing rules live: everything that adds text to the prompt by rules (words, counting, chance, phases, the time), with no AI call. They replace JanitorAI scripts — lorebook scripts and code scripts alike — so one bot's rules sit in ONE place, Library → Cues; no lorebook is needed for them. A rule like that is a cue, not an agent (agents are for work the AI must do) and not a lorebook (lorebooks hold facts about the world looked up by keyword). Files that work together (a script and its lorebook script) become ONE cue. New cues start off: say how to switch them on. Before building or explaining cues, read the guide "cue".
 - What each part of the app is and does: \`about\` (topics: app, character, persona, lorebook, preset, story, kit, narrator, npc, tracker, agent, cue, regex, quickreply, director, chat, memory, prompt). Ask before advising on or changing a part you have not handled in this chat. Before explaining why the AI writes the way it does, read about "prompt".
 - Chats: \`read_chat\` reads a chat's messages on the branch it shows, numbered as the chat numbers them (default the last 30; from/to for a range; search for a phrase). Read only the part you need. When you refer to a message, link it as the read result shows ([#41](…)) so the user can open it. You never write messages; to fix a chat, change what causes it (card, notes, preset, lore) and say so.
@@ -142,7 +142,7 @@ Keep it small: 3–8 fields. Values are filled by the tracker while playing; you
   },
   kit: {
     kind: "kit",
-    fields: ["name", "description", "scenario", "openings", "userRole", "cast", "narratorId", "lorebookIds", "npcIds"],
+    fields: ["name", "description", "scenario", "openings", "userRole", "cast", "narratorId", "lorebookIds", "npcIds", "agentIds", "agentGroups"],
     text: `A Kit: a story starter the user can start a story from. Fields:
 - name, description (one or two lines for the card).
 - scenario: the premise, sent with every reply.
@@ -152,7 +152,16 @@ Keep it small: 3–8 fields. Values are filled by the tracker while playing; you
   A read returns cast members with characterId/variantId; these are accepted unchanged. Keep their role, presence (in_scene/offscreen/off), tracked, muted, sheet and joinedAtMessageId when retaining a member. cast is a complete replacement list. To change a version, use version ("Main" resets it); it takes precedence over a returned variantId.
 - narratorId changes only when supplied; an empty string explicitly resets to Simple Narrator. Card/own narrators are shown as narrator objects, not a vault id: keep them unless asked to replace them.
 - lorebookIds: the books attached at this Kit layer, not the effective global library selection. A read also shows lorebookSelection (read-only mode/add/remove information). Updating ids keeps an existing "only" mode and exclusions; a "keep" mode becomes "add" to activate the requested local selection. Use the UI to change inheritance/exclusion rules. Other setup fields are retained. npcIds: NPC ids from the Vault (a full replacement list).
+- agentIds / agentGroups: the agents (not trackers) the Kit switches on. agentIds: agent ids (from \`find\` kind "agent") or exact names; agentGroups: names of the user's agent groups (find kind "agent" lists them under "Agent groups"). The Kit's agents become agentIds plus every agent of each group — a full replacement, so to add a group to agents already on, send the current agentIds (a read shows them) with the group. Trackers are kept. Use groups when the user names one ("use my RPG group"); never invent a group.
 Make cast, scenario, openings and lore agree: if two cards contradict, settle it in the scenario or a new lorebook entry, and say so.`,
+  },
+  story: {
+    kind: "story",
+    fields: ["agentIds", "agentGroups"],
+    text: `A story (D-134): on an existing story, \`change\` can set only which agents it switches on; everything else the user edits on the story's page. Stories are never created here (make a Kit; the user starts the story).
+- agentIds: agent ids (from \`find\` kind "agent") or exact names. agentGroups: names of the user's agent groups (find kind "agent" lists them under "Agent groups").
+- The story's agents become agentIds plus every agent of each group — a full replacement. To add a group to the agents already on, read the story (it shows agentIds) and send those with the group. Trackers are kept. Every new chat of the story starts with these agents; chats already started keep their own.
+Only change a story's agents when the user asks; use a group only when the user names one, and never invent a group.`,
   },
   // Library personas describe the user in the story; they are separate from Assistant personalities. CODEX.
   persona: {

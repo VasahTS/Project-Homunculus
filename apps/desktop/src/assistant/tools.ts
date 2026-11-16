@@ -6,13 +6,15 @@
 //
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
-import { CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind } from "@homunculus/schemas";
+import { CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind, type ListOverride } from "@homunculus/schemas";
 import { characterNoteOf, cueNamespace, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec, type TrialOverrides } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
 import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
 import { readPart } from "./files.ts";
 import { cueFromJanitorText } from "../cues.ts";
+import { listAgents } from "../agents.ts";
+import { findGroup, loadAgentGroups } from "../agentGroups.ts";
 import { agentRows, chatRows, directorRows, getAppItem, quickReplyRows, readChat, regexRows } from "./appReads.ts";
 import { ABOUT_TOPICS, aboutText } from "./about.ts";
 import { CUE_FIELDS, GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIELDS } from "./guides.ts";
@@ -33,7 +35,9 @@ const FIND_ALONE: AssistantReadKind[] = ["chat"];
 const APP_KINDS = ["chat", "agent", "regex", "quickreply", "director"] as const;
 type AppKind = (typeof APP_KINDS)[number];
 const isAppKind = (k: string): k is AppKind => (APP_KINDS as readonly string[]).includes(k);
-const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset", "cue"];
+const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset", "cue", "story"];
+/** A story can only be changed (its agents, D-134): stories are started in the app or from a Kit. */
+const CHANGE_ONLY: AssistantKind[] = ["story"];
 /** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
 export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
 const inFolders = (k: string): k is FolderKind => (FOLDER_KINDS as string[]).includes(k);
@@ -297,7 +301,8 @@ async function readItem(store: SqlStore, ref: string, fields: string[], offset: 
   let item = await getItem(store, r.kind, r.id);
   if (!item) return `No ${r.kind} with id “${r.id}”.`;
   // Write aliases belong in the read view; apply/stale checks keep using the raw stored item. CODEX.
-  if (r.kind === "kit") { const k = Story.parse(item); item = { ...item, ...(k.narrator.kind === "vault" ? { narratorId: k.narrator.id } : {}), lorebookIds: k.setup.lorebooks?.mode === "keep" ? [] : k.setup.lorebooks?.add ?? [], lorebookSelection: k.setup.lorebooks ?? { mode: "keep", add: [], remove: [] } }; }
+  if (r.kind === "kit") { const k = Story.parse(item); item = { ...item, ...(k.narrator.kind === "vault" ? { narratorId: k.narrator.id } : {}), lorebookIds: k.setup.lorebooks?.mode === "keep" ? [] : k.setup.lorebooks?.add ?? [], lorebookSelection: k.setup.lorebooks ?? { mode: "keep", add: [], remove: [] }, agentIds: await layerAgentIds(store, k.setup) }; }
+  if (r.kind === "story") item = { ...item, agentIds: await layerAgentIds(store, (item as Obj).setup) };
   if (r.kind === "narrator") item = { ...item, ...(isObj(item.style) ? item.style : {}) };
   if (r.kind === "character" && item.characterNote === undefined) item = { ...item, characterNote: characterNoteOf(Character.parse(item)) };
   if (r.kind === "lorebook") {
@@ -377,6 +382,15 @@ async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, q
   }
   const from = (Math.max(1, Math.round(page)) - 1) * 25;
   const shown = all.slice(from, from + 25);
+  if (kind === "agent" && from === 0) {
+    // agent groups (D-134): named lists of agents for agentGroups on a Kit or a story
+    const groups = await loadAgentGroups(store);
+    if (groups.length) {
+      const names = new Map((await rows(store, "agent")).map((r) => [r.id, r.name]));
+      const list = groups.map((g) => `group “${g.name}” — ${g.agentIds.map((id) => names.get(id)).filter(Boolean).join(", ") || "no agents"}`).join("\n");
+      return `${shown.map((r) => `${r.kind}:${r.id} · ${r.name}${r.line ? ` — ${r.line}` : ""}`).join("\n") || "No agent matches."}\nAgent groups (use their names in agentGroups):\n${list}${all.length > 25 ? `\n(${all.length - 25} more agents; page 2)` : ""}`;
+    }
+  }
   if (!shown.length) return words.length ? `Nothing matches “${query}”${kind ? ` in ${kind}s` : ""}.` : "Nothing here.";
   return `${shown.map((r) => `${r.kind}:${r.id} · ${r.name}${r.folder ? ` [${r.folder}]` : ""}${r.line ? ` — ${r.line}` : ""}`).join("\n")}${all.length > from + 25 ? `\n(${all.length - from - 25} more; page ${Math.floor(from / 25) + 2})` : ""}`;
 }
@@ -781,7 +795,7 @@ async function castOf(store: SqlStore, list: unknown): Promise<Story["cast"]> {
   return out;
 }
 
-function kitOf(data: Obj, id: string, base?: Obj): Story {
+function kitOf(data: Obj, id: string, base?: Obj, agents?: ListOverride): Story {
   const prev = (base ?? {}) as Obj;
   const lore = strs(data.lorebookIds).map((x) => splitRef(x)?.id ?? x);
   const narratorId = str(data.narratorId);
@@ -796,8 +810,63 @@ function kitOf(data: Obj, id: string, base?: Obj): Story {
     ...(data.cast !== undefined ? { cast: data.cast } : {}),
     ...(data.npcIds !== undefined ? { npcIds: strs(data.npcIds).map((x) => splitRef(x)?.id ?? x) } : {}),
     ...(data.narratorId !== undefined ? { narrator: { kind: "vault", id: narratorId ? splitRef(narratorId)?.id ?? narratorId : SIMPLE_NARRATOR_ID } } : {}),
-    ...(data.lorebookIds !== undefined ? { setup: { ...oldSetup, lorebooks: { ...oldLore, mode: oldLore.mode === "only" ? "only" : "add", add: lore, remove: oldLore.remove ?? [] } } } : {}),
+    ...(data.lorebookIds !== undefined || agents ? { setup: { ...oldSetup,
+      ...(data.lorebookIds !== undefined ? { lorebooks: { ...oldLore, mode: oldLore.mode === "only" ? "only" : "add", add: lore, remove: oldLore.remove ?? [] } } : {}),
+      ...(agents ? { agents } : {}) } } : {}),
   });
+}
+
+/** A Kit with its cast and agents resolved from the library (both need reads). */
+async function kitFull(store: SqlStore, data: Obj, id: string, base?: Obj): Promise<Story> {
+  const agents = await agentsOverride(store, data, isObj(base?.setup) ? base.setup : {});
+  return kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, id, base, agents);
+}
+
+/** A story with only its agents changed (the one thing the Assistant changes on a story, D-134). */
+async function storyAfter(store: SqlStore, data: Obj, item: Obj): Promise<Story> {
+  const s = Story.parse(item);
+  const agents = await agentsOverride(store, data, s.setup as Obj);
+  return Story.parse({ ...s, setup: { ...s.setup, ...(agents ? { agents } : {}) } });
+}
+
+/**
+ * agentIds / agentGroups → the layer's agents list (D-134). The agents switched on at this layer become agentIds plus every
+ * agent of each named group — a full replacement of the agents; trackers in the same list are kept (they are set apart).
+ */
+async function agentsOverride(store: SqlStore, data: Obj, setup: Obj): Promise<ListOverride | undefined> {
+  if (data.agentIds === undefined && data.agentGroups === undefined) return undefined;
+  for (const k of ["agentIds", "agentGroups"] as const)
+    if (data[k] !== undefined && (!Array.isArray(data[k]) || (data[k] as unknown[]).some((x) => typeof x !== "string"))) throw new Error(`${k} must be a list of strings.`);
+  const agents = await listAgents(store);
+  const trackerIds = new Set((await listTrackers(store)).map((t) => t.agent.id));
+  const want: string[] = [];
+  for (const raw of strs(data.agentIds)) {
+    const key = splitRef(raw)?.id ?? raw;
+    const a = agents.find((x) => x.id === key) ?? agents.find((x) => x.name.toLowerCase() === key.trim().toLowerCase());
+    if (!a) throw new Error(`No agent “${raw}”${trackerIds.has(key) ? " (that is a tracker; trackers are not set here)" : ""}. Use find with kind "agent".`);
+    want.push(a.id);
+  }
+  if (strs(data.agentGroups).length) {
+    const groups = await loadAgentGroups(store);
+    for (const raw of strs(data.agentGroups)) {
+      const g = findGroup(groups, raw);
+      if (!g) throw new Error(`No agent group “${raw}”. ${groups.length ? `Groups: ${groups.map((x) => `“${x.name}”`).join(", ")}.` : "The user has no agent groups; they make them in a setup's Choose Agents… window."}`);
+      want.push(...g.agentIds.filter((id) => agents.some((a) => a.id === id)));
+    }
+  }
+  const unique = [...new Set(want)];
+  const old = isObj(setup.agents) ? setup.agents : {};
+  const mode = old.mode === "only" ? "only" : "add";
+  const kept = old.mode === "keep" || old.mode === undefined ? [] : strs(old.add).filter((id) => trackerIds.has(id));
+  return { mode, add: [...new Set([...kept, ...unique])], remove: strs(old.remove).filter((id) => !unique.includes(id)) };
+}
+
+/** The agents (not trackers) a layer switches on itself, for reads. */
+async function layerAgentIds(store: SqlStore, setup: unknown): Promise<string[]> {
+  const a = isObj(setup) && isObj(setup.agents) ? setup.agents : undefined;
+  if (!a || a.mode === "keep") return [];
+  const agents = new Set((await listAgents(store)).map((x) => x.id));
+  return strs(a.add).filter((id) => agents.has(id));
 }
 
 /** Saves a new item. Returns its id and a one-line detail. Throws a readable error when the data is wrong. */
@@ -845,8 +914,9 @@ async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name:
       const saved = await saveTracker(guarded, d);
       return { id: saved.id, name: saved.name, detail: `${saved.sets[0]!.fields.length} fields` };
     }
+    case "story": throw new Error("Stories are started in the app or from a Kit.");
     case "kit": {
-      const kit = kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, newId());
+      const kit = await kitFull(store, data, newId());
       const k = await write(w, `kit:${kit.id}`, () => store.kits.save(kit));
       return { id: k.id, name: k.name, detail: `${k.cast.length} in the cast · ${k.openings.length} opening(s)` };
     }
@@ -894,7 +964,8 @@ async function validateNew(store: SqlStore, kind: AssistantKind, data: Obj): Pro
     case "tracker": trackerOf(data); break;
     case "narrator": narratorOf(data, newId()); break;
     case "lorebook": Lorebook.parse({ id: newId(), name, description: str(data.description), entries: loreEntriesAfter([], { add: data.entries ?? [] }, newId) }); break;
-    case "kit": kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, newId()); break;
+    case "kit": await kitFull(store, data, newId()); break;
+    case "story": throw new Error("Stories are started in the app or from a Kit; on a story you can only `change` its agents.");
     case "cue": cueOf(data, []); break;
   }
 }
@@ -914,6 +985,7 @@ export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
     else if (kind === "narrator" && NARRATOR_STYLE_FIELDS.includes(k)) out[k] = isObj(item.style) ? item.style[k] ?? "" : "";
     else if (kind === "kit" && k === "narratorId") out[k] = item.narrator ?? "";
     else if (kind === "kit" && k === "lorebookIds") out[k] = isObj(item.setup) ? item.setup.lorebooks ?? "" : "";
+    else if ((kind === "kit" || kind === "story") && (k === "agentIds" || k === "agentGroups")) out[k] = isObj(item.setup) ? item.setup.agents ?? "" : "";
     else out[k] = item[k] ?? "";
   }
   return out;
@@ -934,7 +1006,8 @@ export async function prepareChange(store: SqlStore, kind: AssistantKind, itemId
     case "lorebook": { const b = Lorebook.parse(item); Lorebook.parse({ ...b, ...pick(changes, ["name", "description"]), entries: changes.entries === undefined ? b.entries : loreEntriesAfter(b.entries, changes.entries, dryId) }); break; }
     case "narrator": narratorAfter(Narrator.parse(item), changes); break;
     case "persona": personaOf(changes, dryId, Persona.parse(item)); break;
-    case "kit": kitOf({ ...changes, ...(changes.cast !== undefined ? { cast: await castOf(store, changes.cast) } : {}) }, itemId, item); break;
+    case "kit": await kitFull(store, changes, itemId, item); break;
+    case "story": await storyAfter(store, changes, item); break;
     case "tracker": { const t = (await listTrackers(store)).find(t => t.agent.id === itemId)!; trackerAfter(draftOf(t), changes); break; }
     case "cue": cueOf(changes, [], Cue.parse(item)); break;
   }
@@ -998,7 +1071,8 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
       await saveTracker(store, trackerAfter(draftOf(t), ch));
       break;
     }
-    case "kit": await store.kits.save(kitOf({ ...ch, ...(ch.cast !== undefined ? { cast: await castOf(store, ch.cast) } : {}) }, r.itemId, item)); break;
+    case "kit": await store.kits.save(await kitFull(store, ch, r.itemId, item)); break;
+    case "story": await store.stories.save(await storyAfter(store, ch, item)); break;
     case "narrator": {
       const n = Narrator.parse(item);
       const merged = narratorAfter(n, ch);
@@ -1281,6 +1355,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       case "create": {
         const kind = str(a.kind) as AssistantKind;
         if (!WRITE_KINDS.includes(kind)) return { result: `Can't create a “${kind}”.`, label: "create", error: true };
+        if (CHANGE_ONLY.includes(kind)) return { result: "Stories are started in the app or from a Kit (make a Kit instead). On an existing story, `change` can set its agents.", label: "create", error: true };
         const data: Obj = { ...(isObj(a.data) ? a.data : {}), ...(str(a.folder) ? { folder: str(a.folder) } : {}) };
         if (!ctx.saveNew) {
           const bad = unknownKeys(data, kind);
@@ -1308,6 +1383,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       case "propose_trash": {
         const r = splitRef(str(a.id));
         if (r?.kind === "cue") return { result: "Cues can't be proposed for the Trash; the user deletes them in Library → Cues. One you made can be undone on its card.", label: "propose_trash", error: true };
+        if (r?.kind === "story") return { result: "Stories can't be proposed for the Trash from here; the user removes them on the Stories page.", label: "propose_trash", error: true };
         if (r?.kind === "preset") return { result: "Presets can't be proposed for the Trash; the user removes them in Library → Presets. A copy you made can be undone on its card.", label: "propose_trash", error: true };
         if (!r || !WRITE_KINDS.includes(r.kind as AssistantKind)) return { result: `Can't move “${str(a.id)}”.`, label: "propose_trash", error: true };
         const item = await getItem(ctx.store, r.kind, r.id);

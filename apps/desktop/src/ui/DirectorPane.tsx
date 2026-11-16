@@ -18,6 +18,7 @@ import { MessageText } from "./MessageText.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { ImportButton } from "./BundleButtons.tsx";
+import { Modal } from "./Vault.tsx";
 
 type View = "chat" | "notes";
 const newId = () => crypto.randomUUID();
@@ -822,28 +823,73 @@ export function DirectorsPage({ svc, connection, lead, stories, version = 0, onI
               {open.id === defaultId ? <span className="hint">★ This is the default</span>
                 : <Button small onClick={() => void saveLinks({ ...links, defaultId: open.id })} data-testid="directors-make-default">Make it the default</Button>}
             </Field>
-            <p className="mem-text hint">Stories that use this Director (a chat can still pick another in its Director tab):</p>
-            {!stories.length && <p className="mem-text hint">No stories yet.</p>}
-            <div className="directors-stories">
-              {stories.map((s) => {
-                const mine = (links.stories[s.id] ?? "") === open.id;
-                const other = links.stories[s.id] && !mine ? profiles.find((p) => p.id === links.stories[s.id])?.name : undefined;
-                return (
-                  <label key={s.id} className="director-own">
-                    <Switch label={`${s.name} uses ${open.name}`} checked={mine} onChange={(on) => {
-                      const next = { ...links.stories };
-                      if (on) next[s.id] = open.id; else delete next[s.id];
-                      void saveLinks({ ...links, stories: next });
-                    }} />
-                    <span>{s.name}{other ? <small className="hint"> · uses {other}</small> : null}</span>
-                  </label>
-                );
-              })}
-            </div>
+            <DirectorStories open={open} profiles={profiles} stories={stories} links={links} onSave={(l) => void saveLinks(l)} />
           </section>
           <SetupView svc={svc} connection={connection} profiles={profiles} profile={open} onSave={save} onPick={setOpenId} />
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * The stories that use one Director (D-134). Daniel: listing every story with a switch would be madness with many
+ * stories. Only the ones that use it are listed (with Remove); "Add Stories…" opens a searchable window with the rest.
+ */
+function DirectorStories({ open, profiles, stories, links, onSave }: {
+  open: DirectorProfile; profiles: DirectorProfile[]; stories: Array<{ id: string; name: string }>; links: DirectorLinks; onSave: (l: DirectorLinks) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("");
+  const set = (id: string, on: boolean) => {
+    const next = { ...links.stories };
+    if (on) next[id] = open.id; else delete next[id];
+    onSave({ ...links, stories: next });
+  };
+  const mine = stories.filter((s) => links.stories[s.id] === open.id);
+  const rest = stories.filter((s) => links.stories[s.id] !== open.id);
+  const nameOf = (id: string | undefined) => (id ? profiles.find((p) => p.id === id)?.name : undefined);
+  const f = filter.trim().toLowerCase();
+  const shown = f ? mine.filter((s) => s.name.toLowerCase().includes(f)) : mine;
+  const needle = q.trim().toLowerCase();
+  const found = rest.filter((s) => !needle || s.name.toLowerCase().includes(needle));
+  return (
+    <div className="director-stories" data-testid="directors-stories">
+      <span className="row-line">
+        <span className="mem-text hint grow">{mine.length ? `Used by ${mine.length} ${mine.length === 1 ? "story" : "stories"}.` : "No story picks this Director yet."} A chat can still pick another in its Director tab.</span>
+        {rest.length > 0 && <Button small onClick={() => setAdding(true)} data-testid="directors-add-stories"><Icon name="plus" size={12} /> Add Stories…</Button>}
+      </span>
+      {mine.length > 8 && <label className="search-box"><Icon name="search" size={13} /><input aria-label="Search these stories" placeholder={`Search ${mine.length} stories`} value={filter} onChange={(e) => setFilter(e.target.value)} /></label>}
+      {shown.length > 0 && (
+        <ul className="director-story-list">
+          {shown.map((s) => (
+            <li key={s.id} data-testid="directors-story">
+              <span className="grow">{s.name}</span>
+              <Button small variant="plain" aria-label={`Stop using ${open.name} in ${s.name}`} onClick={() => set(s.id, false)}>Remove</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {f && !shown.length && <p className="mem-text hint">Nothing matches.</p>}
+      {adding && (
+        <Modal title={`Stories that use ${open.name}`} onClose={() => { setAdding(false); setQ(""); }} testId="directors-add-sheet" className="modal-small agents-pick">
+          <label className="search-box"><Icon name="search" size={13} /><input autoFocus aria-label="Search stories" placeholder="Search stories" value={q} onChange={(e) => setQ(e.target.value)} /></label>
+          <div className="setup-group agents-pick-list">
+            {found.map((s) => {
+              const other = nameOf(links.stories[s.id]);
+              return (
+                <div key={s.id} className="setup-row" data-testid="directors-add-row">
+                  <span className="setup-k grow"><span>{s.name}</span><small>{other ? `uses ${other} now` : "uses the default"}</small></span>
+                  <span className="setup-v"><Button small onClick={() => set(s.id, true)}>Use {open.name}</Button></span>
+                </div>
+              );
+            })}
+            {!found.length && <div className="setup-empty">{rest.length ? "Nothing matches." : "Every story uses this Director."}</div>}
+          </div>
+          <span className="row-line"><span className="hint grow">A story moves here from the Director it used before.</span><Button small onClick={() => { setAdding(false); setQ(""); }}>Done</Button></span>
+        </Modal>
+      )}
+    </div>
   );
 }
