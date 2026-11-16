@@ -59,12 +59,13 @@ test("rename a session; moving it to the Trash can be undone", async ({ page }) 
   await expect(page.getByTestId("messages")).toBeVisible();
 });
 
-test("a character used by a session cannot go to the Trash, with a clear reason", async ({ page }) => {
+test("a character with chats asks before taking them to the Trash (D-136)", async ({ page }) => {
   await page.goto("/");
   await openLibrary(page, "Characters");
   await editCharacter(page);
   await page.getByRole("button", { name: "Move to Trash" }).click();
-  await expect(page.getByRole("alert")).toContainText("used by 1 chat");
+  await expect(page.getByTestId("trash-with-chats")).toContainText("has 1 chat");
+  await page.getByTestId("trash-with-chats").getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByText("1 in the library")).toBeVisible();
 });
 

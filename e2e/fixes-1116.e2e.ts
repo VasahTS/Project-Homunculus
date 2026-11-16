@@ -69,3 +69,64 @@ test("the reply in progress has the same shape as the saved reply (no jump when 
   await expect(live.locator(".msg-actions-hold")).toHaveCount(1);
   await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });
 });
+
+// ---- D-136: what was left out of the first round
+
+test("Continue adds to the last reply instead of writing another message; Next Message still writes one", async ({ page }) => {
+  await page.goto("/");
+  const msgs = page.getByTestId("message");
+  await expect(msgs).toHaveCount(1);
+  const before = (await msgs.first().innerText()).length;
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });
+  await expect(msgs).toHaveCount(1); // the same message grew
+  expect((await msgs.first().innerText()).length).toBeGreaterThan(before);
+  await msgs.first().hover();
+  await msgs.first().getByTestId("next-message").click();
+  await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });
+  await expect(msgs).toHaveCount(2);
+});
+
+test("Delete can take only one message and keep what follows; › on the newest version writes a new one", async ({ page }) => {
+  await page.goto("/");
+  await sendMessage(page, "First line");
+  await sendMessage(page, "Second line");
+  const msgs = page.getByTestId("message");
+  await expect(msgs).toHaveCount(5);
+  // › on the last reply (one version) writes a second version
+  await expect(page.getByTestId("swipe-counter")).toHaveText("1/1");
+  await page.getByTestId("swipe-new").click();
+  await expect(page.getByTestId("streaming")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByTestId("swipe-counter")).toHaveText("2/2");
+  // delete only "First line"
+  await msgs.nth(1).hover();
+  await msgs.nth(1).getByRole("button", { name: "Delete" }).click();
+  await page.getByTestId("delete-only").click();
+  await expect(msgs).toHaveCount(4);
+  await expect(page.locator(".msg.user", { hasText: "First line" })).toHaveCount(0);
+  await expect(page.locator(".msg.user", { hasText: "Second line" })).toHaveCount(1);
+});
+
+test("a character with chats goes to the Trash with them and comes back with them", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click();
+  await page.getByTestId("character-list").getByRole("button", { name: "Lyra" }).click();
+  await page.getByTestId("character-sheet").getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Move to Trash" }).first().click();
+  await expect(page.getByTestId("trash-with-chats")).toContainText("Lyra has 1 chat");
+  await page.getByTestId("trash-with-chats").getByRole("button", { name: /Move with 1 Chat/ }).click();
+  await expect(page.locator(".sc-li")).toHaveCount(0);
+  await page.getByTestId("notice").getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator(".sc-li")).toHaveCount(1);
+});
+
+test("in a narrow window the Library's tabs wrap instead of hiding, and the Library opens on the tab used last", async ({ page }) => {
+  await page.goto("/");
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await page.getByTestId("place-list").getByRole("button", { name: "Library" }).click();
+  for (const name of ["Agents", "Cues", "Trash"]) await expect(page.getByTestId("library-list").getByRole("button", { name, exact: true })).toBeInViewport();
+  await page.getByTestId("library-list").getByRole("button", { name: "Presets", exact: true }).click();
+  await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click();
+  await page.getByTestId("place-list").getByRole("button", { name: "Library" }).click();
+  await expect(page.getByTestId("library-list").getByRole("button", { name: "Presets", exact: true })).toHaveAttribute("aria-current", "page");
+});

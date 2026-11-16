@@ -50,6 +50,8 @@ import { BranchMenu, ForkMarker, subtreeOf, TreeSheet, useBranches } from "./Bra
 import type { ReactNode } from "react";
 
 interface SiblingInfo { index: number; ids: string[] }
+/** The inspector tab last used, for the next chat opened (D-136: it always went back to Scene). */
+let lastInspectorTab: InspectorTab = "scene";
 interface Pending { parentId: string | null; userText?: string | undefined; text: string; reasoning: string }
 
 export function ChatView({ svc, session, onOpenChat, characters, personas, defaultPersonaId, avatars, onChangeSession, onOpenSettings, listModels, presets, defaultPresetId, onSavePreset, onOpenPreset, lorebooks, onOpenLorebook, connection, providers, trackers, lead, story: storyInfo, storySetup, setupProps, onOpenStory, npcs, inspectorOpen, onToggleInspector, onActivity, onRename, onExportMarkdown, onDelete, onToggleTracker, onToggleTrackers, onPickFieldSet, onEditTracker, onNewTracker, focusMessageId = null, onSaveNpcToVault, onSaveCharacter, onOpenCharacter, agents = [], onToggleAgent, onOpenAgent, onOpenStoryLore, onRegexChanged, onOpenRegex, onOpenCues, onOpenQuickReply, onError, onLibraryChanged, onSetDefaultPersona, onOpenPersona }: {
@@ -171,7 +173,9 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const pending: Pending | null = turn?.phase === "writing" ? turn : behind && lastWriting.current?.id === turn?.id ? lastWriting.current : null;
   // Settings → Chat (D-082): a live reply revealed evenly ("Smooth text")
   const [sceneKey, setSceneKey] = useState(0);
-  const [tab, setTab] = useBackState<InspectorTab>("scene"); // inspector tabs are moves for M4/M5 (D-097)
+  // inspector tabs are moves for M4/M5 (D-097); the tab you were on stays when you open another chat (D-136)
+  const [tab, setTab] = useBackState<InspectorTab>(lastInspectorTab);
+  useEffect(() => { lastInspectorTab = tab; }, [tab]);
   /** Memory opens as a window from the top bar (D-105). */
   const [memoryOpen, setMemoryOpen] = useState(false);
   const memoryButton = useRef<HTMLButtonElement>(null);
@@ -445,13 +449,12 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     if (busy) return;
     const parentId = headId ?? null;
     if (!text) {
-      // empty send (like SillyTavern): the AI writes the next message after the last one in the chat
       if (!parentId) return;
-      run({ parentId }, async (signal, streamTo) => {
-        const r = connection.forRequest();
-        const reply = await svc.chat.generate(session.id, parentId, r.connection, { signal, connections: r.connections, ...streamTo });
-        return reply.id;
-      });
+      // D-136: empty box after a reply = Continue (SillyTavern's): the AI goes on with that reply, in the same message
+      const tail = path.find((m) => m.id === parentId);
+      if (tail && tail.speaker.kind !== "user") { continueReply(tail); return; }
+      // after your own message: the AI replies to it
+      nextMessage(parentId);
       return;
     }
     setInput("");
@@ -465,6 +468,23 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         if (!accepted) setInput(current => current || input);
         throw e;
       }
+    });
+  };
+
+  /** The AI writes the next message after this one (an empty send used to do this; now "Next Message" on the last reply). */
+  const nextMessage = (parentId: string) => {
+    run({ parentId }, async (signal, streamTo) => {
+      const r = connection.forRequest();
+      const reply = await svc.chat.generate(session.id, parentId, r.connection, { signal, connections: r.connections, ...streamTo });
+      return reply.id;
+    });
+  };
+  /** Continue (D-136): the reply grows in place; while it streams, the bubble shows the reply so far plus the new words. */
+  const continueReply = (m: Message) => {
+    run({ parentId: m.parentId }, async (signal, streamTo) => {
+      const r = connection.forRequest();
+      const done = await svc.chat.turns.continueReply(m.id, r.connection, { signal, connections: r.connections, branchId: streamTo.branchId, onToken: streamTo.onToken, onReasoning: streamTo.onReasoning });
+      return done.id;
     });
   };
 
@@ -566,6 +586,19 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     setBranchTick((t) => t + 1);
     setSceneKey((k) => k + 1);
     onActivity();
+  };
+
+  /** D-136: only this message goes; what came after it stays, hanging on the message before. */
+  const deleteOnly = async (m: Message) => {
+    setDeletingMsg(null);
+    try {
+      await svc.chat.deleteOneMessage(m.id);
+      const end = headId === m.id ? m.parentId : headId ?? null;
+      await showBranch(end);
+      setBranchTick((t) => t + 1);
+      setSceneKey((k) => k + 1);
+      onActivity();
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   /** A new version of the last reply; on your own last message, a reply to it. */
@@ -694,6 +727,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   };
 
   const lastAi = [...visible].reverse().find((m) => m.speaker.kind !== "user");
+  /** What an empty send does (D-136): continue the last reply, or reply to your own last message. */
+  const emptyAction = last && last.speaker.kind === "user" ? "Reply" : "Continue";
   // what agents did on the replies on screen (the latest 30), reloaded when a turn ends or something changes
   // (+ the message before the latest reply: "before the reply" agents record their runs there)
   const latestParentId = lastAi?.parentId ?? null;
@@ -914,25 +949,41 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                   </div>
                   {prefs.avatarShape === "hidden" && (prefs.showNumber || prefs.showTokens) && <MessageMetadata svc={svc} message={m} position={i + 1} showNumber={prefs.showNumber} showTokens={prefs.showTokens} />}
                   {deletingMsg === m.id ? (
+                    // D-136: one message alone can go (what follows stays), when it has no other versions
+                    (siblings[m.id]?.ids.length ?? 1) === 1 && gone.length > 1 ? (
+                      <div className="msg-delete" data-testid="message-delete-confirm">
+                        <span><strong>Delete this message for good?</strong>
+                          <small> Only this one, or this one and the {gone.length - 1} after it. Its world state goes too. It does not go to the Trash.{kept > 0 ? " Other branches keep the messages they use." : ""}</small></span>
+                        <span className="row-line end"><Button small onClick={() => setDeletingMsg(null)}>Cancel</Button>
+                          <Button small variant="destructive" onClick={() => void deleteMessage(m)} data-testid="delete-from-here">This and the {gone.length - 1} After</Button>
+                          <Button small variant="destructive" onClick={() => void deleteOnly(m)} data-testid="delete-only">Only This Message</Button></span>
+                      </div>
+                    ) : (
                     <div className="msg-delete" data-testid="message-delete-confirm">
                       <span><strong>Delete {gone.length > 1 ? `this message and the ${gone.length - 1} after it` : "this message"} for good?</strong>
                         <small> Its world state goes too. It does not go to the Trash.{kept > 0 ? " Other branches keep the messages they use." : ""}</small></span>
                       <span className="row-line end"><Button small onClick={() => setDeletingMsg(null)}>Cancel</Button>
                         <Button small variant="destructive" onClick={() => void deleteMessage(m)}>Delete Forever</Button></span>
-                    </div>
+                    </div>)
                   ) : !isEditing && (
                     <div className="tools msg-actions">
-                      {versions.length > 1 && (
+                      {(versions.length > 1 || (isLastAi && m.parentId !== null)) && (
                         <span className="swipes">
                           <button aria-label="Previous version" disabled={vIndex === 0 || busy} onClick={() => switchSibling(m, -1)}>‹</button>
                           <span data-testid="swipe-counter"><b>{vIndex + 1}</b>/{versions.length}</span>
-                          <button aria-label="Next version" disabled={vIndex === versions.length - 1 || busy} onClick={() => switchSibling(m, 1)}>›</button>
+                          {/* D-136: on the last reply, › at its newest version writes a new one (like SillyTavern and the trackpad swipe) */}
+                          {isLastAi && m.parentId !== null && vIndex === versions.length - 1
+                            ? <button aria-label="Write another" title="Write a new version" disabled={busy} onClick={() => regenerate(m)} data-testid="swipe-new">›</button>
+                            : <button aria-label="Next version" disabled={vIndex === versions.length - 1 || busy} onClick={() => switchSibling(m, 1)}>›</button>}
                         </span>
                       )}
                       <IconButton className="act" label={copied === m.id ? "Copied" : "Copy"} onClick={() => void copyText(m)}><Icon name={copied === m.id ? "check" : "copy"} size={15} /></IconButton>
                       <IconButton className="act" label="Edit" disabled={busy} onClick={() => setEditing({ id: m.id, text: m.content })}><Icon name="pencil" size={15} /></IconButton>
                       {isLastAi && m.parentId !== null && !busy && (
                         <IconButton className="act" label="New Version" onClick={() => regenerate(m)}><Icon name="refresh" size={15} /></IconButton>
+                      )}
+                      {isLastAi && !busy && (
+                        <IconButton className="act" label="Next Message" title="The AI writes another message after this one." onClick={() => nextMessage(m.id)} data-testid="next-message"><Icon name="plus" size={15} /></IconButton>
                       )}
                       {isLast && user && !busy && (
                         <IconButton className="act" label="Get a Reply" onClick={() => regenerate(m)}><Icon name="refresh" size={15} /></IconButton>
@@ -1011,7 +1062,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             {busy
               ? <Button variant="prominent" onClick={() => turns.stop(session.id)}>Stop</Button>
               : <Button variant="prominent" type="submit" disabled={!input.trim() && !headId}
-                  title={input.trim() ? undefined : "Empty: the AI writes the next message"}>{input.trim() ? "Send" : "Continue"}</Button>}
+                  title={input.trim() ? undefined : emptyAction === "Continue" ? "Empty: the AI continues its last reply" : "Empty: the AI replies to your message"}>{input.trim() ? "Send" : emptyAction}</Button>}
           </div>
           {/* UX review item 4 (D-078): the same shape as the Assistant's box — the model under the box opens Quick Connection;
               samplers stay a quiet link to the Prompt tab */}
@@ -1025,7 +1076,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
               {personaChoice.kind === "follow" && persona && <span className="persona-chip-sub">({personaFollows.from})</span>}
               <span className="persona-chip-sub" aria-hidden>▾</span>
             </button>
-            <span className="composer-hint" title={`${sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to ${input.trim() ? "send" : "continue"} · ${sendKey === "enter" ? "Shift+Enter" : "Enter"} for a new line`}>{sendKey === "enter" ? "↵" : "Ctrl+↵"} {input.trim() ? "send" : "continue"} · {sendKey === "enter" ? "⇧↵" : "↵"} new line</span>
+            <span className="composer-hint" title={`${sendKey === "enter" ? "Enter" : "Ctrl+Enter"} to ${input.trim() ? "send" : emptyAction.toLowerCase()} · ${sendKey === "enter" ? "Shift+Enter" : "Enter"} for a new line`}>{sendKey === "enter" ? "↵" : "Ctrl+↵"} {input.trim() ? "send" : emptyAction.toLowerCase()} · {sendKey === "enter" ? "⇧↵" : "↵"} new line</span>
             <span className="grow" />
             {/* temperature / thinking left this line (Daniel, 2026-11-08: "just the model"); they live in the Prompt tab */}
             <span className="qc-anchor">

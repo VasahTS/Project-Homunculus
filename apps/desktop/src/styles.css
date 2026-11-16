@@ -160,6 +160,8 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .msg.user { justify-self: end; max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
 .msg.user > .msg-body { padding: 10px 14px; border-radius: var(--radius-group); background: var(--fill); max-width: 100%; min-width: 0; }
 .msg.user > .msg-body:has(.msg-edit) { width: min(560px, 100%); }
+.set-named { display: grid; gap: 3px; min-width: 0; font-size: var(--size-small); } .set-named.grow { flex: 1; } /* D-136 */
+.trash-ask { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--separator); background: var(--fill); font-size: var(--size-small); color: var(--label-2); } /* D-136 */
 .edit-scope { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; } /* D-135 */
 .msg.user > .tools { margin-top: 4px; }
 .msg.user .who { color: var(--label-2); font-weight: 600; font-size: var(--size-small); }
@@ -1306,10 +1308,10 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 /* New story and New Chat sheets */
 .sheet.modal-wide { width: min(1180px, 100%); height: auto; max-height: 100%; }
 .modal-wide .sheet-title h2, .modal-chat .sheet-title h2 { font-family: var(--font-prose); font-weight: 600; font-size: 20px; }
-.new-story-name { display: flex; flex-direction: column; gap: 4px; width: 300px; margin-left: auto; }
+.new-story-name { display: flex; flex-direction: column; gap: 4px; width: min(420px, 100%); }
 .new-story-name .setup-title { margin: 0; }
 .new-story-name input { color: var(--label); padding: 6px 8px; }
-.new-story-sub { margin: -4px 0 0; }
+.new-story-sub { margin: 0; }
 .new-story-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; align-items: start; }
 .mode-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 0; }
 .setup-group:has(> .mode-cards) { background: transparent; }
@@ -1784,7 +1786,9 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 /* D-069: the categories are one row of tabs under the title (draft B); groups split by a thin line, Trash on the right */
 .library-workspace > .toolbar { margin-bottom: 14px; }
 .library-tabs { flex: none; display: flex; align-items: flex-end; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; box-shadow: inset 0 -1px 0 var(--separator); margin-bottom: 20px; }
-.library-tab-group { flex: none; display: flex; align-items: flex-end; }
+.library-tab-group { flex: none; display: flex; align-items: flex-end; flex-wrap: wrap; }
+/* D-136: a narrow window wraps the tabs to a second row instead of hiding the last ones (Agents, Cues, Trash…) */
+.library-tabs { flex-wrap: wrap; row-gap: 2px; }
 .library-tab-group + .library-tab-group::before { content: ""; align-self: center; width: 1px; height: 16px; margin: 0 10px; background: var(--separator); }
 .library-tab-group.library-tab-end { margin-left: auto; padding-left: 12px; }
 .library-tab-group.library-tab-end::before { display: none; }

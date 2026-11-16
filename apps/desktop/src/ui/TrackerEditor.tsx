@@ -318,9 +318,10 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onExport, onCl
             {draft.sets.length > 1 && current.id !== draft.defaultSetId && (
               <button className="link" onClick={() => set({ defaultSetId: current.id })}>Make Default</button>
             )}
-            {draft.sets.length > 1 && <ConfirmButton label="Delete Set" confirmLabel="Click Again to Delete the Set" onConfirm={removeSet} />}
             <span className="spacer" />
             <SetFileLinks sets={draft.sets} current={current} say={say} onImport={applySets} />
+            {/* D-136: away from New Set, at the end of the row */}
+            {draft.sets.length > 1 && <ConfirmButton label="Delete Set" confirmLabel="Click Again to Delete the Set" onConfirm={removeSet} />}
           </div>
           {reuse && (
             <p className={`set-notice ${reuse.kind === "error" ? "error-text" : "hint"}`} role={reuse.kind === "error" ? "alert" : "status"} data-testid="set-notice">
@@ -333,8 +334,11 @@ export function TrackerEditor({ initial, isNew, onSave, onDelete, onExport, onCl
           )}
           <div className="set-card">
             <div className="field-row">
-              <input aria-label="Field set name" placeholder="Set name" value={current.name} onChange={(e) => setCurrent({ name: e.target.value })} />
-              <input className="grow" aria-label="Field set description" placeholder="What this set is for (optional)" value={current.help} onChange={(e) => setCurrent({ help: e.target.value })} />
+              {/* D-136: visible names for the two boxes */}
+              <label className="set-named"><span className="muted">Name</span>
+                <input aria-label="Field set name" placeholder="Set name" value={current.name} onChange={(e) => setCurrent({ name: e.target.value })} /></label>
+              <label className="set-named grow"><span className="muted">What it is for</span>
+                <input aria-label="Field set description" placeholder="Optional" value={current.help} onChange={(e) => setCurrent({ help: e.target.value })} /></label>
             </div>
             <div className="field-row">
               <span className="label-row muted">Per-character values for <Help text="Who receives per-character fields. Anyone named lets the tracker add NPCs as they appear." /></span>

@@ -572,10 +572,11 @@ export function NewStorySheet({ characters, avatars, lorebooks, setup, initialCa
   const hasConnection = setup.profiles.length > 0;
   const create = () => onCreate({ name: name.trim() || (card ? "" : "New story"), role, fromCardId: card?.id ?? null, setup: layer });
   return (
-    <Modal title="New story" onClose={onClose} testId="new-story" className="modal-wide"
-      head={<label className="new-story-name"><span className="setup-title">Name</span>
-        <input aria-label="Story name" value={name} placeholder={card ? card.name : "e.g. High Fantasy Party"} onChange={(e) => setName(e.target.value)} autoFocus /></label>}>
-      <p className="hint new-story-sub">New chats start with this setup.</p>
+    <Modal title="New story" onClose={onClose} testId="new-story" className="modal-wide">
+      {/* D-136: the name is the first thing in the window (it sat in the top-right corner) */}
+      <label className="new-story-name"><span className="setup-title">Name</span>
+        <input aria-label="Story name" value={name} placeholder={card ? card.name : "e.g. High Fantasy Party"} onChange={(e) => setName(e.target.value)} autoFocus />
+        <span className="hint new-story-sub">New chats start with this setup.</span></label>
       <div className="new-story-body">
         <div className="story-col">
           <SetupSection title="How do you want to play?">

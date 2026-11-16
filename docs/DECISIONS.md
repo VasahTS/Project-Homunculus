@@ -1542,3 +1542,18 @@ Daniel asked for a thorough sweep of the app for bugs and UI/UX problems (report
 - Tests: unit (`branches`, `library`, `folders`, `query-count`, `stImport`); click tests `fixes-1116` (new) and two new in `branches`.
 
 Signed: **CLAUDE**.
+
+## D-136 — What the sweep left for Daniel: a real Continue, deleting one message, › makes a version, a card to the Trash with its chats, small UX fixes, saves that read less (2026-11-16)
+
+Daniel (translated), after D-135: "you can also fix what was left out; leave only the Linux bugs for now". The choices below follow the proposals in the sweep report he read.
+
+- **Continue** (SillyTavern's): with an empty box after a reply, the AI goes on with that reply and the words are added to the **same message** (`TurnPipeline.continueReply`: the prompt as Preview Prompt builds it for that reply, then the reply so far and a short nudge; a revision keeps the old text; no agents or cues run, so the world state does not change; a stopped continue keeps what arrived; `joinContinuation` adds a space only where needed). After your own message the button says **Reply**. The old "the AI writes another message after this one" is **Next Message** (+) in the last reply's actions.
+- **Delete:** a message with no other versions can go alone — **Only This Message** keeps what came after it, hanging on the message before (`SqlStore.deleteOneMessage`: children move to its parent, a branch that ended at it ends at its parent; `ChatService.deleteOneMessage` marks later records out of date and memory after it). **This and the N After** is the old delete.
+- **Swipes:** the last reply always shows ‹ 1/1 ›; › on its newest version writes a new one (like SillyTavern and the trackpad gesture).
+- **A character with chats to the Trash:** Move to Trash asks "Lyra has N chats. Move them to the Trash too?"; `moveToTrash("character", id, { withChats: true })` trashes its own chats at the same moment (a story still blocks it). The Trash lists only the character; Restore / Undo brings the chats back; Delete Forever / Empty Trash deletes them with it. A character trashed alone never shares a moment with its chats trashed alone.
+- **Small fixes:** token counts under a message read "~28 tokens" / "Reasoning ~15 tokens" (was "Text ~28t"); the inspector keeps its tab when you open another chat; trashing the open chat from the sidebar opens the chat played last (as the chat's ⋯ menu does); the Library's tabs wrap to a second row in narrow windows (they were hidden) and the Library opens on the tab used last (was always Kits); New Story's Name is the first field of the window; under 800 px the sidebar starts hidden (its button shows it); the tracker editor's set boxes have visible names and Delete Set sits at the end of the row; Ctrl+H no longer opens Home while you type in a box.
+- **Saves read less:** saving a preset, persona, character, tracker or a Default, and moving one item to the Trash, read again only the lists they change (`reload(kinds)`); imports, restores and new chats keep the full read.
+- Not done: picture memory and the other Linux display bugs (later, together).
+- Tests: unit (`continue` new, `library`); click tests `fixes-1116` (4 new), `branches`, `chat`, `library`, `message-metadata` updated.
+
+Signed: **CLAUDE**.

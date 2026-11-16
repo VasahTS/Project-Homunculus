@@ -95,6 +95,16 @@ export interface TurnRequest {
 }
 
 /** What the model is told when its reply was cut off by its length limit (D-082). */
+/** Continue asked by the user (D-136). */
+export const CONTINUE_ASKED = "[Continue your last reply exactly where it stopped. Do not repeat anything, do not summarize, and add no preface.]";
+
+/** The reply so far and its continuation, with a space between words when neither side has one (D-136). */
+export function joinContinuation(before: string, more: string): string {
+  if (!more) return before;
+  if (!before || /\s$/.test(before) || /^[\s.,;:!?…)\]}"'”’»—-]/.test(more)) return before + more;
+  return `${before} ${more}`;
+}
+
 export const CONTINUE_NUDGE = "[Your last reply was cut off by the length limit. Continue it exactly where it stopped, mid-sentence if needed. Do not repeat anything, do not summarize, and add no preface.]";
 
 export interface TurnResult {
@@ -1247,6 +1257,54 @@ export class TurnPipeline {
     if (before.length) built.notes.push(`Not in this preview: what ${before.map((e) => e.config.name).join(", ")} would add (they run just before the reply).`);
     const sent = (preset.squashSystem ? squashSystem(built.parts) : built.parts).length;
     return { ...built, presetId: preset.id, presetName: preset.name, model: main.model, sent };
+  }
+
+  /**
+   * Continue (D-136, SillyTavern's Continue): the AI goes on with a reply that is already there, and the new words are
+   * added to the same message. The prompt is the one the reply was written with (as Preview Prompt builds it), then the
+   * reply so far and a short nudge. Nothing else runs (no agents, no cues), so a continue never changes the world state.
+   * Stopped or failed: what arrived is still added, so nothing the user saw is lost. Returns the message, updated.
+   */
+  async continueReply(messageId: string, connection: ConnectionConfig, opts: { connections?: Record<string, ConnectionConfig>; branchId?: string | null;
+    signal?: AbortSignal; onToken?: (piece: string, all: string) => void; onReasoning?: (all: string) => void } = {}): Promise<Message> {
+    const m = await this.store.getMessage(messageId);
+    if (!m) throw new Error(`Message "${messageId}" not found`);
+    if (m.speaker.kind === "user") throw new Error("Only a reply can be continued.");
+    const session = await this.store.getSession(m.sessionId);
+    if (!session) throw new Error(`Session "${m.sessionId}" not found`);
+    const setup = await this.setupFor(session);
+    const preset = await this.presetFor(setup.presetId, setup);
+    const main = withPresetParams(chatModel((setup.connectionId ? opts.connections?.[setup.connectionId] : undefined) ?? connection, setup), preset);
+    const built = await this.previewPrompt(m.sessionId, m.parentId, connection, { ...(opts.connections ? { connections: opts.connections } : {}), branchId: opts.branchId ?? null });
+    const turnsNow = [...toTurns(preset.squashSystem ? squashSystem(built.parts) : built.parts), { role: "assistant" as const, content: m.content }, { role: "user" as const, content: CONTINUE_ASKED }];
+    let text = "";
+    let reasoning = "";
+    const joined = () => joinContinuation(m.content, text);
+    let failure: unknown;
+    try {
+      for await (const chunk of this.core.connections.stream(main, turnsNow, opts.signal)) {
+        if (typeof chunk === "string") { text += chunk; opts.onToken?.(chunk, joined()); }
+        else if ("reasoning" in chunk) { reasoning += chunk.reasoning; opts.onReasoning?.(reasoning); }
+      }
+    } catch (e) { failure = e; }
+    if (text.trim()) {
+      const speaking = await this.pickSpeaker(session);
+      const persona = setup.personaId ? await this.store.personas.get(setup.personaId) : undefined;
+      const user = (persona ? effectivePersona(persona, setup.personaVariantId) : undefined)?.name ?? DEFAULT_USER_NAME;
+      const scripts = await this.regexFor(preset, speaking.character, setup);
+      text = applyRegexScripts(scripts, text, { target: "ai", mode: "saved" }, this.regexCtx({ char: speaking.character?.name ?? "Narrator", user }));
+      const after = joined();
+      await this.store.addRevision({ id: this.newId(), messageId: m.id, author: { kind: "user" }, before: m.content, after, createdAt: this.now() });
+      await this.store.updateMessageContent(m.id, after);
+      if (m.meta.incomplete === true && !failure) {
+        const { incomplete: _i, error: _e, ...meta } = m.meta;
+        await this.store.updateMessage(m.id, { meta });
+      }
+      await this.invalidateMemoryAfter(m);
+      await this.core.events.emit("message.revised", { sessionId: m.sessionId, messageId: m.id });
+    }
+    if (failure && !isAbort(failure, opts.signal)) throw failure;
+    return (await this.store.getMessage(m.id)) ?? m;
   }
 
   /**

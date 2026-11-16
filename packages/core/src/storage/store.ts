@@ -1095,6 +1095,21 @@ export class SqlStore implements StateRepository, MessageTree {
     await this.db.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", [Date.now(), sessionId]);
   }
 
+  /**
+   * Deletes one message and keeps what came after it (D-136: Delete removed the message and everything after it): its
+   * replies hang on its parent, and a branch that ended at it ends at its parent. Returns the parent.
+   */
+  async deleteOneMessage(sessionId: string, id: string): Promise<string | null> {
+    const m = await this.getMessage(id);
+    if (!m || m.sessionId !== sessionId) throw new Error(`Message "${id}" not found`);
+    await this.invalidateSnapshotsFrom(id);
+    await this.db.execute("UPDATE messages SET parent_id = ? WHERE session_id = ? AND parent_id = ?", [m.parentId, sessionId, id]);
+    await this.db.execute("UPDATE branches SET end_message_id = ? WHERE session_id = ? AND end_message_id = ?", [m.parentId, sessionId, id]);
+    await this.db.execute("UPDATE branches SET head_message_id = ? WHERE session_id = ? AND head_message_id = ?", [m.parentId, sessionId, id]);
+    await this.deleteMessages(sessionId, [id]);
+    return m.parentId;
+  }
+
   // ------------------------------------------------------------ records per message (BLUEPRINT §2.4)
   async saveAgentRun(input: AgentRunInput): Promise<AgentRun> {
     const r = AgentRun.parse(input);
@@ -1272,7 +1287,19 @@ export class SqlStore implements StateRepository, MessageTree {
    * Moves something to the Trash. It disappears from the lists but nothing is lost until the
    * Trash is emptied. Refuses (with a plain message) when a story still uses it.
    */
-  async moveToTrash(kind: TrashKind, id: string): Promise<void> {
+  /** `withChats` (D-136, a character only): its chats go to the Trash with it (same time), and come back with it. */
+  async moveToTrash(kind: TrashKind, id: string, opts: { withChats?: boolean } = {}): Promise<void> {
+    if (kind === "character" && opts.withChats) {
+      const stories = await this.storiesUsingCharacter(id);
+      if (stories.length) throw new Error(`This character is in the story ${stories.map((st) => `"${st.name}"`).join(", ")}. Take it out of the story first.`);
+      const now = Date.now();
+      for (const x of await this.sessionsUsingCharacter(id)) {
+        if (x.storyId) throw new Error(`This character is in a chat of a story ("${x.title}"). Take it out of the story first.`);
+      }
+      for (const x of await this.sessionsUsingCharacter(id)) await this.db.execute("UPDATE sessions SET trashed_at = ? WHERE id = ?", [now, x.id]);
+      await this.db.execute("UPDATE characters SET trashed_at = ? WHERE id = ?", [now, id]);
+      return;
+    }
     if (kind === "character") {
       const using = await this.sessionsUsingCharacter(id);
       if (using.length) throw new Error(`This character is used by ${describeSessions(using)}. Move those chats to the Trash first.`);
@@ -1302,7 +1329,14 @@ export class SqlStore implements StateRepository, MessageTree {
       const using = await this.sessionsUsingPreset(id);
       if (using.length) throw new Error(`This preset is used by ${describeSessions(using)}. Pick another preset there, or move those chats to the Trash first.`);
     }
-    await this.db.execute(`UPDATE ${SqlStore.TRASH_TABLES[kind]} SET trashed_at = ? WHERE id = ?`, [Date.now(), id]);
+    let at = Date.now();
+    if (kind === "character") {
+      // never the same moment as a chat of it trashed on its own: that would read as "trashed with it" (D-136)
+      const [row] = await this.db.select<{ t: number | null }>(
+        "SELECT MAX(trashed_at) AS t FROM sessions WHERE trashed_at IS NOT NULL AND id IN (SELECT id FROM sessions WHERE json_extract(data, '$.cast') LIKE ?)", [`%"${id}"%`]);
+      if (row?.t != null && Number(row.t) >= at) at = Number(row.t) + 1;
+    }
+    await this.db.execute(`UPDATE ${SqlStore.TRASH_TABLES[kind]} SET trashed_at = ? WHERE id = ?`, [at, id]);
   }
 
   /** Whether an item is in the library, in the Trash or gone (D-135: the SillyTavern importer counted Trash as "here"). */
@@ -1312,6 +1346,15 @@ export class SqlStore implements StateRepository, MessageTree {
   }
 
   async restoreFromTrash(kind: TrashKind, id: string): Promise<void> {
+    if (kind === "character") {
+      // its chats that went with it (D-136: same time) come back too
+      const [row] = await this.db.select<{ trashed_at: number | null }>("SELECT trashed_at FROM characters WHERE id = ?", [id]);
+      if (row?.trashed_at != null) {
+        for (const x of await this.sessionsUsingCharacter(id, true)) {
+          await this.db.execute("UPDATE sessions SET trashed_at = NULL WHERE id = ? AND trashed_at = ?", [x.id, row.trashed_at]);
+        }
+      }
+    }
     if (kind === "story") {
       const [row] = await this.db.select<{ trashed_at: number | null }>("SELECT trashed_at FROM stories WHERE id = ?", [id]);
       if (row?.trashed_at != null) {
@@ -1340,11 +1383,14 @@ export class SqlStore implements StateRepository, MessageTree {
       "SELECT id, data, trashed_at FROM sessions WHERE trashed_at IS NOT NULL");
     // a story's sessions trashed with it are shown as part of the story, not one by one
     const storyTrashedAt = new Map(out.filter((x) => x.kind === "story").map((x) => [x.id, x.trashedAt]));
+    // so are a character's chats trashed with it (D-136)
+    const characterTrashedAt = new Map(out.filter((x) => x.kind === "character").map((x) => [x.id, x.trashedAt]));
     for (const r of rows) {
-      const d = JSON.parse(r.data) as { title?: string; storyId?: string | null; campaignId?: string | null };
+      const d = JSON.parse(r.data) as { title?: string; storyId?: string | null; campaignId?: string | null; cast?: Array<{ characterId?: string | null }> };
       const sid = d.storyId ?? null;
       if (sid && storyTrashedAt.get(sid) === Number(r.trashed_at)) continue;
-      out.push({ kind: "session", id: r.id, name: String(d.title ?? "Session"), trashedAt: Number(r.trashed_at) });
+      if (!sid && (d.cast ?? []).some((c) => c.characterId && characterTrashedAt.get(c.characterId) === Number(r.trashed_at))) continue;
+      out.push({ kind: "session", id: r.id, name: String(d.title ?? "Chat"), trashedAt: Number(r.trashed_at) });
     }
     return out.sort((a, b) => b.trashedAt - a.trashedAt);
   }
@@ -1374,6 +1420,14 @@ export class SqlStore implements StateRepository, MessageTree {
       return this.npcs.delete(id);
     }
     if (kind === "character") {
+      // its chats trashed with it go with it (D-136)
+      const [row] = await this.db.select<{ trashed_at: number | null }>("SELECT trashed_at FROM characters WHERE id = ?", [id]);
+      if (row?.trashed_at != null) {
+        for (const x of await this.sessionsUsingCharacter(id, true)) {
+          const [sr] = await this.db.select<{ trashed_at: number | null }>("SELECT trashed_at FROM sessions WHERE id = ?", [x.id]);
+          if (!x.storyId && sr?.trashed_at != null && Number(sr.trashed_at) === Number(row.trashed_at)) await this.deleteSession(x.id);
+        }
+      }
       const using = await this.sessionsUsingCharacter(id, true);
       if (using.length) throw new Error(`This character is still used by ${describeSessions(using)}. Delete those chats first.`);
       return this.deleteCharacter(id);

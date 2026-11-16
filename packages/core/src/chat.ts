@@ -207,6 +207,17 @@ export class ChatService {
     return { editedId, endId: end };
   }
 
+  /** D-136: deletes one message and keeps what follows (it hangs on the message before). Memory and records after it are marked out of date. */
+  async deleteOneMessage(messageId: string): Promise<string | null> {
+    const m = await this.store.getMessage(messageId);
+    if (!m) throw new Error(`Message "${messageId}" not found`);
+    await this.store.markStaleAfter(messageId);
+    await this.turns.invalidateMemoryAfter(m);
+    const parent = await this.store.deleteOneMessage(m.sessionId, messageId);
+    await this.core.events.emit("message.revised", { sessionId: m.sessionId, messageId: parent ?? messageId });
+    return parent;
+  }
+
   /** The user edits a message. The old text is kept as a revision; later records are marked out of date. */
   async editMessage(messageId: string, typed: string): Promise<void> {
     const m = await this.store.getMessage(messageId);

@@ -64,9 +64,10 @@ test("continuing from a swipe keeps the conversation on that branch", async ({ p
   await expect(page.getByTestId("message")).toHaveCount(5);
 
   // Flip the earlier reply back to version 1: the follow-up belonged to version 2, so it disappears.
-  await page.getByRole("button", { name: "Previous version" }).click();
+  // (D-136: the last reply has its own ‹ 1/1 › now, so the earlier reply's arrows are picked by message)
+  await page.getByTestId("message").nth(2).getByRole("button", { name: "Previous version" }).click();
   await expect(page.getByTestId("message")).toHaveCount(3);
-  await page.getByRole("button", { name: "Next version" }).click();
+  await page.getByTestId("message").nth(2).getByRole("button", { name: "Next version" }).click();
   await expect(page.getByTestId("message")).toHaveCount(5);
   await expect(page.getByTestId("message").nth(3)).toContainText("Follow-up");
   await page.screenshot({ path: "e2e/.results/chat-after.png" });

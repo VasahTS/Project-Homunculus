@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## What the sweep left: Continue, delete one message, › new version, Trash with chats, small fixes (2026-11-16) — CLAUDE — D-136
+
+- Daniel: "fix what was left out too; only the Linux bugs wait".
+- Built: **Continue** adds to the last reply (empty box; **Reply** after your own message; **Next Message** + in the last reply's actions writes another one); Delete → **Only This Message** / **This and the N After**; the last reply always has ‹ 1/1 ›, › writes a new version; a character with chats → "Move with N Chats" (Restore brings them back); "~28 tokens" under messages; inspector tab kept between chats; Library tabs wrap and remember the last tab; New Story's Name first; sidebar hidden under 800 px; tracker set boxes named; Ctrl+H ignored while typing; saves read only what they change.
+- **To try (Windows):** close the app → Pull origin → open it. In a chat, empty box → Continue: the last reply grows (no new message). Hover a message in the middle → Delete → Only This Message: the rest stays. Last reply → › at the newest version: a new version. Characters → a card with chats → Edit → Move to Trash → "Move with N Chats" → Undo: card and chats back. Make the window narrow: Library tabs on two rows.
+- Checks: typecheck; unit tests (923); click tests `fixes-1116`, `branches`, `chat`, `library`, `message-metadata`; full suite.
+- Changelog line for the next release: "**Continue** now continues: with an empty box, the AI goes on with its last reply in the same message (Next Message writes a new one). Delete can remove just one message and keep the rest; › on the newest version writes another; a character can go to the Trash with its chats and come back with them. Smaller touches: token counts in words, the inspector keeps its tab, the Library's tabs wrap in narrow windows and open where you left them."
+
 ## Bug sweep fixes (2026-11-16) — CLAUDE — D-135
 
 - Daniel asked for a full sweep of the app (report: Docs artifact "Homunculus 2 — Varredura de bugs e UX"), then "fix the bugs first, leave the Linux picture memory for later, you can do the rest"; and: "changing the first message in a story changes it for every branch".

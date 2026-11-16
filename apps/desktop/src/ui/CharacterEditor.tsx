@@ -107,14 +107,16 @@ function TagInput({ value, onChange }: { value: string[]; onChange: (t: string[]
   );
 }
 
-export function CharacterEditor({ character, avatars, justSaved = false, exporters, onSave, onTrash, onChangeAvatar, onExport, onStartSession, onClose, loadHistory, lorebooks, onOpenLorebook, regexWaiting, onAllowRegex }: {
+export function CharacterEditor({ character, avatars, justSaved = false, exporters, onSave, onTrash, chatCount = 0, onChangeAvatar, onExport, onStartSession, onClose, loadHistory, lorebooks, onOpenLorebook, regexWaiting, onAllowRegex }: {
   character: Character | null; // null = new character
   /** The character's pictures: its id, and "<id>#<version>" for versions with their own. */
   avatars: Record<string, Avatar>;
   justSaved?: boolean;
   exporters: CharacterExporter[];
   onSave: (c: Character) => Promise<void>;
-  onTrash: (id: string) => Promise<void>;
+  onTrash: (id: string, withChats?: boolean) => Promise<void>;
+  /** The character's own chats (D-136: Move to Trash can take them along). */
+  chatCount?: number;
   onChangeAvatar: (ownerKey: string, file: File | null) => Promise<void>;
   /** Exports one version (as a normal SillyTavern card). */
   onExport: (c: Character, exporterId: string, avatar?: Avatar) => void;
@@ -202,8 +204,11 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const trash = async () => {
-    try { await onTrash(draft.id); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  const [askTrash, setAskTrash] = useState(false);
+  const trash = async (withChats = false) => {
+    if (chatCount > 0 && !withChats) { setAskTrash(true); return; }
+    setAskTrash(false);
+    try { await onTrash(draft.id, withChats); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
   const restore = async (data: unknown) => {
@@ -358,7 +363,14 @@ export function CharacterEditor({ character, avatars, justSaved = false, exporte
     </div>
   ) : null;
 
-  const trashButton = !isNew ? <div><Button small variant="destructive" onClick={() => void trash()}>Move to Trash</Button></div> : null;
+  // D-136: a character with chats goes to the Trash with them (one Undo / Restore brings everything back)
+  const trashButton = isNew ? null : askTrash ? (
+    <div className="trash-ask" data-testid="trash-with-chats">
+      <span>{draft.name} has {chatCount} chat{chatCount === 1 ? "" : "s"}. Move {chatCount === 1 ? "it" : "them"} to the Trash too? Restoring {draft.name} brings {chatCount === 1 ? "it" : "them"} back.</span>
+      <span className="row-line"><Button small onClick={() => setAskTrash(false)}>Cancel</Button>
+        <Button small variant="destructive" onClick={() => void trash(true)}>Move with {chatCount} Chat{chatCount === 1 ? "" : "s"}</Button></span>
+    </div>
+  ) : <div><Button small variant="destructive" onClick={() => void trash()}>Move to Trash</Button></div>;
 
   const outlineChips = sections.length > 0 && (
     <div className="ce-outline-chips" data-testid="description-sections">

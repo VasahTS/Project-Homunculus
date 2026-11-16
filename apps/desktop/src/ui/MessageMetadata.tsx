@@ -52,8 +52,8 @@ export function MessageMetadata({ svc, message, position, showNumber = true, sho
   </div>;
   return <div className="message-metadata" data-testid="message-metadata">
     {showNumber && <span data-testid="message-number">#{position}</span>}
-    {showTokens && <><span data-testid="message-text-tokens" title={counts.textEstimated ? "Estimated tokens in the message text" : "Text tokens reported by the provider, excluding reasoning"}>Text {counts.textEstimated ? "~" : ""}{number.format(counts.text)}t</span>
+    {showTokens && <><span data-testid="message-text-tokens" title={counts.textEstimated ? "Estimated tokens in the message text" : "Text tokens reported by the provider, excluding reasoning"}>{counts.textEstimated ? "~" : ""}{number.format(counts.text)} {counts.text === 1 ? "token" : "tokens"}</span>
     {(counts.reasoning > 0 || !!message.reasoning) && <span className="message-reasoning-count" data-testid="message-reasoning-tokens"
-      title={counts.reasoningEstimated ? "Estimated tokens in the reasoning text" : "Reasoning tokens reported by the provider"}>Reasoning {counts.reasoningEstimated ? "~" : ""}{number.format(counts.reasoning)}t</span>}</>}
+      title={counts.reasoningEstimated ? "Estimated tokens in the reasoning text" : "Reasoning tokens reported by the provider"}>Reasoning {counts.reasoningEstimated ? "~" : ""}{number.format(counts.reasoning)} {counts.reasoning === 1 ? "token" : "tokens"}</span>}</>}
   </div>;
 }

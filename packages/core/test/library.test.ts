@@ -123,3 +123,21 @@ describe("variants and personas in the story", () => {
     expect(none.some((p) => p.content.includes("Tall."))).toBe(false);
   });
 });
+
+describe("a character to the Trash with its chats (D-136)", () => {
+  it("takes its chats along, lists only the character, brings them back with it and deletes them with it", async () => {
+    const { store, chat } = await world(() => "ok");
+    const { session: a } = await chat.createSession({ title: "One", characterIds: ["lyra"] });
+    const { session: b } = await chat.createSession({ title: "Two", characterIds: ["lyra"] });
+    await expect(store.moveToTrash("character", "lyra")).rejects.toThrow(/used by 2 chat/);
+    await store.moveToTrash("character", "lyra", { withChats: true });
+    expect(await store.listSessions()).toEqual([]);
+    expect((await store.listTrash()).map((t) => t.kind)).toEqual(["character"]);
+    await store.restoreFromTrash("character", "lyra");
+    expect((await store.listSessions()).map((s) => s.id).sort()).toEqual([a.id, b.id].sort());
+    await store.moveToTrash("character", "lyra", { withChats: true });
+    await store.emptyTrash();
+    expect(await store.getCharacter("lyra")).toBeUndefined();
+    expect(await store.getSession(a.id)).toBeUndefined();
+  });
+});

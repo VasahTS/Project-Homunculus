@@ -238,6 +238,8 @@ export function App() {
   const [agentPreview, setAgentPreview] = useState<AgentDraft | null>(null);
   useEffect(() => { setAgentPreview(null); }, [view]);
   const [loreBack, setLoreBack] = useState<string | null>(null);
+  /** The Library tab used last (D-136). */
+  const lastLibrary = useRef<LibraryArea>("lorebooks");
   // the lorebook editor saves by itself (D-028), also when it closes; its last save must see the view as it is now
   const setView = (next: View | ((current: View) => View)) => { setHomeOpen(false); return typeof next === "function" ? setViewNow(next) : navigate(() => setViewNow(next)); };
   const viewRef = useRef(view);
@@ -246,7 +248,17 @@ export function App() {
   // the way back to the session lasts while you stay in Lorebooks
   useEffect(() => { if (view.kind !== "lorebooks") setLoreBack(null); }, [view.kind]);
   viewRef.current = view;
-  const [sidebarOpen, toggleSidebar] = usePanel("homunculus.ui.sidebar", true);
+  const [sidebarWide, toggleSidebarWide] = usePanel("homunculus.ui.sidebar", true);
+  // D-136: in a narrow window (under 800 px) the sidebar starts hidden, so the page keeps its room; the button shows it
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.innerWidth < 800);
+  const [narrowSidebar, setNarrowSidebar] = useState(false);
+  useEffect(() => {
+    const on = () => { const n = window.innerWidth < 800; setNarrow((was) => { if (was !== n) setNarrowSidebar(false); return n; }); };
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  const sidebarOpen = narrow ? narrowSidebar : sidebarWide;
+  const toggleSidebar = useCallback(() => { if (narrow) setNarrowSidebar((v) => !v); else toggleSidebarWide(); }, [narrow, toggleSidebarWide]);
   const [inspectorOpen, toggleInspector] = usePanel("homunculus.ui.inspector", window.innerWidth > 1100);
   const connection = useConnections(svc?.store ?? null);
   // the Assistant mode (D-062): its own sidebar and chats; Play is everything else
@@ -338,6 +350,9 @@ export function App() {
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "h") {
+        // D-136: not while you type in a box (Home took the screen in the middle of a message); Home itself still closes
+        const t = event.target as HTMLElement | null;
+        if (!homeRef.current && t?.closest?.("input, textarea, select, [contenteditable='true'], .cm-editor")) return;
         event.preventDefault();
         setHomeOpen(!homeRef.current);
       } else if (event.key === "Escape" && homeRef.current && !overHome.current) {
@@ -586,6 +601,23 @@ export function App() {
     setSessions(ss);
     await loadChatStats(s, ss);
   }, [loadChatStats]);
+
+  /**
+   * D-136: after a save, read again only the lists it can change (every save used to read the whole library: every
+   * chat's lines, every card, lorebook and picture). The full `refresh` stays for imports, restores and new chats.
+   */
+  const reload = useCallback(async (s: AppServices, what: Array<"characters" | "personas" | "presets" | "lorebooks" | "setup" | "trash" | "vault" | "chats">) => {
+    const jobs: Array<Promise<unknown>> = [];
+    if (what.includes("characters")) jobs.push(s.store.listCharactersLight().then(setCharacters));
+    if (what.includes("personas")) jobs.push(s.store.personas.list().then(setPersonas));
+    if (what.includes("presets")) jobs.push(s.store.presets.list().then(setPresets));
+    if (what.includes("lorebooks")) jobs.push(s.store.listLorebooksLight().then(setLorebooks));
+    if (what.includes("setup")) jobs.push(s.store.getDefaultSetup().then((def) => { setDefaultSetupState(def); setDefaultPersonaId(def.personaId ?? null); }));
+    if (what.includes("trash")) jobs.push(s.store.listTrash().then(setTrash));
+    if (what.includes("vault")) jobs.push(refreshVault(s));
+    if (what.includes("chats")) jobs.push(refreshChats(s));
+    await Promise.all(jobs);
+  }, [refreshVault, refreshChats]);
 
   const refresh = useCallback(async (s: AppServices) => {
     // D-122: one round of reads side by side (they used to wait for each other)
@@ -847,7 +879,7 @@ export function App() {
   };
 
   /** Moves something to the Trash and offers Undo. Throws a readable error when a story still uses it. */
-  const toTrash = async (kind: TrashKind, id: string, name: string) => {
+  const toTrash = async (kind: TrashKind, id: string, name: string, withChats = false) => {
     if (kind === "session") {
       // a chat leaves the list at once; it comes back if it can't go (D-124). Only the chats and the Trash reload.
       const before = sessions;
@@ -856,8 +888,10 @@ export function App() {
       await refreshChats(svc);
       setTrash(await svc.store.listTrash());
     } else {
-      await svc.store.moveToTrash(kind, id);
-      await refresh(svc);
+      await svc.store.moveToTrash(kind, id, { withChats });
+      await reload(svc, kind === "character" ? ["characters", "trash", ...(withChats ? ["chats" as const] : [])]
+        : kind === "persona" ? ["personas", "trash"] : kind === "preset" ? ["presets", "trash"] : kind === "lorebook" ? ["lorebooks", "trash"]
+          : kind === "story" ? ["vault", "chats", "trash"] : ["vault", "trash"]);
     }
     setNotice({ kind: "ok", title: `“${name}” moved to the Trash`, lines: [], action: { label: "Undo", run: () => void restore({ kind, id, name, trashedAt: 0 }, true) } });
   };
@@ -918,7 +952,7 @@ export function App() {
   const savePreset = async (p: Preset) => {
     await approveEdited(presets.find((x) => x.id === p.id), p);
     await svc.store.savePreset(p);
-    await refresh(svc);
+    await reload(svc, ["presets"]);
     if (view.kind === "presets" && view.draft) setViewNow({ kind: "presets", id: p.id, justSaved: true });
   };
 
@@ -1114,7 +1148,7 @@ export function App() {
   const setDefaultSetup = async (patch: Partial<SetupLayer>) => {
     const layer = await svc.store.getDefaultSetup();
     await svc.store.setDefaultSetup({ ...layer, ...patch });
-    await refresh(svc);
+    await reload(svc, ["setup"]);
     await connection.reload();
   };
 
@@ -1126,12 +1160,13 @@ export function App() {
   const saveCharacter = async (c: Character) => {
     await approveEdited(characters.find((x) => x.id === c.id), c);
     await svc.store.saveCharacter(c);
-    await refresh(svc);
+    await reload(svc, ["characters"]);
     if (view.kind === "characters" && view.id === "new") setViewNow({ kind: "characters", id: c.id, edit: true, justSaved: true });
   };
 
-  const trashCharacter = async (id: string) => {
-    await toTrash("character", id, byId[id]?.name ?? "Character"); // throws a readable error if a session still uses it
+  const trashCharacter = async (id: string, withChats = false) => {
+    if (withChats) for (const x of sessions.filter((y) => !y.storyId && y.cast.some((c) => c.characterId === id))) turns.stop(x.id);
+    await toTrash("character", id, byId[id]?.name ?? "Character", withChats); // throws a readable error if a chat or story still uses it
     setView({ kind: "characters", id: null });
   };
 
@@ -1139,14 +1174,14 @@ export function App() {
     await svc.store.savePersona(p);
     // the first persona becomes the default, so it is used right away
     if (!defaultPersonaId && personas.length === 0) await setDefaultPersona(p.id);
-    await refresh(svc);
+    await reload(svc, ["personas"]);
     if (view.kind === "personas" && view.id === "new") setViewNow({ kind: "personas", id: p.id, justSaved: true });
   };
 
   const setDefaultPersona = async (id: string | null) => {
     const layer = await svc.store.getDefaultSetup();
     await svc.store.setDefaultSetup({ ...layer, personaId: id, personaVariantId: null });
-    await refresh(svc);
+    await reload(svc, ["setup"]);
   };
 
   const trashPersona = async (id: string) => {
@@ -1279,7 +1314,7 @@ export function App() {
 
   const onSaveTracker = async (d: TrackerDraft): Promise<TrackerDraft> => {
     const saved = await saveTracker(svc.store, d);
-    await refresh(svc);
+    setTrackers(await listTrackers(svc.store)); // D-136: only the trackers
     return saved;
   };
 
@@ -1522,7 +1557,7 @@ export function App() {
   };
   const setupProps: StorySetupProps = { presets, profiles: connection.profiles, personas, trackers, agents, cues, namesFor, noteAbove,
     setupAbove: (story) => resolveSetup({ default: defaultSetup, ...(story ? { story } : {}) }),
-    onSavePreset: async (preset) => { await svc.store.savePreset(preset); await refresh(svc); },
+    onSavePreset: async (preset) => { await svc.store.savePreset(preset); await reload(svc, ["presets"]); },
     onOpenPreset: (id) => setView({ kind: "presets", id }),
   };
 
@@ -1811,6 +1846,8 @@ export function App() {
     if (!x) return;
     turns.stop(x.id);
     await toTrash("session", x.id, x.title);
+    // the chat on screen went: the one played last opens, as with the chat's own ⋯ menu (D-136)
+    if (sessionId === activeId) setActiveId(byPlay((await svc.store.listSessions()), lastTimes)[0]?.id ?? null);
   };
   /** A story's chats, newest first (the Vault's story sheet). */
   const storyChatRows = (storyId: string): ChatRow[] => sessions.filter((x) => x.storyId === storyId)
@@ -1852,6 +1889,8 @@ export function App() {
   const libraryCategory: LibraryCategory | null = view.kind === "vault" && view.tab !== "stories" ? view.tab : view.kind === "kit" ? "kits"
     : view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "cues" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" || view.kind === "directors" ? view.kind : null;
   const pageLead = libraryCategory ? null : lead;
+  // the Library opens on the tab used last (D-136: it always opened on Kits, often empty)
+  if (libraryCategory) lastLibrary.current = libraryCategory;
   // opened a lorebook from a session (Prompt tab): a button goes straight back to it (Daniel: "me senti perdido")
   const backSession = loreBack ? sessions.find((x) => x.id === loreBack) : undefined;
   const loreLead = backSession ? (
@@ -1943,7 +1982,7 @@ export function App() {
             exporters={svc.core.characterExporters.all()}
             onSave={saveCharacter}
             regexWaiting={regexWaiting} onAllowRegex={(xs) => void allowRegex(xs)}
-            onTrash={trashCharacter}
+            onTrash={trashCharacter} chatCount={editing ? sessions.filter((x) => !x.storyId && x.cast.some((c) => c.characterId === editing.id)).length : 0}
             onChangeAvatar={changeAvatar}
             onExport={(c, id, avatar) => void exportCharacter(c, id, avatar)}
             onStartSession={(c, variantId) => void newSession(c.id, variantId)}
@@ -2452,7 +2491,7 @@ export function App() {
           onNewStory={() => setNewStoryOpen({ cardId: null })}
           onOpenCharacters={() => setView({ kind: "characters", id: null })}
           onOpenCardBrowser={() => setView({ kind: "card-browser" })}
-          onOpenLibrary={() => openLibrary(view.kind === "personas" || view.kind === "presets" || view.kind === "lorebooks" || view.kind === "trackers" || view.kind === "agents" || view.kind === "cues" || view.kind === "trash" || view.kind === "regex" || view.kind === "quick-replies" || view.kind === "directors" ? view.kind : "kits")}
+          onOpenLibrary={() => openLibrary(libraryCategory ?? lastLibrary.current)}
           onOpenVault={() => setView({ kind: "vault", tab: view.kind === "vault" ? view.tab : "stories", id: null })}
           onOpenSettings={() => setView({ kind: "settings", tab: "general" })}
           onOpenHome={() => setHomeOpen(true)}

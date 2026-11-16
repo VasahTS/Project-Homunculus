@@ -99,7 +99,7 @@ test("Branch from here on the last message: a new branch right away; what you do
   await page.getByTestId("branch-button").click();
   await page.getByTestId("branch-list").getByTestId("branch-row").filter({ hasText: "Main" }).locator(".branch-t").click();
   await expect(msgs(page)).toHaveCount(3);
-  await expect(page.getByTestId("swipe-counter")).toHaveCount(0); // Branch 2's version is not Main's
+  await expect(page.getByTestId("swipe-counter")).toHaveText("1/1"); // Branch 2's version is not Main's (D-136: the last reply shows ‹ 1/1 ›)
   // Main goes on by itself
   await sendMessage(page, "I lower my bow");
   await expect(page.getByTestId("branch-button")).toContainText("Main");
@@ -155,7 +155,7 @@ test("deleting a message in a branch leaves the other branches' messages alone",
   // on Dark path, delete from message 2 (shared with Main): only Dark path's own messages go
   await msgs(page).nth(1).getByRole("button", { name: "Delete" }).click();
   await expect(page.getByTestId("message-delete-confirm")).toContainText("Other branches keep the messages they use");
-  await page.getByRole("button", { name: "Delete Forever" }).click();
+  await page.getByTestId("delete-from-here").click(); // D-136: "This and the N After" (or "Only This Message")
   await expect(msgs(page)).toHaveCount(1);
   await page.getByTestId("branch-button").click();
   await page.getByTestId("branch-list").getByTestId("branch-row").filter({ hasText: "Main" }).locator(".branch-t").click();
@@ -195,8 +195,8 @@ test("message actions: edit, hide from the AI, delete with what comes after", as
   await expect(msgs(page).nth(1).getByTestId("hidden-tag")).toHaveCount(0);
 
   await msgs(page).nth(3).getByRole("button", { name: "Delete" }).click();
-  await expect(page.getByTestId("message-delete-confirm")).toContainText("Delete this message and the 1 after it for good?");
-  await page.getByRole("button", { name: "Delete Forever" }).click();
+  await expect(page.getByTestId("message-delete-confirm")).toContainText("Only this one, or this one and the 1 after it.");
+  await page.getByTestId("delete-from-here").click();
   await expect(msgs(page)).toHaveCount(3);
 });
 
