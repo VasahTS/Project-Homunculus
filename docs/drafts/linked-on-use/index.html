@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linked Folders On Use Draft</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Review page of artboards: each artboard is the app in its Mono look (one dark world, like the app and earlier drafts).
+   Draft for docs/LINKED-ON-USE-PLAN.md: linked folders read-only, cards come in when used. CLAUDE, 2026-11-16. */
+:root {
+  color-scheme: dark;
+  --window: #0d0d0d; --surface: #131313; --field: #161616; --pop: #141414;
+  --label: #f2f2f2; --label-2: #a1a1a1; --label-3: #7a7a7a;
+  --sep: rgba(242,242,242,.10); --edge: rgba(242,242,242,.18);
+  --fill: rgba(242,242,242,.05); --fill-hover: rgba(242,242,242,.09); --fill-sel: rgba(242,242,242,.13);
+  --ok: #4cc38a; --warn: #d9b46a; --bad: #e5484d;
+  --page: #080808;
+  --font-ui: "Geist", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--label); font: 13px/1.45 var(--font-ui); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 1px solid var(--label); outline-offset: 1px; }
+code { font-family: var(--font-mono); font-size: 12px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 40px; }
+header.top { display: grid; gap: 8px; max-width: 760px; }
+header.top h1 { font: 600 26px/1.15 var(--font-ui); letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--label-2); max-width: 68ch; }
+.kicker { font: 500 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--label-3); }
+.part { font: 600 13px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--label-2); border-top: 1px solid var(--sep); padding-top: 18px; margin: 0; }
+section.board { display: grid; gap: 12px; }
+.board-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.board-head h2 { font: 600 16px var(--font-ui); margin: 0; }
+.board-head .why { color: var(--label-2); max-width: 80ch; }
+.scroll { overflow-x: auto; border: 1px solid var(--sep); }
+.notes { margin: 0; padding-left: 18px; color: var(--label-2); display: grid; gap: 4px; max-width: 90ch; }
+.notes b { color: var(--label); font-weight: 500; }
+
+/* ---- the app frame ---- */
+.app { display: grid; grid-template-columns: 200px 1fr; min-width: 980px; height: 620px; background: var(--window); position: relative; overflow: hidden; }
+.app.short { height: 520px; }
+.side { border-right: 1px solid var(--sep); display: flex; flex-direction: column; padding: 12px 10px; gap: 2px; overflow: hidden; }
+.brand { padding: 2px 8px 10px; font-weight: 600; font-size: 15px; }
+.head { padding: 12px 8px 4px; font-weight: 600; color: var(--label-2); font-size: 12px; }
+.row { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; min-width: 0; font-size: 12.5px; color: var(--label-2); }
+.row.on { background: var(--fill-sel); color: var(--label); }
+.row .n { margin-left: auto; font: 10.5px var(--font-mono); color: var(--label-3); }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.bar { height: 44px; border-bottom: 1px solid var(--sep); display: flex; align-items: center; gap: 10px; padding: 0 18px; color: var(--label-2); flex: none; }
+.bar b { color: var(--label); font-weight: 500; font-size: 14px; }
+.bar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.page { flex: 1; padding: 22px 28px; display: grid; align-content: start; gap: 18px; overflow: hidden; }
+
+.btn { border: 1px solid var(--edge); background: none; padding: 5px 11px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.btn:hover { background: var(--fill); }
+.btn.primary { background: var(--label); color: var(--window); border-color: var(--label); font-weight: 500; }
+.btn.primary:hover { background: #dcdcdc; }
+.btn.small { padding: 2px 8px; font-size: 12px; }
+.btn.quiet { border-color: transparent; color: var(--label-2); }
+.btn.danger { color: var(--bad); }
+.muted { color: var(--label-2); }
+.faint { color: var(--label-3); }
+.mono { font-family: var(--font-mono); font-size: 11.5px; }
+svg.i { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* settings groups */
+.group { display: grid; gap: 0; max-width: 680px; }
+.group h3 { margin: 0 0 8px; font: 600 12px var(--font-ui); color: var(--label-2); }
+.set { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--sep); }
+.set + .set { border-top: none; }
+.set .t { display: grid; gap: 2px; min-width: 0; }
+.set .t b { font-weight: 500; }
+.set .t span { color: var(--label-2); font-size: 12px; }
+.set .act { margin-left: auto; display: flex; gap: 8px; }
+
+/* sheet (window over the app) */
+.sheet-bg { position: absolute; inset: 0; z-index: 6; background: rgba(0,0,0,.62); display: grid; place-items: center; }
+.sheet { width: 700px; max-width: 94%; max-height: 92%; background: var(--pop); box-shadow: 0 0 0 1px var(--edge), 0 16px 40px rgba(0,0,0,.6); display: grid; grid-template-rows: auto 1fr auto; }
+.sheet.wide { width: 760px; }
+.sh { padding: 12px 16px; border-bottom: 1px solid var(--sep); display: flex; gap: 10px; align-items: center; }
+.sh b { font-weight: 600; }
+.sh .steps { margin-left: auto; display: flex; gap: 12px; font: 11px var(--font-mono); color: var(--label-3); }
+.sh .steps .on { color: var(--label); }
+.sh .steps .done { color: var(--label-2); }
+.sb { padding: 14px 16px; display: grid; gap: 12px; overflow: auto; align-content: start; }
+.sf { border-top: 1px solid var(--sep); padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sf .hint { margin-right: auto; color: var(--label-2); font-size: 12px; }
+
+.drop { border: 1px dashed var(--edge); padding: 26px 20px; display: grid; gap: 10px; justify-items: center; text-align: center; }
+.drop b { font-size: 14px; font-weight: 500; }
+.path { font: 11.5px var(--font-mono); color: var(--label-2); background: var(--field); padding: 6px 10px; border: 1px solid var(--sep); }
+.choices { display: grid; gap: 0; }
+.choice { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border: 1px solid var(--sep); background: var(--surface); }
+.choice + .choice { border-top: none; }
+.choice.on { background: var(--fill-sel); }
+.radio { width: 12px; height: 12px; border: 1px solid var(--edge); border-radius: 50%; flex: none; display: grid; place-items: center; }
+.choice.on .radio::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--label); }
+
+/* found list */
+.found { display: grid; border: 1px solid var(--sep); }
+.kind { display: grid; grid-template-columns: 30px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 12px; }
+.kind + .kind { border-top: 1px solid var(--sep); }
+.kind .what { display: grid; gap: 1px; min-width: 0; }
+.kind .what b { font-weight: 500; }
+.kind .what span { color: var(--label-2); font-size: 12px; }
+.kind .count { font: 12px var(--font-mono); color: var(--label); text-align: right; }
+.kind .count small { display: block; color: var(--label-3); font-size: 10.5px; }
+.sw { width: 26px; height: 15px; border-radius: 8px; background: var(--fill-sel); position: relative; flex: none; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--label-3); }
+.sw.on { background: var(--label); }
+.sw.on::after { left: 13px; background: var(--window); }
+.open { font-size: 12px; color: var(--label-2); display: inline-flex; gap: 4px; align-items: center; }
+.sub { grid-column: 2 / -1; display: grid; gap: 0; border: 1px solid var(--sep); background: var(--field); margin-top: 4px; }
+.sub .r { display: grid; grid-template-columns: 16px 1fr 70px 90px; gap: 10px; align-items: center; padding: 5px 10px; font-size: 12px; }
+.sub .r + .r { border-top: 1px solid var(--sep); }
+.check { width: 12px; height: 12px; border: 1px solid var(--edge); display: grid; place-items: center; }
+.check.on { background: var(--label); border-color: var(--label); }
+.check.on::after { content: ""; width: 6px; height: 3px; border-left: 1.5px solid var(--window); border-bottom: 1.5px solid var(--window); transform: rotate(-45deg) translate(0,-1px); }
+.tag { font: 10.5px var(--font-mono); padding: 1px 6px; border: 1px solid var(--sep); color: var(--label-2); white-space: nowrap; }
+.tag.ok { color: var(--ok); border-color: rgba(76,195,138,.35); }
+.tag.warn { color: var(--warn); border-color: rgba(217,180,106,.35); }
+.skip { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--sep); background: var(--surface); }
+.skip .r { display: flex; gap: 8px; font-size: 12px; color: var(--label-2); }
+.skip .r b { color: var(--label); font-weight: 500; min-width: 190px; }
+
+/* progress toast + detail */
+.toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: 560px; background: var(--pop); box-shadow: 0 0 0 1px var(--edge), 0 10px 30px rgba(0,0,0,.55); padding: 10px 14px; display: grid; gap: 7px; z-index: 5; }
+.toast .l1 { display: flex; gap: 10px; align-items: center; }
+.toast .l1 b { font-weight: 500; }
+.toast .l1 .right { margin-left: auto; display: flex; gap: 6px; }
+.meter { height: 3px; background: var(--fill-sel); position: relative; overflow: hidden; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--label); }
+.toast .l2 { font: 11px var(--font-mono); color: var(--label-2); display: flex; gap: 12px; }
+.stages { display: grid; gap: 0; border: 1px solid var(--sep); }
+.stage { display: grid; grid-template-columns: 18px 160px 1fr 110px; gap: 10px; align-items: center; padding: 7px 12px; font-size: 12.5px; }
+.stage + .stage { border-top: 1px solid var(--sep); }
+.stage .st { font: 11px var(--font-mono); color: var(--label-3); text-align: right; }
+.stage.done .st { color: var(--ok); }
+.stage.now { background: var(--fill); }
+.stage.now .st { color: var(--label); }
+.dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--edge); }
+.stage.done .dot { background: var(--ok); border-color: var(--ok); }
+.stage.now .dot { background: var(--label); border-color: var(--label); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .stage.now .dot { animation: none; } }
+
+/* report */
+.sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--sep); }
+.sum div { padding: 10px 12px; display: grid; gap: 2px; }
+.sum div + div { border-left: 1px solid var(--sep); }
+.sum b { font: 500 20px var(--font-ui); }
+.sum span { color: var(--label-2); font-size: 12px; }
+.warnlist { display: grid; gap: 0; border: 1px solid var(--sep); }
+.warnlist .r { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; padding: 7px 12px; font-size: 12px; align-items: start; }
+.warnlist .r + .r { border-top: 1px solid var(--sep); }
+.warnlist .r .w { color: var(--warn); }
+
+/* characters grid */
+.grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.cardc { display: grid; gap: 6px; }
+.portrait { aspect-ratio: 2 / 3; background: linear-gradient(160deg, #262626, #161616); border: 1px solid var(--sep); position: relative; overflow: hidden; }
+.portrait::before { content: ""; position: absolute; left: 30%; top: 22%; width: 40%; aspect-ratio: 1; border-radius: 50%; background: #2f2f2f; }
+.portrait::after { content: ""; position: absolute; left: 18%; top: 52%; width: 64%; height: 60%; border-radius: 40% 40% 0 0; background: #2a2a2a; }
+.portrait .mark { position: absolute; top: 6px; right: 6px; z-index: 1; background: rgba(13,13,13,.82); border: 1px solid var(--edge); padding: 2px 5px; display: inline-flex; gap: 4px; align-items: center; font: 10px var(--font-mono); color: var(--label-2); }
+.portrait .mark.warn { color: var(--warn); border-color: rgba(217,180,106,.45); }
+.portrait .mark.bad { color: var(--bad); border-color: rgba(229,72,77,.45); }
+.cardc .nm { font-weight: 500; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cardc .meta { font-size: 11px; color: var(--label-3); }
+.linked-row { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border: 1px solid var(--sep); background: var(--surface); font-size: 12px; color: var(--label-2); }
+.linked-row b { color: var(--label); font-weight: 500; }
+.linked-row .right { margin-left: auto; display: flex; gap: 8px; }
+
+/* compare */
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--sep); }
+.cmp > div { padding: 10px 12px; display: grid; gap: 6px; align-content: start; }
+.cmp > div + div { border-left: 1px solid var(--sep); }
+.cmp h4 { margin: 0; font: 600 12px var(--font-ui); display: flex; gap: 8px; align-items: center; }
+.cmp p { margin: 0; color: var(--label-2); font-size: 12px; }
+.del { background: rgba(229,72,77,.14); color: #f0a3a5; text-decoration: line-through; }
+.ins { background: rgba(76,195,138,.14); color: #9fe0bf; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M5 3l5 5-5 5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16"><path d="M3 6l5 5 5-5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13 8a5 5 0 11-1.5-3.5M13 3v2.5h-2.5"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 16 16"><path d="M5.5 3.5v9M10.5 3.5v9"/></symbol>
+  <symbol id="i-import" viewBox="0 0 16 16"><path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 16 16"><path d="M5 6.5H10a3 3 0 010 6H7M5 6.5L7.5 4M5 6.5L7.5 9"/></symbol>
+  <symbol id="i-miss" viewBox="0 0 16 16"><path d="M3.5 2.5h6l3 3v8h-9zM6 8l4 4M10 8l-4 4"/></symbol>
+</svg>
+
+<style>
+.portrait.ghost { background: linear-gradient(160deg, #1b1b1b, #121212); border-style: dashed; }
+.portrait.ghost::before, .portrait.ghost::after { opacity: .55; }
+.strip { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border: 1px solid var(--sep); background: var(--surface); font-size: 12px; color: var(--label-2); flex-wrap: wrap; }
+.strip b { color: var(--label); font-weight: 500; }
+.strip .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--label-3); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.sheetcol { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: start; }
+.sheetcol .big { aspect-ratio: 2 / 3; }
+.readline { display: flex; gap: 8px; align-items: flex-start; padding: 9px 12px; border: 1px solid var(--sep); background: var(--fill); font-size: 12px; color: var(--label-2); }
+.readline b { color: var(--label); font-weight: 500; }
+.field { display: grid; gap: 4px; }
+.field h4 { margin: 0; font: 600 12px var(--font-ui); color: var(--label-2); }
+.field p { margin: 0; color: var(--label); font-size: 12.5px; line-height: 1.55; }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--edge); }
+.seg span { padding: 4px 10px; font-size: 12px; color: var(--label-2); }
+.seg span.on { background: var(--fill-sel); color: var(--label); font-weight: 500; }
+.set .t small { color: var(--label-3); font-size: 11.5px; }
+</style>
+<div class="wrap">
+  <header class="top">
+    <span class="kicker">Draft · linked folders on use · for Daniel</span>
+    <h1>Linked folders: read-only, cards come in when you use them</h1>
+    <p>Four screens with realistic data. Today every card in a linked folder is copied into Characters; here only what you use comes in. Plan and open questions: <code>docs/LINKED-ON-USE-PLAN.md</code>. Nothing is built yet.</p>
+  </header>
+<section class="board">
+<div class="board-head"><h2>1 · A linked folder in Characters</h2><span class="why">Its cards show with your others, in the folder named after it. <b>In folder</b> (dashed) = read from the file, nothing copied. <b>In use</b> = it came in when you used it. Searching finds both (name, creator, tags, a short excerpt).</span></div>
+<div class="scroll"><div class="app"><aside class="side"><div class="brand">Homunculus</div>
+<div class="row">Home</div><div class="row">Stories <span class="n">4</span></div><div class="row on">Characters <span class="n">666</span></div><div class="row">Card Browser</div><div class="row">Library</div>
+<div class="head">Recent</div><div class="row">Chat with Mira</div><div class="row">The Mill Road · Chat 3</div><div class="row">Chat with Ivo</div></aside><div class="main"><div class="bar"><b>Characters</b><span class="faint">›</span><span>characters</span><span class="right"><button class="btn small">Import</button><button class="btn small primary">+ New Character</button></span></div>
+<div class="page">
+<div class="strip"><svg class="i"><use href="#i-link"/></svg><span><b>characters</b> · linked folder · read-only · <span class="mono">1,204 cards · 12 in use</span></span><span class="right"><span class="faint">checked 2 min ago</span><button class="btn small"><svg class="i"><use href="#i-refresh"/></svg> Check Now</button></span></div>
+<div class="legend"><span><span class="tag">In folder</span> read from the file</span><span><span class="tag ok">In use</span> in your library</span></div>
+<div class="grid"><div class="cardc"><div class="portrait"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In use</span></div><div class="nm">Mira</div><div class="meta">In use · 3 chats</div></div><div class="cardc"><div class="portrait"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In use</span></div><div class="nm">Ivo</div><div class="meta">In use · 1 chat</div></div><div class="cardc"><div class="portrait ghost"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div><div class="nm">Aurelia</div><div class="meta">not in your library</div></div><div class="cardc"><div class="portrait ghost"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div><div class="nm">Captain Rhys</div><div class="meta">not in your library</div></div><div class="cardc"><div class="portrait ghost"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div><div class="nm">The Hollow King</div><div class="meta">not in your library</div></div><div class="cardc"><div class="portrait"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In use</span></div><div class="nm">Sena</div><div class="meta">In use · edited here</div></div><div class="cardc"><div class="portrait ghost"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div><div class="nm">Doctor Vale</div><div class="meta">not in your library</div></div><div class="cardc"><div class="portrait ghost"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div><div class="nm">Kit & Wren</div><div class="meta">not in your library</div></div><div class="cardc"><div class="portrait ghost"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div><div class="nm">Old Margery</div><div class="meta">not in your library</div></div><div class="cardc"><div class="portrait ghost"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div><div class="nm">Tamsin</div><div class="meta">not in your library</div></div><div class="cardc"><div class="portrait"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In use</span></div><div class="nm">Bram</div><div class="meta">In use · 1 chat</div></div><div class="cardc"><div class="portrait ghost"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div><div class="nm">Lune</div><div class="meta">not in your library</div></div></div>
+</div></div></div></div>
+<ul class="notes"><li><b>Nothing is copied</b> until you use a card: no duplicate pictures in the database, and no "changed in both" questions about cards you never played.</li><li>Pages, sort and size work as for your own cards.</li></ul>
+</section>
+<section class="board">
+<div class="board-head"><h2>2 · The sheet of a card that is not in use yet</h2><span class="why">Read from the file every time it opens. Any way of using it brings it in first (one step, the same import as today), then does what you asked.</span></div>
+<div class="scroll"><div class="app"><aside class="side"><div class="brand">Homunculus</div>
+<div class="row">Home</div><div class="row">Stories <span class="n">4</span></div><div class="row on">Characters <span class="n">666</span></div><div class="row">Card Browser</div><div class="row">Library</div>
+<div class="head">Recent</div><div class="row">Chat with Mira</div><div class="row">The Mill Road · Chat 3</div><div class="row">Chat with Ivo</div></aside><div class="main"><div class="bar"><b>Characters</b><span class="faint">›</span><span>characters</span><span class="faint">›</span><span>Aurelia</span></div>
+<div class="page"><div class="sheetcol"><div class="portrait ghost big"><span class="mark"><svg class="i"><use href="#i-link"/></svg> In folder</span></div>
+<div style="display:grid;gap:14px">
+<div style="display:flex;align-items:baseline;gap:10px"><b style="font-size:20px;font-weight:600">Aurelia</b><span class="faint">by quillmoth · ~1.8k tokens</span></div>
+<div class="readline"><svg class="i"><use href="#i-link"/></svg><span>Not in your library yet — read from <span class="mono">characters/Aurelia.png</span>. It comes in when you <b>chat with it</b>, <b>add it to a story</b> or <b>edit it</b>. The file is never changed.</span></div>
+<div class="btnrow"><button class="btn primary">New Chat</button><button class="btn">Add to a Story…</button><button class="btn">Edit a Copy</button><button class="btn">Read</button><button class="btn quiet">Add to Library</button><button class="btn quiet">Export</button></div>
+<div class="field"><h4>Description</h4><p>A disgraced court astronomer who keeps a ledger of every star the empire has renamed. Precise, dry, quietly furious; she trusts maps more than people…</p></div>
+<div class="field"><h4>Greetings</h4><p class="muted">3 greetings · 1 embedded lorebook (14 entries)</p></div>
+</div></div></div></div></div></div>
+<ul class="notes"><li><b>Add to Library</b> brings it in without doing anything else (to put it in one of your folders, for example).</li><li>After it comes in, the sheet is the normal one, with the link mark "In use".</li></ul>
+</section>
+<section class="board">
+<div class="board-head"><h2>3 · Settings → Library → Linked Folders</h2><span class="why">Each folder picks how it works. New folders start with <b>When used</b>; folders linked before keep <b>Every card</b> until you switch, so nothing changes by itself.</span></div>
+<div class="scroll"><div class="app short"><aside class="side"><div class="brand">Homunculus</div>
+<div class="row">Home</div><div class="row">Stories <span class="n">4</span></div><div class="row on">Characters <span class="n">666</span></div><div class="row">Card Browser</div><div class="row">Library</div>
+<div class="head">Recent</div><div class="row">Chat with Mira</div><div class="row">The Mill Road · Chat 3</div><div class="row">Chat with Ivo</div></aside><div class="main"><div class="bar"><b>Settings</b><span class="faint">›</span><span>Library</span></div>
+<div class="page"><div class="group"><h3>Linked Folders</h3>
+<div class="set"><div class="t"><b>characters</b><span class="mono">D:\SillyTavern\data\default-user\characters</span><small>1,204 cards · 12 in use · checked 2 min ago</small></div><div class="act"><span class="seg"><span class="on">When used</span><span>Every card</span></span><button class="btn small">Show</button><button class="btn small quiet">Unlink…</button></div></div>
+<div class="set"><div class="t"><b>card-manager</b><span class="mono">~/Cards/Library</span><small>380 cards · all copied (linked before)</small></div><div class="act"><span class="seg"><span>When used</span><span class="on">Every card</span></span><button class="btn small">Show</button><button class="btn small quiet">Unlink…</button></div></div>
+<div class="set"><div class="t"><b>Link a Folder…</b><span>Its cards show in Characters. Homunculus never writes into it.</span></div><div class="act"><button class="btn small"><svg class="i"><use href="#i-refresh"/></svg> Check Now</button><button class="btn small primary">Link a Folder…</button></div></div>
+</div></div></div></div></div>
+<ul class="notes"><li><b>When used</b>: only an index (name, creator, tags, excerpt, a small picture); cards come in on first use.</li><li><b>Every card</b>: today's behaviour — every card is copied and kept in step with its file.</li></ul>
+</section>
+<section class="board">
+<div class="board-head"><h2>4 · Switching a folder to "When used"</h2><span class="why">Cards copied earlier and never used (no chats, stories, Kits or edits) can go back to being read from the folder. The ones you use stay exactly as they are.</span></div>
+<div class="scroll"><div class="app short"><aside class="side"><div class="brand">Homunculus</div>
+<div class="row">Home</div><div class="row">Stories <span class="n">4</span></div><div class="row on">Characters <span class="n">666</span></div><div class="row">Card Browser</div><div class="row">Library</div>
+<div class="head">Recent</div><div class="row">Chat with Mira</div><div class="row">The Mill Road · Chat 3</div><div class="row">Chat with Ivo</div></aside><div class="main"><div class="bar"><b>Settings</b><span class="faint">›</span><span>Library</span></div><div class="page"></div></div>
+<div class="sheet-bg"><div class="sheet"><div class="sh"><b>Cards come in when used</b><span class="faint">card-manager</span></div>
+<div class="sb"><p class="muted" style="margin:0">From now on, new cards in this folder are read from it and come in when you use them.</p>
+<div class="sum" style="grid-template-columns:repeat(2,1fr)"><div><b>41</b><span>in use — they stay in your library</span></div><div><b>339</b><span>never used — copies you don't need</span></div></div>
+<div class="choices"><div class="choice on"><span class="radio"></span><span><b style="font-weight:500">Remove the 339 unused copies</b><br><span class="muted" style="font-size:12px">They stay in Characters, read from the folder. Nothing is deleted from the folder.</span></span></div>
+<div class="choice"><span class="radio"></span><span><b style="font-weight:500">Keep them</b><br><span class="muted" style="font-size:12px">Only new cards wait until they are used.</span></span></div></div></div>
+<div class="sf"><span class="hint">You can switch back to Every card any time.</span><button class="btn quiet">Cancel</button><button class="btn primary">Switch</button></div></div></div>
+</div></div>
+</section>
+  <section class="board"><div class="board-head"><h2>Questions</h2></div>
+  <ul class="notes"><li><b>Counts:</b> should Characters (and the sidebar) count the cards in linked folders that are not in use? Proposal: "666 · 1,204 in linked folders".</li>
+  <li><b>Switching an existing folder:</b> remove the unused copies? Proposal: yes, as on screen 4.</li>
+  <li><b>Export:</b> exporting a card that is not in use reads the file — no copy. OK?</li>
+  <li><b>SillyTavern import:</b> stays a one-time move of everything (chats included). Pick characters one by one there too, later?</li></ul></section>
+</div>
