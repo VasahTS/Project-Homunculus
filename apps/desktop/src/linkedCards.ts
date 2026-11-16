@@ -9,7 +9,13 @@
 // - changed file, card edited here too → "changed in both": the user picks Keep Mine / Take the File's / Keep Both;
 // - file gone → "file missing" (the card and its chats stay).
 // The index (app setting `linkedIndex`) remembers each file's size, date, card and the card as it was last synced.
-import type { Avatar, Character } from "@homunculus/schemas";
+//
+// D-137 (Daniel: "make the library link read-only and import only what you are going to use"): each folder has a mode.
+// "use" (the default for folders linked from now on): a check only reads each new or changed file's name, creator, tags,
+// an excerpt and a small picture into the index; the card shows in Characters as "In folder" (a shelf entry, `shelf:` id)
+// and comes in (`useLinkedCard`) the first time it is used — a chat, a story, Edit, Add to Library. "all": the D-129
+// behaviour, every card copied. Folders linked before D-137 have no mode and count as "all".
+import { Character as CharacterSchema, type Avatar, type Character } from "@homunculus/schemas";
 import type { AppServices } from "./core-instance.ts";
 import { importCharacterFile } from "./importCharacters.ts";
 import type { FolderSource, PickedFolder } from "./stFolder.ts";
@@ -30,8 +36,124 @@ export interface LinkedFile {
   conflict?: { size: number; modified: number };
   /** Added by the latest check. */
   isNew?: boolean;
+  /** D-137 ("use" mode): what Characters shows of a card that is not in the library yet. */
+  card?: LinkedCardInfo;
 }
-export interface LinkedFolderIndex { folderItemId?: string; checkedAt: number; files: Record<string, LinkedFile> }
+export interface LinkedCardInfo { name: string; creator: string; tags: string[]; excerpt: string; tokens: number; greetings: number; book: boolean }
+export type LinkedMode = "use" | "all";
+export interface LinkedFolderIndex { folderItemId?: string; checkedAt: number; files: Record<string, LinkedFile>; mode?: LinkedMode }
+
+/** A folder's mode: folders linked before D-137 copied every card. */
+export const modeOf = (entry: LinkedFolderIndex | undefined): LinkedMode => entry ? entry.mode ?? "all" : "use";
+/** The id a shelf entry (a card in a linked folder, not in the library) has in Characters. */
+export const shelfId = (folderId: string, path: string) => `shelf:${folderId}:${path}`;
+export const isShelfId = (id: string | null | undefined): boolean => !!id && id.startsWith("shelf:");
+export function parseShelfId(id: string): { folderId: string; path: string } | null {
+  if (!isShelfId(id)) return null;
+  const rest = id.slice(6);
+  const at = rest.indexOf(":");
+  return at < 0 ? null : { folderId: rest.slice(0, at), path: rest.slice(at + 1) };
+}
+/** Where a shelf entry's small picture is kept (the pictures table, so previews and addresses work as for cards). */
+export const shelfPictureKey = shelfId;
+
+/** What Characters shows of a card before it comes in. */
+function infoOf(c: Character): LinkedCardInfo {
+  const text = [c.description, c.personality, c.scenario, ...c.firstMessages.slice(0, 1), c.exampleMessages].join("\n");
+  const embedded = (c.original as { data?: { character_book?: unknown } } | undefined)?.data?.character_book;
+  return { name: c.name, creator: c.creator ?? "", tags: c.tags ?? [], excerpt: (c.scenario.trim() || c.description.trim()).slice(0, 300),
+    tokens: Math.ceil(text.length / 3.6), greetings: c.firstMessages.length, book: !!embedded };
+}
+
+/** Sets a folder's mode (D-137). Switching to "use" can turn copies nobody used back into shelf entries. */
+export async function setLinkedMode(svc: Svc, folderId: string, mode: LinkedMode, opts: { removeUnused?: boolean } = {}): Promise<{ removed: number }> {
+  const store = svc.store;
+  const index = await readIndex(store);
+  const entry = index[folderId] ?? { checkedAt: 0, files: {} };
+  entry.mode = mode;
+  let removed = 0;
+  if (mode === "use" && opts.removeUnused) {
+    for (const [path, f] of Object.entries(entry.files)) {
+      if (!f.characterId) continue;
+      const c = await store.getCharacter(f.characterId);
+      if (!c) continue;
+      if (!(await unusedCopy(store, c, f))) continue;
+      const pic = await store.getAvatar(c.id);
+      await store.deleteCharacter(c.id);
+      if (pic) await store.setAvatar(shelfPictureKey(folderId, path), pic);
+      entry.files[path] = { size: f.size, modified: f.modified, card: infoOf(c) };
+      removed++;
+    }
+  }
+  index[folderId] = entry;
+  await writeIndex(store, index);
+  return { removed };
+}
+
+/** A copy nobody used: no chats (any, Trash included), no story or Kit, not edited here, nothing waiting. */
+async function unusedCopy(store: Svc["store"], c: Character, f: LinkedFile): Promise<boolean> {
+  if (f.conflict || fingerprint(c) !== f.synced) return false;
+  if ((await store.sessionsUsingCharacter(c.id, true)).length) return false;
+  if ((await store.storiesUsingCharacter(c.id)).length) return false;
+  const kits = await store.kits.list();
+  if (kits.some((k) => (k.narrator?.kind === "card" && k.narrator.characterId === c.id) || (k.cast ?? []).some((m) => m.characterId === c.id))) return false;
+  return true;
+}
+
+/** How many copies of a folder nobody used (for the switch window). */
+export async function countUnused(svc: Svc, folderId: string): Promise<{ used: number; unused: number }> {
+  const entry = (await readIndex(svc.store))[folderId];
+  let used = 0, unused = 0;
+  for (const f of Object.values(entry?.files ?? {})) {
+    if (!f.characterId) continue;
+    const c = await svc.store.getCharacter(f.characterId);
+    if (!c) continue;
+    if (await unusedCopy(svc.store, c, f)) unused++; else used++;
+  }
+  return { used, unused };
+}
+
+/** Shelf entries (cards in "use" folders not in the library) as cards for the lists: name, creator, tags, an excerpt. */
+export function shelfCards(index: LinkedIndex): Array<Character & { shelf: { folderId: string; path: string; tokens: number; greetings: number; book: boolean } }> {
+  const out: Array<Character & { shelf: { folderId: string; path: string; tokens: number; greetings: number; book: boolean } }> = [];
+  for (const [folderId, entry] of Object.entries(index)) {
+    for (const [path, f] of Object.entries(entry.files)) {
+      if (f.characterId || !f.card || f.notCard) continue;
+      const c = CharacterSchema.parse({ id: shelfId(folderId, path), name: f.card.name || path, creator: f.card.creator, tags: f.card.tags, description: f.card.excerpt,
+        source: { site: linkedSite(folderId), id: path, url: path, addedAt: 0 } });
+      out.push(Object.assign(c, { shelf: { folderId, path, tokens: f.card.tokens, greetings: f.card.greetings, book: f.card.book } }));
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A shelf entry's whole card, read from its file (its sheet; nothing is saved). */
+export async function readShelfCard(svc: Svc, src: FolderSource, path: string): Promise<{ character: Character; avatar?: Avatar } | null> {
+  return parseFile(svc, await src.read(path), path);
+}
+
+/**
+ * Brings a shelf entry into the library (D-137): the same import as a card file, linked to its file as a "linked" card
+ * from now on. Returns the card's id (also when it came in earlier).
+ */
+export async function useLinkedCard(svc: Svc, folder: Pick<PickedFolder, "id" | "name">, src: FolderSource, path: string): Promise<string> {
+  const store = svc.store;
+  const index = await readIndex(store);
+  const entry = index[folder.id];
+  const f = entry?.files[path];
+  if (!entry || !f) throw new Error("That card is no longer in the linked folder.");
+  if (f.characterId && await store.getCharacter(f.characterId)) return f.characterId;
+  const bytes = await src.read(path);
+  const into = await folderItem(store, entry, folder.name);
+  const [r] = await importCharacterFile(svc, bytes, path.split("/").pop()!, {
+    source: { site: linkedSite(folder.id), id: path, url: path, addedAt: Date.now() }, folder: { id: into },
+  });
+  if (!r) throw new Error("The file is no longer a card.");
+  entry.files[path] = { size: f.size, modified: f.modified, characterId: r.character.id, synced: fingerprint(r.character) };
+  await store.setAvatar(shelfPictureKey(folder.id, path), null).catch(() => {});
+  await writeIndex(store, index);
+  return r.character.id;
+}
 export type LinkedIndex = Record<string, LinkedFolderIndex>;
 
 export type LinkedStatus = "linked" | "edited" | "conflict" | "missing" | "new";
@@ -90,10 +212,13 @@ async function takeFile(svc: Svc, current: Character, parsed: { character: Chara
 }
 
 /** Checks one linked folder. Only new or changed files are read. */
-export async function checkLinkedFolder(svc: Svc, folder: Pick<PickedFolder, "id" | "name">, src: FolderSource, onProgress?: (done: number, total: number) => void): Promise<CheckResult> {
+export async function checkLinkedFolder(svc: Svc, folder: Pick<PickedFolder, "id" | "name">, src: FolderSource, onProgress?: (done: number, total: number) => void,
+  shrink?: (a: Avatar) => Promise<Avatar | null>): Promise<CheckResult> {
   const store = svc.store;
   const index = await readIndex(store);
-  const entry: LinkedFolderIndex = index[folder.id] ?? { checkedAt: 0, files: {} };
+  const entry: LinkedFolderIndex = index[folder.id] ?? { checkedAt: 0, files: {}, mode: "use" };
+  const mode = modeOf(entry);
+  if (mode === "use") await folderItem(store, entry, folder.name);
   const result: CheckResult = { added: 0, updated: 0, conflicts: 0, missing: 0, errors: [] };
   const listing = (await src.list("", true)).filter((e) => !e.dir && CARD_FILE.test(e.path));
   const seen = new Set(listing.map((e) => e.path));
@@ -121,6 +246,14 @@ export async function checkLinkedFolder(svc: Svc, folder: Pick<PickedFolder, "id
       if (!current) {
         const parsed = await parseFile(svc, bytes, e.path);
         if (!parsed) { entry.files[e.path] = { size: e.size, modified: e.modified, notCard: true }; continue; }
+        if (mode === "use") {
+          // D-137: only what Characters shows, and a small picture; the card comes in when used
+          const small = parsed.avatar ? (shrink ? await shrink(parsed.avatar).catch(() => null) : null) : null;
+          await store.setAvatar(shelfPictureKey(folder.id, e.path), small);
+          entry.files[e.path] = { size: e.size, modified: e.modified, card: infoOf(parsed.character), isNew: !known };
+          if (!known) result.added++; else result.updated++;
+          continue;
+        }
         const into = await folderItem(store, entry, folder.name);
         const [r] = await importCharacterFile(svc, bytes, e.path.split("/").pop()!, {
           source: { site: linkedSite(folder.id), id: e.path, url: e.path, addedAt: Date.now() }, folder: { id: into },
@@ -144,7 +277,10 @@ export async function checkLinkedFolder(svc: Svc, folder: Pick<PickedFolder, "id
   }
   for (const [path, f] of Object.entries(entry.files)) {
     if (!seen.has(path) && f.characterId && !f.missing) { f.missing = true; result.missing++; }
-    if (!seen.has(path) && !f.characterId) delete entry.files[path];
+    if (!seen.has(path) && !f.characterId) {
+      if (f.card) await store.setAvatar(shelfPictureKey(folder.id, path), null).catch(() => {});
+      delete entry.files[path];
+    }
   }
   entry.checkedAt = Date.now();
   index[folder.id] = entry;
@@ -227,7 +363,8 @@ export async function unlinkFolder(svc: Svc, folderId: string, cards: "keep" | "
   const index = await readIndex(store);
   const entry = index[folderId];
   const out = { kept: 0, trashed: 0, failed: [] as string[] };
-  for (const f of Object.values(entry?.files ?? {})) {
+  for (const [path, f] of Object.entries(entry?.files ?? {})) {
+    if (f.card && !f.characterId) await store.setAvatar(shelfPictureKey(folderId, path), null).catch(() => {}); // D-137: shelf pictures go
     if (!f.characterId) continue;
     const c = await store.getCharacter(f.characterId);
     if (!c) continue;

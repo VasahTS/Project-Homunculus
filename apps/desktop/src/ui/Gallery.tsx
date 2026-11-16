@@ -131,10 +131,12 @@ export function SheetSection({ title, children, lines = 6, prose = false }: { ti
 }
 
 /** Library → Characters: the cards, and the selected one's sheet (or the editor, when editing). */
-export function CharacterGallery({ lead, tabs, title = "Library", characters, avatars, selectedId, importHelp, onSelect, onNew, onImport, sheet, folders, inFolder, folderOf, chatsOf, activity = {}, prefs, onPrefs, folderHits, onOpenFolder, onBrowse, markOf, onImportSt }: {
+export function CharacterGallery({ lead, tabs, title = "Library", subtitle = "Character cards and chats", characters, avatars, selectedId, importHelp, onSelect, onNew, onImport, sheet, folders, inFolder, folderOf, chatsOf, activity = {}, prefs, onPrefs, folderHits, onOpenFolder, onBrowse, markOf, onImportSt }: {
   lead: ReactNode;
   tabs?: ReactNode;
   title?: string;
+  /** Under the title (D-137: "666 · 1,204 in linked folders"). */
+  subtitle?: string;
   characters: Character[];
   /** The folders above the cards (round 3): shown when not searching. */
   folders?: ReactNode;
@@ -184,7 +186,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
   const paged = usePaged(shown, `${q}|${everything}|${recent}|${ordered.mode ?? ""}|${shown.length}|${shown[0]?.id ?? ""}`, { label: "characters", keep: (c) => c.id === selectedId, testId: "character-pager" });
   return (
     <div className="page collection-page" data-region="collection">
-      <Toolbar lead={lead} title={title} subtitle="Character cards and chats" center={tabs}
+      <Toolbar lead={lead} title={title} subtitle={subtitle} center={tabs}
         trailing={<>
           <Button onClick={() => fileInput.current?.click()}><Icon name="import" size={14} /> Import</Button>
           <Help text={`Import characters from SillyTavern (or sites that use the same cards). ${importHelp} You can pick several files at once.`} />
@@ -200,9 +202,9 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
           <div className="collection-heading"><PagerTop id="character-pager" /><h2>{searching ? "Search results" : everything ? "Every character" : "Your characters"}</h2><span>{shown.length} {shown.length === 1 ? "character" : "characters"}</span></div>
           {/* one page at a time (D-130), and of that page only the rows on screen when it is long (D-121) */}
           <VirtualCards items={paged.items} boxRef={cards} testId="character-list" layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`} render={(c) => (
-            <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={c.id}
+            <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={(c as { shelf?: unknown }).shelf ? undefined : c.id}
               by={(searching || everything) && where(c) ? where(c) : chatsOf ? chatsOf(c) : c.variants.length ? `${c.variants.length + 1} versions: Main, ${c.variants.map((v) => v.label).join(", ")}` : c.creator ? `by ${c.creator}` : undefined}
-              summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.tracked === false ? ["Not tracked", ...c.tags] : c.tags} size={shortTokens(cardTokens(c))} mark={markOf?.(c)} />
+              summary={(c.scenario.trim() || c.description.trim()).slice(0, 220) || "No description"} tags={c.tracked === false ? ["Not tracked", ...c.tags] : c.tags} size={shortTokens((c as { shelf?: { tokens: number } }).shelf?.tokens ?? cardTokens(c))} mark={markOf?.(c)} />
           )} />
           {paged.pager}
           {characters.length === 0 && <button type="button" className="gallery-card add" onClick={() => fileInput.current?.click()}>

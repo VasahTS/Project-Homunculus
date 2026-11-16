@@ -160,6 +160,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .msg.user { justify-self: end; max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
 .msg.user > .msg-body { padding: 10px 14px; border-radius: var(--radius-group); background: var(--fill); max-width: 100%; min-width: 0; }
 .msg.user > .msg-body:has(.msg-edit) { width: min(560px, 100%); }
+.lf-modes { margin: 4px 0 0; font-size: var(--size-small); } .lf-switch { display: grid; gap: 8px; } .lf-choice { display: flex; gap: 8px; align-items: flex-start; font-size: var(--size-small); color: var(--label-2); } /* D-137 */
 .set-named { display: grid; gap: 3px; min-width: 0; font-size: var(--size-small); } .set-named.grow { flex: 1; } /* D-136 */
 .trash-ask { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--separator); background: var(--fill); font-size: var(--size-small); color: var(--label-2); } /* D-136 */
 .edit-scope { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; } /* D-135 */
@@ -4672,6 +4673,7 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .lf-mark { position: absolute; top: 6px; right: 6px; z-index: 2; display: inline-flex; gap: 4px; align-items: center; padding: 2px 6px; border: 0; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--window) 82%, transparent); box-shadow: inset 0 0 0 1px var(--separator); font: 10px var(--font-mono); color: var(--label-2); }
 .lf-mark.warn { color: var(--warn); cursor: pointer; }
 .lf-mark.bad { color: var(--danger); }
+.lf-mark.shelf { box-shadow: inset 0 0 0 1px var(--separator), 0 0 0 0; border: 1px dashed var(--separator); } /* D-137: in folder */
 .lf-cmp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-radius: var(--radius-group); box-shadow: inset 0 0 0 1px var(--separator); }
 .lf-cmp > div { padding: 10px 12px; display: grid; gap: 8px; align-content: start; min-width: 0; }
 .lf-cmp > div + div { border-left: 1px solid var(--separator); }

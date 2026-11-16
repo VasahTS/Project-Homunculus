@@ -1,5 +1,6 @@
 // Card Browser full-field reading and portrait layout regressions. CODEX, 2026-11-02.
 import { expect, test, type Page } from "@playwright/test";
+import { showSidebar } from "./ui.ts";
 
 async function openLongCard(page: Page) {
   await page.addInitScript(() => {
@@ -14,6 +15,7 @@ async function openLongCard(page: Page) {
     };
   });
   await page.goto("/");
+  await showSidebar(page); // D-136
   await page.getByTestId("place-list").getByRole("button", { name: "Card Browser" }).click();
   await page.getByTestId("cb-card").first().click();
   await expect(page.getByTestId("cb-sheet")).toContainText("Description END");

@@ -37,13 +37,15 @@ test("configure a helper, retrieve a large card and show both model usages", asy
   await page.getByText("Read Helper Rin (description)", { exact: true }).click();
   await page.setViewportSize({ width: 390, height: 768 });
   if (await page.getByTestId("assistant-details").isVisible()) await page.getByRole("button", { name: "Hide details", exact: true }).click();
-  await page.getByRole("button", { name: "Hide Sidebar", exact: true }).click();
+  // D-136: under 800 px the sidebar hides by itself
+  if (await page.getByRole("button", { name: "Hide Sidebar", exact: true }).isVisible()) await page.getByRole("button", { name: "Hide Sidebar", exact: true }).click();
   const scroll = page.locator(".asst-scroll");
   expect(await scroll.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("helper-narrow.png") });
   await expect(page.getByTestId("assistant-usage")).toContainText("$0.0020");
   await page.setViewportSize({ width: 1366, height: 768 });
-  await page.getByRole("button", { name: "Show Sidebar", exact: true }).click();
+  // D-136: a wide window shows the sidebar again by itself
+  await expect(page.getByRole("button", { name: "Hide Sidebar", exact: true })).toBeVisible();
   await page.getByTestId("assistant-customize").click();
   await expect(page.getByLabel("Helper Model", { exact: true })).toHaveValue("retrieval-test");
   await expect(page.getByLabel("Helper reading calls per consultation")).toHaveValue("4");

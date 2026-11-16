@@ -1,5 +1,15 @@
 # HANDOFF — Homunculus 2
 
+## Linked folders: read-only, cards come in when used (2026-11-16) — CLAUDE — D-137
+
+- Daniel approved the draft (`docs/drafts/linked-on-use/index.html`) with answers: counts "666 · 1,204 in linked folders"; switching an old folder removes unused copies (after asking); export of an unused card reads its file; no per-character picking in the SillyTavern import.
+- Built: per-folder **When Used** (default for new links) / **Every Card** (old folders keep it) in Settings → Library → Linked Folders, with the switch window (N in use / N unused → remove or keep); "When Used" folders keep an index (name, creator, tags, excerpt, tokens, small picture) and their cards show in Characters marked **in folder**; the sheet reads the file, with **Add to Library**; New Chat, Turn into a Story, Edit, Add a Card bring the card in first (`useLinkedCard`); export saves the file as it is. `linkedCards.ts`, `ui/LinkedFolders.tsx`, App.
+- Also: click tests that click the sidebar in narrow windows call `showSidebar` (D-136 hides it under 800 px).
+- **To try (Windows):** close the app → Pull origin → open it. Settings → Library → Linked Folders: your folder shows **Every Card** (linked before) → click **When Used** → the window counts what you use and what you never used → Switch. Characters → the folder: unused cards are marked "in folder" and the subtitle says "N · M in linked folders" → open one: "Not in your library yet…" → Chat Now: it comes in and the chat opens. Link a new folder: nothing is copied until you use a card.
+- Not built (as planned): a separate index table (the app setting is enough for a few thousand cards); per-character picking in the SillyTavern import (Daniel: not needed).
+- Checks: typecheck; unit tests (925; `linkedCards.test.ts` 2 new); click tests of Characters, collections, Settings, stories, import and the narrow-window ones. Desktop-only screens (linked folders need the native folder access) checked in the browser with a fake folder, not committed.
+- Changelog line for the next release: "**Linked folders, read-only**: a linked folder's cards show in Characters marked *in folder* and come into your library only when you chat with one, add it to a story or edit it — nothing else is copied. Folders you linked before keep copying every card until you switch them in Settings → Library (Homunculus offers to remove the copies you never used)."
+
 ## What the sweep left: Continue, delete one message, › new version, Trash with chats, small fixes (2026-11-16) — CLAUDE — D-136
 
 - Daniel: "fix what was left out too; only the Linux bugs wait".

@@ -4,7 +4,7 @@ import initSqlJs from "sql.js";
 import { HomunculusCore, SqlJsDriver, SqlStore, coreMigrations, migrate } from "@homunculus/core";
 import { createSillyTavernCardsModule } from "@homunculus/st-cards";
 import type { FolderEntry, FolderSource } from "./stFolder.ts";
-import { checkLinkedFolder, compareLinked, keepAsOwn, linkedFolderOf, linkedStatuses, readIndex, resolveLinked, unlinkFolder } from "./linkedCards.ts";
+import { checkLinkedFolder, compareLinked, countUnused, keepAsOwn, linkedFolderOf, linkedStatuses, readIndex, resolveLinked, setLinkedMode, shelfCards, shelfId, unlinkFolder, useLinkedCard } from "./linkedCards.ts";
 
 const card = (name: string, description: string) => JSON.stringify({ spec: "chara_card_v2", spec_version: "2.0", data: { name, description, personality: "", scenario: "", first_mes: "Hi.", mes_example: "", tags: [], extensions: {} } });
 
@@ -35,6 +35,8 @@ async function setup() {
   const store = new SqlStore(driver);
   const core = new HomunculusCore({ tree: store, stateRepository: store });
   await core.loadModules([createSillyTavernCardsModule()]);
+  // D-137: the D-129 tests run on a folder that copies every card (folders linked before D-137 work that way)
+  await setLinkedMode({ core, store }, "f1", "all");
   return { svc: { core, store }, store };
 }
 const folder = { id: "f1", name: "CardVault" };
@@ -125,5 +127,46 @@ describe("linked card folders (D-129)", () => {
     expect(out.kept).toBe(1);
     expect((await store.listCharacters()).every((c) => linkedFolderOf(c) === null)).toBe(true);
     expect(await readIndex(store)).toEqual({});
+  });
+});
+
+describe("linked folders, cards come in when used (D-137)", () => {
+  const shelf = { id: "f2", name: "Shelf" };
+  it("a new folder keeps only an index; a card comes in when used, once, and is then an ordinary linked card", async () => {
+    const { svc, store } = await setup();
+    const fs = memFolder({ "Mira.json": card("Mira", "A cartographer."), "Ivo.json": card("Ivo", "A smith.") });
+    const r = await checkLinkedFolder(svc, shelf, fs.src);
+    expect(r.added).toBe(2);
+    expect(await store.listCharacters()).toEqual([]);
+    const cards = shelfCards(await readIndex(store));
+    expect(cards.map((c) => c.name)).toEqual(["Ivo", "Mira"]);
+    expect(cards[1]!.id).toBe(shelfId("f2", "Mira.json"));
+    expect(cards[1]!.description).toBe("A cartographer.");
+    expect(await store.listFolders("character")).toHaveLength(1); // the folder named after the linked folder exists already
+
+    const id = await useLinkedCard(svc, shelf, fs.src, "Mira.json");
+    expect((await store.listCharacters()).map((c) => c.name)).toEqual(["Mira"]);
+    expect(await useLinkedCard(svc, shelf, fs.src, "Mira.json")).toBe(id);
+    expect(shelfCards(await readIndex(store)).map((c) => c.name)).toEqual(["Ivo"]);
+    // the file changes: the card in use follows it (not edited here)
+    fs.set("Mira.json", card("Mira", "A cartographer of storms."));
+    await checkLinkedFolder(svc, shelf, fs.src);
+    expect((await store.getCharacter(id))!.description).toBe("A cartographer of storms.");
+    // a file that goes away: an unused entry simply leaves
+    fs.remove("Ivo.json");
+    await checkLinkedFolder(svc, shelf, fs.src);
+    expect(shelfCards(await readIndex(store))).toEqual([]);
+  });
+
+  it("switching a folder to 'when used' turns copies nobody used back into shelf entries; used ones stay", async () => {
+    const { svc, store, } = await setup();
+    const fs = memFolder({ "Mira.json": card("Mira", "A cartographer."), "Ivo.json": card("Ivo", "A smith.") });
+    await checkLinkedFolder(svc, { id: "f1", name: "CardVault" }, fs.src); // "all": both copied
+    const ivo = (await store.listCharacters()).find((c) => c.name === "Ivo")!;
+    await store.saveSession({ id: "s1", title: "Chat", cast: [{ characterId: ivo.id, variantId: null, role: "character", presence: "in_scene", muted: false, joinedAtMessageId: null }], createdAt: 1 } as never);
+    expect(await countUnused(svc, "f1")).toEqual({ used: 1, unused: 1 });
+    expect(await setLinkedMode(svc, "f1", "use", { removeUnused: true })).toEqual({ removed: 1 });
+    expect((await store.listCharacters()).map((c) => c.name)).toEqual(["Ivo"]);
+    expect(shelfCards(await readIndex(store)).map((c) => c.name)).toEqual(["Mira"]);
   });
 });

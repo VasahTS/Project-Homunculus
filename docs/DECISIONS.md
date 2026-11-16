@@ -1557,3 +1557,17 @@ Daniel (translated), after D-135: "you can also fix what was left out; leave onl
 - Tests: unit (`continue` new, `library`); click tests `fixes-1116` (4 new), `branches`, `chat`, `library`, `message-metadata` updated.
 
 Signed: **CLAUDE**.
+
+## D-137 — Linked folders: read-only, a card comes in when it is used (2026-11-16)
+
+Daniel (translated): "make the library link read-only and import only what you are going to use, not a mass importer". Plan and draft: `docs/LINKED-ON-USE-PLAN.md`, `docs/drafts/linked-on-use/index.html`. His answers: counts as "666 · 1,204 in linked folders"; switching an old folder removes the unused copies (after asking); exporting an unused card reads its file; the SillyTavern import stays a one-time move of everything (no per-character picking).
+
+- **Each linked folder has a mode** (`LinkedFolderIndex.mode`): **When Used** (`"use"`, the default for folders linked from now on) or **Every Card** (`"all"`, the D-129 behaviour; folders linked before keep it until switched). Settings → Library → Linked Folders: a When Used / Every Card switch per folder, "N cards · M in use".
+- **When Used:** a check reads each new or changed file's name, creator, tags, a 300-character excerpt, a token estimate, greetings count, whether it has a lorebook, and a small picture (made with the same preview as cards; kept in the pictures table under `shelf:<folder>:<path>`) into the index (`LinkedFile.card`). Nothing else is copied. A file that leaves the folder leaves the list.
+- **Characters:** those cards show with the others, in the folder named after the linked folder (made at the first check), marked **in folder** (dashed); copied linked cards are marked **in use**. The page subtitle counts both ("666 · 1,204 in linked folders"); the sidebar keeps counting the library. Their sheet reads the whole card from the file, with a line saying where it is read from and **Add to Library**. Search, sort, pages and folders work as for other cards; they can't be dragged to another folder or moved to the Trash (they are the folder's).
+- **A card comes in when used** (`useLinkedCard`, the same import as a card file, linked to its file from then on): New Chat / Chat Now, Turn into a Story, Edit, picking it in Add a Card (stories, Kits), Add to Library. From then on it is an ordinary linked card (edits stay in Homunculus; an unedited card follows its file; "changed in both" asks). Export of a card not in use saves its file as it is.
+- **Switching a folder to When Used** opens a window with how many copies are in use and how many nobody used (no chats — Trash included —, story, Kit, edits or pending choice); **Remove the N unused copies** deletes those cards (they go back to being read from the folder; their picture becomes the shelf picture) or **Keep them**. Switching to Every Card copies every card at once (a check).
+- **Storage:** the index stays in the `linkedIndex` app setting (the plan said a table): a folder of a few thousand cards is well under a megabyte, and it is read once per check. A table can come later if folders grow past that.
+- Tests: `linkedCards.test.ts` (2 new: index only, use once, file changes and leaves; switching removes only unused copies); the D-129 tests run on an "Every Card" folder.
+
+Signed: **CLAUDE**.

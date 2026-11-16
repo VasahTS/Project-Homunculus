@@ -69,9 +69,10 @@ import { notifyInBackground } from "./systemNotify.ts";
 import { isDesktop } from "./db.ts";
 import { bootMark, bootPart } from "./bootTiming.ts";
 import { nativeFolder, pickFolder, type PickedFolder } from "./stFolder.ts";
-import { checkLinkedFolder, fileOf, keepAsOwn, linkedStatuses, listLinkedFolders, readIndex, resolveLinked, unlinkFolder, compareLinked, type LinkedIndex } from "./linkedCards.ts";
+import { checkLinkedFolder, fileOf, keepAsOwn, linkedStatuses, listLinkedFolders, readIndex, resolveLinked, unlinkFolder, compareLinked, type LinkedIndex,
+  countUnused, isShelfId, parseShelfId, readShelfCard, setLinkedMode, shelfCards, useLinkedCard, type LinkedMode } from "./linkedCards.ts";
 import { StImportBar, StImportReport, StImportWindow, stImportRun, useStImportRun } from "./ui/StImport.tsx";
-import { LibrarySettings, LinkedConflictSheet, LinkedMark, LinkedNotice, type LinkedApi } from "./ui/LinkedFolders.tsx";
+import { LibrarySettings, LinkedConflictSheet, LinkedMark, LinkedNotice, ShelfNotice, type LinkedApi } from "./ui/LinkedFolders.tsx";
 import { exportStRegex, importStRegexFile } from "@homunculus/st-regex";
 import { COLLECTION_NAVIGATION, type LibraryCategory } from "./theme/navigation.ts";
 import { ImportButton } from "./ui/BundleButtons.tsx";
@@ -815,6 +816,30 @@ export function App() {
   const [linkedChecking, setLinkedChecking] = useState(false);
   const [conflictOf, setConflictOf] = useState<string | null>(null);
   const linkedStatus = useMemo(() => linkedStatuses(linkedIndex, characters), [linkedIndex, characters]);
+  // ---- D-137: cards in "when used" folders that are not in the library yet (shelf entries) show in Characters too
+  const shelf = useMemo(() => shelfCards(linkedIndex), [linkedIndex]);
+  const shelfById = useMemo(() => new Map(shelf.map((c) => [c.id, c])), [shelf]);
+  const galleryCharacters = useMemo(() => (shelf.length ? [...characters, ...shelf] : characters), [characters, shelf]);
+  /** The character folder map, with each shelf entry in the folder named after its linked folder. */
+  const characterFolderMap = useMemo(() => {
+    const base = folderMaps.character ?? {};
+    if (!shelf.length) return base;
+    const out = { ...base };
+    for (const c of shelf) { const f = linkedIndex[c.shelf.folderId]?.folderItemId; if (f) out[c.id] = f; }
+    return out;
+  }, [folderMaps, shelf, linkedIndex]);
+  // the sheet of a shelf entry reads the whole card from its file (nothing is saved)
+  const shelfSel = view.kind === "characters" && !view.edit && isShelfId(view.id) ? view.id : null;
+  const [shelfFull, setShelfFull] = useState<{ id: string; character: Character; avatar?: Avatar } | null>(null);
+  useEffect(() => {
+    if (!svc || !shelfSel) return;
+    const at = parseShelfId(shelfSel);
+    const f = at ? linkedFolders.find((x) => x.id === at.folderId) : undefined;
+    if (!at || !f) return;
+    let live = true;
+    void readShelfCard(svc, nativeFolder(f), at.path).then((r) => { if (live && r) setShelfFull({ id: shelfSel, ...r }); }).catch(() => {});
+    return () => { live = false; };
+  }, [svc, shelfSel, linkedFolders]);
   const checkLinkedRef = useRef<(quiet: boolean) => Promise<void>>(async () => {});
   const linkedBusy = useRef(false);
   useEffect(() => {
@@ -858,8 +883,28 @@ export function App() {
     return [];
   };
 
-  const newSession = async (characterId: string, variantId: string | null = null) => {
-    const c = byId[characterId];
+  /**
+   * D-137: a shelf entry comes into the library the first time it is used (a chat, a story, Edit, Add to Library).
+   * Returns the card's id (the same id for a card already in the library), or null when it could not come in.
+   */
+  const useShelf = async (id: string): Promise<string | null> => {
+    const at = parseShelfId(id);
+    if (!at) return id;
+    const f = linkedFolders.find((x) => x.id === at.folderId);
+    if (!f) { setNotice({ kind: "error", title: "The linked folder is not available", lines: ["Check Settings → Library → Linked Folders."] }); return null; }
+    try {
+      const real = await useLinkedCard(svc, f, nativeFolder(f), at.path);
+      setLinkedIndex(await readIndex(svc.store));
+      await reload(svc, ["characters"]);
+      await loadPictures(svc);
+      return real;
+    } catch (e) { setNotice({ kind: "error", title: "The card could not come in", lines: [errorText(e)] }); return null; }
+  };
+
+  const newSession = async (anyId: string, variantId: string | null = null) => {
+    const characterId = await useShelf(anyId);
+    if (!characterId) return;
+    const c = byId[characterId] ?? await svc.store.getCharacter(characterId);
     const label = variantId ? c?.variants.find((v) => v.id === variantId)?.label : undefined;
     const { session } = await svc.chat.createSession({
       title: `Chat with ${c?.name ?? "…"}${label ? ` (${label})` : ""}`, cast: [{ characterId, variantId }],
@@ -1230,7 +1275,7 @@ export function App() {
       for (const f of folders.filter((x) => x.present !== false)) {
         const r = await checkLinkedFolder(svc, f, nativeFolder(f), (done, total) => {
           if (total > 12) setWork({ id: "linked", title: `Reading ${f.name}`, done, total, detail: "New and changed cards" });
-        });
+        }, (a) => makePreview(a));
         sum.added += r.added; sum.updated += r.updated; sum.conflicts += r.conflicts; sum.missing += r.missing; sum.errors.push(...r.errors);
       }
       setWork((w) => (w?.id === "linked" ? null : w));
@@ -1284,6 +1329,15 @@ export function App() {
     onLink: () => void linkFolder(), onCheck: () => void checkLinkedRef.current(false),
     onShow: (folderId) => { const item = linkedIndex[folderId]?.folderItemId; setView({ kind: "characters", id: null }); if (item) openFound("characters", () => {})(item); },
     onUnlink: (id, cards) => void unlinkLinked(id, cards),
+    countUnused: (id) => countUnused(svc, id),
+    onMode: (id: string, mode: LinkedMode, removeUnused: boolean) => void (async () => {
+      try {
+        const r = await setLinkedMode(svc, id, mode, { removeUnused });
+        setLinkedIndex(await readIndex(svc.store));
+        if (mode === "all") await checkLinkedRef.current(false); // every card comes in now
+        else { await refresh(svc); setNotice({ kind: "ok", title: "Cards come in when used", lines: r.removed ? [`${r.removed} unused copies went back to being read from the folder.`] : [] }); }
+      } catch (e) { setNotice({ kind: "error", title: "Couldn't change the folder", lines: [errorText(e)] }); }
+    })(),
   };
   const linkedNoticeFor = (c: Character) => {
     const status = linkedStatus.get(c.id);
@@ -1520,7 +1574,7 @@ export function App() {
     setView({ kind: "story", id });
   };
 
-  const turnIntoStory = (c: Character) => setNewStoryOpen({ cardId: c.id });
+  const turnIntoStory = async (c: Character) => { const id = await useShelf(c.id); if (id) setNewStoryOpen({ cardId: id }); };
 
   /** New Chat in a story (D-031): its name, which opening (or one written for it) and what it changes from the story. */
   const newStoryChat = async (st: Story, c: NewChatChoice) => {
@@ -1666,7 +1720,7 @@ export function App() {
 
   // ---- folders (round 3, D-036)
   const foldersOf = (kind: FolderKind) => folders.filter((f) => f.kind === kind);
-  const mapOf = (kind: FolderKind) => folderMaps[kind] ?? {};
+  const mapOf = (kind: FolderKind) => (kind === "character" ? characterFolderMap : folderMaps[kind] ?? {});
   const folderAction = async (f: () => Promise<unknown>) => {
     try { await f(); await refreshVault(svc); } catch (e) { setNotice({ kind: "error", title: "Could not change the folders", lines: [errorText(e)] }); }
   };
@@ -1681,10 +1735,10 @@ export function App() {
         if (openFolder[page] && folderAndBelow(folders, id).has(openFolder[page]!)) setOpenFolder((o) => ({ ...o, [page]: f?.parentId ?? null }));
         await svc.store.deleteFolder(id);
       })}
-      onMove={(itemId, folderId) => void folderAction(() => itemId.startsWith("folder:")
+      onMove={(itemId, folderId) => isShelfId(itemId) ? undefined : void folderAction(() => itemId.startsWith("folder:")
         ? svc.store.moveFolder(itemId.slice(7), folderId)
         : svc.store.setFolder(kind, itemId, folderId))}
-      onTrash={(ids) => void trashMany(kind, ids.map((id) => ({ id, name: items.find((i) => i.id === id)?.name ?? "item" })))}
+      onTrash={(ids) => void trashMany(kind, ids.filter((id) => !isShelfId(id)).map((id) => ({ id, name: items.find((i) => i.id === id)?.name ?? "item" })))}
       extra={extra} />
   );
   /** Is the item in the folder open on that page (directly)? */
@@ -1714,12 +1768,13 @@ export function App() {
   // ---- the big "Add…" window (round 3, D-036): cards, NPCs and narrators, with their folders
   const clip = (t: string, n = 600) => (t.length > n ? `${t.slice(0, n)}…` : t);
   const cardKind = (exclude: string[], action: string, onPick: (id: string) => void): PickKind => ({
-    key: "cards", label: "Cards", action, onPick, exclude, excludeNote: "Already in",
+    // D-137: a card from a "when used" folder comes in when it is picked
+    key: "cards", label: "Cards", action, onPick: (id) => { if (!isShelfId(id)) { onPick(id); return; } void useShelf(id).then((real) => { if (real) onPick(real); }); }, exclude, excludeNote: "Already in",
     folders: foldersOf("character"), map: mapOf("character"),
     recent: [...sessions].filter((x) => !x.storyId).map((x) => x.cast[0]?.characterId).filter((x): x is string => !!x).filter((x, i, a) => a.indexOf(x) === i),
-    items: characters.map((c) => ({
+    items: galleryCharacters.map((c) => ({
       id: c.id, name: c.name, avatar: avatars[c.id], tags: c.tags,
-      line: [c.creator && `by ${c.creator}`, c.variants.length ? `${c.variants.length + 1} versions` : ""].filter(Boolean).join(" · "),
+      line: [c.creator && `by ${c.creator}`, c.variants.length ? `${c.variants.length + 1} versions` : "", shelfById.has(c.id) ? "in a linked folder" : ""].filter(Boolean).join(" · "),
       detail: <>{clip(c.description) || <span className="hint">No description.</span>}</>,
     })),
   });
@@ -1942,19 +1997,43 @@ export function App() {
   } else if (view.kind === "characters") {
     const editing = view.id === "new" ? null : view.id ? byId[view.id] ?? null : undefined;
     const importHelp = svc.core.characterImporters.all().map((i) => i.help).join(" ");
-    const sheetOf = view.id && view.id !== "new" ? byId[view.id] : characters.find((c) => inOpenFolder("character", "characters")(c.id));
+    const sheetOf = view.id && view.id !== "new" ? byId[view.id] ?? shelfById.get(view.id) : characters.find((c) => inOpenFolder("character", "characters")(c.id));
+    const shelfOf = sheetOf ? shelfById.get(sheetOf.id) : undefined;
+    // D-137: a card from a "when used" folder: its sheet reads the file; using it brings it in first
+    const shelfSheet = shelfOf ? (() => {
+      const full = shelfFull?.id === shelfOf.id ? shelfFull : null;
+      const folderName = linkedFolders.find((x) => x.id === shelfOf.shelf.folderId)?.name ?? "a linked folder";
+      const exportFile = async () => {
+        const f = linkedFolders.find((x) => x.id === shelfOf.shelf.folderId);
+        if (!f) return;
+        try {
+          const name = shelfOf.shelf.path.split("/").pop() ?? `${shelfOf.name}.png`;
+          const where = await saveExport({ fileName: name, mime: name.toLowerCase().endsWith(".json") ? "application/json" : "image/png", bytes: await nativeFolder(f).read(shelfOf.shelf.path) });
+          if (where) setNotice({ kind: "ok", title: `Exported ${shelfOf.name}`, lines: [`Saved to: ${where}`] });
+        } catch (e) { setNotice({ kind: "error", title: `Could not export ${shelfOf.name}`, lines: [errorText(e)] }); }
+      };
+      return (
+        <CharacterSheet key={shelfOf.id} c={full?.character ?? shelfOf} avatar={avatars[shelfOf.id]} avatars={avatars}
+          notice={<ShelfNotice path={shelfOf.shelf.path} folderName={folderName} onAdd={() => void useShelf(shelfOf.id).then((id) => { if (id) setView({ kind: "characters", id }); })} />}
+          lorebookNames={[]} storyNames={[]} folderName={folderName}
+          onChat={(vid) => void newSession(shelfOf.id, vid)}
+          onEdit={() => void useShelf(shelfOf.id).then((id) => { if (id) setView({ kind: "characters", id, edit: true }); })}
+          onTurnIntoStory={() => void turnIntoStory(shelfOf)} onExport={() => void exportFile()} />
+      );
+    })() : null;
+    const shelfLine = shelf.length ? `${characters.length.toLocaleString("en-US")} · ${shelf.length.toLocaleString("en-US")} in linked folders` : undefined;
     content = !(view.edit || view.id === "new") ? (
-      <CharacterGallery lead={lead} title="Characters" characters={characters} avatars={avatars} selectedId={sheetOf?.id ?? null}
+      <CharacterGallery lead={lead} title="Characters" {...(shelfLine ? { subtitle: shelfLine } : {})} characters={galleryCharacters} avatars={avatars} selectedId={sheetOf?.id ?? null}
         activity={characterActivity}
         importHelp={importHelp} onSelect={(id) => setView({ kind: "characters", id })} onNew={() => setView({ kind: "characters", id: "new" })}
         onImport={(files) => void importFiles(files)} onBrowse={() => setView({ kind: "card-browser" })} onImportSt={() => setStOpen(true)}
-        markOf={(c) => { const st = linkedStatus.get(c.id); return st ? <LinkedMark status={st} /> : null; }}
-        folders={folderView("character", "characters", "characters", characters.map((c) => ({ id: c.id, name: c.name, avatar: avatars[c.id] })))}
+        markOf={(c) => { if (shelfById.has(c.id)) return <LinkedMark status="shelf" />; const st = linkedStatus.get(c.id); return st ? <LinkedMark status={st} /> : null; }}
+        folders={folderView("character", "characters", "characters", galleryCharacters.map((c) => ({ id: c.id, name: c.name, avatar: avatars[c.id] })))}
         prefs={prefsOf("characters")} onPrefs={setPrefs("characters")} folderHits={(q) => folderHits("character", q)} onOpenFolder={openFound("characters", () => {})}
         inFolder={(c) => inOpenFolder("character", "characters")(c.id)}
         folderOf={(c) => folderLabel(folders, mapOf("character")[c.id])}
-        chatsOf={(c) => { const n = chatsWith(c.id); return n.length ? `${n.length} chat${n.length === 1 ? "" : "s"} · ${new Date(n[0]!.when).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "No chats yet"; }}
-        sheet={sheetOf ? (
+        chatsOf={(c) => { if (shelfById.has(c.id)) return "not in your library yet"; const n = chatsWith(c.id); return n.length ? `${n.length} chat${n.length === 1 ? "" : "s"} · ${new Date(n[0]!.when).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "No chats yet"; }}
+        sheet={shelfSheet ?? (sheetOf ? (
           <CharacterSheet key={sheetOf.id} c={sheetOf} avatar={avatars[sheetOf.id]} avatars={avatars} notice={linkedNoticeFor(sheetOf)}
             lorebookNames={lorebooks.filter((b) => sheetOf.lorebookIds.includes(b.id)).map((b) => b.name)}
             storyNames={stories.filter((st) => st.narrator.kind === "card" && st.narrator.characterId === sheetOf.id).map((st) => st.name)}
@@ -1967,7 +2046,7 @@ export function App() {
             onChat={(vid) => void newSession(sheetOf.id, vid)} onEdit={() => setView({ kind: "characters", id: sheetOf.id, edit: true })}
             onTurnIntoStory={() => void turnIntoStory(sheetOf)}
             onExport={svc.core.characterExporters.all()[0] ? () => void exportCharacter(sheetOf, svc.core.characterExporters.all()[0]!.id, avatars[sheetOf.id]) : undefined} />
-        ) : null} />
+        ) : null)} />
     ) : (
       <CharactersPage lead={lead} characters={characters} avatars={avatars} selectedId={view.id}
         importHelp={importHelp}

@@ -1,5 +1,6 @@
 // BotBooru account gates, original PNG import, paging and logout. Synthetic content only. CODEX, 2026-11-02.
 import { expect, test, type Page } from "@playwright/test";
+import { showSidebar } from "./ui.ts";
 import { bytesToBase64, setTextChunks, solidPng, utf8 } from "@homunculus/st-cards";
 const card = { spec: "chara_card_v2", spec_version: "2.0", data: { name: "Fixture Explorer", description: "A complete harmless definition.", personality: "Patient.", scenario: "A quiet library.", first_mes: "Welcome.", alternate_greetings: ["Come in."], mes_example: "An example.", creator_notes: "A synthetic test card.", tags: ["Fantasy"], character_book: { entries: [{ id: 0, keys: ["library"], content: "The library is quiet." }] } } };
 const png = bytesToBase64(setTextChunks(solidPng(2, 2, [55, 65, 75]), { chara: bytesToBase64(utf8.encode(JSON.stringify(card))) }));
@@ -39,6 +40,7 @@ async function open(page: Page, options: { pause?: boolean } = {}) {
     };
   }, { card, png, options });
   await page.goto("/");
+  await showSidebar(page); // D-136
   await page.getByTestId("place-list").getByRole("button", { name: "Card Browser" }).click();
   await expect(page.getByTestId("cb-account").getByRole("button", { name: "Refresh Account" })).toBeEnabled();
 }

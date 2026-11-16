@@ -6,6 +6,7 @@ import { expect, type Page } from "@playwright/test";
  * Round 3 (D-036): Characters is a place of its own in the sidebar.
  */
 export async function openLibrary(page: Page, area: "Characters" | "Personas" | "Lorebooks" | "Presets" | "Regex" | "Quick Replies" | "Trackers" | "Agents" | "Cues" | "Trash" | "Stories" | "Kits" | "Narrators" | "NPCs" | "Directors") {
+  await showSidebar(page);
   if (area === "Stories") { await page.getByTestId("place-list").getByRole("button", { name: "Stories", exact: true }).click(); return; }
   if (area === "Characters") { await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click(); return; }
   await page.getByTestId("place-list").getByRole("button", { name: "Library" }).click();
@@ -113,4 +114,13 @@ export async function memoryOn(page: Page, set: { keep?: number; every?: number 
     }
   }
   return pane;
+}
+
+/** D-136: under 800 px the sidebar starts hidden; its button shows it. */
+export async function showSidebar(page: Page) {
+  // wait for the app (a page can be called right after goto), then show the sidebar if it is hidden
+  await page.locator('[data-testid="place-list"], button[aria-label="Show Sidebar"]').first().waitFor();
+  if (await page.getByTestId("place-list").isVisible()) return;
+  await page.getByRole("button", { name: "Show Sidebar" }).first().click();
+  await page.getByTestId("place-list").waitFor();
 }

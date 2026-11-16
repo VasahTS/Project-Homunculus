@@ -4,7 +4,7 @@ Daniel (translated): "make the library link read-only and import only what you a
 Today (D-129) a linked folder is never written to, but **every card in it is copied** into Characters at the first check
 (hundreds of cards and pictures duplicated in the database, and "changed in both" questions about cards never played).
 
-**Draft:** `docs/drafts/linked-on-use/index.html` (4 screens; artifact 45D4YWoBruogXkASCx25ho). No code before Daniel approves it.
+**Draft:** `docs/drafts/linked-on-use/index.html` (4 screens; artifact 45D4YWoBruogXkASCx25ho). **Approved and built (D-137)** with Daniel's answers: 1 yes, 2 yes, 3 yes, 4 no.
 
 ## The idea
 
