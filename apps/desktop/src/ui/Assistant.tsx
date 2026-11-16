@@ -465,6 +465,14 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
   busy: boolean; onSend: () => void; onStop: () => void; onPick: () => void; onFiles: () => void; onDropFiles: (f: File[]) => void; picksBar: ReactNode; autoFocus?: boolean;
 }) {
   const [sendKey] = useSendKey();
+  // The box grows with what you write, up to 40% of the window, then scrolls (like the chat's box)
+  const box = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const b = box.current;
+    if (!b) return;
+    b.style.height = "auto";
+    b.style.height = `${Math.min(b.scrollHeight + 2, Math.round(window.innerHeight * 0.4))}px`;
+  }, [text]);
   return (
     <div className="asst-comp" data-testid="assistant-composer"
       onDragOver={(e) => e.preventDefault()}
@@ -488,7 +496,7 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
           )}
         </div>
       )}
-      <textarea rows={2} value={text} autoFocus={autoFocus} placeholder="What shall we make? A character, a Kit, a lorebook…" aria-label="Message to the Assistant"
+      <textarea ref={box} rows={2} value={text} autoFocus={autoFocus} placeholder="What shall we make? A character, a Kit, a lorebook…" aria-label="Message to the Assistant"
         title={sendKey === "enter" ? "Enter to send · Shift+Enter for a new line" : "Ctrl+Enter to send · Enter for a new line"}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (sendKey === "enter" || e.ctrlKey || e.metaKey)) { e.preventDefault(); onSend(); } if (e.key === "@" && !text.trim()) { e.preventDefault(); onPick(); } }}

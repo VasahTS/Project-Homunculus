@@ -2416,7 +2416,7 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-q b { font-weight: 600; font-size: 14px; }
 .asst-q span:last-child { color: var(--label-3); font-size: 13px; line-height: 1.4; }
 .asst-comp { border: 1px solid var(--separator); background: var(--pop, var(--group)); border-radius: calc(18px * var(--round)); padding: 12px 12px 10px 16px; display: grid; gap: 10px; box-shadow: 0 10px 34px rgba(0,0,0,.25); }
-.asst-comp textarea { border: 0; background: none; resize: none; color: var(--label); font: inherit; font-size: 14px; outline: none; min-height: 24px; width: 100%; padding: 0; box-shadow: none; }
+.asst-comp textarea { border: 0; background: none; resize: none; color: var(--label); font: inherit; font-size: 14px; outline: none; min-height: 24px; width: 100%; padding: 0; box-shadow: none; overflow-y: auto; line-height: 1.5; }
 .asst-ctx { display: flex; gap: 6px; flex-wrap: wrap; }
 .asst-ctx.end { justify-content: flex-end; }
 .asst-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--fill); border-radius: var(--radius-pill); padding: 4px 6px 4px 4px; font-size: 13px; max-width: 240px; }

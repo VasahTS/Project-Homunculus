@@ -1504,3 +1504,11 @@ Daniel's report (D-131): start 8.8 s, library 6.1; slowest reads: lorebooks 4.8 
 - Left: presets (60, 1.1 s at start — they keep the whole SillyTavern file in `original`) and the character list's own texts; next if the new report still points at them.
 
 Signed: **CLAUDE**.
+
+## D-133 — The Assistant's box grows; no spell check or autocorrect in the app (2026-11-16)
+
+- Daniel: the Assistant's message box did not grow enough to see what he was writing; the spell checker marked and "corrected" English text in Portuguese (his system language), which looked bad.
+- **The Assistant's box grows** with the text, up to 40% of the window, then scrolls (the same idea as the chat's box).
+- **No spell check or autocorrect anywhere**: `index.html` sets `spellcheck="false" autocorrect="off" autocapitalize="off"` on the page (boxes inherit it); a `focusin` listener in `main.tsx` turns it off on any box that asked for it on its own; the card's Text mode no longer turns it on. A choice in Settings can come later if someone wants it back.
+
+Signed: **CLAUDE**.

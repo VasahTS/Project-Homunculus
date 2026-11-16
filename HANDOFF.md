@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## The Assistant's box grows; no spell check or autocorrect (2026-11-16) — CLAUDE — D-133
+
+- Daniel: the Assistant's box was too short to see what he wrote; the spell checker marked/"corrected" English as Portuguese.
+- Built: the Assistant's box grows with the text up to 40% of the window, then scrolls; spell check and autocorrect are off for the whole app (`index.html` + a `focusin` guard in `main.tsx`; Text mode no longer turns it on).
+- **To try (Windows):** close the app → Pull origin → open it. Assistant: write a long message — the box grows. Write a misspelled English word in any box (chat, Assistant, card editor, Story notes): no red underline, nothing changed by itself.
+- Checks: typecheck; unit tests.
+
 ## Daniel's diagnostic report: lighter lorebooks, pictures rebuilt, the start read once (2026-11-13) — CLAUDE — D-132
 
 - From Daniel's report (start 8.8 s; lorebooks 4.8 s / 47 MB; pictures list 0.8 s; every read twice): the start's library read is shared (React ran it twice in development); lorebooks are read without entries at start (the editor reads the whole book); migration 13 rebuilds the pictures table with the small columns first + an index (previews no longer read the full picture).

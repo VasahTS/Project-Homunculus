@@ -136,7 +136,7 @@ function extensions(handlers: { current: Handlers }): Extension[] {
     history(),
     keymap.of([...historyKeymap, ...defaultKeymap]),
     EditorView.lineWrapping,
-    EditorView.contentAttributes.of({ spellcheck: "true", "aria-label": "Card as text", autocorrect: "off" }),
+    EditorView.contentAttributes.of({ spellcheck: "false", "aria-label": "Card as text", autocorrect: "off" }),
     EditorView.updateListener.of((u) => handlers.current.onUpdate(u)),
   ];
 }
