@@ -12,10 +12,10 @@ test("opened from a chat: nothing is attached; + → Add a Chat… opens the cha
   await page.getByTestId("assistant-add-chat").click();
   const picker = page.getByTestId("assistant-picker");
   await expect(picker.getByRole("tab", { name: /Chats/ })).toHaveAttribute("aria-selected", "true");
-  await expect(picker.locator(".asst-card").first()).toContainText("Session with Lyra");
+  await expect(picker.locator(".asst-card").first()).toContainText("Chat with Lyra");
   await picker.locator(".asst-card").first().click();
   await picker.getByTestId("assistant-picker-add").click();
-  await expect(box.locator(".asst-chip")).toContainText("Session with Lyra");
+  await expect(box.locator(".asst-chip")).toContainText("Chat with Lyra");
 });
 
 test("Add context → Chats: pick a chat and a range; Agents and Regex are there too", async ({ page }) => {
@@ -26,11 +26,11 @@ test("Add context → Chats: pick a chat and a range; Agents and Regex are there
   await page.getByTestId("assistant-add-context").click();
   const picker = page.getByTestId("assistant-picker");
   await picker.getByRole("tab", { name: /Chats/ }).click();
-  await picker.getByRole("button", { name: /Session with Lyra/ }).first().click();
+  await picker.getByRole("button", { name: /Chat with Lyra/ }).first().click();
   await picker.getByLabel("From message").fill("1");
   await picker.getByLabel("To message").fill("2");
   await picker.getByTestId("assistant-picker-add").click();
-  await expect(page.getByTestId("assistant-composer")).toContainText("Session with Lyra · messages #1–#2");
+  await expect(page.getByTestId("assistant-composer")).toContainText("Chat with Lyra · messages #1–#2");
   await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
   await expect(picker.getByRole("tab", { name: /Agents/ })).toBeVisible();

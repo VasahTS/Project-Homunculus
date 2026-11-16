@@ -165,6 +165,48 @@ export class ChatService {
     return copy;
   }
 
+  /**
+   * D-135: edit a message only on the branch you are on. A message before the point where branches split is ONE message
+   * all of them share, so a plain edit changed every branch (Daniel: "I change the first message and it changes for all
+   * branches"). Here the edited message becomes a new version beside it, and this branch's messages after it (down to
+   * `endId`) are copied under it, with their world state and records; the other branches keep the original.
+   * Returns the edited copy and the copied end: the caller moves the branch's end there.
+   */
+  async editMessageOnlyHere(messageId: string, typed: string, endId: string, branchId: string | null): Promise<{ editedId: string; endId: string }> {
+    const path = await this.store.pathTo(endId);
+    const at = path.findIndex((m) => m.id === messageId);
+    if (at < 0) throw new Error("The message is not on this branch.");
+    const first = path[at]!;
+    const { scripts, ctx } = await this.turns.regexForSession(first.sessionId);
+    const content = applyRegexScripts(scripts, typed, { target: first.speaker.kind === "user" ? "user" : "ai", mode: "saved", edit: true }, ctx);
+    const start = this.now();
+    let parentId = first.parentId;
+    let editedId = "";
+    for (let i = at; i < path.length; i++) {
+      const m = path[i]!;
+      const { beforeRegex: _drop, ...meta } = m.meta;
+      const edited = i === at;
+      const n = await this.store.addMessage({
+        ...structuredClone(m), id: this.newId(), parentId, createdAt: start + (i - at),
+        ...(edited ? { content, meta: content !== typed ? { ...meta, beforeRegex: typed } : meta } : {}),
+      });
+      const delta = await this.store.getDelta(m.id);
+      if (delta) await this.store.setDelta(n.id, delta);
+      const mine = await this.store.getUserDelta(m.id);
+      if (mine) await this.store.setUserDelta(n.id, mine);
+      const record = await this.store.getGenerationRecord(m.id);
+      if (record) await this.store.saveGenerationRecord({ ...record, messageId: n.id });
+      if (edited && content !== m.content) await this.store.addRevision({ id: this.newId(), messageId: n.id, author: { kind: "user" }, before: m.content, after: content, createdAt: start });
+      if (edited) editedId = n.id;
+      parentId = n.id;
+    }
+    const end = parentId!;
+    // this branch's memory keeps only the chapters still on its new path (the others now cover messages it left)
+    if (branchId) await this.turns.forkMemory(first.sessionId, end, branchId, branchId);
+    await this.core.events.emit("message.revised", { sessionId: first.sessionId, messageId: end });
+    return { editedId, endId: end };
+  }
+
   /** The user edits a message. The old text is kept as a revision; later records are marked out of date. */
   async editMessage(messageId: string, typed: string): Promise<void> {
     const m = await this.store.getMessage(messageId);

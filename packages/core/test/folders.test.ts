@@ -44,6 +44,12 @@ describe("chats", () => {
     expect(found[session.id]!.hits[0]!.content).toContain("goblin");
     expect(await store.searchMessages([session.id], "dragon")).toEqual({});
     expect(await store.searchMessages([session.id], "50%")).toEqual({});
+    // D-135: the count is the chat's, but only the newest three come back
+    let at = (await store.latestMessage(session.id))!.id;
+    for (let i = 0; i < 3; i++) at = (await chat.send(session.id, at, `goblin ${i}`, connection)).reply.id;
+    const many = await store.searchMessages([session.id], "goblin");
+    expect(many[session.id]!.count).toBe(8);
+    expect(many[session.id]!.hits.map((h) => h.content)).toEqual(["The goblin laughs.", "goblin 2", "The goblin laughs."]);
   });
 
   it("export as Markdown, text, SillyTavern JSONL and the whole Homunculus chat", async () => {

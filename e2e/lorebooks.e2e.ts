@@ -266,7 +266,7 @@ test("opened from a session, the lorebook page has a button straight back to tha
   await group.getByLabel("Add a lorebook to this session").selectOption({ label: "Vaelthar" });
   await group.getByRole("button", { name: "Vaelthar", exact: true }).click();
   await expect(editor(page)).toBeVisible();
-  const back = page.getByRole("button", { name: /Session with Lyra/ }).and(page.locator(".back-btn"));
+  const back = page.getByRole("button", { name: /Chat with Lyra/ }).and(page.locator(".back-btn"));
   await expect(back).toBeVisible();
   // still there after moving around inside Lorebooks
   await editor(page).getByRole("button", { name: "Close" }).click();

@@ -104,7 +104,7 @@ describe("store", () => {
     const { store } = await newTestStore();
     await store.saveCharacter({ id: "c1", name: "Lyra", description: "", personality: "", scenario: "", firstMessages: [] });
     await store.saveSession({ id: "s1", title: "Mill", userRole: "player", cast: [{ characterId: "c1" }], createdAt: 1 });
-    await expect(store.deleteCharacter("c1")).rejects.toThrow(/used by 1 session.*"Mill"/);
+    await expect(store.deleteCharacter("c1")).rejects.toThrow(/used by 1 chat.*"Mill"/);
     await store.deleteSession("s1");
     await store.deleteCharacter("c1");
     expect(await store.getCharacter("c1")).toBeUndefined();

@@ -237,7 +237,7 @@ export function StImportBar() {
 
 // ---------------------------------------------------------------- the report
 export function StImportReport({ svc, report, onOpen, onClose, onUndone }: { svc: AppServices; report: StReport;
-  onOpen: (where: "characters" | "chats" | "lorebooks" | "personas" | "stories") => void; onClose: () => void; onUndone: () => void }) {
+  onOpen: (where: "characters" | "chats" | "lorebooks" | "personas" | "stories") => void; onClose: () => void; onUndone: (kept: string[]) => void }) {
   const [undoing, setUndoing] = useState<"" | "ask" | "busy">("");
   const [showAll, setShowAll] = useState(false);
   const c = report.counts;
@@ -245,7 +245,7 @@ export function StImportReport({ svc, report, onOpen, onClose, onUndone }: { svc
   const took = secs >= 60 ? `${Math.floor(secs / 60)} min ${secs % 60} s` : `${secs} s`;
   const others = c.lorebooks + c.personas + c.presets + c.regex + c.quickReplies;
   const warnings = showAll ? report.warnings : report.warnings.slice(0, 6);
-  const undo = async () => { setUndoing("busy"); await undoStImport(svc, report); onUndone(); };
+  const undo = async () => { setUndoing("busy"); const r = await undoStImport(svc, report); onUndone(r.kept); };
   return (
     <Modal title={report.cancelled ? "SillyTavern import stopped" : "SillyTavern import finished"} onClose={onClose} testId="st-report" className="modal-small sti-window"
       head={<span className="sti-steps">{report.user} · {took}</span>}>

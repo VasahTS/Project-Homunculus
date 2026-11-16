@@ -191,7 +191,7 @@ function ConnectionsSection({ c, providers, test, listModels, notify }: {
           ? <ConnectionEditor key={editing.id} initial={editing} isNew={!!draftNew} c={c} providers={providers} test={test} listModels={listModels}
               onSaved={(p) => { setDraftNew(null); setSelected(p.id); }}
               onDuplicate={(p) => setDraftNew(ConnectionProfile.parse({ ...p, id: crypto.randomUUID(), name: `${p.name} (copy)` }))}
-              onDeleted={(n) => { setSelected(c.defaultId); notify("Connection deleted", n ? [`${n} session(s) that used it now use the default connection.`] : []); }}
+              onDeleted={(n) => { setSelected(c.defaultId); notify("Connection deleted", n ? [`${n} chat(s) that used it now use the default connection.`] : []); }}
               onCancel={() => setDraftNew(null)} />
           : <div className="empty-detail"><p>Select or create a connection.</p></div>}
       </div>

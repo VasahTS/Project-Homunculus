@@ -154,6 +154,24 @@ describe("branches in a real chat", () => {
     expect(bs[0]!.endId).toBe(a.reply.id);
     expect(await w.store.getDelta(b.reply.id)).toBeUndefined();
   });
+
+  it("D-135: editing a shared message on one branch leaves the other branches as they were", async () => {
+    const w = await world(() => "reply");
+    const { session } = await w.chat.createSession({ characterIds: ["lyra"] });
+    const first = await w.chat.send(session.id, null, "hello", connection);
+    const a = await w.chat.send(session.id, first.reply.id, "path A", connection);
+    const b = await w.chat.send(session.id, first.reply.id, "path B", connection);
+    await w.store.setDelta(b.reply.id, { world: { place: "Tavern" } });
+    // "hello" is shared by both branches; edit it on branch B only
+    const r = await w.chat.editMessageOnlyHere(first.userMessage!.id, "hello there", b.reply.id, null);
+    const pathB = await w.store.pathTo(r.endId);
+    expect(pathB.map((m) => m.content)).toEqual(["hello there", "reply", "path B", "reply"]);
+    expect(pathB[0]!.id).toBe(r.editedId);
+    expect(pathB[0]!.parentId).toBe(first.userMessage!.parentId); // a new version beside the original
+    expect((await w.store.pathTo(a.reply.id)).map((m) => m.content)).toEqual(["hello", "reply", "path A", "reply"]);
+    expect(await w.core.state.resolve(session.id, r.endId)).toMatchObject({ world: { place: "Tavern" } });
+    expect(await w.store.listRevisions(r.editedId)).toHaveLength(1);
+  });
 });
 
   it("a held end is saved, and deleting its message removes the hold", async () => {

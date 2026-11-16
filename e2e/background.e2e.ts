@@ -7,8 +7,8 @@ const newChat = (page: Page) => newChatWith(page);
 
 async function rename(page: Page, name: string) {
   await page.getByTitle("Click to rename").click();
-  await page.getByLabel("Session title").fill(name);
-  await page.getByLabel("Session title").press("Enter");
+  await page.getByLabel("Chat title").fill(name);
+  await page.getByLabel("Chat title").press("Enter");
 }
 
 /** A chat in the sidebar by its name (the list reorders as chats get new messages). */
@@ -67,7 +67,7 @@ test("Stop works after coming back, and keeps what arrived", async ({ page }) =>
   await page.evaluate(() => { (globalThis as { __h2ReplyDelayMs?: number }).__h2ReplyDelayMs = 200; });
   await write(page, "Long one.");
   await chat(page, "Alpha").click();
-  await chat(page, "Session with Lyra").click();
+  await chat(page, "Chat with Lyra").click();
   await expect(page.getByTestId("streaming")).toBeVisible();
   await page.waitForTimeout(700);
   await page.getByRole("button", { name: "Stop" }).click();

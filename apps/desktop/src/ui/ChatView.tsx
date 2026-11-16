@@ -33,7 +33,7 @@ import { layerWithStyle, type Tracker } from "../trackers.ts";
 import { Inspector, type InspectorTab } from "./Inspector.tsx";
 import { PromptPane } from "./ConnectionPanel.tsx";
 import { approxTokens, fmtTokens, ReplyPane } from "./ReplyPane.tsx";
-import { Button, Group, Icon, IconButton, Row } from "./kit.tsx";
+import { Button, Group, Icon, IconButton, Row, Segmented } from "./kit.tsx";
 import { RegexReview, SessionRegex } from "./RegexScripts.tsx";
 import { QuickReplyBar, QuickReplyDrawer, SessionQuickReplies, useQuickReplyStyle, type QuickReplyHost } from "./QuickReplies.tsx";
 import { MessageText } from "./MessageText.tsx";
@@ -213,7 +213,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   }, [justBranched]);
 
   // ---- the message action bar
-  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  /** scope (D-135): a message other branches share is edited on this branch only unless "all" is picked. */
+  const [editing, setEditing] = useState<{ id: string; text: string; scope?: "here" | "all" } | null>(null);
   const [deletingMsg, setDeletingMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   /** After the next load, scroll to this message instead of the end. */
@@ -263,11 +264,16 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   async function showBranch(head: string | null, afterLoad?: () => void) {
     requestedHead.current = head;
     const seq = ++loadSeq.current;
-    const p = head ? await svc.store.pathTo(head) : [];
+    // D-135: the path and every message's versions in two reads (it was one read per message: a 2000-message chat made
+    // 2000 round trips on every open, reply, swipe and edit). Versions keep childrenOf's order (created_at, id).
+    const [p, links] = head ? await Promise.all([svc.store.pathTo(head), svc.store.messageLinks(session.id)]) : [[], []];
+    const kids = new Map<string | null, Array<{ id: string; createdAt: number }>>();
+    for (const l of links) { const list = kids.get(l.parentId); if (list) list.push(l); else kids.set(l.parentId, [l]); }
+    for (const list of kids.values()) list.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const info: Record<string, SiblingInfo> = {};
     for (const m of p) {
-      const sibs = await svc.store.childrenOf(session.id, m.parentId);
-      info[m.id] = { index: sibs.findIndex((x) => x.id === m.id), ids: sibs.map((x) => x.id) };
+      const ids = (kids.get(m.parentId) ?? [{ id: m.id, createdAt: m.createdAt }]).map((x) => x.id);
+      info[m.id] = { index: ids.indexOf(m.id), ids };
     }
     if (seq !== loadSeq.current) return; // a newer move won
     setPath(p); setSiblings(info); setHeadId(head);
@@ -523,8 +529,20 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
 
   const saveEdit = async () => {
     if (!editing) return;
-    const { id, text } = editing;
+    const { id, text, scope } = editing;
     setEditing(null);
+    const original = path.find((x) => x.id === id);
+    // D-135: shared with other branches → only this branch, unless "All branches" was picked
+    if (scope !== "all" && sharedBy(id) > 1 && headId && currentRef.current && original && original.content !== text) {
+      try {
+        const r = await svc.chat.editMessageOnlyHere(id, text, headId, currentRef.current);
+        scrollTarget.current = { id: r.editedId, block: "nearest" };
+        await setHead(r.endId);
+        onActivity();
+      } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      setSceneKey((k) => k + 1);
+      return;
+    }
     await svc.chat.editMessage(id, text);
     scrollTarget.current = { id, block: "nearest" };
     await showBranch(headId ?? null);
@@ -616,6 +634,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
       : m.speaker.kind === "character" ? charAsCast(m.speaker.characterId)?.name ?? "Character"
         : m.speaker.kind === "narrator" ? storyInfo?.name ?? "Narrator" : "System";
 
+  /** The box starts from the chat's name as it is now (D-135: a rename made in the sidebar was undone on blur). */
+  const startRename = () => { setTitle(session.title); setEditingTitle(true); };
   const commitTitle = () => {
     setEditingTitle(false);
     const t = title.trim();
@@ -718,6 +738,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   const againOn = (messageId: string) => busy ? undefined : (agentId: string) => (direction: string) => runAgentOn(agentId, messageId, direction);
   /** Messages the other branches use: they are not versions here (each branch keeps its own, like a copy would). */
   const otherUsed = new Set(branches.list.filter((b) => b !== current).flatMap((b) => b.path));
+  /** How many branches go through this message (D-135: more than one = editing it would change all of them). */
+  const sharedBy = (id: string) => branches.list.filter((b) => b.path.includes(id)).length;
   const versionsOf = (m: Message) => (siblings[m.id]?.ids ?? [m.id]).filter((id) => id === m.id || !otherUsed.has(id));
   // the Author's Note: what this chat uses (its own lines over the story's / the Defaults'), and where it sits on screen
   const noteAbove = setupProps?.noteAbove(storySetup);
@@ -739,11 +761,11 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
         <Toolbar
           lead={lead}
           title={editingTitle ? (
-            <input className="title-input" autoFocus value={title} aria-label="Session title"
+            <input className="title-input" autoFocus value={title} aria-label="Chat title"
               onChange={(e) => setTitle(e.target.value)} onBlur={commitTitle}
               onKeyDown={(e) => { if (e.key === "Enter") commitTitle(); if (e.key === "Escape") { setTitle(session.title); setEditingTitle(false); } }} />
           ) : (
-            <button className="title-btn" title="Click to rename" onClick={() => setEditingTitle(true)}>{session.title}</button>
+            <button className="title-btn" title="Click to rename" onClick={() => startRename()}>{session.title}</button>
           )}
           subtitle={<>
             {branches.list.length > 0 && (
@@ -774,7 +796,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             {onOpenStory && <Button className="story-page-btn" onClick={onOpenStory} data-testid="story-page-button">Story Page</Button>}
             {/* an icon (29/10): the words took the room of the title, branch and "with …" in narrow windows */}
             {/* UX review item 6 (D-078): deleting no longer sits beside everyday buttons; it is in the chat's ⋯ menu */}
-            <ChatMenu onRename={() => setEditingTitle(true)} onDelete={onDelete}
+            <ChatMenu onRename={() => startRename()} onDelete={onDelete}
               onExportMarkdown={headId ? () => onExportMarkdown(headId) : undefined} />
             <IconButton label={inspectorOpen ? "Hide Inspector" : "Show Inspector"} onClick={onToggleInspector} aria-pressed={inspectorOpen}>
               <Icon name="inspector" size={17} />
@@ -866,10 +888,16 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
                   {isEditing ? (
                     <div className="msg-edit">
                       <textarea autoFocus aria-label="Edit the message" value={editing.text} rows={Math.min(14, Math.max(3, editing.text.split("\n").length + 1))}
-                        onChange={(e) => setEditing({ id: m.id, text: e.target.value })}
+                        onChange={(e) => setEditing({ ...editing, text: e.target.value })}
                         onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void saveEdit(); }} />
                       <span className="row-line end">
-                        <span className="hint grow">Ctrl+Enter saves a revision.</span>
+                        {sharedBy(m.id) > 1 ? (
+                          <span className="grow edit-scope" data-testid="edit-scope">
+                            <span className="hint">Shared by {sharedBy(m.id)} branches</span>
+                            <Segmented small label="Where the edit applies" value={editing.scope ?? "here"} onChange={(scope) => setEditing({ ...editing, scope })}
+                              options={[{ value: "here", label: "This Branch Only", testId: "edit-scope-here" }, { value: "all", label: `All ${sharedBy(m.id)} Branches`, testId: "edit-scope-all" }]} />
+                          </span>
+                        ) : <span className="hint grow">Ctrl+Enter saves a revision.</span>}
                         <Button small onClick={() => setEditing(null)}>Cancel</Button>
                         <Button small variant="prominent" onClick={() => void saveEdit()} data-testid="save-edit">Save</Button>
                       </span>
@@ -941,16 +969,20 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             {path.length === 0 && !busy && headId !== undefined && (
               <li className="empty-chat">No messages yet. Write the first one below.</li>
             )}
+            {/* D-135: drawn in the same shape as a saved message (picture column, a held place for the actions), so nothing
+                jumps when the reply is saved */}
             {pending?.userText !== undefined && (
               <li className="msg user fresh" data-testid="message">
+                {prefs.avatarShape !== "hidden" && <div className="msg-side"><CardPicture className="chat-avatar" name={persona?.name ?? "You"} avatar={personaPicture} /></div>}
                 <div className="msg-body">
                   <div className="who">{persona?.name ?? "You"}</div>
                   <div className="text">{pending.userText}</div>
                 </div>
+                <div className="tools msg-actions msg-actions-hold" aria-hidden />
               </li>
             )}
             {pending && (
-              <StreamingReply sessionId={session.id} fallback={pending} storyInfo={storyInfo} leadName={leadChar?.name} memStatus={memStatus}
+              <StreamingReply sessionId={session.id} fallback={pending} storyInfo={storyInfo} leadName={leadChar?.name} leadAvatar={avatars[session.cast[0]?.characterId ?? ""]} memStatus={memStatus}
                 avatarShape={prefs.avatarShape} thinking={prefs.thinking} smooth={prefs.smoothText} smoothSpeed={prefs.smoothSpeed} show={show} onGrow={onReplyGrow} />
             )}
           </ol>
@@ -1248,8 +1280,8 @@ function useFrameValue(value: string): string {
  * The reply being written (D-122): the only part of the chat that follows every word. It used to be drawn by ChatView,
  * so each token re-rendered the whole chat (every message on screen, the inspector).
  */
-function StreamingReply({ sessionId, fallback, storyInfo, leadName, memStatus, avatarShape, thinking, smooth, smoothSpeed, show, onGrow }: {
-  sessionId: string; fallback: Pending; storyInfo?: { name: string; avatar?: Avatar | undefined } | undefined; leadName?: string | undefined; memStatus?: string | undefined | null;
+function StreamingReply({ sessionId, fallback, storyInfo, leadName, leadAvatar, memStatus, avatarShape, thinking, smooth, smoothSpeed, show, onGrow }: {
+  sessionId: string; fallback: Pending; storyInfo?: { name: string; avatar?: Avatar | undefined } | undefined; leadName?: string | undefined; leadAvatar?: Avatar | undefined; memStatus?: string | undefined | null;
   avatarShape: string; thinking: string; smooth: boolean; smoothSpeed: number; show: (t: string) => string; onGrow: () => void;
 }) {
   const live = useTurn(sessionId);
@@ -1263,15 +1295,18 @@ function StreamingReply({ sessionId, fallback, storyInfo, leadName, memStatus, a
   useEffect(() => { grow.current(); }, [liveText, reasoning]);
   return (
     <li className={`msg ${storyInfo ? "narrator" : "character"} streaming fresh`} data-testid="streaming">
-      {storyInfo && avatarShape !== "hidden" && <div className="msg-side"><CardPicture className="chat-avatar" name={storyInfo.name} avatar={storyInfo.avatar} /></div>}
-      <div className="who">{storyInfo?.name ?? leadName ?? "…"} {!text && !reasoning && memStatus?.startsWith("Recalling") ? <span className="hint" data-testid="memory-recalling">{memStatus}</span> : reasoning && !text ? "is thinking…" : "is writing…"}</div>
-      {reasoning && thinking !== "hidden" && (
-        <details className="reasoning" data-testid="reasoning-live" open={thinking === "open" || undefined}>
-          <summary>Reasoning</summary>
-          <div className="reasoning-text">{reasoning}</div>
-        </details>
-      )}
-      <div className="text prose">{text ? <MessageText text={show(liveText)} richHtml /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
+      {avatarShape !== "hidden" && <div className="msg-side"><CardPicture className="chat-avatar" name={storyInfo?.name ?? leadName ?? "…"} avatar={storyInfo ? storyInfo.avatar : leadAvatar} /></div>}
+      <div className="msg-body">
+        <div className="who">{storyInfo?.name ?? leadName ?? "…"} {!text && !reasoning && memStatus?.startsWith("Recalling") ? <span className="hint" data-testid="memory-recalling">{memStatus}</span> : reasoning && !text ? "is thinking…" : "is writing…"}</div>
+        {reasoning && thinking !== "hidden" && (
+          <details className="reasoning" data-testid="reasoning-live" open={thinking === "open" || undefined}>
+            <summary>Reasoning</summary>
+            <div className="reasoning-text">{reasoning}</div>
+          </details>
+        )}
+        <div className="text prose">{text ? <MessageText text={show(liveText)} richHtml /> : <span className="typing" aria-label="waiting for the reply"><i /><i /><i /></span>}</div>
+      </div>
+      <div className="tools msg-actions msg-actions-hold" aria-hidden />
     </li>
   );
 }

@@ -160,6 +160,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .msg.user { justify-self: end; max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
 .msg.user > .msg-body { padding: 10px 14px; border-radius: var(--radius-group); background: var(--fill); max-width: 100%; min-width: 0; }
 .msg.user > .msg-body:has(.msg-edit) { width: min(560px, 100%); }
+.edit-scope { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; } /* D-135 */
 .msg.user > .tools { margin-top: 4px; }
 .msg.user .who { color: var(--label-2); font-weight: 600; font-size: var(--size-small); }
 .msg.user .text { font-size: 14px; }
@@ -1326,6 +1327,8 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .from-card dd { margin: 0; color: var(--label); }
 .modal-foot { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--separator); flex-wrap: wrap; }
 .modal-foot .grow { flex: 1; }
+/* D-135: a long window keeps its buttons in sight (New Story's Create Story sat below the screen at 1366×768) */
+.modal-body > .modal-foot { position: sticky; bottom: -20px; z-index: 2; margin-bottom: -20px; padding-bottom: 20px; background: var(--window); }
 .ready { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; color: var(--label-2); font-size: var(--size-small); }
 .ready strong { color: var(--label); }
 .ok { color: var(--ok); }
@@ -1411,6 +1414,7 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 /* the message action bar */
 .msg-actions { gap: 2px; flex-wrap: wrap; }
 .msg-actions .swipes { margin-right: 10px; }
+.msg-actions-hold { min-height: 30px; pointer-events: none; } /* D-135: the place the actions take once the message is saved */
 .msg-actions .swipes b { padding: 2px 8px; margin-right: 2px; border-radius: var(--radius-pill); background: var(--fill); color: var(--label); font-weight: 600; }
 .msg-actions .swipes button { background: transparent; }
 .msg-actions .swipes button:hover:not(:disabled) { background: var(--fill); }
@@ -1843,7 +1847,7 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .collection-page .vs-pic-pick .ip-letter { width: 100% !important; height: 220px !important; font-size: 64px !important; }
 .collection-page .folders { margin-bottom: 10px; }
 .collection-heading { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; color: var(--label-2); font-size: var(--size-small); margin: 0 0 -3px; }
-.collection-heading h2 { margin: 0; font-size: var(--size-ui); color: var(--label); font-weight: 600; }
+.collection-heading h2 { margin: 0 auto 0 0; font-size: var(--size-ui); color: var(--label); font-weight: 600; } /* D-135: left, even after the pager's anchor */
 @media (max-width: 1200px) {
   .collection-page, .library-workspace { --collection-gutter: 24px; --collection-gap: 20px; --collection-card-min: 210px; }
   .library-workspace-content .master { flex-basis: 180px; }

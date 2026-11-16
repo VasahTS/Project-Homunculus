@@ -91,6 +91,15 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
     made: { characters: [], lorebooks: [], personas: [], presets: [], sessions: [], stories: [], regex: [], quickReplies: [] },
   };
   const warn = (kind: StKind, text: string) => report.warnings.push({ kind, text });
+  // D-135: an item an earlier import brought is skipped while it exists — also when you moved it to the Trash (you took
+  // it out on purpose; it is not brought back). Only items deleted for good come in again.
+  let inTrash = 0;
+  const known = async (kind: Parameters<typeof store.whereIs>[0], id: string | undefined) => {
+    if (!id) return false;
+    const w = await store.whereIs(kind, id);
+    if (w === "trash") inTrash++;
+    return w !== "gone";
+  };
   const save = () => store.setAppSetting(ST_IMPORTED_KEY, imported);
   const stop = async () => { if (await waitIfPaused(control)) { report.cancelled = true; return true; } return false; };
 
@@ -123,7 +132,7 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
       if (await stop()) return finish();
       const file = base(path);
       onProgress({ stage: "Lorebooks", done: i, total: list.length, detail: stem(file) });
-      if (imported.lorebooks[file] && await store.lorebooks.get(imported.lorebooks[file]!)) { report.counts.alreadyHere++; continue; }
+      if (await known("lorebook", imported.lorebooks[file])) { report.counts.alreadyHere++; continue; }
       try {
         const r = importStLorebook(await src.read(path), file);
         const saved = await store.saveLorebook({ ...r.lorebook, id: crypto.randomUUID() }, { isNew: true });
@@ -160,7 +169,7 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
       const defaultLayer = await store.getDefaultSetup();
       for (const p of r.personas) {
         const key = str((p.persona.original as Obj | undefined)?.avatarId);
-        if (key && imported.personas[key] && await store.personas.get(imported.personas[key]!)) { report.counts.alreadyHere++; continue; }
+        if (key && await known("persona", imported.personas[key])) { report.counts.alreadyHere++; continue; }
         const lore = str((p.persona.original as Obj | undefined)?.lorebook);
         const loreId = lore ? bookId(lore) : undefined;
         if (loreId) report.links.personas++;
@@ -184,7 +193,7 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
       if (await stop()) return finish();
       const file = base(path);
       onProgress({ stage: "Presets", done: i, total: scan.presets.length, detail: stem(file) });
-      if (imported.presets[file] && await store.presets.get(imported.presets[file]!)) { report.counts.alreadyHere++; continue; }
+      if (await known("preset", imported.presets[file])) { report.counts.alreadyHere++; continue; }
       try {
         const r = importStPreset(await src.read(path), file);
         const saved = await store.savePreset({ ...r.preset, id: crypto.randomUUID() });
@@ -251,7 +260,7 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
       if (await stop()) return finish();
       const file = base(path);
       onProgress({ stage: "Characters", done: i, total: scan.cards.length, detail: stem(file) });
-      if (imported.cards[file] && await store.getCharacter(imported.cards[file]!)) { report.counts.alreadyHere++; continue; }
+      if (await known("character", imported.cards[file])) { report.counts.alreadyHere++; continue; }
       try {
         const [r] = await importCharacterFile(svc, await src.read(path), file, {
           source: { site: "sillytavern", id: file, url: "", addedAt: Date.now() },
@@ -290,7 +299,7 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
   const saveChats = async (groupKey: string, files: ParsedStChat[], make: (main: ParsedStChat) => { session: Omit<Session, "setup"> & { setup?: SetupLayer }; speakerOf: (l: ParsedStChat["lines"][number]) => Speaker }) => {
     for (const g of groupStChats(files)) {
       const key = `${groupKey}/${g.main.name}`;
-      if (imported.chats[key] && await store.getSession(imported.chats[key]!)) { report.counts.alreadyHere++; continue; }
+      if (await known("session", imported.chats[key])) { report.counts.alreadyHere++; continue; }
       const { session, speakerOf } = make(g.main);
       const built = buildStChatTree(g, { sessionId: session.id, speakerOf });
       if (built.messages.length === 0) continue;
@@ -309,10 +318,13 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
     const total = owners.reduce((n, o) => n + scan.chats[o]!.length, 0);
     let done = 0;
     let missingCards = 0;
+    let trashedCards = 0;
     for (const owner of owners) {
       const characterId = charByFile.get(owner);
       const paths = scan.chats[owner]!;
-      if (!characterId || !(await store.getCharacter(characterId))) { missingCards += paths.length; done += paths.length; continue; }
+      if (!characterId || (await store.whereIs("character", characterId)) === "gone") { missingCards += paths.length; done += paths.length; continue; }
+      // D-135: the card is in the Trash: its chats would hang on a character you took out
+      if ((await store.whereIs("character", characterId)) === "trash") { trashedCards += paths.length; done += paths.length; continue; }
       const files: ParsedStChat[] = [];
       for (const path of paths) {
         if (await stop()) return finish();
@@ -329,6 +341,7 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
       } catch (e) { warn("chats", `${owner}: ${(e as Error).message}`); }
       await save();
     }
+    if (trashedCards) warn("chats", `${trashedCards} chat file${trashedCards === 1 ? "" : "s"} belong to cards in the Trash: left out. Restore the card and import again to bring them.`);
     if (missingCards) warn("chats", `${missingCards} chat file${missingCards === 1 ? "" : "s"} belong to cards that are not in the folder (deleted in SillyTavern) or were not imported: left out.`);
   }
 
@@ -344,8 +357,14 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
       const members = (Array.isArray(g.members) ? g.members : []).map(String);
       const disabled = new Set((Array.isArray(g.disabled_members) ? g.disabled_members : []).map(String));
       const cast = members.map((m) => ({ file: m, id: charByFile.get(stem(m)) })).filter((m): m is { file: string; id: string } => !!m.id);
+      // D-135: a group with a card you moved to the Trash stays out (its lines would hang on a character you took out)
+      let trashedMember = false;
+      for (const m of cast) if ((await store.whereIs("character", m.id)) === "trash") trashedMember = true;
+      if (trashedMember) { warn("groups", `${str(g.name) || gid}: one of its characters is in the Trash, left out. Restore the card and import again to bring it.`); continue; }
       if (!cast.length) { warn("groups", `${str(g.name) || gid}: none of its characters came in, left out.`); continue; }
       let storyId = imported.groups[gid];
+      // D-135: a story you moved to the Trash stays out, with its chats
+      if (storyId && (await store.whereIs("story", storyId)) === "trash") { inTrash++; continue; }
       let story = storyId ? await store.stories.get(storyId) : undefined;
       if (!story) {
         story = await store.stories.save({
@@ -387,6 +406,7 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
   return finish();
 
   function finish(): StReport {
+    if (inTrash) warn("characters", `${inTrash} item${inTrash === 1 ? "" : "s"} an earlier import brought ${inTrash === 1 ? "is" : "are"} in the Trash: left out. Restore ${inTrash === 1 ? "it" : "them"} from the Trash if you want ${inTrash === 1 ? "it" : "them"} back.`);
     report.endedAt = Date.now();
     void save();
     return report;
@@ -394,18 +414,27 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
 }
 
 /** Undo This Import: everything the run made goes to the Trash (regex scripts and Quick Reply sets are removed). */
-export async function undoStImport(svc: Pick<AppServices, "store">, report: StReport): Promise<void> {
+export async function undoStImport(svc: Pick<AppServices, "store">, report: StReport): Promise<{ kept: string[] }> {
   const store = svc.store;
+  // D-135: what could not go to the Trash (e.g. a card you used in a new story since) stays, is remembered, and is named
+  const kept: string[] = [];
+  const keptIds = new Set<string>();
+  const trash = async (kind: Parameters<typeof store.moveToTrash>[0], id: string, label: string) => {
+    try { await store.moveToTrash(kind, id); } catch (e) { keptIds.add(id); kept.push(`${label}: ${e instanceof Error ? e.message : String(e)}`); }
+  };
+  const nameOf = async (kind: "character" | "persona" | "preset" | "lorebook", id: string) =>
+    (kind === "character" ? (await store.getCharacter(id))?.name : kind === "persona" ? (await store.personas.get(id))?.name
+      : kind === "preset" ? (await store.presets.get(id))?.name : (await store.lorebooks.get(id))?.name) ?? "An item";
   // chats first (a character used by a chat can't be trashed before it)
-  for (const id of report.made.sessions) await store.moveToTrash("session", id).catch(() => {});
-  for (const id of report.made.stories) await store.moveToTrash("story", id).catch(() => {});
-  for (const id of report.made.characters) await store.moveToTrash("character", id).catch(() => {});
+  for (const id of report.made.sessions) await trash("session", id, (await store.getSession(id))?.title ?? "A chat");
+  for (const id of report.made.stories) await trash("story", id, (await store.stories.get(id))?.name ?? "A story");
+  for (const id of report.made.characters) await trash("character", id, await nameOf("character", id));
   if (report.defaultPersona && (await store.getDefaultSetup()).personaId === report.defaultPersona) {
     await store.setDefaultSetup({ ...(await store.getDefaultSetup()), personaId: null, personaVariantId: null });
   }
-  for (const id of report.made.personas) await store.moveToTrash("persona", id).catch(() => {});
-  for (const id of report.made.presets) await store.moveToTrash("preset", id).catch(() => {});
-  for (const id of report.made.lorebooks) await store.moveToTrash("lorebook", id).catch(() => {});
+  for (const id of report.made.personas) await trash("persona", id, await nameOf("persona", id));
+  for (const id of report.made.presets) await trash("preset", id, await nameOf("preset", id));
+  for (const id of report.made.lorebooks) await trash("lorebook", id, await nameOf("lorebook", id));
   if (report.made.regex.length) {
     const gone = new Set(report.made.regex);
     await store.setGlobalRegex((await store.getGlobalRegex()).filter((x) => !gone.has(x.id)));
@@ -418,17 +447,18 @@ export async function undoStImport(svc: Pick<AppServices, "store">, report: StRe
   // global lorebooks that pointed at trashed books
   const layer = await store.getDefaultSetup();
   if (layer.lorebooks && layer.lorebooks.mode !== "keep") {
-    const gone = new Set(report.made.lorebooks);
+    const gone = new Set(report.made.lorebooks.filter((x) => !keptIds.has(x)));
     await store.setDefaultSetup({ ...layer, lorebooks: { ...layer.lorebooks, add: layer.lorebooks.add.filter((x) => !gone.has(x)) } });
   }
-  // forget them, so importing again brings them back
+  // forget what went, so importing again brings it back; what stayed is still remembered (no second copy next time)
   const imported: StImported = { ...EMPTY_IMPORTED, ...((await store.getAppSetting<StImported>(ST_IMPORTED_KEY)) ?? {}) };
-  const madeIds = new Set(Object.values(report.made).flat());
+  const madeIds = new Set(Object.values(report.made).flat().filter((id) => !keptIds.has(id)));
   for (const k of ["cards", "lorebooks", "personas", "presets", "chats", "groups", "regex"] as const) {
     imported[k] = Object.fromEntries(Object.entries(imported[k]).filter(([, id]) => !madeIds.has(id)));
   }
   imported.quickReplies = Object.fromEntries(Object.entries(imported.quickReplies).filter(([, ids]) => !ids.some((id) => madeIds.has(id))));
   await store.setAppSetting(ST_IMPORTED_KEY, imported);
+  return { kept };
 }
 
 /** How many of each kind an earlier import already brought (for "already here" on the What-was-found step). */

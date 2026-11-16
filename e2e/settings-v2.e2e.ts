@@ -44,7 +44,7 @@ test("Chat settings change the chat: time, number, tokens, swipe arrows and thin
   for (const name of ["Date and time", "Message number", "Token counts"]) await page.getByRole("switch", { name, exact: true }).click();
   await page.getByRole("radiogroup", { name: "Model thinking" }).getByRole("radio", { name: "Hidden" }).click();
   await page.getByRole("radiogroup", { name: "Text width" }).getByRole("radio", { name: "Wide" }).click();
-  await page.getByRole("button", { name: /Session with Lyra/ }).first().click();
+  await page.getByRole("button", { name: /Chat with Lyra/ }).first().click();
   const again = page.getByTestId("message").last();
   await expect(again).toContainText("The gate creaks.");
   await expect(again.getByTestId("message-time")).toHaveCount(0);

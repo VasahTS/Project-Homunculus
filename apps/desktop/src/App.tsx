@@ -157,8 +157,13 @@ async function renameOldStoryChats(s: AppServices) {
 /** Every chat's path length and branch count, kept between starts (D-130). */
 const CHAT_STATS_KEY = "chatStatsCache";
 /** The first read of the library, shared by the start's effect if React runs it twice (D-132). */
-let firstLoad: Promise<{ s: AppServices; p: Awaited<ReturnType<typeof loadPrefs>>; ss: Session[] }> | null = null;
+let firstLoad: Promise<{ s: AppServices; p: Awaited<ReturnType<typeof loadPrefs>>; ss: Session[]; played: Record<string, number> }> | null = null;
 const NO_ROWS: ChatRow[] = [];
+/** Chats with the one played last first (its newest message; a chat without messages counts from when it was made). D-135:
+ *  the store's order is "changed last", so a rename, a setting or an import moved a chat to the top. */
+function byPlay(ss: Session[], played: Record<string, number>): Session[] {
+  return [...ss].sort((a, b) => (played[b.id] ?? b.createdAt) - (played[a.id] ?? a.createdAt));
+}
 
 export function App() {
   const navigate = useGuardedNavigation();
@@ -548,7 +553,8 @@ export function App() {
     const stale = ss.filter((x) => cache.get(x.id)?.sig !== sigOf(x.id)).map((x) => x.id);
     for (const id of stale) cache.delete(id);
     publish();
-    if (!stale.length) return;
+    const played = Object.fromEntries(ss.map((x) => [x.id, latest.get(x.id)?.createdAt ?? x.createdAt]));
+    if (!stale.length) return played;
     const work = async () => {
       for (let i = 0; i < stale.length; i += 100) {
         if (run !== chatStatsRun.current) return; // a newer look started
@@ -571,6 +577,7 @@ export function App() {
     };
     // a few chats (a new message, a rename): at once; many (the first start): in the background
     if (stale.length <= 20) await work(); else void work();
+    return played;
   }, []);
 
   /** After a change to chats only (rename, setup, new chat): the chats and their lines, nothing else (D-122). */
@@ -604,8 +611,8 @@ export function App() {
     setAgents(ags);
     setCues(cueList);
     cueNames.clear(); for (const c of cueList) cueNames.set(c.id, c.name);
-    await Promise.all([bootPart("stories & folders & pictures", refreshVault(s)), bootPart("chat lines", loadChatStats(s, ss))]);
-    return { ss, cs };
+    const [, played] = await Promise.all([bootPart("stories & folders & pictures", refreshVault(s)), bootPart("chat lines", loadChatStats(s, ss))]);
+    return { ss, cs, played };
   }, [refreshVault, loadChatStats]);
 
   useEffect(() => {
@@ -618,15 +625,16 @@ export function App() {
       void initAgentGroups(s.store);
       // Settings → Data (D-082): items in the Trash longer than chosen leave for good (ones still in use stay)
       if (p.emptyTrashDays > 0) await bootPart("trash cleanup", s.store.emptyTrashOlderThan(Date.now() - p.emptyTrashDays * 86_400_000).catch(() => 0));
-      const { ss } = await refresh(s);
+      const { ss, played } = await refresh(s);
       bootMark("library");
-      return { s, p, ss };
+      return { s, p, ss, played };
     });
-    firstLoad.then(({ s, p, ss }) => {
+    firstLoad.then(({ s, p, ss, played }) => {
       if (cancelled) return;
       setSvc(s);
       requestAnimationFrame(() => requestAnimationFrame(() => bootMark("shown")));
-      setActiveId(ss[0]?.id ?? null);
+      // D-135: the chat played last (its newest message), not the one changed last (a rename, a setting, an import)
+      setActiveId(byPlay(ss, played)[0]?.id ?? null);
       // Settings → General: where the app opens
       setHomeOpen(p.openAt === "home");
       if (p.openAt === "stories") setViewNow({ kind: "vault", tab: "stories", id: null });
@@ -729,6 +737,8 @@ export function App() {
     })();
     return () => { live = false; };
   }, [mode, svc]);
+  /** The chats, played last first (D-135): the sidebar's Recent, Home and its stories follow this order. */
+  const sessionsByPlay = useMemo(() => byPlay(sessions, lastTimes), [sessions, lastTimes]);
   // D-130: worked out when chats or characters change, not on every redraw (1700+ chats × 600+ characters)
   const byIdMemo = useMemo(() => Object.fromEntries(characters.map((c) => [c.id, c])) as Record<string, Character>, [characters]);
   const chatRowsByCharacter = useMemo(() => {
@@ -820,7 +830,7 @@ export function App() {
     const c = byId[characterId];
     const label = variantId ? c?.variants.find((v) => v.id === variantId)?.label : undefined;
     const { session } = await svc.chat.createSession({
-      title: `Session with ${c?.name ?? "…"}${label ? ` (${label})` : ""}`, cast: [{ characterId, variantId }],
+      title: `Chat with ${c?.name ?? "…"}${label ? ` (${label})` : ""}`, cast: [{ characterId, variantId }],
     });
     await refresh(svc); // a new chat is rare: a full look (also catches changes made outside the screens)
     setActiveId(session.id);
@@ -900,7 +910,7 @@ export function App() {
     turns.stop(active.id); // a reply still being written there stops
     await toTrash("session", active.id, active.title);
     const ss = await svc.store.listSessions();
-    setActiveId(ss[0]?.id ?? null);
+    setActiveId(byPlay(ss, lastTimes)[0]?.id ?? null);
   };
 
   const defaultPresetId = defaultSetup.presetId ?? DEFAULT_PRESET.id;
@@ -1525,14 +1535,15 @@ export function App() {
   /** The chats of a story as their cards show them, the one played last first. */
   const loadStoryChats = async (st: Story): Promise<StoryChat[]> => {
     const openings = st.openings.some((o) => o.trim()) ? st.openings : greetingsOf(st);
-    const out: StoryChat[] = [];
-    for (const x of sessionsOfStory(st.id)) {
-      const latest = await svc.store.latestMessage(x.id);
-      const path = latest ? await svc.store.pathTo(latest.id) : [];
-      const first = path[0]?.content.trim();
+    // D-135: one read for every chat's opening; length, time and branches are the ones the sidebar already has (it read
+    // each chat's whole path and its branches, one chat after another)
+    const chats = sessionsOfStory(st.id);
+    const firsts = await svc.store.openingsOf(chats.map((x) => x.id));
+    const out: StoryChat[] = chats.map((x) => {
+      const first = firsts.get(x.id)?.trim();
       const i = first ? openings.findIndex((o) => o.trim() === first) : -1;
-      out.push({ session: x, lastLine: lastLines[x.id] ?? "", messages: path.length, when: latest?.createdAt ?? x.createdAt, opening: i >= 0 ? i : null, changes: changesIn(x.setup), branches: await branchCountOf(svc, x.id) });
-    }
+      return { session: x, lastLine: lastLines[x.id] ?? "", messages: messageCounts[x.id] ?? 0, when: lastTimes[x.id] ?? x.createdAt, opening: i >= 0 ? i : null, changes: changesIn(x.setup), branches: branchCounts[x.id] ?? 0 };
+    });
     return out.sort((a, b) => b.when - a.when);
   };
 
@@ -1845,7 +1856,7 @@ export function App() {
   const backSession = loreBack ? sessions.find((x) => x.id === loreBack) : undefined;
   const loreLead = backSession ? (
     <>{lead}<Button small variant="plain" className="back-btn" onClick={() => { setActiveId(backSession.id); setView({ kind: "session" }); }}
-      title="Back to the session you came from"><Icon name="chevron" size={12} /> {backSession.title}</Button></>
+      title="Back to the chat you came from"><Icon name="chevron" size={12} /> {backSession.title}</Button></>
   ) : lead;
   const noticeBar = notice && (
     <div className={`notice ${notice.kind}`} role="status" data-testid="notice">
@@ -2275,7 +2286,14 @@ export function App() {
         onToggleInspector={toggleInspector}
         onActivity={() => {
           void svc.store.listSessions().then(setSessions);
-          void svc.store.latestMessage(active.id).then((m) => { if (m) setLastLines((l) => ({ ...l, [active.id]: lastLineOf(m.content) })); });
+          // D-135: the time and length too (the sidebar kept showing the time of the message before)
+          void svc.store.latestMessage(active.id).then(async (m) => {
+            if (!m) return;
+            setLastLines((l) => ({ ...l, [active.id]: lastLineOf(m.content) }));
+            setLastTimes((t) => ({ ...t, [active.id]: m.createdAt }));
+            const n = (await svc.store.pathIdsTo(m.id).catch(() => null))?.length;
+            if (n !== undefined) setMessageCounts((c) => ({ ...c, [active.id]: n }));
+          });
           void branchCountOf(svc, active.id).then((n) => setBranchCounts((c) => ({ ...c, [active.id]: n })));
         }}
         onOpenChat={async (id) => { await refresh(svc); setActiveId(id); setView({ kind: "session" }); }}
@@ -2311,7 +2329,7 @@ export function App() {
       <div className="page">
         <Toolbar lead={lead} title="Homunculus" />
         <div className="empty-detail">
-          <p>No session open.</p>
+          <p>No chat open.</p>
           <p className="hint">Open Characters and start a chat from a character's sheet, or a story from Stories → New Story.</p>
         </div>
       </div>
@@ -2370,7 +2388,7 @@ export function App() {
   const backSessionOnHome = activeId ? sessions.find((x) => x.id === activeId) : undefined;
   if (homeOpen) return (
     <div className="app home-mode" data-region="app">
-      <HomePage sessions={sessions} stories={stories} characters={characters} avatars={avatars} lastLines={lastLines} lastTimes={lastTimes} messageCounts={messageCounts}
+      <HomePage sessions={sessionsByPlay} stories={stories} characters={characters} avatars={avatars} lastLines={lastLines} lastTimes={lastTimes} messageCounts={messageCounts}
         counts={{ lorebooks: lorebooks.length, presets: presets.length, trackers: trackers.length, personas: personas.length }}
         backTo={mode === "assistant" ? "the Assistant" : view.kind === "session" ? (backSessionOnHome?.title ?? null)
           : ({ settings: "Settings", characters: "Characters", "card-browser": "the Card Browser", story: "the Story", vault: "the Vault" } as Partial<Record<View["kind"], string>>)[view.kind] ?? (libraryCategory ? "the Library" : "where you were")}
@@ -2412,7 +2430,7 @@ export function App() {
             ...agents.map((a) => ({ id: `agent:${a.id}`, name: a.name, kind: "Agent", onOpen: () => openAgent(a.id) })),
           ]}
           onOpenStories={() => { setVaultQuery(""); setView({ kind: "vault", tab: "stories", id: null }); }}
-          sessions={sessions}
+          sessions={sessionsByPlay}
           stories={stories}
           characters={characters}
           avatars={avatars}
@@ -2447,7 +2465,9 @@ export function App() {
         <StImportBar />
         {stOpen && <StImportWindow svc={svc} onClose={() => setStOpen(false)} onDone={() => void refresh(svc)} />}
         {stRun.phase === "done" && <StImportReport svc={svc} report={stRun.report} onOpen={stReportOpen} onClose={() => stImportRun.clear()}
-          onUndone={() => { stImportRun.clear(); void refresh(svc); setNotice({ kind: "ok", title: "Import undone", lines: ["Everything it made is in the Trash."] }); }} />}
+          onUndone={(kept) => { stImportRun.clear(); void refresh(svc); setNotice(kept.length
+            ? { kind: "warn", title: "Import undone, with exceptions", lines: ["The rest is in the Trash. These stayed:", ...kept.slice(0, 8), ...(kept.length > 8 ? [`…and ${kept.length - 8} more.`] : [])] }
+            : { kind: "ok", title: "Import undone", lines: ["Everything it made is in the Trash."] }); }} />}
         {conflictOf && byId[conflictOf] && (() => { const s = linkedSource(conflictOf); const mine = byId[conflictOf]!; return s ? (
           <LinkedConflictSheet mine={mine} folderName={s.folder.name} onClose={() => setConflictOf(null)} onChoose={(c) => void resolveConflict(conflictOf, c)}
             load={async () => (await compareLinked(svc, s.src, s.where.path))?.file ?? null} />) : null; })()}

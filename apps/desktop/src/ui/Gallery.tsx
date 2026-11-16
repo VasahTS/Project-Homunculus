@@ -197,7 +197,7 @@ export function CharacterGallery({ lead, tabs, title = "Library", characters, av
         <div className={`gallery-grid${prefs ? ` portrait size-${prefs.size}` : ""}`}>
           {!searching && !everything && folders}
           {searching && onOpenFolder && <FolderHits hits={hits} onOpen={(id) => { setQ(""); onOpenFolder(id); }} />}
-          <div className="collection-heading"><PagerTop id="character-pager" /><h2>{searching ? "Search results" : everything ? "Every character" : "Your characters"}</h2><span>{shown.length} characters</span></div>
+          <div className="collection-heading"><PagerTop id="character-pager" /><h2>{searching ? "Search results" : everything ? "Every character" : "Your characters"}</h2><span>{shown.length} {shown.length === 1 ? "character" : "characters"}</span></div>
           {/* one page at a time (D-130), and of that page only the rows on screen when it is long (D-121) */}
           <VirtualCards items={paged.items} boxRef={cards} testId="character-list" layoutKey={`${prefs?.size ?? ""} ${prefs?.view ?? ""}`} render={(c) => (
             <GalleryCard key={c.id} name={c.name} avatar={avatars[c.id]} selected={c.id === selectedId} onClick={() => onSelect(c.id)} dragId={c.id}

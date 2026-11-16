@@ -341,22 +341,15 @@ export interface TrackerSample { sessionId: string; sessionName: string; values:
  * show what the panel will look like with real data. Null when it never ran.
  */
 export async function sampleFor(svc: AppServices, trackerId: string): Promise<TrackerSample | null> {
-  for (const s of await svc.store.listSessions()) {
-    // the newest message of the session: follow the newest reply at every step
-    let head: string | null = null;
-    for (let parent: string | null = null, guard = 0; guard < 5000; guard++) {
-      const kids = await svc.store.childrenOf(s.id, parent);
-      if (!kids.length) break;
-      parent = kids.reduce((a, b) => (b.createdAt >= a.createdAt ? b : a)).id;
-      head = parent;
-    }
-    if (!head) continue;
-    const values = (await svc.core.state.resolve(s.id, head))[trackerId];
-    if (values && typeof values === "object" && Object.keys(values).length) {
-      return { sessionId: s.id, sessionName: s.title, values: values as Record<string, unknown>, cast: await castOf(svc.store, s) };
-    }
-  }
-  return null;
+  // D-135: one query finds where the tracker last wrote (it walked every chat one message at a time: with a big library,
+  // opening a tracker made hundreds of thousands of reads in the background)
+  const at = await svc.store.latestStateWrite(trackerId);
+  if (!at) return null;
+  const s = await svc.store.getSession(at.sessionId);
+  if (!s) return null;
+  const values = (await svc.core.state.resolve(s.id, at.messageId))[trackerId];
+  if (!values || typeof values !== "object" || !Object.keys(values).length) return null;
+  return { sessionId: s.id, sessionName: s.title, values: values as Record<string, unknown>, cast: await castOf(svc.store, s) };
 }
 
 const NOTES_KEY = "starterTrackersNotes";

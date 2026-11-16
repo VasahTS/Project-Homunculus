@@ -22,7 +22,7 @@ test("create a character, then start a session with them", async ({ page }) => {
 
   await page.getByLabel("Character editor").getByRole("button", { name: "Chat Now" }).click();
   await expect(sessions(page)).toHaveCount(2);
-  await expect(sessions(page).first()).toContainText("Session with Corvin");
+  await expect(sessions(page).first()).toContainText("Chat with Corvin");
   await expect(page.getByTestId("message").first()).toContainText("Room's two silver.");
 });
 
@@ -44,7 +44,7 @@ test("switch between sessions keeps each conversation separate", async ({ page }
 test("rename a session; moving it to the Trash can be undone", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("Click to rename").click();
-  const title = page.getByLabel("Session title");
+  const title = page.getByLabel("Chat title");
   await title.fill("The Mill at Dusk");
   await title.press("Enter");
   await expect(sessions(page).first()).toContainText("The Mill at Dusk");
@@ -52,7 +52,7 @@ test("rename a session; moving it to the Trash can be undone", async ({ page }) 
   await page.getByTestId("chat-menu").click();
   await page.getByRole("menuitem", { name: "Move to Trash" }).click();
   await expect(sessions(page)).toHaveCount(0);
-  await expect(page.getByText("No session open.")).toBeVisible();
+  await expect(page.getByText("No chat open.")).toBeVisible();
   await expect(page.getByTestId("notice")).toContainText("moved to the Trash");
   await page.getByTestId("notice").getByRole("button", { name: "Undo" }).click();
   await expect(sessions(page)).toHaveCount(1);
@@ -64,7 +64,7 @@ test("a character used by a session cannot go to the Trash, with a clear reason"
   await openLibrary(page, "Characters");
   await editCharacter(page);
   await page.getByRole("button", { name: "Move to Trash" }).click();
-  await expect(page.getByRole("alert")).toContainText("used by 1 session");
+  await expect(page.getByRole("alert")).toContainText("used by 1 chat");
   await expect(page.getByText("1 in the library")).toBeVisible();
 });
 

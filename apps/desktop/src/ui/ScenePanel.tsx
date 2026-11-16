@@ -332,7 +332,7 @@ export function ScenePanel({ svc, session, storySetup, messageId, busy, refreshK
     return (
     <div className="pane scene-pane quiet" aria-label="Scene" data-testid="scene">
       <header className="q-top">
-        <span className="grow">{busy ? <span className="updating-chip" data-testid="scene-busy"><span className="spinner" aria-hidden />Updating…</span> : "Scene"}</span>
+        <span className="grow">{busy && enabled.length > 0 /* D-135: nothing updates the Scene without trackers */ ? <span className="updating-chip" data-testid="scene-busy"><span className="spinner" aria-hidden />Updating…</span> : "Scene"}</span>
         {enabled.length > 0 && (
           <IconButton label="Update Now" disabled={!messageId || busy} onClick={() => run(enabled)}>
             <span className={running ? "spin-icon" : ""}><Icon name="refresh" size={14} /></span>

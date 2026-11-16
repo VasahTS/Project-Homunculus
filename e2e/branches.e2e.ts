@@ -72,9 +72,9 @@ test("the chat menu downloads the selected branch as Markdown", async ({ page })
   const action = page.getByRole("menuitem", { name: "Export as Markdown" });
   await expect(action).toBeEnabled();
   const [file] = await Promise.all([page.waitForEvent("download"), action.click()]);
-  expect(file.suggestedFilename()).toBe("Session with Lyra.md");
+  expect(file.suggestedFilename()).toBe("Chat with Lyra.md");
   const markdown = await readFile(await file.path(), "utf8");
-  expect(markdown).toMatch(/^# Session with Lyra\n/);
+  expect(markdown).toMatch(/^# Chat with Lyra\n/);
   expect(markdown).toContain("**User:** A1");
   expect(markdown).toContain("**User:** A2");
   expect(markdown).toContain('You said: A2"');
@@ -204,7 +204,7 @@ test("Make a Separate Chat copies the branch into a new chat", async ({ page }) 
   await twoBranches(page);
   await page.getByTestId("branch-button").click();
   await page.getByRole("button", { name: "Make a Separate Chat" }).click();
-  await expect(page.locator(".title-btn")).toHaveText("Session with Lyra · Dark path");
+  await expect(page.locator(".title-btn")).toHaveText("Chat with Lyra · Dark path");
   await expect(msgs(page)).toHaveCount(5);
   await expect(msgs(page).nth(3)).toContainText("B1");
   await expect(page.getByTestId("fork-marker")).toHaveCount(0);
@@ -220,4 +220,50 @@ test("the branch list stays inside its edges with long lines", async ({ page }) 
     const r = (await row.boundingBox())!;
     expect(r.x + r.width).toBeLessThanOrEqual(pop.x + pop.width + 0.5);
   }
+});
+
+test("D-135: editing a message both branches share changes it only on this branch, unless All Branches is picked", async ({ page }) => {
+  await twoBranches(page); // on "Dark path": greeting, A1, reply, B1, reply
+  const first = msgs(page).nth(1); // "A1", shared with Main
+  await first.hover();
+  await first.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByTestId("edit-scope")).toContainText("Shared by 2 branches");
+  await expect(page.getByTestId("edit-scope-here")).toHaveAttribute("aria-checked", "true");
+  await page.getByLabel("Edit the message").fill("A1 (dark)");
+  await page.getByTestId("save-edit").click();
+  await expect(msgs(page).nth(1)).toContainText("A1 (dark)");
+  await expect(msgs(page)).toHaveCount(5);
+  await expect(msgs(page).nth(3)).toContainText("B1");
+  // Main still has the original
+  await page.getByTestId("branch-button").click();
+  await page.getByTestId("branch-list").getByTestId("branch-row").filter({ hasText: "Main" }).locator(".branch-t").click();
+  await expect(msgs(page).nth(1)).toContainText("A1");
+  await expect(msgs(page).nth(1)).not.toContainText("dark");
+  await expect(msgs(page).nth(3)).toContainText("A2");
+
+  // the greeting is now shared by both again: "All 2 Branches" changes it everywhere
+  const greeting = msgs(page).nth(0);
+  await greeting.hover();
+  await greeting.getByRole("button", { name: "Edit" }).click();
+  await page.getByTestId("edit-scope-all").click();
+  await page.getByLabel("Edit the message").fill("A new greeting for everyone.");
+  await page.getByTestId("save-edit").click();
+  await expect(msgs(page).nth(0)).toContainText("A new greeting for everyone.");
+  await page.getByTestId("branch-button").click();
+  await page.getByTestId("branch-list").getByTestId("branch-row").filter({ hasText: "Dark path" }).locator(".branch-t").click();
+  await expect(msgs(page).nth(0)).toContainText("A new greeting for everyone.");
+  await expect(msgs(page).nth(1)).toContainText("A1 (dark)");
+});
+
+test("D-135: a straight chat edits in place, with no branch choice", async ({ page }) => {
+  await page.goto("/");
+  await sendMessage(page, "Hello");
+  const m = msgs(page).nth(1);
+  await m.hover();
+  await m.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByTestId("edit-scope")).toHaveCount(0);
+  await page.getByLabel("Edit the message").fill("Hello there");
+  await page.getByTestId("save-edit").click();
+  await expect(msgs(page)).toHaveCount(3);
+  await expect(msgs(page).nth(1)).toContainText("Hello there");
 });

@@ -36,7 +36,7 @@ describe("the Trash", () => {
     await store.savePersona({ id: "me", name: "Dan" });
 
     // a character used by a story can't go to the Trash
-    await expect(store.moveToTrash("character", "lyra")).rejects.toThrow(/used by 1 session/);
+    await expect(store.moveToTrash("character", "lyra")).rejects.toThrow(/used by 1 chat/);
     await store.moveToTrash("session", session.id);
     expect(await store.listSessions()).toEqual([]);
     await store.moveToTrash("character", "lyra");
@@ -57,8 +57,12 @@ describe("the Trash", () => {
     await store.saveCharacter({ id: "lyra", name: "Lyra", description: "edited" });
     expect(await store.listCharacters()).toEqual([]);
 
+    // D-135: a Kit in the Trash goes too
+    await store.kits.save({ id: "kit1", name: "Dungeon", createdAt: 1 });
+    await store.moveToTrash("kit", "kit1");
     await store.emptyTrash();
     expect(await store.listTrash()).toEqual([]);
+    expect(await store.kits.get("kit1")).toBeUndefined();
     expect(await store.getCharacter("lyra")).toBeUndefined();
     expect(await store.getSession(session.id)).toBeUndefined();
     expect(await store.listHistory("character", "lyra")).toEqual([]);
@@ -72,7 +76,7 @@ describe("the Trash", () => {
     await store.setDefaultSetup({});
     const { session } = await chat.createSession({ title: "Story", characterIds: ["lyra"] });
     await store.saveSession({ ...session, setup: { personaId: "me" } });
-    await expect(store.moveToTrash("persona", "me")).rejects.toThrow(/used by 1 session/);
+    await expect(store.moveToTrash("persona", "me")).rejects.toThrow(/used by 1 chat/);
   });
 });
 

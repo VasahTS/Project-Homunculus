@@ -79,7 +79,7 @@ async function boot(): Promise<AppServices> {
   const isFirstRun = (await store.countCharacters()) === 0 && (await store.listSessions()).length === 0;
   if (isFirstRun) {
     await store.saveCharacter(STARTER);
-    await chat.createSession({ title: `Session with ${STARTER.name}`, characterIds: [STARTER.id] });
+    await chat.createSession({ title: `Chat with ${STARTER.name}`, characterIds: [STARTER.id] });
   }
   bootMark("setup");
   return { core, store, chat, isDesktop };

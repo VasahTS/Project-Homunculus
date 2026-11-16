@@ -67,12 +67,12 @@ test("a chat exports as Markdown, JSONL, text and the Homunculus file, from its 
   await openLibrary(page, "Characters");
   await page.getByTestId("character-list").getByRole("button", { name: "Lyra" }).click();
   const chats = page.getByTestId("character-chats");
-  await chats.getByRole("button", { name: "More for Session with Lyra" }).click();
+  await chats.getByRole("button", { name: "More for Chat with Lyra" }).click();
   await chats.getByRole("menuitem", { name: "Export as ›" }).click();
   const [md] = await Promise.all([page.waitForEvent("download"), chats.getByRole("menuitem", { name: /Markdown/ }).click()]);
-  expect(md.suggestedFilename()).toBe("Session with Lyra.md");
+  expect(md.suggestedFilename()).toBe("Chat with Lyra.md");
   expect(readFileSync((await md.path())!, "utf8")).toContain("**User:** Hello there.");
-  await chats.getByRole("button", { name: "More for Session with Lyra" }).click();
+  await chats.getByRole("button", { name: "More for Chat with Lyra" }).click();
   await chats.getByRole("menuitem", { name: "Export as ›" }).click();
   const [jl] = await Promise.all([page.waitForEvent("download"), chats.getByRole("menuitem", { name: /JSONL/ }).click()]);
   const lines = readFileSync((await jl.path())!, "utf8").trim().split("\n").map((l) => JSON.parse(l));

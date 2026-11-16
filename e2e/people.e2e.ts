@@ -49,7 +49,7 @@ test("a new session can start with a version", async ({ page }) => {
   await expect(editor(page).getByRole("button", { name: "Chat Now" })).toHaveAttribute("title", "Start a chat with Lyra (Wounded)");
   await editor(page).getByRole("button", { name: "Chat Now" }).click();
   await expect(page.getByTestId("who-button")).toContainText("with Lyra · Wounded");
-  await expect(page.getByTestId("session-list").getByRole("button").first()).toContainText("Session with Lyra (Wounded)");
+  await expect(page.getByTestId("session-list").getByRole("button").first()).toContainText("Chat with Lyra (Wounded)");
 });
 
 test("personas: the first one becomes the default, its name is used in the story, a version can be picked", async ({ page }) => {

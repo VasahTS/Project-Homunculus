@@ -147,3 +147,19 @@ describe("pictures: the small columns first (D-132, migration 13)", () => {
     expect(p.previews.c1).toEqual({ mime: "image/jpeg", base64: "PREV" });
   });
 });
+
+describe("where a part of the world state was last written (D-135)", () => {
+  it("finds the newest message with that key in one query, by agents or by hand, skipping chats in the Trash", async () => {
+    const { store, counter } = await countingStore();
+    await longChat(store, 50);
+    await store.saveSession({ id: "s1", title: "One", cast: [], createdAt: 1 } as never);
+    await store.setDelta("m10", { "scene-world": { place: "Mill" } });
+    await store.setUserDelta("m20", { "scene-world": { place: "Gate" } });
+    counter.selects = 0;
+    expect(await store.latestStateWrite("scene-world")).toEqual({ sessionId: "s1", messageId: "m20" });
+    expect(counter.selects).toBe(1);
+    expect(await store.latestStateWrite("nothing")).toBeUndefined();
+    await store.moveToTrash("session", "s1");
+    expect(await store.latestStateWrite("scene-world")).toBeUndefined();
+  });
+});

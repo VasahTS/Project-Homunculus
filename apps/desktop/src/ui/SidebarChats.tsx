@@ -56,6 +56,9 @@ export function SidebarChats({ scope, chats, activeId, limit, onOpen, onRename, 
   const [showMore, setShowMore] = useState<Record<string, number>>({});
   const [dropOn, setDropOn] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // "now" → "1m" → "5m": the times move on by themselves (D-135: they stayed as drawn)
+  const [, setMinute] = useState(0);
+  useEffect(() => { const t = window.setInterval(() => setMinute((n) => n + 1), 60_000); return () => window.clearInterval(t); }, []);
 
   useEffect(() => {
     if (!menu) return;

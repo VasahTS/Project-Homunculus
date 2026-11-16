@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Bug sweep fixes (2026-11-16) — CLAUDE — D-135
+
+- Daniel asked for a full sweep of the app (report: Docs artifact "Homunculus 2 — Varredura de bugs e UX"), then "fix the bugs first, leave the Linux picture memory for later, you can do the rest"; and: "changing the first message in a story changes it for every branch".
+- Fixed: long chats read in 2 queries (was one per message); Edit on a message other branches share → **This Branch Only** (default) / **All N Branches**; rename from the sidebar no longer undone by the title; Empty Trash deletes Kits; Recent / Home / the start chat follow the chat played last; the sidebar's time updates after a reply and every minute; SillyTavern re-import leaves Trash items (and their chats) out, Undo names what stayed; tracker editor preview in one query; message search returns 3 per chat; story page without per-chat path reads; no jump when a reply is saved; "Updating…" only with trackers; New Story's Create Story always visible; "Your characters" left, "1 character"; "chat" instead of "session" in the UI.
+- **To try (Windows):** close the app → Pull origin → open it. A story chat with two branches: Edit the first message → "Shared by 2 branches" → This Branch Only → Save → the other branch (branch menu) still has the old text. Rename a chat in the sidebar, then click its title and click away: the new name stays. Library → Kits → Move to Trash → Library → Trash → Empty Trash: the Kit is gone. Send a message in an old chat: it goes to the top of Recent and says "now". A long chat opens and swipes faster. Stories → New Story at a small window: Create Story is at the bottom of the window.
+- Waiting for Daniel (in the report): Continue vs. a real continue; delete one message vs. from here; the › arrow making a new version; Library tabs in narrow windows; Trash a card with its chats; the linked folder read-only / on use — **draft waiting for Daniel**: `docs/drafts/linked-on-use/index.html` (artifact 45D4YWoBruogXkASCx25ho), plan and 4 questions in `docs/LINKED-ON-USE-PLAN.md`; no code before he approves.
+- Checks: typecheck; unit tests (919); click tests `fixes-1116` (new), `branches` (2 new), full suite.
+- Changelog line for the next release: "**Fixes**: editing a message that several branches share now asks whether to change only this branch (the default) or all of them; long chats open, swipe and edit much faster; Recent shows the chat you played last, with the right time; renaming a chat from the sidebar sticks; Empty Trash removes Kits too; importing from SillyTavern again leaves out what you moved to the Trash."
+
 ## Agent groups; the Assistant uses them; Directors list only their stories (2026-11-16) — CLAUDE — D-134
 
 - Daniel: groups of agents so a Kit doesn't need each agent picked one by one; the Assistant should use them for a new Kit or a story when asked; the Director's "Where it is used" listed every story.

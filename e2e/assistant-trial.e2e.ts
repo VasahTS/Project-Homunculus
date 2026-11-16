@@ -24,7 +24,7 @@ test("a change to a card offers Try It with its cost; Try It shows before and af
   const trial = page.getByTestId("assistant-trial").last();
   await expect(trial).toContainText("2 calls");
   await expect(trial).toContainText("nothing is saved");
-  await expect(trial.getByTestId("trial-chat")).toContainText("Session with Lyra");
+  await expect(trial.getByTestId("trial-chat")).toContainText("Chat with Lyra");
   await trial.getByTestId("trial-run").click();
   await expect(trial).toContainText("Before", { timeout: 20_000 });
   await expect(trial).toContainText("After");

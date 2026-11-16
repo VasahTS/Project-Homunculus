@@ -117,7 +117,7 @@ export interface LorebookEditorProps {
   folder?: ReactNode;
   isNew: boolean;
   justSaved?: boolean;
-  /** Who uses this book ("Default (every session)", "Lyra", "Session with Lyra"…). */
+  /** Who uses this book ("Default (every session)", "Lyra", "Chat with Lyra"…). */
   usedBy: string[];
   trackers: Tracker[];
   sessions: Session[];

@@ -197,14 +197,22 @@ export class SqlStore implements StateRepository, MessageTree {
     const q = query.trim();
     if (!q || !sessionIds.length) return {};
     const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    const rows = await this.db.select<{ id: string; session_id: string; content: string }>(
-      `SELECT id, session_id, content FROM messages WHERE session_id IN (${sessionIds.map(() => "?").join(", ")}) AND content LIKE ? ESCAPE '\\' ORDER BY created_at DESC`,
-      [...sessionIds, like]);
+    // D-135: only the newest few of each chat leave the database, with the chat's count (it returned the whole text of
+    // every message that matched — tens of thousands for a common word in a big library — on each pause in typing)
     const out: Record<string, { count: number; hits: Array<{ id: string; content: string }> }> = {};
-    for (const r of rows) {
-      const o = (out[r.session_id] ??= { count: 0, hits: [] });
-      o.count++;
-      if (o.hits.length < perChat) o.hits.push({ id: r.id, content: r.content });
+    for (let i = 0; i < sessionIds.length; i += 900) {
+      const chunk = sessionIds.slice(i, i + 900);
+      const rows = await this.db.select<{ id: string; session_id: string; content: string; n: number }>(
+        `SELECT id, session_id, content, n FROM (
+           SELECT id, session_id, content, created_at, COUNT(*) OVER (PARTITION BY session_id) AS n,
+                  ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC, id DESC) AS r
+           FROM messages WHERE session_id IN (${chunk.map(() => "?").join(", ")}) AND content LIKE ? ESCAPE '\\'
+         ) WHERE r <= ? ORDER BY created_at DESC`,
+        [...chunk, like, perChat]);
+      for (const r of rows) {
+        const o = (out[r.session_id] ??= { count: Number(r.n), hits: [] });
+        o.hits.push({ id: r.id, content: r.content });
+      }
     }
     return out;
   }
@@ -321,7 +329,7 @@ export class SqlStore implements StateRepository, MessageTree {
     const using = await this.sessionsUsingCharacter(id);
     if (using.length > 0) {
       const names = using.slice(0, 3).map((s) => `"${s.title}"`).join(", ");
-      throw new Error(`This character is used by ${using.length} session(s): ${names}${using.length > 3 ? "…" : ""}. Delete those sessions first.`);
+      throw new Error(`This character is used by ${using.length} chat(s): ${names}${using.length > 3 ? "…" : ""}. Delete those chats first.`);
     }
     await this.deleteAvatarsOf(id);
     await this.db.execute("DELETE FROM item_history WHERE kind = 'character' AND item_id = ?", [id]);
@@ -936,6 +944,20 @@ export class SqlStore implements StateRepository, MessageTree {
     return path.reverse();
   }
 
+  /**
+   * The newest message (of a chat not in the Trash) where this part of the world state was written, by an agent or by
+   * hand (D-135: the tracker editor's preview walked every chat one message at a time to find one).
+   */
+  async latestStateWrite(key: string): Promise<{ sessionId: string; messageId: string } | undefined> {
+    const path = `$."${key.replace(/["\\]/g, (c) => `\\${c}`)}"`;
+    const [row] = await this.db.select<{ session_id: string; message_id: string }>(
+      `SELECT m.session_id, m.id AS message_id FROM messages m JOIN sessions s ON s.id = m.session_id AND s.trashed_at IS NULL
+       WHERE m.id IN (SELECT message_id FROM state_deltas WHERE json_extract(delta, ?) IS NOT NULL
+                      UNION SELECT message_id FROM state_user_deltas WHERE json_extract(delta, ?) IS NOT NULL)
+       ORDER BY m.created_at DESC LIMIT 1`, [path, path]);
+    return row ? { sessionId: row.session_id, messageId: row.message_id } : undefined;
+  }
+
   /** Agents' and user's deltas and snapshots of many messages at once (WorldState.resolve, D-122). */
   async stateRowsFor(ids: string[]): Promise<{ deltas: Map<string, StateDelta>; user: Map<string, StateDelta>; snapshots: Map<string, ResolvedState> }> {
     const deltas = new Map<string, StateDelta>(), user = new Map<string, StateDelta>(), snapshots = new Map<string, ResolvedState>();
@@ -981,6 +1003,19 @@ export class SqlStore implements StateRepository, MessageTree {
   async memoryChapters(sessionId: string, branchId?: string | null): Promise<Chapter[]> {
     const local = branchId ? await this.getAppSetting<Chapter[]>(chapterKey(sessionId, branchId)) : undefined;
     return local ?? await this.getAppSetting<Chapter[]>(chapterKey(sessionId)) ?? [];
+  }
+
+  /** Each chat's newest first message (its opening; a swiped opening is the newest of its versions), in one query (D-135). */
+  async openingsOf(sessionIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (let i = 0; i < sessionIds.length; i += 900) {
+      const chunk = sessionIds.slice(i, i + 900);
+      const rows = await this.db.select<{ session_id: string; content: string }>(
+        `SELECT session_id, content FROM (SELECT session_id, content, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC, id DESC) AS r
+           FROM messages WHERE parent_id IS NULL AND session_id IN (${chunk.map(() => "?").join(", ")})) WHERE r = 1`, chunk);
+      for (const r of rows) out.set(r.session_id, r.content);
+    }
+    return out;
   }
 
   /** Every message of a session, oldest first (the tree view, D-032). */
@@ -1240,7 +1275,7 @@ export class SqlStore implements StateRepository, MessageTree {
   async moveToTrash(kind: TrashKind, id: string): Promise<void> {
     if (kind === "character") {
       const using = await this.sessionsUsingCharacter(id);
-      if (using.length) throw new Error(`This character is used by ${describeSessions(using)}. Move those sessions to the Trash first.`);
+      if (using.length) throw new Error(`This character is used by ${describeSessions(using)}. Move those chats to the Trash first.`);
       const stories = await this.storiesUsingCharacter(id);
       if (stories.length) throw new Error(`This character is in the story ${stories.map((st) => `"${st.name}"`).join(", ")}. Take it out of the story first.`);
     }
@@ -1260,14 +1295,20 @@ export class SqlStore implements StateRepository, MessageTree {
     if (kind === "persona") {
       if ((await this.getDefaultSetup()).personaId === id) throw new Error("This is your default persona. Pick another default (or none) first.");
       const using = await this.sessionsUsingPersona(id);
-      if (using.length) throw new Error(`This persona is used by ${describeSessions(using)}. Pick another persona there, or move those sessions to the Trash first.`);
+      if (using.length) throw new Error(`This persona is used by ${describeSessions(using)}. Pick another persona there, or move those chats to the Trash first.`);
     }
     if (kind === "preset") {
       if ((await this.getDefaultSetup()).presetId === id) throw new Error("This is your default preset. Pick another default first.");
       const using = await this.sessionsUsingPreset(id);
-      if (using.length) throw new Error(`This preset is used by ${describeSessions(using)}. Pick another preset there, or move those sessions to the Trash first.`);
+      if (using.length) throw new Error(`This preset is used by ${describeSessions(using)}. Pick another preset there, or move those chats to the Trash first.`);
     }
     await this.db.execute(`UPDATE ${SqlStore.TRASH_TABLES[kind]} SET trashed_at = ? WHERE id = ?`, [Date.now(), id]);
+  }
+
+  /** Whether an item is in the library, in the Trash or gone (D-135: the SillyTavern importer counted Trash as "here"). */
+  async whereIs(kind: TrashKind, id: string): Promise<"here" | "trash" | "gone"> {
+    const [row] = await this.db.select<{ trashed_at: number | null }>(`SELECT trashed_at FROM ${SqlStore.TRASH_TABLES[kind]} WHERE id = ?`, [id]);
+    return !row ? "gone" : row.trashed_at == null ? "here" : "trash";
   }
 
   async restoreFromTrash(kind: TrashKind, id: string): Promise<void> {
@@ -1334,12 +1375,12 @@ export class SqlStore implements StateRepository, MessageTree {
     }
     if (kind === "character") {
       const using = await this.sessionsUsingCharacter(id, true);
-      if (using.length) throw new Error(`This character is still used by ${describeSessions(using)}. Delete those sessions first.`);
+      if (using.length) throw new Error(`This character is still used by ${describeSessions(using)}. Delete those chats first.`);
       return this.deleteCharacter(id);
     }
     if (kind === "preset") {
       const usingPreset = await this.sessionsUsingPreset(id, true);
-      if (usingPreset.length) throw new Error(`This preset is still used by ${describeSessions(usingPreset)}. Delete those sessions first.`);
+      if (usingPreset.length) throw new Error(`This preset is still used by ${describeSessions(usingPreset)}. Delete those chats first.`);
       await this.db.execute("DELETE FROM item_history WHERE kind = 'preset' AND item_id = ?", [id]);
       return this.presets.delete(id);
     }
@@ -1348,7 +1389,7 @@ export class SqlStore implements StateRepository, MessageTree {
       return this.lorebooks.delete(id);
     }
     const using = await this.sessionsUsingPersona(id, true);
-    if (using.length) throw new Error(`This persona is still used by ${describeSessions(using)}. Delete those sessions first.`);
+    if (using.length) throw new Error(`This persona is still used by ${describeSessions(using)}. Delete those chats first.`);
     await this.deleteAvatarsOf(id);
     await this.db.execute("DELETE FROM item_history WHERE kind = 'persona' AND item_id = ?", [id]);
     await this.personas.delete(id);
@@ -1369,7 +1410,8 @@ export class SqlStore implements StateRepository, MessageTree {
   /** Deletes everything in the Trash for good (sessions first, so their characters can go too). */
   async emptyTrash(): Promise<void> {
     const items = await this.listTrash();
-    const order: TrashKind[] = ["session", "story", "persona", "preset", "lorebook", "npc", "narrator", "character"];
+    // D-135: Kits were missing here, so Empty Trash left them in the Trash
+    const order: TrashKind[] = ["session", "story", "persona", "preset", "lorebook", "kit", "npc", "narrator", "character"];
     for (const kind of order) for (const it of items.filter((x) => x.kind === kind)) await this.deleteForever(kind, it.id);
   }
 
@@ -1439,5 +1481,5 @@ export class SqlStore implements StateRepository, MessageTree {
 
 function describeSessions(sessions: Session[]): string {
   const names = sessions.slice(0, 3).map((s) => `"${s.title}"`).join(", ");
-  return `${sessions.length} session(s): ${names}${sessions.length > 3 ? "…" : ""}`;
+  return `${sessions.length} chat(s): ${names}${sessions.length > 3 ? "…" : ""}`;
 }

@@ -140,6 +140,28 @@ describe("importing a whole SillyTavern folder (D-128)", () => {
     expect(third.counts.characters).toBe(2);
   });
 
+  it("D-135: a card moved to the Trash stays out on a second import, and so do its chats; Undo keeps and names what it can't trash", async () => {
+    const { svc, store, src, scan } = await setup();
+    await runStImport(svc, src, scan, { kinds: { ...all, chats: false, groups: false } });
+    const mira = (await store.listCharacters()).find((c) => c.name === "Mira")!;
+    await store.moveToTrash("character", mira.id);
+    const again = await runStImport(svc, src, scan, { kinds: all });
+    expect(again.counts.characters).toBe(0);
+    expect((await store.listSessions()).some((x) => x.cast.some((c) => c.characterId === mira.id))).toBe(false);
+    expect(again.warnings.some((w) => /in the Trash/.test(w.text))).toBe(true);
+
+    // Undo can't trash a card a new story uses: it stays, is named, and a later import does not copy it again
+    const { svc: svc2, store: store2, src: src2, scan: scan2 } = await setup();
+    const first = await runStImport(svc2, src2, scan2, { kinds: { ...all, chats: false, groups: false } });
+    const ivo = (await store2.listCharacters()).find((c) => c.name === "Ivo")!;
+    await store2.stories.save({ id: "mine", name: "Mine", createdAt: 1, cast: [{ characterId: ivo.id, variantId: null, role: "character", presence: "in_scene", muted: false, joinedAtMessageId: null }] });
+    const undone = await undoStImport(svc2, first);
+    expect(undone.kept.some((k) => k.startsWith("Ivo"))).toBe(true);
+    const third = await runStImport(svc2, src2, scan2, { kinds: { ...all, chats: false, groups: false } });
+    expect((await store2.listCharacters()).filter((c) => c.name === "Ivo")).toHaveLength(1);
+    expect(third.counts.characters).toBe(1); // Mira comes back; Ivo was never gone
+  });
+
   it("brings only the kinds and characters picked, and stops when cancelled", async () => {
     const { svc, store, src, scan } = await setup();
     const r = await runStImport(svc, src, scan, { kinds: { ...all, groups: false, lorebooks: false, personas: false }, chatsOf: [] });
