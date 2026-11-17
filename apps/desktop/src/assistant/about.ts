@@ -66,7 +66,8 @@ An NPC is a person of the story world kept as a sheet in Library → NPCs: name,
 
   T("tracker", "Trackers and the Scene", `
 A tracker is an agent that keeps world state after each reply: it reads the last messages and fills fields (Scene: World = time, place, weather, quests…; Scene: Characters = who is here, how they look, stats; Scene: Plot = threads and secrets). The values show in the Scene tab and can go back into the prompt.
-- Fields have a type and a display (text, number, bar, status, list…), are global or per character, and belong to field sets (a set = a version of the tracker's fields, e.g. Fantasy). help = what the tracker AI writes; note = what the value means for the story AI.
+- Fields have a type and a display (text, number, bar, status, list…), are global or per character, and belong to field sets. help = what the tracker AI writes; note = what the value means for the story AI.
+- Field sets: one tracker, several versions of its fields for different genres or detail levels (Scene: Characters → Standard, Fantasy, Superpowers, Sci-fi, Minimal). A story, Kit or chat picks the set each tracker uses (story page → Trackers; a chat's Scene tab → Trackers). Fields with the same key in two sets are the same value, so switching sets keeps them. A new genre is usually a new field set of an existing tracker; a new tracker is for a different job (a HUD, a game system, shared resources), and each tracker costs an AI call after every reply.
 - A chat follows the trackers picked in its Scene tab; values follow swipes and branches (state is kept per message).
 - People kept by several trackers show as one sheet in the Scene.`),
 

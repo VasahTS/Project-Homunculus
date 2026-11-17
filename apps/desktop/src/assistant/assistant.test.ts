@@ -124,9 +124,10 @@ describe("the Assistant", () => {
       if ("fields" in field) expect(actual.fields[0]).toMatchObject(field.fields![0]!);
     }
   });
-  it("explains the tracker options and the default-field-set tool boundary", () => {
+  it("explains the tracker options, field sets and when to make a tracker (D-139)", () => {
     const guide = GUIDES.tracker!.text;
-    for (const term of ["display", '"header"', '"block"', '"tile"', '"pill"', "lockedForAgents", "icon", "color", "columns", "presence", "default field set", "key", "complete replacement"]) expect(guide).toContain(term);
+    for (const term of ["display", '"header"', '"block"', '"tile"', '"pill"', "lockedForAgents", "icon", "color", "columns", "presence", "DEFAULT set", "key", "complete replacement",
+      "Tracker or field set?", "fieldSets", "defaultFieldSet", "fieldSetName", '"from"', '["fieldSet:<name>"]', "HUD"]) expect(guide).toContain(term);
     for (const option of [...FieldDisplay.options, ...FieldType.options]) expect(guide).toContain(`"${option}"`);
     const fieldShape = (TrackerField as unknown as { unwrap(): { shape: Record<string, unknown> } }).unwrap().shape;
     for (const name of Object.keys(fieldShape)) expect(GUIDES.tracker!.fields).toContain(name);
@@ -421,9 +422,9 @@ describe("the Assistant", () => {
     const have: Record<string, string[]> = { persona: shape(Persona),
       character: shape(Character),
       lorebook: [...shape(Lorebook), ...shape(LoreEntry)],
-      tracker: ["name", "help", "prompt", "messages", "fields", "characters", "presence", ...shape((TrackerField as unknown as { unwrap(): never }).unwrap())],
-      kit: [...shape(Story), "narratorId", "lorebookIds", "agentIds", "agentGroups"],
-      story: ["agentIds", "agentGroups"],
+      tracker: ["name", "help", "prompt", "messages", "fields", "characters", "presence", "fieldSetName", "fieldSets", "defaultFieldSet", ...shape((TrackerField as unknown as { unwrap(): never }).unwrap())],
+      kit: [...shape(Story), "narratorId", "lorebookIds", "agentIds", "agentGroups", "trackers"],
+      story: ["agentIds", "agentGroups", "trackers"],
       narrator: [...shape(Narrator), ...shape(Narrator.shape.style.unwrap() as never)],
       preset: ["from", ...shape(Preset), ...shape(PresetBlock)],
       cue: shape(Cue),

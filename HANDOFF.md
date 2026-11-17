@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## The Assistant knows field sets (2026-11-17) — CLAUDE — D-139
+
+- Daniel: the Assistant only saw trackers, not their field sets, and made a new tracker every time; it should add a field set where that makes sense and make a new tracker only for HUDs or specific jobs.
+- Built: `find`/`read` show every field set (`["fieldSet:<name>"]` reads one whole); tracker `change`/`create` take `fieldSets: { add (from = copy with keys), update, remove }`, `defaultFieldSet`, `fieldSetName`; sets in use are never removed; Kits and stories take `trackers: [{ tracker, fieldSet }]` (stored as the layer's pick); guides say when a field set and when a tracker; change cards list field set operations.
+- **To try (Windows):** close the app → Pull origin → open it. Assistant: "make a Kit for a cyberpunk campaign with my trackers" → it should pick or add field sets (e.g. a "Cyberpunk" set on Scene: Characters from Sci-fi) instead of a new tracker, and the Kit's page → Trackers shows the sets picked. "add a field set for horror to Scene: World" → a change card with Field Sets + Horror → Apply → Library → Trackers → Scene: World: the new set. "make a HUD for a heist" → a new tracker (global fields). "switch my story X to the Fantasy set" → a change card on the story.
+- Checks: typecheck; unit tests (938; `field-sets.test.ts` 6 new); click tests assistant, agents, trackers.
+- Changelog line for the next release: "**The Assistant knows field sets**: it sees every field set of your trackers, adds a set to an existing tracker for a new genre (starting from the closest one, so values carry over) instead of making a new tracker each time, and picks the right set when it builds a Kit or changes a story. New trackers are kept for separate jobs like HUDs."
+
 ## Each opening has its own scenario (2026-11-17) — CLAUDE — D-138
 
 - Daniel: a Kit was stuck to one scenario; he wanted "just an individual Scenario field for each opening", branches and swipes that keep making sense, and a field in the Prompt tab showing the scenario in use. Plan `claude/OPENINGS-COM-SCENARIO.md` (Project); draft approved on the canvas "Homunculus 2 — Openings com scenario" (artifact Rsuga5FuXFGdD9Ww2xKyWP).

@@ -6,11 +6,11 @@
 //
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
-import { storyScenario, CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind, type ListOverride } from "@homunculus/schemas";
+import { storyScenario, CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind, type ListOverride, type SetupLayer } from "@homunculus/schemas";
 import { characterNoteOf, cueNamespace, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec, type TrialOverrides } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
-import { blankTracker, deleteTracker, draftOf, listTrackers, saveTracker, checkDraft, type TrackerDraft } from "../trackers.ts";
+import { blankTracker, copySet, deleteTracker, draftOf, layerHasTracker, layerWithFieldSet, listTrackers, saveTracker, checkDraft, type SetDraft, type Tracker, type TrackerDraft } from "../trackers.ts";
 import { readPart } from "./files.ts";
 import { cueFromJanitorText } from "../cues.ts";
 import { listAgents } from "../agents.ts";
@@ -36,7 +36,7 @@ const APP_KINDS = ["chat", "agent", "regex", "quickreply", "director"] as const;
 type AppKind = (typeof APP_KINDS)[number];
 const isAppKind = (k: string): k is AppKind => (APP_KINDS as readonly string[]).includes(k);
 const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset", "cue", "story"];
-/** A story can only be changed (its agents, D-134): stories are started in the app or from a Kit. */
+/** A story can only be changed (its agents and trackers, D-134, D-139): stories are started in the app or from a Kit. */
 const CHANGE_ONLY: AssistantKind[] = ["story"];
 /** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
 export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
@@ -162,7 +162,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: { kind: kindProp(READ_KINDS, "Only this kind (optional)."), query: { type: "string", description: "Words in the name or summary (optional)." }, folder: { type: "string", description: "Only items in this folder and its subfolders, e.g. \"RPG\" (optional)." }, page: { type: "number", description: "Page, from 1." } } } },
   { name: "folders", description: "The user's folders (each kind has its own tree), with how many items each holds.",
     parameters: { type: "object", properties: { kind: kindProp(FOLDER_KINDS, "Only this kind (optional).") } } },
-  { name: "read", description: "Read one library item (kind:id). Without fields, long texts are paged and lorebooks return an entry index. Long text pages contain up to 6,000 source characters and a separate _read array: field, offset, end, total, nextOffset, done and next (exact arguments for the next read). Copy next exactly; done=true is the end. Never calculate offsets from JSON length or historical previews. Select fields like [\"description\"]. A version uses [\"variant:<label or id>\", \"description\"]; a lore entry uses [\"entry:<title or id>\", \"content\"] (omit the second selector to inspect all fields); several entries at once: [\"entry:A\", \"entry:B\"]. Lorebook fields [\"entries\"] pages 10 entries; its offset is an entry index.",
+  { name: "read", description: "Read one library item (kind:id). Without fields, long texts are paged and lorebooks return an entry index. Long text pages contain up to 6,000 source characters and a separate _read array: field, offset, end, total, nextOffset, done and next (exact arguments for the next read). Copy next exactly; done=true is the end. Never calculate offsets from JSON length or historical previews. Select fields like [\"description\"]. A version uses [\"variant:<label or id>\", \"description\"]; a lore entry uses [\"entry:<title or id>\", \"content\"] (omit the second selector to inspect all fields); several entries at once: [\"entry:A\", \"entry:B\"]. Lorebook fields [\"entries\"] pages 10 entries; its offset is an entry index. A tracker's whole field set: [\"fieldSet:<name>\"] (several: [\"fieldSet:A\", \"fieldSet:B\"]).",
     parameters: { type: "object", properties: { id: { type: "string" }, fields: { type: "array", items: { type: "string" } }, offset: { type: "integer", minimum: 0, description: "Zero-based source UTF-16 offset for text; entry index for fields [entries]. Use the server's next arguments." } }, required: ["id"] } },
   { name: "read_chat", description: "Read a chat's messages on the branch it shows (or a named branch), numbered #1… as the chat numbers them. Default: the last 30. `from`/`to` pick a range; `search` lists the messages containing a phrase. Long pages stop early and give the next range. You never write messages.",
     parameters: { type: "object", properties: { id: { type: "string", description: "chat:id (from find with kind \"chat\", or the user's context)." }, from: { type: "integer", minimum: 1 }, to: { type: "integer", minimum: 1 }, search: { type: "string" }, branch: { type: "string", description: "A branch's name (optional)." } }, required: ["id"] } },
@@ -211,7 +211,9 @@ async function baseRows(store: SqlStore, kind: AssistantReadKind): Promise<Row[]
     case "character": return (await store.listCharacters()).map((c) => ({ kind, id: c.id, name: c.name,
       line: `${c.variants.length ? `versions: Main, ${c.variants.map((v) => v.label).join(", ")} · ` : ""}${one(c.description || c.personality || c.tags.join(", "))}` }));
     case "lorebook": return (await store.lorebooks.list()).map((b) => ({ kind, id: b.id, name: b.name, line: `${b.entries.length} entries${b.description ? ` · ${one(b.description, 70)}` : ""}` }));
-    case "tracker": return (await listTrackers(store)).map((t) => ({ kind, id: t.agent.id, name: t.agent.name, line: `${t.sets[0]?.fields.length ?? 0} fields${t.agent.help ? ` · ${one(t.agent.help, 70)}` : ""}` }));
+    // D-139: every field set shows in the list, so the Assistant sees what a tracker can already do before making one
+    case "tracker": return (await listTrackers(store)).map((t) => ({ kind, id: t.agent.id, name: t.agent.name,
+      line: `field sets: ${t.sets.map((x, i) => `${x.name}${i === 0 ? " (default)" : ""} ${x.fields.length}`).join(", ")}${t.agent.help ? ` · ${one(t.agent.help, 70)}` : ""}` }));
     case "kit": return (await store.kits.list()).map((k) => ({ kind, id: k.id, name: k.name, line: one(k.description || storyScenario(k)) }));
     case "story": return (await store.stories.list()).map((k) => ({ kind, id: k.id, name: k.name, line: one(k.description || storyScenario(k)) }));
     case "narrator": return (await store.narrators.list()).map((n) => ({ kind, id: n.id, name: n.name, line: one(n.about || n.instructions) }));
@@ -259,17 +261,36 @@ export async function getItem(store: SqlStore, kind: AssistantReadKind, id: stri
   }
 }
 
-/** A tracker as the Assistant sees and writes it: the default field set's fields at the top. */
+/**
+ * A tracker as the Assistant sees and writes it: the default field set's fields at the top, and every field set listed
+ * (D-139: name, who it is for, its fields' labels; read one whole with fields ["fieldSet:<name>"]). `fieldSetsFull`
+ * keeps the whole sets for change cards and stale checks; reads leave it out (HIDDEN).
+ */
 // Expose the complete field schema, including nested columns, so read/edit does not erase unmentioned options. CODEX, 2026-11-03.
 function trackerView(d: TrackerDraft): Obj {
   const set = d.sets.find((s) => s.id === d.defaultSetId) ?? d.sets[0]!;
-  return { id: d.id, name: d.name, help: d.help, prompt: d.prompt, messages: d.messages, characters: set.characters,
+  return { id: d.id, name: d.name, help: d.help, prompt: d.prompt, messages: d.messages, defaultFieldSet: set.name, characters: set.characters,
     fields: structuredClone(set.fields), ...(set.presence ? { presence: { ...set.presence } } : {}),
-    ...(d.sets.length > 1 ? { otherFieldSets: d.sets.filter((s) => s !== set).map((s) => s.name) } : {}) };
+    fieldSets: d.sets.map((s) => ({ name: s.name, ...(s === set ? { default: true } : {}), ...(s.help ? { help: s.help } : {}), characters: s.characters,
+      fields: `${s.fields.length}: ${s.fields.map((f) => `${f.label}${f.scope === "global" ? "" : ` (${f.scope})`}`).join(", ")}` })),
+    fieldSetsFull: d.sets.map(setView) };
+}
+
+/** One field set as the Assistant reads and writes it (no ids). */
+function setView(s: SetDraft): Obj {
+  return { name: s.name, help: s.help, characters: s.characters, ...(s.presence ? { presence: { ...s.presence } } : {}), fields: structuredClone(s.fields) };
+}
+
+/** A tracker's field set by name (case does not matter); a readable error lists the names. */
+function setNamed(d: TrackerDraft, name: unknown): SetDraft {
+  const key = str(name).trim().toLowerCase();
+  const found = d.sets.find((s) => s.name.trim().toLowerCase() === key);
+  if (!found) throw new Error(`“${d.name}” has no field set “${str(name)}”. Its field sets: ${d.sets.map((s) => `“${s.name}”`).join(", ")}.`);
+  return found;
 }
 
 /** Never sent: the original imported file, ids of internal things, pictures. */
-const HIDDEN = new Set(["original", "source", "builtin", "lorePatches", "hasOwnAvatar", "createdAt", "setup", "regexScripts"]);
+const HIDDEN = new Set(["original", "source", "builtin", "lorePatches", "hasOwnAvatar", "createdAt", "setup", "regexScripts", "fieldSetsFull"]);
 function compact(v: unknown, path: string, offset = 0, scope = readScope("")): unknown {
   if (typeof v === "string") {
     return readText(v, path, scope, offset);
@@ -304,6 +325,20 @@ async function readItem(store: SqlStore, ref: string, fields: string[], offset: 
   if (r.kind === "kit") { const k = Story.parse(item); item = { ...item, ...(k.narrator.kind === "vault" ? { narratorId: k.narrator.id } : {}), lorebookIds: k.setup.lorebooks?.mode === "keep" ? [] : k.setup.lorebooks?.add ?? [], lorebookSelection: k.setup.lorebooks ?? { mode: "keep", add: [], remove: [] }, agentIds: await layerAgentIds(store, k.setup) }; }
   if (r.kind === "story") item = { ...item, agentIds: await layerAgentIds(store, (item as Obj).setup) };
   if (r.kind === "narrator") item = { ...item, ...(isObj(item.style) ? item.style : {}) };
+  // D-139: one whole field set, or several: fields ["fieldSet:Fantasy"]
+  if (r.kind === "tracker" && fields.some((f) => f.startsWith("fieldSet:"))) {
+    const t = (await listTrackers(store)).find((x) => x.agent.id === r.id)!;
+    const d = draftOf(t);
+    const out = fields.filter((f) => f.startsWith("fieldSet:")).map((sel) => {
+      try {
+        const set = setNamed(d, sel.slice(9));
+        const scope = readScope(ref, `fieldSet:${set.id}`);
+        return { ...(set.id === d.defaultSetId ? { default: true } : {}), ...withReadRanges(compact(setView(set), "", 0, scope) as Obj, scope) };
+      } catch (e) { return { fieldSet: sel.slice(9), missing: errorText(e) }; }
+    });
+    return JSON.stringify(out.length === 1 ? out[0] : out);
+  }
+  if (r.kind === "kit" || r.kind === "story") item = { ...item, trackers: await layerTrackers(store, (item as Obj).setup) };
   if (r.kind === "character" && item.characterNote === undefined) item = { ...item, characterNote: characterNoteOf(Character.parse(item)) };
   if (r.kind === "lorebook") {
     const book = Lorebook.parse(item);
@@ -400,7 +435,7 @@ async function findItems(store: SqlStore, kind: AssistantReadKind | undefined, q
 const pick = (data: Obj, keys: string[]) => Object.fromEntries(Object.entries(data).filter(([k]) => keys.includes(k)));
 /** "folder" is accepted with every kind that can be in folders (where to put a new item). */
 // Guide metadata includes nested names: accepting them at the root acknowledged ignored writes. CODEX.
-const ROOT_FIELDS: Record<string, string[]> = { lorebook: ["name", "description", "entries"], tracker: ["name", "help", "prompt", "messages", "characters", "presence", "fields"], preset: PRESET_FIELDS };
+const ROOT_FIELDS: Record<string, string[]> = { lorebook: ["name", "description", "entries"], tracker: ["name", "help", "prompt", "messages", "characters", "presence", "fields", "fieldSetName", "fieldSets", "defaultFieldSet"], preset: PRESET_FIELDS };
 const unknownKeys = (data: Obj, kind: string) => Object.keys(data).filter((k) => !(ROOT_FIELDS[kind] ?? GUIDES[kind]!.fields).includes(k) && !(k === "folder" && inFolders(kind)));
 
 // ------------------------------------------------------------------ character versions (variants), D-064
@@ -548,6 +583,8 @@ function trackerPresenceOf(raw: unknown, fields: TrackerDraft["sets"][number]["f
 }
 
 // The same validation is used before proposal and before applying a tracker edit. CODEX.
+// D-139: fields/characters/presence at the top edit the set that is the default before this change; fieldSets adds,
+// updates and removes sets; defaultFieldSet picks the default for new chats.
 function trackerAfter(d: TrackerDraft, ch: Obj): TrackerDraft {
   const set = d.sets.find(s => s.id === d.defaultSetId) ?? d.sets[0]!;
   if (typeof ch.name === "string") d.name = ch.name;
@@ -557,6 +594,7 @@ function trackerAfter(d: TrackerDraft, ch: Obj): TrackerDraft {
   if (ch.fields !== undefined) set.fields = trackerFieldsOf(ch.fields);
   if (ch.characters !== undefined) set.characters = TrackerSchema.shape.characters.parse(ch.characters);
   if (ch.presence !== undefined || ch.fields !== undefined) set.presence = trackerPresenceOf(ch.presence !== undefined ? ch.presence : set.presence, set.fields);
+  fieldSetsAfter(d, ch.fieldSets, ch.defaultFieldSet);
   const problems = checkDraft(d); if (problems.length) throw new Error(problems.join(" "));
   return d;
 }
@@ -565,11 +603,84 @@ function trackerOf(data: Obj): TrackerDraft {
   const d = blankTracker(); d.name = str(data.name); d.help = str(data.help);
   if (str(data.prompt)) d.prompt = str(data.prompt);
   if (typeof data.messages === "number") d.messages = data.messages;
+  if (str(data.fieldSetName).trim()) d.sets[0]!.name = str(data.fieldSetName).trim();
   d.sets[0]!.fields = trackerFieldsOf(data.fields);
   d.sets[0]!.characters = TrackerSchema.shape.characters.parse(data.characters);
   d.sets[0]!.presence = trackerPresenceOf(data.presence, d.sets[0]!.fields);
+  if (isObj(data.fieldSets) && data.fieldSets.remove !== undefined) throw new Error("A new tracker has nothing to remove: use fieldSets.add for its other field sets.");
+  fieldSetsAfter(d, data.fieldSets, data.defaultFieldSet);
   const problems = checkDraft(d); if (problems.length) throw new Error(problems.join(" "));
   return d;
+}
+
+const SET_KEYS = ["name", "help", "characters", "presence", "fields"];
+/**
+ * D-139: a tracker's other field sets. `add`: new sets ({ name, from?, help?, characters?, presence?, fields? } — `from`
+ * starts from a copy of an existing set, keys included, so values carry over when a chat switches sets); `update`:
+ * { name, rename?, help?, characters?, presence?, fields? } (fields is the set's complete list); `remove`: set names
+ * (never the default). Order: add (from = names as they are before this change), update, the new default, remove.
+ */
+function fieldSetsAfter(d: TrackerDraft, raw: unknown, defaultName: unknown): void {
+  if (raw !== undefined) {
+    if (!isObj(raw) || Object.keys(raw).some((k) => !["add", "update", "remove"].includes(k))) throw new Error('Use fieldSets: { add: [...], update: [...], remove: [...] }. Call guide("tracker").');
+    for (const k of ["add", "update", "remove"]) if (raw[k] !== undefined && !Array.isArray(raw[k])) throw new Error(`fieldSets.${k} must be a list.`);
+    const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    const setFields = (set: SetDraft, x: Obj) => {
+      if (typeof x.help === "string") set.help = x.help;
+      if (x.fields !== undefined) set.fields = trackerFieldsOf(x.fields);
+      if (x.characters !== undefined) set.characters = TrackerSchema.shape.characters.parse(x.characters);
+      if (x.presence !== undefined || x.fields !== undefined) set.presence = trackerPresenceOf(x.presence !== undefined ? x.presence : set.presence, set.fields);
+    };
+    for (const a of (raw.add ?? []) as unknown[]) {
+      if (!isObj(a)) throw new Error("An added field set must be an object.");
+      const bad = Object.keys(a).filter((k) => ![...SET_KEYS, "from"].includes(k));
+      if (bad.length) throw new Error(`Unknown field set field(s): ${bad.join(", ")}. Call guide("tracker").`);
+      const name = str(a.name).trim();
+      if (!name) throw new Error("A new field set needs a name.");
+      if (d.sets.some((x) => sameName(x.name, name))) throw new Error(`“${d.name}” already has a field set named “${name}”: change it with fieldSets.update.`);
+      if (a.from === undefined && a.fields === undefined) throw new Error(`Field set “${name}” needs fields, or from: the name of a set to start from.`);
+      const set: SetDraft = a.from !== undefined ? copySet(setNamed(d, a.from), name) : { ...copySet(d.sets[0]!, name), help: "", characters: "cast", fields: [] };
+      if (a.from === undefined) delete set.presence;
+      setFields(set, a);
+      d.sets.push(set);
+    }
+    for (const u of (raw.update ?? []) as unknown[]) {
+      if (!isObj(u)) throw new Error("A field set update must be an object.");
+      const bad = Object.keys(u).filter((k) => ![...SET_KEYS, "rename"].includes(k));
+      if (bad.length) throw new Error(`Unknown field set field(s): ${bad.join(", ")}. Call guide("tracker").`);
+      const set = setNamed(d, u.name);
+      if (typeof u.rename === "string" && u.rename.trim()) {
+        if (d.sets.some((x) => x !== set && sameName(x.name, str(u.rename)))) throw new Error(`“${d.name}” already has a field set named “${str(u.rename)}”.`);
+        set.name = u.rename.trim();
+      }
+      setFields(set, u);
+    }
+    for (const n of (raw.remove ?? []) as unknown[]) {
+      const set = setNamed(d, n);
+      const nextDefault = defaultName !== undefined ? setNamed(d, defaultName) : undefined;
+      if (set.id === (nextDefault?.id ?? d.defaultSetId)) throw new Error(`“${set.name}” is the default field set of “${d.name}”: pick another default (defaultFieldSet) before removing it.`);
+      d.sets = d.sets.filter((x) => x !== set);
+    }
+  }
+  if (defaultName !== undefined) d.defaultSetId = setNamed(d, defaultName).id;
+}
+
+/** Field sets a change removes that a story, Kit, chat, NPC or the Default setup still uses (D-139). */
+async function setsInUse(store: SqlStore, trackerId: string, ch: Obj): Promise<string[]> {
+  if (!isObj(ch.fieldSets) || !Array.isArray(ch.fieldSets.remove) || !ch.fieldSets.remove.length) return [];
+  const t = (await listTrackers(store)).find((x) => x.agent.id === trackerId);
+  if (!t) return [];
+  const d = draftOf(t);
+  const ids = new Set((ch.fieldSets.remove as unknown[]).map((n) => { try { return setNamed(d, n).id; } catch { return ""; } }).filter(Boolean));
+  const used: string[] = [];
+  const picks = (layer: SetupLayer | undefined) => { const id = layer?.agentOverrides?.[trackerId]?.schemaId; return id && ids.has(id) ? id : undefined; };
+  const name = (id: string) => d.sets.find((x) => x.id === id)?.name ?? id;
+  for (const x of await store.listStories()) { const id = picks(x.setup); if (id) used.push(`“${name(id)}” in the story “${x.name}”`); }
+  for (const x of await store.kits.list()) { const id = picks(x.setup); if (id) used.push(`“${name(id)}” in the Kit “${x.name}”`); }
+  for (const x of await store.listSessions()) { const id = picks(x.setup); if (id) used.push(`“${name(id)}” in the chat “${x.title}”`); }
+  for (const x of await store.npcs.list()) if (ids.has(x.schemaId)) used.push(`“${name(x.schemaId)}” as the sheet of the NPC “${x.name}”`);
+  { const id = picks(await store.getDefaultSetup()); if (id) used.push(`“${name(id)}” in the Default setup`); }
+  return used;
 }
 
 function loreEntryOf(e: Obj, newId: () => string): LoreEntry {
@@ -795,7 +906,7 @@ async function castOf(store: SqlStore, list: unknown): Promise<Story["cast"]> {
   return out;
 }
 
-function kitOf(data: Obj, id: string, base?: Obj, agents?: ListOverride): Story {
+function kitOf(data: Obj, id: string, base?: Obj, setupPatch?: Obj): Story {
   const prev = (base ?? {}) as Obj;
   const lore = strs(data.lorebookIds).map((x) => splitRef(x)?.id ?? x);
   const narratorId = str(data.narratorId);
@@ -816,23 +927,71 @@ function kitOf(data: Obj, id: string, base?: Obj, agents?: ListOverride): Story 
     ...(data.cast !== undefined ? { cast: data.cast } : {}),
     ...(data.npcIds !== undefined ? { npcIds: strs(data.npcIds).map((x) => splitRef(x)?.id ?? x) } : {}),
     ...(data.narratorId !== undefined ? { narrator: { kind: "vault", id: narratorId ? splitRef(narratorId)?.id ?? narratorId : SIMPLE_NARRATOR_ID } } : {}),
-    ...(data.lorebookIds !== undefined || agents ? { setup: { ...oldSetup,
-      ...(data.lorebookIds !== undefined ? { lorebooks: { ...oldLore, mode: oldLore.mode === "only" ? "only" : "add", add: lore, remove: oldLore.remove ?? [] } } : {}),
-      ...(agents ? { agents } : {}) } } : {}),
+    ...(data.lorebookIds !== undefined || setupPatch ? { setup: { ...(setupPatch ?? oldSetup),
+      ...(data.lorebookIds !== undefined ? { lorebooks: { ...oldLore, mode: oldLore.mode === "only" ? "only" : "add", add: lore, remove: oldLore.remove ?? [] } } : {}) } } : {}),
   });
 }
 
-/** A Kit with its cast and agents resolved from the library (both need reads). */
+/** A Kit with its cast, agents and trackers resolved from the library (they need reads). */
 async function kitFull(store: SqlStore, data: Obj, id: string, base?: Obj): Promise<Story> {
-  const agents = await agentsOverride(store, data, isObj(base?.setup) ? base.setup : {});
-  return kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, id, base, agents);
+  const setup = await setupAfter(store, data, isObj(base?.setup) ? base.setup : {});
+  return kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, id, base, setup);
 }
 
-/** A story with only its agents changed (the one thing the Assistant changes on a story, D-134). */
+/** A story with only its agents and trackers changed (what the Assistant changes on a story, D-134, D-139). */
 async function storyAfter(store: SqlStore, data: Obj, item: Obj): Promise<Story> {
   const s = Story.parse(item);
-  const agents = await agentsOverride(store, data, s.setup as Obj);
-  return Story.parse({ ...s, setup: { ...s.setup, ...(agents ? { agents } : {}) } });
+  const setup = await setupAfter(store, data, s.setup as Obj);
+  return Story.parse({ ...s, ...(setup ? { setup } : {}) });
+}
+
+/** A layer with its agents (agentIds/agentGroups) and then its trackers (trackers) changed; undefined = neither given. */
+async function setupAfter(store: SqlStore, data: Obj, setup: Obj): Promise<Obj | undefined> {
+  const agents = await agentsOverride(store, data, setup);
+  const withAgents = agents ? { ...setup, agents } : setup;
+  const withTrackers = await trackersSetup(store, data, withAgents);
+  return withTrackers ?? (agents ? withAgents : undefined);
+}
+
+/**
+ * trackers → the trackers a Kit or story switches on, each with the field set it uses (D-139): a full list. A tracker
+ * named without a field set (or with its default) uses its default set; another set is kept as the layer's pick
+ * (agentOverrides[tracker].schemaId, the same as choosing it on the story page). Agents in the same list are kept.
+ */
+async function trackersSetup(store: SqlStore, data: Obj, setup: Obj): Promise<Obj | undefined> {
+  if (data.trackers === undefined) return undefined;
+  if (!Array.isArray(data.trackers)) throw new Error('trackers must be a list: "Scene: World" or { "tracker": "Scene: Characters", "fieldSet": "Fantasy" }.');
+  const all = await listTrackers(store);
+  const agents = await listAgents(store);
+  const isAgent = (key: string) => agents.some((a) => a.id === key || a.name.toLowerCase() === key.toLowerCase());
+  const wanted = new Map<string, string | null>();
+  for (const raw of data.trackers as unknown[]) {
+    const ref = typeof raw === "string" ? raw : isObj(raw) ? str(raw.tracker ?? raw.id ?? raw.name) : "";
+    const key = (splitRef(ref)?.id ?? ref).trim();
+    const t = all.find((x) => x.agent.id === key) ?? all.find((x) => x.agent.name.toLowerCase() === key.toLowerCase());
+    if (!t) throw new Error(`No tracker “${ref}”${isAgent(key) ? " (that is an agent: use agentIds)" : ""}. Use find with kind "tracker".`);
+    const fs = isObj(raw) ? raw.fieldSet : undefined;
+    const set = typeof fs === "string" && fs.trim() ? setNamed(draftOf(t), fs) : undefined;
+    wanted.set(t.agent.id, set && set.id !== t.agent.state?.schemaId ? set.id : null);
+  }
+  const trackerIds = new Set(all.map((t) => t.agent.id));
+  const old = isObj(setup.agents) ? setup.agents : {};
+  const mode = old.mode === "only" ? "only" : "add";
+  const keptAgents = old.mode === "keep" || old.mode === undefined ? [] : strs(old.add).filter((id) => !trackerIds.has(id));
+  let next = { ...setup, agents: { mode, add: [...new Set([...keptAgents, ...wanted.keys()])], remove: strs(old.remove).filter((id) => !wanted.has(id)) } } as SetupLayer;
+  for (const t of all) next = layerWithFieldSet(next, t.agent.id, wanted.get(t.agent.id) ?? null);
+  return next as Obj;
+}
+
+/** The trackers a layer switches on itself, with the field set each uses, for reads (D-139). */
+async function layerTrackers(store: SqlStore, setup: unknown): Promise<Array<{ tracker: string; id: string; fieldSet: string }>> {
+  if (!isObj(setup)) return [];
+  const layer = setup as SetupLayer;
+  return (await listTrackers(store)).filter((t) => layerHasTracker(layer, t.agent.id) || layer.agentOverrides?.[t.agent.id]?.schemaId).map((t) => {
+    const picked = layer.agentOverrides?.[t.agent.id]?.schemaId;
+    const set = t.sets.find((x) => x.id === picked) ?? t.sets[0]!;
+    return { tracker: t.agent.name, id: `tracker:${t.agent.id}`, fieldSet: set.name, ...(layerHasTracker(layer, t.agent.id) ? {} : { note: "field set picked; the tracker is switched on by a layer above" }) };
+  });
 }
 
 /**
@@ -918,7 +1077,7 @@ async function createOnly(store: SqlStore, kind: AssistantKind, data: Obj, name:
         return typeof value === "function" ? value.bind(target) : value;
       } });
       const saved = await saveTracker(guarded, d);
-      return { id: saved.id, name: saved.name, detail: `${saved.sets[0]!.fields.length} fields` };
+      return { id: saved.id, name: saved.name, detail: saved.sets.length > 1 ? `${saved.sets.length} field sets · ${saved.sets.map((x) => x.name).join(", ")}` : `${saved.sets[0]!.fields.length} fields` };
     }
     case "story": throw new Error("Stories are started in the app or from a Kit.");
     case "kit": {
@@ -971,7 +1130,7 @@ async function validateNew(store: SqlStore, kind: AssistantKind, data: Obj): Pro
     case "narrator": narratorOf(data, newId()); break;
     case "lorebook": Lorebook.parse({ id: newId(), name, description: str(data.description), entries: loreEntriesAfter([], { add: data.entries ?? [] }, newId) }); break;
     case "kit": await kitFull(store, data, newId()); break;
-    case "story": throw new Error("Stories are started in the app or from a Kit; on a story you can only `change` its agents.");
+    case "story": throw new Error("Stories are started in the app or from a Kit; on a story you can only `change` its agents and trackers.");
     case "cue": cueOf(data, []); break;
   }
 }
@@ -992,6 +1151,8 @@ export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
     else if (kind === "kit" && k === "narratorId") out[k] = item.narrator ?? "";
     else if (kind === "kit" && k === "lorebookIds") out[k] = isObj(item.setup) ? item.setup.lorebooks ?? "" : "";
     else if ((kind === "kit" || kind === "story") && (k === "agentIds" || k === "agentGroups")) out[k] = isObj(item.setup) ? item.setup.agents ?? "" : "";
+    else if ((kind === "kit" || kind === "story") && k === "trackers") out[k] = isObj(item.setup) ? { agents: item.setup.agents ?? "", picks: item.setup.agentOverrides ?? "" } : "";
+    else if (kind === "tracker" && k === "fieldSets") out[k] = item.fieldSetsFull ?? "";
     else out[k] = item[k] ?? "";
   }
   return out;
@@ -1014,7 +1175,12 @@ export async function prepareChange(store: SqlStore, kind: AssistantKind, itemId
     case "persona": personaOf(changes, dryId, Persona.parse(item)); break;
     case "kit": await kitFull(store, changes, itemId, item); break;
     case "story": await storyAfter(store, changes, item); break;
-    case "tracker": { const t = (await listTrackers(store)).find(t => t.agent.id === itemId)!; trackerAfter(draftOf(t), changes); break; }
+    case "tracker": {
+      const t = (await listTrackers(store)).find(t => t.agent.id === itemId)!; trackerAfter(draftOf(t), changes);
+      const used = await setsInUse(store, itemId, changes);
+      if (used.length) throw new Error(`Can't remove a field set that is in use: ${used.slice(0, 5).join("; ")}${used.length > 5 ? `; and ${used.length - 5} more` : ""}. Leave it, or tell the user to pick another set there first.`);
+      break;
+    }
     case "cue": cueOf(changes, [], Cue.parse(item)); break;
   }
   return { type: "change", id: newId(), kind, itemId, name: str(item.name), summary, before: currentOf(item, kind, changes), after: changes, status: "waiting" };
@@ -1074,6 +1240,7 @@ export async function applyChange(store: SqlStore, r: Extract<AssistantResult, {
     case "tracker": {
       const t = (await listTrackers(store)).find((x) => x.agent.id === r.itemId);
       if (!t) return "missing";
+      if ((await setsInUse(store, r.itemId, ch)).length) return "stale";
       await saveTracker(store, trackerAfter(draftOf(t), ch));
       break;
     }

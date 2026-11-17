@@ -723,7 +723,7 @@ function ChangeField({ name, before, after }: { name: string; before: unknown; a
     const p = typeof after === "string" ? (JSON.parse(after) as { mime: string; base64: string }) : null;
     return <div className="asst-fld"><span className="asst-fld-n">Picture</span>{p && <img className="asst-thumb" src={`data:${p.mime};base64,${p.base64}`} alt="" />}</div>;
   }
-  if ((name === "variants" || name === "entries") && after && typeof after === "object") return <OpsField name={name} before={before} after={after} />;
+  if ((name === "variants" || name === "entries" || name === "fieldSets") && after && typeof after === "object") return <OpsField name={name} before={before} after={after} />;
   const parts = diffWords(asText(before), asText(after));
   return (
     <div className="asst-fld"><span className="asst-fld-n">{name}</span>
@@ -736,20 +736,22 @@ function ChangeField({ name, before, after }: { name: string; before: unknown; a
 function OpsField({ name, before, after }: { name: string; before: unknown; after: unknown }) {
   type O = Record<string, unknown>;
   const isO = (v: unknown): v is O => !!v && typeof v === "object" && !Array.isArray(v);
-  const what = name === "variants" ? "version" : "entry";
-  const titleOf = (x: O) => String(x.label ?? x.title ?? x.id ?? "");
+  const what = name === "variants" ? "version" : name === "fieldSets" ? "field set" : "entry";
+  // a tracker's field sets (D-139) are named by name
+  const titleOf = (x: O) => String(x.label ?? x.title ?? x.name ?? x.id ?? "");
   const was = (Array.isArray(before) ? before.filter(isO) : []);
   const find = (x: O) => was.find((b) => (x.id && b.id === x.id) || (titleOf(x) && titleOf(b).toLowerCase() === titleOf(x).toLowerCase()));
   const ops: O = Array.isArray(after) ? { update: after.filter(isO) } : isO(after) ? after : {};
   const rows: Array<{ sign: string; title: string; fields: Array<[string, unknown, unknown]> }> = [];
-  for (const a of Array.isArray(ops.add) ? ops.add.filter(isO) : []) rows.push({ sign: "+", title: titleOf(a), fields: Object.entries(a).filter(([k]) => k !== "label" && k !== "title" && k !== "id").map(([k, v]) => [k, undefined, v]) });
+  const named = (k: string) => k === "label" || k === "title" || k === "id" || (name === "fieldSets" && k === "name");
+  for (const a of Array.isArray(ops.add) ? ops.add.filter(isO) : []) rows.push({ sign: "+", title: titleOf(a), fields: Object.entries(a).filter(([k]) => !named(k)).map(([k, v]) => [k, undefined, v]) });
   for (const u of Array.isArray(ops.update) ? ops.update.filter(isO) : []) {
     const b = find(u);
-    rows.push({ sign: b || before === undefined ? "~" : "+", title: titleOf(u) || titleOf(b ?? {}), fields: Object.entries(u).filter(([k]) => k !== "label" && k !== "title" && k !== "id").map(([k, v]) => [k, b?.[k], v]) });
+    rows.push({ sign: b || before === undefined ? "~" : "+", title: titleOf(u) || titleOf(b ?? {}), fields: Object.entries(u).filter(([k]) => !named(k)).map(([k, v]) => [k, b?.[k], v]) });
   }
   for (const r of Array.isArray(ops.remove) ? ops.remove : []) rows.push({ sign: "−", title: titleOf(find({ id: r, label: r, title: r }) ?? { label: r }), fields: [] });
   return (
-    <div className="asst-fld"><span className="asst-fld-n">{name === "variants" ? "Versions" : "Entries"}</span>
+    <div className="asst-fld"><span className="asst-fld-n">{name === "variants" ? "Versions" : name === "fieldSets" ? "Field Sets" : "Entries"}</span>
       <div className="asst-ops">{rows.map((r, i) => (
         <div key={i} className="asst-op"><b><span className={`asst-op-s${r.sign === "−" ? " rm" : ""}`}>{r.sign}</span> {r.title || `(new ${what})`}<small>{r.sign === "+" ? ` new ${what}` : r.sign === "−" ? ` removed` : ""}</small></b>
           {r.fields.map(([k, b, a]) => <ChangeField key={k} name={k} before={b} after={a} />)}
@@ -1229,7 +1231,7 @@ function DraftField({ name, value, bare = false }: { name: string; value: unknow
     return <div className="asst-draft-v"><MessageText text={String(value ?? "")} /></div>;
   }
   // A revision's list changes ({ add, update, remove }) read like the change card's, not "[object Object]" (D-120).
-  if ((name === "entries" || name === "variants") && value && typeof value === "object" && !Array.isArray(value)) return <OpsField name={name} before={undefined} after={value} />;
+  if ((name === "entries" || name === "variants" || name === "fieldSets") && value && typeof value === "object" && !Array.isArray(value)) return <OpsField name={name} before={undefined} after={value} />;
   if (Array.isArray(value)) {
     const items = value.map((v) => (typeof v === "string" ? v : v && typeof v === "object" ? String((v as Record<string, unknown>).title ?? (v as Record<string, unknown>).label ?? (v as Record<string, unknown>).name ?? JSON.stringify(v)) : String(v)));
     return <div className="asst-draft-f"><span>{label} <small>({items.length})</small></span>{typeof value[0] === "string" && name !== "tags" && name !== "keys"
