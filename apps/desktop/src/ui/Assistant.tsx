@@ -736,12 +736,14 @@ function ResultCard({ r, onAct, onOpen, onStartKit, ctl }: { r: AssistantResult;
 
 const asText = (v: unknown) => (typeof v === "string" ? v : v === undefined ? "" : JSON.stringify(v, null, 1));
 function ChangeField({ name, before, after }: { name: string; before: unknown; after: unknown }) {
+  // once per change, not on every render (the reply streams in while a card is open)
+  const isText = name !== "picture" && !((name === "variants" || name === "entries" || name === "fieldSets") && after && typeof after === "object");
+  const parts = useMemo(() => (isText ? diffWords(asText(before), asText(after)) : []), [isText, before, after]);
   if (name === "picture") {
     const p = typeof after === "string" ? (JSON.parse(after) as { mime: string; base64: string }) : null;
     return <div className="asst-fld"><span className="asst-fld-n">Picture</span>{p && <img className="asst-thumb" src={`data:${p.mime};base64,${p.base64}`} alt="" />}</div>;
   }
-  if ((name === "variants" || name === "entries" || name === "fieldSets") && after && typeof after === "object") return <OpsField name={name} before={before} after={after} />;
-  const parts = diffWords(asText(before), asText(after));
+  if (!isText) return <OpsField name={name} before={before} after={after} />;
   return (
     <div className="asst-fld"><span className="asst-fld-n">{name}</span>
       <div className="asst-diff">{parts.map((p, i) => p.kind === "same" ? <span key={i}>{p.text}</span> : <span key={i}>{p.before && <del>{p.before}</del>}{p.before && p.after ? " " : ""}{p.after && <ins>{p.after}</ins>}</span>)}</div>
