@@ -1601,3 +1601,14 @@ Daniel (translated): "give the Assistant more knowledge of trackers: today it ca
 - Tests: `field-sets.test.ts` (6: find/read, add from a copy + update + default, sets in use, create with several sets, Kit trackers with sets, story trackers); `assistant.test.ts` guide checks updated.
 
 Signed: **CLAUDE**.
+
+## D-140 — Add Context: a tracker's field set is picked in the window (2026-11-17)
+
+Daniel (translated), after D-139: "it would be nice to pick the field sets right in Add Context, so it doesn't have to make a call to find out which field set to use every time."
+
+- **The window:** picking a tracker with more than one field set in Add Context shows a row under the cards (like a chat's message range, D-110): "Scene: Characters · field set" with **All** (the whole tracker, as before) and each set as a chip, the default marked. Several trackers → one row each. The chip under the window and the attachment read "Scene: Characters · Fantasy". Reopening the window keeps the pick.
+- **What the Assistant gets:** the attachment keeps `fieldSet` (`AssistantAttachment` item, by name); its line in the message says the user picked that set, to work on it, how to read it whole (`["fieldSet:<name>"]`), and that a new Kit or story with this tracker uses it. The set's fields are not pasted into the message (the Assistant reads only what it needs, D-062); what is saved is the question "which set?" and the read of the tracker to find it.
+- `LibraryEntry.sets` carries a tracker's set names (default first) to the window.
+- Tests: `field-sets.test.ts` (the message line); click test `assistant` (pick a set, the chip, reopening keeps it).
+
+Signed: **CLAUDE**.

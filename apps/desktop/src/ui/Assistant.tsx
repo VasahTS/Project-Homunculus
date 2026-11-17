@@ -870,7 +870,10 @@ function ContextPicker({ library, picked, onAdd, onClose, startKind, firstIds = 
 }) {
   const [kind, setKind] = useBackState<AssistantReadKind>(startKind ?? "character");
   const [q, setQ] = useState("");
-  const [sel, setSel] = useState<Map<string, LibraryEntry>>(() => new Map(picked.map((p) => [`${p.kind}:${p.id}`, { kind: p.kind, id: p.id, name: p.name, line: "" }])));
+  const [sel, setSel] = useState<Map<string, LibraryEntry>>(() => new Map(picked.map((p) => [`${p.kind}:${p.id}`, library.find((e) => e.kind === p.kind && e.id === p.id) ?? { kind: p.kind, id: p.id, name: p.name, line: "" }])));
+  /** D-140: a tracker's field set, picked here so the Assistant needn't ask which one (no entry = the whole tracker). */
+  const [sets, setSets] = useState<Record<string, string>>(() => Object.fromEntries(picked.filter((p) => p.fieldSet).map((p) => [p.id, p.fieldSet!])));
+  const withSets = [...sel.values()].filter((e) => e.kind === "tracker" && (e.sets?.length ?? 0) > 1);
   /** A chat can be added whole or as a range of its messages (D-110): "#150–#212" goes in its name for the Assistant. */
   const [ranges, setRanges] = useState<Record<string, { from: string; to: string }>>({});
   const lastChat = [...sel.values()].reverse().find((e) => e.kind === "chat");
@@ -916,11 +919,33 @@ function ContextPicker({ library, picked, onAdd, onClose, startKind, firstIds = 
             onChange={(e) => setRanges((r) => ({ ...r, [lastChat.id]: { from: r[lastChat.id]?.from ?? "", to: e.target.value } }))} />
         </div>
       )}
+      {withSets.length > 0 && (
+        <div className="asst-sets" data-testid="assistant-field-sets">
+          {withSets.map((e) => (
+            <div key={e.id} className="asst-sets-row" role="radiogroup" aria-label={`Field set of ${e.name}`}>
+              <span className="asst-sets-name"><b>{e.name}</b> · field set</span>
+              {[undefined, ...e.sets!].map((name, i) => {
+                const on = (sets[e.id] ?? undefined) === name;
+                return (
+                  <button key={name ?? "~all"} type="button" role="radio" aria-checked={on} className={`asst-set${on ? " on" : ""}`}
+                    title={name === undefined ? "The whole tracker: the Assistant sees every set" : i === 1 ? "The tracker's default set" : undefined}
+                    onClick={() => setSets((s) => { const n = { ...s }; if (name === undefined) delete n[e.id]; else n[e.id] = name; return n; })}>
+                    {name ?? "All"}{i === 1 && <small> default</small>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="modal-foot">
-        <span className="grow asst-picked">{sel.size ? [...sel.values()].map((e) => <span key={`${e.kind}:${e.id}`} className="asst-chip"><span className="asst-k"><KindMark kind={e.kind} /></span><span className="asst-chip-name">{e.name}</span></span>) : <span className="hint">Pick characters, chats, lorebooks, agents… The Assistant reads only what it needs from them.</span>}</span>
+        <span className="grow asst-picked">{sel.size ? [...sel.values()].map((e) => <span key={`${e.kind}:${e.id}`} className="asst-chip"><span className="asst-k"><KindMark kind={e.kind} /></span><span className="asst-chip-name">{e.name}{sets[e.id] && e.kind === "tracker" ? ` · ${sets[e.id]}` : ""}</span></span>) : <span className="hint">Pick characters, chats, lorebooks, agents… The Assistant reads only what it needs from them.</span>}</span>
         <Button variant="plain" onClick={onClose}>Cancel</Button>
         <Button variant="prominent" disabled={!sel.size} data-testid="assistant-picker-add"
-          onClick={() => onAdd([...sel.values()].map((e) => ({ type: "item", kind: e.kind, id: e.id, name: nameOf(e) })))}>Add {sel.size || ""}</Button>
+          onClick={() => onAdd([...sel.values()].map((e) => {
+            const set = e.kind === "tracker" && sets[e.id] && e.sets?.includes(sets[e.id]!) ? sets[e.id] : undefined;
+            return { type: "item", kind: e.kind, id: e.id, name: set ? `${e.name} · ${set}` : nameOf(e), ...(set ? { fieldSet: set } : {}) };
+          }))}>Add {sel.size || ""}</Button>
       </div>
     </Modal>
   );

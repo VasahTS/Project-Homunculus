@@ -179,3 +179,26 @@ test("Draft first: drafts show as cards with Save; nothing is saved until the us
   await page.getByTestId("place-list").getByRole("button", { name: "Characters" }).click();
   await expect(page.getByTestId("character-list")).toContainText("Kessa");
 });
+
+// D-140: a tracker with several field sets: pick the set in Add Context, so the Assistant needn't ask which one
+test("Add Context: a tracker's field set is picked in the window", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  await page.getByTestId("assistant-plus").click();
+  await page.getByTestId("assistant-add-context").click();
+  const picker = page.getByTestId("assistant-picker");
+  await picker.getByRole("tab", { name: /Trackers/ }).click();
+  await picker.getByRole("button", { name: /Scene: Characters/ }).click();
+  const sets = page.getByTestId("assistant-field-sets");
+  await expect(sets.getByRole("radio", { name: "All" })).toHaveAttribute("aria-checked", "true");
+  await sets.getByRole("radio", { name: "Fantasy" }).click();
+  await expect(sets.getByRole("radio", { name: "Fantasy" })).toHaveAttribute("aria-checked", "true");
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "e2e/.results/assistant-field-sets.png" });
+  await page.getByTestId("assistant-picker-add").click();
+  await expect(page.getByTestId("assistant-composer")).toContainText("Scene: Characters · Fantasy");
+  // reopening keeps the pick
+  await page.getByTestId("assistant-plus").click();
+  await page.getByTestId("assistant-add-context").click();
+  await expect(page.getByTestId("assistant-field-sets").getByRole("radio", { name: "Fantasy" })).toHaveAttribute("aria-checked", "true");
+});

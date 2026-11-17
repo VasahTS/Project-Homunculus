@@ -165,7 +165,8 @@ export type PictureDescription = z.infer<typeof PictureDescription>;
 
 /** Something added to a message: an item of the app (read with tools), a file, or an image. */
 export const AssistantAttachment = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("item"), kind: AssistantReadKind, id: Id, name: z.string() }),
+  /** fieldSet (D-140): for a tracker, the field set the user picked in Add Context (by name); missing = the whole tracker. */
+  z.object({ type: z.literal("item"), kind: AssistantReadKind, id: Id, name: z.string(), fieldSet: z.string().optional() }),
   z.object({ type: z.literal("file"), id: Id, name: z.string(), mime: z.string().default(""), text: z.string(), summary: z.string().default("") }),
   z.object({
     type: z.literal("image"), id: Id, name: z.string(), mime: z.string(), base64: z.string(),

@@ -14,7 +14,11 @@ import { usePrefs } from "../prefs.ts";
 export type AppMode = "play" | "assistant";
 
 /** A thing of the app the user can add as context (from App's lists). */
-export interface LibraryEntry { kind: AssistantReadKind; id: string; name: string; line: string; avatar?: Avatar | undefined }
+export interface LibraryEntry {
+  kind: AssistantReadKind; id: string; name: string; line: string; avatar?: Avatar | undefined;
+  /** A tracker's field sets, the default first (D-140: picked in Add Context). */
+  sets?: string[] | undefined;
+}
 
 
 // ------------------------------------------------------------------ state shared by the sidebar and the view

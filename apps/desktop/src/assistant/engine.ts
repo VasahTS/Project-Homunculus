@@ -155,7 +155,9 @@ export type PictureRoute = "send" | "describe" | "drop";
 function userContent(m: AssistantMessage, withImages: boolean, pictures: PictureRoute = "send"): string | ContentPart[] {
   const lines: string[] = [];
   for (const a of m.attachments) {
-    if (a.type === "item") lines.push(`[Added: ${a.kind}:${a.id} · ${a.name}]`);
+    // D-140: a tracker added with one of its field sets: the Assistant works on that set without asking which
+    if (a.type === "item" && a.fieldSet) lines.push(`[Added: ${a.kind}:${a.id} · ${a.name} — the user picked its field set “${a.fieldSet}”: work on that set (read it whole with fields ["fieldSet:${a.fieldSet}"]); a new Kit or story with this tracker uses it]`);
+    else if (a.type === "item") lines.push(`[Added: ${a.kind}:${a.id} · ${a.name}]`);
     else if (a.type === "file") lines.push(`[File ${a.id}: ${a.name} — ${a.summary}]`);
     else if (pictures !== "send" || a.comicPage) lines.push(pictureText(a, pictures === "send" ? "describe" : pictures, withImages));
     else if (!withImages) lines.push(`[Image ${a.id}: ${a.name} (sent earlier)]`);

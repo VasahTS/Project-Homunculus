@@ -2,9 +2,10 @@
 // and picks the default; a Kit or a story switches trackers on with the field set each uses. Author: CLAUDE, 2026-11-17.
 import initSqlJs from "sql.js";
 import { describe, expect, it } from "vitest";
-import { Story, type TrackerField } from "@homunculus/schemas";
+import { AssistantChat, AssistantSettings, Story, type AssistantMessage, type TrackerField } from "@homunculus/schemas";
 import { SqlJsDriver, SqlStore, coreMigrations, migrate } from "@homunculus/core";
 import { applyChange, runTool, type ToolContext } from "./tools.ts";
+import { toTurns } from "./engine.ts";
 import { blankAgent, saveAgent } from "../agents.ts";
 import { blankTracker, copySet, listTrackers, saveTracker } from "../trackers.ts";
 
@@ -113,5 +114,15 @@ describe("the Assistant and field sets (D-139)", () => {
     const s = (await store.stories.get("s1"))!;
     expect(s.setup.agents).toEqual({ mode: "add", add: [agent.id, "chars", "world"], remove: [] });
     expect(s.setup.agentOverrides).toBeUndefined();
+  });
+
+  it("D-140: a tracker added with a field set tells the Assistant which set to work on", () => {
+    const msg: AssistantMessage = { id: "m", role: "user", text: "Add mana.", reasoning: "", steps: [], rounds: [], results: [], createdAt: 1,
+      attachments: [{ type: "item", kind: "tracker", id: "chars", name: "Scene: Characters · Fantasy", fieldSet: "Fantasy" }, { type: "item", kind: "tracker", id: "world", name: "Scene: World" }] };
+    const turns = toTurns(AssistantChat.parse({ id: "c", messages: [msg], createdAt: 1, updatedAt: 1 }), AssistantSettings.parse({}), "");
+    const text = JSON.stringify(turns.at(-1));
+    expect(text).toContain("the user picked its field set “Fantasy”");
+    expect(text).toContain('fieldSet:Fantasy');
+    expect(text).toContain("[Added: tracker:world · Scene: World]");
   });
 });

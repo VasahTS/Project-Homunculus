@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Add Context: pick a tracker's field set (2026-11-17) — CLAUDE — D-140
+
+- Daniel: pick the field set right in Add Context, so the Assistant doesn't have to find out which set to use every time.
+- Built: a row under the cards for each picked tracker with several sets (All + each set, default marked); the attachment reads "Scene: Characters · Fantasy" and tells the Assistant to work on that set (`fieldSet` on the item attachment; `LibraryEntry.sets`).
+- **To try (Windows):** close the app → Pull origin → open it. Assistant → + → Add Context… → Trackers → Scene: Characters → the row "field set": click Fantasy → Add. The chip says "Scene: Characters · Fantasy". Ask "add a Corruption meter" → the change card changes the Fantasy set (Field Sets ~ Fantasy), not Standard.
+- Checks: typecheck; unit tests (939); click tests assistant (4).
+- Changelog line for the next release: "**Add Context picks a field set**: adding a tracker to the Assistant lets you choose which of its field sets to work on, so it goes straight to that set."
+
 ## The Assistant knows field sets (2026-11-17) — CLAUDE — D-139
 
 - Daniel: the Assistant only saw trackers, not their field sets, and made a new tracker every time; it should add a field set where that makes sense and make a new tracker only for HUDs or specific jobs.

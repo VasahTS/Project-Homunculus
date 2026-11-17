@@ -1928,7 +1928,7 @@ export function App() {
     ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, line: inFolder("story", x.id, short(x.description || storyScenario(x))) })),
     ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, line: inFolder("kit", x.id, short(x.description || storyScenario(x))) })),
     ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${lorebookEntryCount(b)} entries`) })),
-    ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help) })),
+    ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help), sets: t.sets.map((x) => x.name) })),
     ...presets.map((x) => ({ kind: "preset" as const, id: x.id, name: x.name, line: `${x.blocks.length} blocks` })),
     ...cues.map((x) => ({ kind: "cue" as const, id: x.id, name: x.name, line: x.help || `${x.groups.reduce((n, g) => n + g.items.length, 0)} texts` })),
     // D-110: chats and the parts of the app the Assistant can read but not yet write
