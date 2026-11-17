@@ -146,13 +146,21 @@ export function systemParts(assistant: AssistantPersona, preset: AssistantPreset
     if (preset.style.trim()) p.push(`How the user likes things written:\n${preset.style.trim()}`);
     const rules = preset.rules.filter((r) => r.on && r.text.trim()).map((r) => `- ${r.text.trim()}`);
     if (rules.length) p.push(`The user's rules (always follow them):\n${rules.join("\n")}`);
-    for (const n of preset.notes.filter((x) => x.on && x.text.trim())) p.push(`${n.title.trim() || "Note"}:\n${n.text.trim()}`);
+    for (const n of preset.notes.filter((x) => x.on && x.text.trim() && x.role !== "assistant")) p.push(`${n.title.trim() || "Note"}:\n${n.text.trim()}`);
     if (preset.memoryOn && preset.memory.length) p.push(`What you remember about the user:\n${preset.memory.map((m) => `- ${m.text}`).join("\n")}`);
     parts.preset = p.join("\n\n");
   }
   return parts;
 }
 const systemText = (parts: Record<string, string>) => Object.values(parts).filter(Boolean).join("\n\n");
+
+/**
+ * D-147: the preset's notes sent as the AI ("assistant" role), joined: they go last in every call, so the reply goes on
+ * from them (prefill), and are never saved in the chat. Empty = none.
+ */
+export function prefillText(preset: AssistantPreset | undefined): string {
+  return (preset?.notes ?? []).filter((n) => n.on && n.role === "assistant" && n.text.trim()).map((n) => n.text.trim()).join("\n\n");
+}
 
 /** How pictures reach the main model (D-115): as they are, as the vision model's words, or by name only. */
 export type PictureRoute = "send" | "describe" | "drop";
@@ -228,6 +236,8 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
     const failed = m.error ? (m.error === "Stopped" || /abort/i.test(m.error) ? "(this reply was stopped by the user — not answered; take it up only if the user asks again)" : `(this reply failed: ${m.error} — not answered; take it up only if the user asks again)`) : "";
     if (said || m.error || outcomes.length) out.push({ role: "assistant", content: [said, failed, ...outcomes].filter(Boolean).join("\n") });
   }
+  const prefill = prefillText(preset);
+  if (prefill) out.push({ role: "assistant", content: prefill });
   return out;
 }
 

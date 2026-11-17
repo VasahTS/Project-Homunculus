@@ -237,3 +237,19 @@ test("the Assistant's box shrinks back after sending, even with a height transit
   await expect(box).toHaveValue("");
   await expect.poll(h).toBe(start);
 });
+
+test("an Assistant preset note can be sent as the AI's reply start (D-147)", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  await page.getByTestId("assistant-customize").click();
+  await page.getByTestId("cust-presets").click();
+  await page.getByRole("button", { name: "Add a Note" }).click();
+  const note = page.locator(".cust-note").last();
+  await note.getByRole("textbox", { name: "Note title" }).fill("Reply start");
+  await note.getByRole("textbox", { name: "Note", exact: true }).fill("Certo! Direto ao ponto:");
+  await expect(note.getByRole("combobox", { name: "Sent as" })).toHaveValue("system");
+  await note.getByRole("combobox", { name: "Sent as" }).selectOption("assistant");
+  await expect(note).toContainText("its reply goes on from here (prefill)");
+  await note.screenshot({ path: "e2e/.results/assistant-note-prefill.png" });
+  await page.getByRole("button", { name: "Done" }).click();
+});

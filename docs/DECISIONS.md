@@ -1688,3 +1688,13 @@ Daniel (translated): "port the other SillyTavern macros too, like getvar, setvar
 - Tests: `macros.test.ts` (17), `macro-variables.test.ts` (4); the old macro tests unchanged.
 
 Signed: **CLAUDE**.
+
+## D-147 — Assistant preset notes can be sent as the AI (prefill) (2026-11-17)
+
+Daniel (translated): "when talking straight to the Assistant, it should also be able to use Notes/Lore that go in as the AI Assistant, working as a prefill."
+
+- `PresetNote.role`: "system" (default — in the instructions, as before; old notes read as system) or "assistant". On notes go last in every call of a reply (each tool round too), joined, as an assistant message, so the model goes on from them — the same idea as a chat preset's "Reply starts with" (`prompts.prefill`). They are never saved in the Assistant chat and never shown in the reply.
+- Customize → Presets → Notes and lore: a "Sent as" select on each note (Instructions / AI (reply start)); the hint under the note says what it does and that some models don't allow it. Details → "What it is using" marks such notes "· as the AI". Minimal control, following the note row's existing look; no separate draft.
+- Tests: the preset test in `assistant.test.ts` checks the note is last in every call, not in the instructions, and not saved.
+
+Signed: **CLAUDE**.

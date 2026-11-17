@@ -280,7 +280,8 @@ describe("the Assistant", () => {
     await saveSettings(store, { ...s0, presets: [...s0.presets, {
       id: "dark", name: "Dark fantasy", description: "", style: "Prose, 800 tokens.", memory: [], memoryOn: true, autoMemory: true,
       rules: [{ id: "r", text: "Cards in English.", on: true }, { id: "r2", text: "OFF RULE", on: false }, { id: "r3", text: "  ", on: true }],
-      notes: [{ id: "n", title: "The Grey Order", text: "Rangers of the north.", on: true }],
+      notes: [{ id: "n", title: "The Grey Order", text: "Rangers of the north.", on: true, role: "system" },
+        { id: "n2", title: "Start", text: "Certo, Daniel — direto ao ponto:", on: true, role: "assistant" }],
     }] });
     const chat = { ...chatWith(userMsg("remember I like slow burn")), assistantId: "card-smith", presetId: "dark" };
     await runAssistant({ core, store, chat, main, connections: {}, onUpdate: () => {} });
@@ -290,11 +291,16 @@ describe("the Assistant", () => {
     expect(sys).toContain("- Cards in English.");
     expect(sys).not.toContain("OFF RULE");
     expect(sys).toContain("The Grey Order:\nRangers of the north.");
+    // D-147: a note sent as the AI goes last in every call (prefill), never in the instructions, never saved in the chat
+    expect(sys).not.toContain("direto ao ponto");
+    for (const call of seen) expect(call.rich!.at(-1)).toEqual({ role: "assistant", content: "Certo, Daniel — direto ao ponto:" });
     const after = await loadSettings(store);
     expect(after.presets.find((p) => p.id === "dark")!.memory.map((m) => m.text)).toEqual(["Likes slow burn."]);
     expect(after.presets.find((p) => p.id === "dark")!.rules).toHaveLength(2); // the empty rule was dropped
     const reply = (await loadChat(store, "c1"))!.messages.at(-1)!;
     expect(reply.used).toMatchObject({ assistant: "Card Smith", preset: "Dark fantasy" });
+    expect(reply.text).toBe("Noted.");
+    expect(JSON.stringify((await loadChat(store, "c1"))!.messages)).not.toContain("direto ao ponto");
     expect(reply.used!.parts!.preset).toBeGreaterThan(0);
   });
 

@@ -48,8 +48,14 @@ export const AssistantPersona = z.object({
 });
 export type AssistantPersona = z.infer<typeof AssistantPersona>;
 
-/** A note in a preset: lore, a world's facts, a style sample… sent while it is on. */
-export const PresetNote = z.object({ id: Id, title: z.string().default(""), text: z.string().default(""), on: z.boolean().default(true) });
+/**
+ * A note in a preset: lore, a world's facts, a style sample… sent while it is on. role (D-147): "system" = with the
+ * instructions (as before); "assistant" = sent last, as the AI's own words, so its reply goes on from there (prefill).
+ */
+export const PresetNote = z.object({
+  id: Id, title: z.string().default(""), text: z.string().default(""), on: z.boolean().default(true),
+  role: z.enum(["system", "assistant"]).default("system"),
+});
 export type PresetNote = z.infer<typeof PresetNote>;
 
 /**

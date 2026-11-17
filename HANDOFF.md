@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Assistant notes sent as the AI (prefill) (2026-11-17) — CLAUDE — D-147
+
+- Daniel: in the Assistant chat, notes/lore should be able to go in as the AI (assistant role), as a prefill.
+- Built: each note of an Assistant preset has "Sent as": Instructions (as before) or AI (reply start) — sent last in every call, never saved or shown.
+- **To try (Windows):** close the app → open it. Assistant → Customize → Presets → your preset → Notes and lore → Add a Note → text "Certo! Vou responder em português, direto ao ponto:" → Sent as: AI (reply start). Ask something: the reply goes on from that line. Details → What it is using shows the note "· as the AI". Some models ignore or refuse a prefill.
+- Checks: typecheck; unit tests.
+- Changelog line for the next release: "**Assistant notes as the AI's own words**: a note in an Assistant preset can be sent as the start of the Assistant's reply (prefill), to steer how it answers."
+
 ## SillyTavern's macros, {{if}} blocks and variables that last (2026-11-17) — CLAUDE — D-146
 
 - Daniel: port SillyTavern's other macros (getvar, setvar…); the Assistant didn't know which macros exist.

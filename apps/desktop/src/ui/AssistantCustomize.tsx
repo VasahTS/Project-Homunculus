@@ -251,14 +251,18 @@ function PresetsTab({ s, put }: { s: AssistantSettings; put: (n: AssistantSettin
           <div key={n.id} className="cust-note">
             <div className="cust-row">
               <input value={n.title} placeholder="Title" aria-label="Note title" onChange={(e) => set({ notes: p.notes.map((x) => (x.id === n.id ? { ...x, title: e.target.value } : x)) })} />
+              <select value={n.role} aria-label="Sent as" title="Sent as" onChange={(e) => set({ notes: p.notes.map((x) => (x.id === n.id ? { ...x, role: e.target.value as typeof n.role } : x)) })}>
+                <option value="system">Instructions</option>
+                <option value="assistant">AI (reply start)</option>
+              </select>
               <Switch label="Note on" checked={n.on} onChange={(on) => set({ notes: p.notes.map((x) => (x.id === n.id ? { ...x, on } : x)) })} />
               <IconButton label="Delete note" onClick={() => set({ notes: p.notes.filter((x) => x.id !== n.id) })}><Icon name="trash" size={14} /></IconButton>
             </div>
             <textarea rows={4} value={n.text} aria-label="Note" onChange={(e) => set({ notes: p.notes.map((x) => (x.id === n.id ? { ...x, text: e.target.value } : x)) })} />
-            <small className="hint">~{Math.round(n.text.length / 3.6)} tokens</small>
+            <small className="hint">~{Math.round(n.text.length / 3.6)} tokens{n.role === "assistant" ? " · sent last, as the AI's own words: its reply goes on from here (prefill). Some models don't allow it." : ""}</small>
           </div>
         ))}
-        <Button small variant="plain" onClick={() => set({ notes: [...p.notes, { id: crypto.randomUUID(), title: "", text: "", on: true }] })}><Icon name="plus" size={12} /> Add a Note</Button>
+        <Button small variant="plain" onClick={() => set({ notes: [...p.notes, { id: crypto.randomUUID(), title: "", text: "", on: true, role: "system" }] })}><Icon name="plus" size={12} /> Add a Note</Button>
 
         <h4 className="cust-sub">Memory</h4>
         <div className="cust-row plain"><span className="grow hint">Things it learned about you. Sent while this preset is used.</span><span className="hint">On</span><Switch label="Memory on" checked={p.memoryOn} onChange={(memoryOn) => set({ memoryOn })} /></div>
