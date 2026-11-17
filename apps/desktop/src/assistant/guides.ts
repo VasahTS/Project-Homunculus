@@ -145,8 +145,8 @@ Keep it small: 3–8 fields. Values are filled by the tracker while playing; you
     fields: ["name", "description", "scenario", "openings", "userRole", "cast", "narratorId", "lorebookIds", "npcIds", "agentIds", "agentGroups"],
     text: `A Kit: a story starter the user can start a story from. Fields:
 - name, description (one or two lines for the card).
-- scenario: the premise, sent with every reply.
-- openings: list of opening messages (narrated, *actions* and "speech" as usual; {{user}} for the user). The first is the default.
+- openings: list of { "text", "scenario" } — each opening is a first message (narrated, *actions* and "speech" as usual; {{user}} for the user) with its own scenario (the premise sent with every reply in chats that start with it). The first is the default. Openings in the same world usually share one scenario; give a different one when the opening starts somewhere else (another era, another world). A read returns them this way.
+- scenario: a shortcut — sent alone, it becomes the scenario of every opening; openings sent as plain texts take it as their scenario.
 - userRole: "player" (the user plays a character), "coauthor", or "director".
 - cast: list of character ids (from \`find\`) who are in the story; for one of a character's versions use { "id": "character:…", "version": "Modern AU" }. narratorId: a narrator id (from \`find\` kind "narrator"); empty = the app's Simple Narrator.
   A read returns cast members with characterId/variantId; these are accepted unchanged. Keep their role, presence (in_scene/offscreen/off), tracked, muted, sheet and joinedAtMessageId when retaining a member. cast is a complete replacement list. To change a version, use version ("Main" resets it); it takes precedence over a returned variantId.

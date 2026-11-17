@@ -78,7 +78,7 @@ function PromptCard({ card, open, onToggle }: { card: PromptCardSpec; open: bool
   );
 }
 
-export function PromptPane({ c, providers, session, storySetup, storyName, director = false, setupProps, onChangeSession, onOpenSettings, presets, defaultPresetId, onSavePreset, onOpenPreset, preview, trackers, authorsNote, authorsNoteSummary = "", cards = [] }: {
+export function PromptPane({ c, providers, session, storySetup, storyName, director = false, setupProps, onChangeSession, onOpenSettings, presets, defaultPresetId, onSavePreset, onOpenPreset, preview, trackers, authorsNote, authorsNoteSummary = "", cards = [], firstCards = [] }: {
   c: ConnectionState; providers: ProviderDefinition[]; session: Session; onChangeSession: (s: Session) => void | Promise<void>; onOpenSettings: () => void;
   /** A story chat (D-031): the story's layer and name, and the setup block it shares with the story's page. */
   storySetup?: SetupLayer | undefined; storyName?: string | undefined; director?: boolean; setupProps?: StorySetupProps | undefined;
@@ -91,6 +91,8 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
   authorsNoteSummary?: string;
   /** Lorebooks, Regex, Quick Replies… after the preset. */
   cards?: PromptCardSpec[];
+  /** Cards before Story Setup & Model: the chat's Scenario (D-138). */
+  firstCards?: PromptCardSpec[];
 }) {
   const [shown, setShown] = useState<PromptPreview | null>(null);
   const [previewError, setPreviewError] = useState("");
@@ -197,7 +199,7 @@ export function PromptPane({ c, providers, session, storySetup, storyName, direc
     body: <NarratorPromptGroup level="chat" layer={session.setup} above={aboveSetup.narratorPrompt} onChange={(setup) => onChangeSession({ ...session, setup })} />,
   } : null;
 
-  const all = [modelCard, presetCard, ...(narratorCard ? [narratorCard] : []), ...cards];
+  const all = [...firstCards, modelCard, presetCard, ...(narratorCard ? [narratorCard] : []), ...cards];
 
   return (
     <div className="pane prompt-pane" aria-label="Connection settings" data-testid="prompt-pane">

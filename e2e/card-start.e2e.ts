@@ -34,14 +34,15 @@ test("a story takes a card's scenario and greetings from any card in Characters"
   await expect(picker).toBeVisible();
   const detail = picker.getByTestId("card-start-detail");
   await expect(detail).toContainText("3");
-  await detail.getByRole("button", { name: "Use as the scenario" }).click();
-  await expect(detail).toContainText("✓ In the scenario");
+  await detail.getByRole("button", { name: "Use as opening 1's scenario" }).click();
+  await expect(detail).toContainText("✓ In opening 1's scenario");
   await detail.getByRole("button", { name: "Add the first message as an opening" }).click();
   await detail.getByRole("button", { name: "Add greeting 2 as an opening" }).click();
   await expect(detail.getByText("✓ An opening")).toHaveCount(2);
   await page.keyboard.press("Escape");
   await expect(picker).toHaveCount(0);
 
+  // D-138: the greetings came in as openings with Mira's scenario
   await expect(page.getByLabel("Scenario").first()).toHaveValue("Mira runs a tea shop over a smuggling tunnel.");
   await expect(page.getByLabel("Opening 2")).toHaveValue("Rain on the shutters.");
   await page.getByRole("tab", { name: "1" }).click();

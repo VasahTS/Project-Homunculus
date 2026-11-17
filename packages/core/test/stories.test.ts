@@ -100,7 +100,10 @@ describe("a story session's prompt", () => {
     await w.store.saveCharacter({ id: "isekai", name: "Isekai RPG", description: "STATS: Gold, Level, BP.", scenario: "Transported to a fantasy world.",
       firstMessages: ["You open your eyes on a bus.", "A bell rings."], lorebookIds: ["astraea"] });
     const story = storyFromCard((await w.store.getCharacter("isekai"))!, "st", 1);
-    expect(story).toMatchObject({ name: "Isekai RPG", narrator: { kind: "card", characterId: "isekai" }, openings: ["You open your eyes on a bus.", "A bell rings."] });
+    expect(story).toMatchObject({ name: "Isekai RPG", narrator: { kind: "card", characterId: "isekai" }, openings: [
+      { text: "You open your eyes on a bus.", scenario: "Transported to a fantasy world." },
+      { text: "A bell rings.", scenario: "Transported to a fantasy world." },
+    ] });
     await w.store.saveStory(story);
     const { session, firstMessage } = await w.chat.createSession({ storyId: "st" });
     expect(session.scenario).toBe("Transported to a fantasy world.");

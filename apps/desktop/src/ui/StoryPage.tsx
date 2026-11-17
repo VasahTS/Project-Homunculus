@@ -7,10 +7,10 @@
 // and "Start a Story" instead of Play.
 import { useBackState } from "./back-button.ts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Avatar, Character, Folder, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, UserRole } from "@homunculus/schemas";
+import { storyOpenings, storyScenario, type Avatar, type Character, type Folder, type Lorebook, type Narrator, type NarratorFields, type Npc, type Session, type SetupLayer, type Story, type UserRole } from "@homunculus/schemas";
 import { effectiveCharacter, isTracked, npcTagline, SIMPLE_NARRATOR, variantAvatarId } from "@homunculus/core";
 import { avatarUrl } from "../files.ts";
-import { Help } from "./Help.tsx";
+import { ConfirmButton, Help } from "./Help.tsx";
 import { LorebookChips } from "./LorePanels.tsx";
 import { Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { NarratorPromptGroup } from "./NarratorPromptGroup.tsx";
@@ -22,7 +22,7 @@ import { Toolbar } from "./Toolbar.tsx";
 import { Modal, NarratorForm, NpcEditor, type FieldSetOption } from "./Vault.tsx";
 import { ImagePicker } from "./ImagePicker.tsx";
 import { ChatList, type ChatSearch } from "./ChatList.tsx";
-import { CardStartPicker } from "./CardStart.tsx";
+import { CardStartPicker, type CardOpening } from "./CardStart.tsx";
 import type { ChatExportFormat } from "@homunculus/core";
 
 export const ROLE_HELP: Record<UserRole, string> = {
@@ -47,7 +47,7 @@ export interface StoryChat {
   branches?: number;
 }
 
-export interface NewChatChoice { title: string; openingIndex: number; openingText?: string; setup: SetupLayer }
+export interface NewChatChoice { title: string; openingIndex: number; openingText?: string; openingScenario?: string; setup: SetupLayer }
 
 /** How many rows a chat's own layer changes from its story (for the "N changes" chip). */
 export function changesIn(layer: SetupLayer): number {
@@ -191,17 +191,23 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
   const cards = draft.cast.filter((m) => m.characterId && m.role !== "narrator");
   const charById = Object.fromEntries(characters.map((c) => [c.id, c]));
 
-  // ---- openings (for new chats)
-  const openings = draft.openings.length ? draft.openings : [""];
+  // ---- openings (for new chats). D-138: each opening has its own scenario (an opening saved before has the story's old one)
+  const openings = draft.openings.length ? storyOpenings(draft) : [{ text: "", scenario: draft.scenario }];
   const tab = Math.min(opening, openings.length - 1);
-  const setOpening = (i: number, text: string) => change({ openings: openings.map((o, j) => (j === i ? text : o)) });
-  const newChatOpenings = draft.openings.some((o) => o.trim()) ? draft.openings : cardGreetings;
+  const shown = openings[tab]!;
+  const setOpening = (i: number, part: Partial<{ text: string; scenario: string }>) =>
+    change({ openings: openings.map((o, j) => (j === i ? { ...o, ...part } : o)) });
+  const addOpening = () => { change({ openings: [...openings, { text: "", scenario: shown.scenario }] }); setOpeningQuiet(openings.length); };
+  const othersDiffer = openings.some((o) => o.scenario !== shown.scenario);
+  const newChatOpenings = openings.some((o) => o.text.trim()) ? openings : cardGreetings.map((text) => ({ text, scenario: openings[0]!.scenario }));
   // "From a card…" (D-095): any card's greetings and scenario, in the big Add… window
   const [fromCard, setFromCard] = useState(false);
-  const addOpenings = (texts: string[]) => {
-    const kept = draft.openings.filter((o) => o.trim());
-    change({ openings: [...kept, ...texts] });
-    setOpeningQuiet(kept.length + texts.length - 1);
+  const addOpenings = (added: CardOpening[]) => {
+    // empty openings go (as before); a greeting without a scenario of its own takes a copy of the open opening's
+    const kept = openings.filter((o) => o.text.trim());
+    const next = [...kept, ...added.map((o) => ({ text: o.text, scenario: o.scenario ?? shown.scenario }))];
+    change({ openings: next });
+    setOpeningQuiet(next.length - 1);
   };
   const fromCardLink = (label: string, testId: string) => characters.length > 0 && (
     <button type="button" className="link align-start" data-testid={testId} onClick={() => setFromCard(true)}
@@ -250,7 +256,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
               ? <input className="story-title-input" autoFocus aria-label="Story name" value={draft.name} onChange={(e) => change({ name: e.target.value })}
                   onBlur={() => setRenaming(false)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setRenaming(false); }} />
               : <h1><button type="button" className="story-title" title="Click to rename" onClick={() => setRenaming(true)}>{draft.name || "Untitled story"}</button></h1>}
-            {(draft.description || draft.scenario) && <p>{draft.description || draft.scenario}</p>}
+            {(draft.description || storyScenario(draft)) && <p>{draft.description || storyScenario(draft)}</p>}
             <div className="story-status">
               <span className="pill">{isKit ? "Kit · new stories start from it" : chats === null ? "…" : chats.length === 0 ? "Not started" : `${chats.length} chat${chats.length === 1 ? "" : "s"}`}</span>
               <span>{narratorCard ? `Made from your card “${narratorCard.name}”` : `Told by ${narratorName}`}</span>
@@ -366,27 +372,34 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
             <SetupSection title="How it starts" aside="for new chats" testId="story-start">
               <div className="setup-row column">
                 <span className="opening-head">
-                  <span className="setup-k grow"><span>Scenario</span><small>Sent with each reply.</small></span>
-                  {fromCardLink("From a card…", "scenario-from-card")}
-                </span>
-                <textarea className="prose-input" rows={2} aria-label="Scenario" value={draft.scenario}
-                  placeholder="e.g. A high-fantasy world. The party meets at a tavern in Greywater, the night the bells stop ringing."
-                  onChange={(e) => change({ scenario: e.target.value })} />
-              </div>
-              <div className="setup-row column">
-                <span className="opening-head">
-                  <span className="setup-k grow"><span>Openings</span><small>New Chat lets you pick an opening.</small></span>
+                  <span className="setup-k grow"><span>Openings</span><small>New Chat lets you pick one. Each has its own scenario.</small></span>
                   <span className="opening-tabs" role="tablist" aria-label="Openings">
                     {openings.map((_, i) => (
                       <button key={i} type="button" role="tab" aria-selected={i === tab} className={`opening-tab${i === tab ? " on" : ""}`} onClick={() => setOpeningTab(i)}>{i + 1}</button>
                     ))}
-                    <button type="button" className="opening-tab" aria-label="Add an opening" onClick={() => { change({ openings: [...openings, ""] }); setOpeningQuiet(openings.length); }}>+</button>
+                    <button type="button" className="opening-tab" aria-label="Add an opening" title="A new opening, with a copy of this scenario" onClick={addOpening}>+</button>
                   </span>
                 </span>
                 {fromCardLink("+ From a card's greetings…", "openings-from-card")}
-                <textarea className="prose-input" rows={4} aria-label={`Opening ${tab + 1}`} value={openings[tab] ?? ""} placeholder="The narrator's first message (optional)"
-                  onChange={(e) => setOpening(tab, e.target.value)} />
-                {openings.length > 1 && <button type="button" className="link align-end" onClick={() => { change({ openings: openings.filter((_, j) => j !== tab) }); setOpeningQuiet(Math.max(0, tab - 1)); }}>Remove opening {tab + 1}</button>}
+                <div className="opening-box" key={tab} data-testid="opening-box">
+                  <span className="opening-head">
+                    <span className="setup-k grow"><span>Scenario</span><small>Sent with each reply in chats that start with opening {tab + 1}.</small></span>
+                    {fromCardLink("From a card…", "scenario-from-card")}
+                  </span>
+                  <textarea className="prose-input" rows={3} aria-label="Scenario" value={shown.scenario}
+                    placeholder="e.g. A high-fantasy world. The party meets at a tavern in Greywater, the night the bells stop ringing."
+                    onChange={(e) => setOpening(tab, { scenario: e.target.value })} />
+                  <span className="setup-k"><span>Opening</span><small>The narrator's first message.</small></span>
+                  <textarea className="prose-input" rows={4} aria-label={`Opening ${tab + 1}`} value={shown.text} placeholder="The narrator's first message (optional)"
+                    onChange={(e) => setOpening(tab, { text: e.target.value })} />
+                  <span className="opening-foot">
+                    {openings.length > 1 && othersDiffer
+                      ? <ConfirmButton className="link" label="Use This Scenario in All Openings" confirmLabel={`Replace the scenario of ${openings.length - 1} other opening${openings.length === 2 ? "" : "s"}?`}
+                        onConfirm={() => change({ openings: openings.map((o) => ({ ...o, scenario: shown.scenario })) })} />
+                      : <span className="hint">{openings.length > 1 ? "Every opening has this scenario." : ""}</span>}
+                    {openings.length > 1 && <button type="button" className="link" onClick={() => { change({ openings: openings.filter((_, j) => j !== tab) }); setOpeningQuiet(Math.max(0, tab - 1)); }}>Remove opening {tab + 1}</button>}
+                  </span>
+                </div>
               </div>
             </SetupSection>
 
@@ -454,7 +467,7 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
       )}
       {fromCard && (
         <CardStartPicker story={draft} characters={characters} avatars={avatars} folders={cardFolders}
-          onAddOpenings={addOpenings} onScenario={(text) => change({ scenario: text })} onClose={() => setFromCard(false)} />
+          tab={tab} onAddOpenings={addOpenings} onScenario={(text) => setOpening(tab, { scenario: text })} onClose={() => setFromCard(false)} />
       )}
     </div>
   );
@@ -462,13 +475,15 @@ export function StoryPage({ lead, story, characters, avatars, narrators, npcs, s
 
 // ------------------------------------------------------------------------------------------------ New Chat
 export function NewChatSheet({ story, openings, chats, title, setup, onStart, onClose }: {
-  story: Story; openings: string[]; chats: StoryChat[]; title: string; setup: StorySetupProps;
+  story: Story; openings: Array<{ text: string; scenario: string }>; chats: StoryChat[]; title: string; setup: StorySetupProps;
   onStart: (c: NewChatChoice) => void; onClose: () => void;
 }) {
   const [name, setName] = useState(title);
-  const usable = openings.map((o, i) => ({ o, i })).filter((x) => x.o.trim());
+  const usable = openings.map((o, i) => ({ o, i })).filter((x) => x.o.text.trim());
   const [pick, setPick] = useState<number | "own">(usable[0]?.i ?? "own");
   const [own, setOwn] = useState("");
+  // D-138: a first message written here gets a scenario too, starting as the first opening's
+  const [ownScenario, setOwnScenario] = useState(openings[0]?.scenario ?? story.scenario);
   const [changing, setChanging] = useState(false);
   const [layer, setLayer] = useState<SetupLayer>({});
   const names = setup.namesFor(story.setup);
@@ -481,7 +496,7 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
   const start = () => onStart({
     title: name.trim() || title,
     openingIndex: typeof pick === "number" ? pick : 0,
-    ...(pick === "own" ? { openingText: own } : {}),
+    ...(pick === "own" ? { openingText: own, openingScenario: ownScenario } : {}),
     setup: layer,
   });
   return (
@@ -493,7 +508,8 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
           return (
             <label key={i} className={`setup-row choice-row${pick === i ? " on" : ""}`}>
               <input type="radio" name="opening" checked={pick === i} onChange={() => setPick(i)} aria-label={`Opening ${i + 1}`} />
-              <span className="setup-k grow"><span>Opening {i + 1}</span><q className="opening-line">{o.replace(/\s+/g, " ").slice(0, 140)}</q></span>
+              <span className="setup-k grow"><span>Opening {i + 1}</span><q className="opening-quote">{o.text.replace(/\s+/g, " ").slice(0, 140)}</q>
+                {o.scenario.trim() && <small className="opening-scenario">Scenario: {o.scenario.replace(/\s+/g, " ").slice(0, 110)}</small>}</span>
               {used.length > 0 && <span className="tag">used in {used.join(", ")}</span>}
             </label>
           );
@@ -503,7 +519,12 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
           <span className="setup-k grow"><span>Write my own</span><small>First message for this chat.</small></span>
         </label>
         {pick === "own" && (
-          <div className="setup-row column"><textarea className="prose-input" rows={3} aria-label="First message" value={own} onChange={(e) => setOwn(e.target.value)} placeholder="The narrator's first message (optional)" /></div>
+          <div className="setup-row column">
+            <span className="setup-k"><span>Scenario</span><small>{openings[0] ? "Starts as opening 1's. For this chat only." : "For this chat only."}</small></span>
+            <textarea className="prose-input" rows={2} aria-label="Scenario for this chat" value={ownScenario} onChange={(e) => setOwnScenario(e.target.value)} placeholder="Where and how this chat starts (optional)" />
+            <span className="setup-k"><span>First message</span></span>
+            <textarea className="prose-input" rows={3} aria-label="First message" value={own} onChange={(e) => setOwn(e.target.value)} placeholder="The narrator's first message (optional)" />
+          </div>
         )}
       </SetupSection>
       {!changing ? (
@@ -518,7 +539,7 @@ export function NewChatSheet({ story, openings, chats, title, setup, onStart, on
           presets={setup.presets} profiles={setup.profiles} personas={setup.personas} trackers={setup.trackers} agents={setup.agents} cues={setup.cues} testId="new-chat-setup" />
       )}
       <div className="modal-foot">
-        <span className="hint grow">{pick === "own" ? "" : "Other openings become versions of the first message."}</span>
+        <span className="hint grow">{pick === "own" ? "" : usable.length > 1 ? "Other openings become versions of the first message, each with its own scenario." : ""}</span>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="prominent" onClick={start} data-testid="start-chat">Start Chat</Button>
       </div>

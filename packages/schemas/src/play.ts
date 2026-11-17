@@ -79,6 +79,22 @@ export const LorePatch = z.object({
 });
 export type LorePatch = z.infer<typeof LorePatch>;
 
+/**
+ * One way a story can start (D-138): the narrator's first message and the scenario sent with every reply in chats that
+ * start with it. Older stories kept openings as plain texts: a text is read as `{ text }`, and a missing scenario means
+ * the story's old single `scenario` (see `storyOpenings`).
+ */
+export const Opening = z.preprocess(
+  (v) => (typeof v === "string" ? { text: v } : v),
+  z.object({
+    text: z.string().default(""),
+    /** Missing only in openings saved before D-138: they use the story's old `scenario`. */
+    scenario: z.string().optional(),
+  }),
+);
+export type Opening = z.infer<typeof Opening>;
+export type OpeningInput = string | { text?: string; scenario?: string };
+
 export const Story = z.object({
   id: Id,
   name: z.string().min(1).default("Untitled story"),
@@ -89,10 +105,15 @@ export const Story = z.object({
   npcIds: z.array(Id).default([]),
   /** Full character cards in the story (role "character"); the narrator voices them like the NPCs. */
   cast: z.array(CastMember).default([]),
-  /** The premise, sent with every reply (SillyTavern's scenario). Copied into each new session. */
+  /**
+   * The story's single premise from before D-138. Each opening has its own scenario now; this stays for openings saved
+   * before that (and for a story with no openings at all, which starts with the card narrator's greetings).
+   * The Story page no longer edits it.
+   */
   scenario: z.string().default(""),
-  /** Opening messages: a new session starts with one, the others are its swipes. Empty = the card narrator's greetings. */
-  openings: z.array(z.string()).default([]),
+  /** Opening messages, each with its scenario (D-138): a new session starts with one, the others are its swipes.
+   *  No opening with text = the card narrator's greetings. */
+  openings: z.array(Opening).default([]),
   /** How the user takes part: plays a character, co-writes, or directs from outside the story. */
   userRole: UserRole.default("player"),
   /** The story layer of the setup (default → story → session). */
@@ -104,6 +125,40 @@ export const Story = z.object({
 });
 export type Story = z.infer<typeof Story>;
 export type StoryInput = z.input<typeof Story>;
+
+/** A story's openings with every scenario filled in (D-138): an opening saved before D-138 gets the story's old one. */
+export function storyOpenings(story: Pick<Story, "openings" | "scenario">): Array<{ text: string; scenario: string }> {
+  return story.openings.map((o) => ({ text: o.text, scenario: o.scenario ?? story.scenario }));
+}
+
+/** The scenario a story shows on its cards and sheets (D-138): the first opening's, else the old single one. */
+export function storyScenario(story: Pick<Story, "openings" | "scenario">): string {
+  const first = story.openings[0];
+  return first ? (first.scenario ?? story.scenario) : story.scenario;
+}
+
+/** What a session's first message keeps about the opening it came from (D-138), in `Message.meta.opening`. */
+export const OpeningMeta = z.object({
+  /** Which of the story's openings (or the card narrator's greetings) it is; null = written for this chat only. */
+  index: z.number().int().nullable(),
+  /** This chat's copy of the opening's scenario: sent with every reply on the branches that start here. */
+  scenario: z.string(),
+});
+export type OpeningMeta = z.infer<typeof OpeningMeta>;
+
+/** The opening a first message came from, when it has one (chats made after D-138). */
+export function openingMetaOf(first: { meta: Record<string, unknown> } | undefined): OpeningMeta | undefined {
+  const r = OpeningMeta.safeParse(first?.meta?.opening);
+  return r.success ? r.data : undefined;
+}
+
+/**
+ * The scenario sent with a reply (D-138): the one kept by the first message of the branch on screen (so a swipe of the
+ * first message changes it, and every branch below it keeps it), else the session's own (older chats, 1:1 chats).
+ */
+export function scenarioAt(session: Pick<Session, "scenario">, first: { meta: Record<string, unknown> } | undefined): string {
+  return openingMetaOf(first)?.scenario ?? session.scenario;
+}
 
 /**
  * A Kit (round 3, D-036; the v1 "Kit" is back, Daniel 29/10): everything a story starts with — narrator, NPCs, cards,

@@ -6,7 +6,7 @@
 //
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
-import { CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind, type ListOverride } from "@homunculus/schemas";
+import { storyScenario, CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind, type ListOverride } from "@homunculus/schemas";
 import { characterNoteOf, cueNamespace, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec, type TrialOverrides } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
@@ -212,8 +212,8 @@ async function baseRows(store: SqlStore, kind: AssistantReadKind): Promise<Row[]
       line: `${c.variants.length ? `versions: Main, ${c.variants.map((v) => v.label).join(", ")} · ` : ""}${one(c.description || c.personality || c.tags.join(", "))}` }));
     case "lorebook": return (await store.lorebooks.list()).map((b) => ({ kind, id: b.id, name: b.name, line: `${b.entries.length} entries${b.description ? ` · ${one(b.description, 70)}` : ""}` }));
     case "tracker": return (await listTrackers(store)).map((t) => ({ kind, id: t.agent.id, name: t.agent.name, line: `${t.sets[0]?.fields.length ?? 0} fields${t.agent.help ? ` · ${one(t.agent.help, 70)}` : ""}` }));
-    case "kit": return (await store.kits.list()).map((k) => ({ kind, id: k.id, name: k.name, line: one(k.description || k.scenario) }));
-    case "story": return (await store.stories.list()).map((k) => ({ kind, id: k.id, name: k.name, line: one(k.description || k.scenario) }));
+    case "kit": return (await store.kits.list()).map((k) => ({ kind, id: k.id, name: k.name, line: one(k.description || storyScenario(k)) }));
+    case "story": return (await store.stories.list()).map((k) => ({ kind, id: k.id, name: k.name, line: one(k.description || storyScenario(k)) }));
     case "narrator": return (await store.narrators.list()).map((n) => ({ kind, id: n.id, name: n.name, line: one(n.about || n.instructions) }));
     case "npc": return (await store.npcs.list()).map((n) => ({ kind, id: n.id, name: n.name, line: one(Object.values(n.values).filter((v) => typeof v === "string").join(" · ") || n.notes) }));
     case "persona": return (await store.personas.list()).map((p) => ({ kind, id: p.id, name: p.name, line: one(p.description) }));
@@ -804,9 +804,15 @@ function kitOf(data: Obj, id: string, base?: Obj, agents?: ListOverride): Story 
   if (data.lorebookIds !== undefined && (!Array.isArray(data.lorebookIds) || data.lorebookIds.some(x => typeof x !== "string"))) throw new Error("lorebookIds must be a list of ids.");
   if (data.npcIds !== undefined && (!Array.isArray(data.npcIds) || data.npcIds.some(x => typeof x !== "string"))) throw new Error("npcIds must be a list of ids.");
   if (data.narratorId !== undefined && typeof data.narratorId !== "string") throw new Error("narratorId must be an id or an empty string for Simple Narrator.");
+  // D-138: each opening has its own scenario. A new `scenario` without `openings` is the scenario of every opening
+  // (the Assistant changed "the scenario"); openings sent as plain texts take `scenario` (or the Kit's old one).
+  const prevOpenings = Array.isArray(prev.openings) ? prev.openings : [];
+  const reScenario = typeof data.scenario === "string" && data.openings === undefined && prevOpenings.length
+    ? { openings: prevOpenings.map((o) => ({ text: typeof o === "string" ? o : isObj(o) ? str(o.text) : "", scenario: data.scenario })) } : {};
   return Story.parse({
     ...prev, id, createdAt: typeof prev.createdAt === "number" ? prev.createdAt : Date.now(),
     ...pick(data, ["name", "description", "scenario", "openings", "userRole"]),
+    ...reScenario,
     ...(data.cast !== undefined ? { cast: data.cast } : {}),
     ...(data.npcIds !== undefined ? { npcIds: strs(data.npcIds).map((x) => splitRef(x)?.id ?? x) } : {}),
     ...(data.narratorId !== undefined ? { narrator: { kind: "vault", id: narratorId ? splitRef(narratorId)?.id ?? narratorId : SIMPLE_NARRATOR_ID } } : {}),

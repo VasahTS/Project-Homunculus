@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Each opening has its own scenario (2026-11-17) — CLAUDE — D-138
+
+- Daniel: a Kit was stuck to one scenario; he wanted "just an individual Scenario field for each opening", branches and swipes that keep making sense, and a field in the Prompt tab showing the scenario in use. Plan `claude/OPENINGS-COM-SCENARIO.md` (Project); draft approved on the canvas "Homunculus 2 — Openings com scenario" (artifact Rsuga5FuXFGdD9Ww2xKyWP).
+- Built: `Opening { text, scenario }` (old texts read with the story's old scenario, no migration); each first message keeps `meta.opening`; `scenarioAt` = the scenario of the first message of the branch on screen (`TurnPipeline.atPath`, agents' path); Story/Kit page (Scenario inside each opening tab, + copies it, Use This Scenario in All Openings, From a card with the card's scenario); New chat (a Scenario line per opening, Write My Own with a scenario); Prompt tab → **Scenario** card (follows the swipe; Edit for This Chat); sheets, chat cards, Assistant, token counts.
+- **To try (Windows):** close the app → Pull origin → open it. Stories → a story → How it starts: the Scenario is inside each opening; switch tabs 1/2 — both boxes change. Click **+**: the new opening starts with a copy of this scenario; write a different one. Start Story: each opening says its scenario. In the chat: Prompt tab → **Scenario** says "Opening 1 · …"; swipe the first message (›) to opening 2: the card changes; send a message there and check Preview Prompt; swipe back: opening 1's scenario and its story. Edit for This Chat → Save: only this chat changes (the story page still has the old one). Old stories and chats: same as before.
+- Checks: typecheck; unit tests (932; `opening-scenarios.test.ts` 7 new); click tests `opening-scenarios` (new), stories, card-start, homunculus-files, prompt-control, round2, agents, authors-note, inspector-overflow, layout-audit, ui-round-1104, memory-overflow, chat, branches, fixes-1116, opening, assistant (109 passed).
+- Changelog line for the next release: "**A scenario for each opening**: on a story's or Kit's page, every opening has its own scenario, so one story can start in different worlds. The chat uses the scenario of the opening it starts with — swiping the first message to another opening brings that one's — and the Prompt tab's new Scenario card shows the one in use, with Edit for This Chat."
+
 ## Linked folders: read-only, cards come in when used (2026-11-16) — CLAUDE — D-137
 
 - Daniel approved the draft (`docs/drafts/linked-on-use/index.html`) with answers: counts "666 · 1,204 in linked folders"; switching an old folder removes unused copies (after asking); export of an unused card reads its file; no per-character picking in the SillyTavern import.

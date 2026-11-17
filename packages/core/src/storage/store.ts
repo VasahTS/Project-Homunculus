@@ -4,7 +4,7 @@
 // upgraded on read (schemas/legacy.ts), so no data migration is needed (D-008).
 import {
   AgentConfig, AgentNote, Cue, type CueInput, AgentRun, Avatar, Branch, type BranchInput, Character, Folder, type FolderInput, type FolderKind, Kit, Narrator, Npc, Story, ConnectionProfile, GenerationRecord, Lorebook, LoreSettings, Preset, QuickReplyData, RegexScript, HistoryEntry, Message, MessageKind,
-  MessageRevision, MessageVisibility, Persona, Session, SetupLayer, StateDelta, TrackerSchema, TrashItem, upgradeSession,
+  MessageRevision, MessageVisibility, Persona, Session, SetupLayer, StateDelta, TrackerSchema, TrashItem, upgradeSession, openingMetaOf,
   type HistoryKind, type TrashKind,
   type AgentConfigInput, type AgentRunInput, type LorebookInput, type LoreTimers, type ConnectionProfileInput, type PresetInput, type CharacterInput, type MessageInput, type PersonaInput,
   type SessionInput, type TrackerSchemaInput, type NarratorInput, type NpcInput, type StoryInput,
@@ -1005,15 +1005,22 @@ export class SqlStore implements StateRepository, MessageTree {
     return local ?? await this.getAppSetting<Chapter[]>(chapterKey(sessionId)) ?? [];
   }
 
-  /** Each chat's newest first message (its opening; a swiped opening is the newest of its versions), in one query (D-135). */
-  async openingsOf(sessionIds: string[]): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
+  /**
+   * Each chat's opening, in one query (D-135): the first message it started with (the oldest; the other openings were
+   * added after it as its versions), with the opening it came from when it kept one (D-138: `meta.opening.index`).
+   */
+  async openingsOf(sessionIds: string[]): Promise<Map<string, { content: string; index: number | null | undefined }>> {
+    const out = new Map<string, { content: string; index: number | null | undefined }>();
     for (let i = 0; i < sessionIds.length; i += 900) {
       const chunk = sessionIds.slice(i, i + 900);
-      const rows = await this.db.select<{ session_id: string; content: string }>(
-        `SELECT session_id, content FROM (SELECT session_id, content, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC, id DESC) AS r
+      const rows = await this.db.select<{ session_id: string; content: string; meta: string }>(
+        `SELECT session_id, content, meta FROM (SELECT session_id, content, meta, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at ASC, id ASC) AS r
            FROM messages WHERE parent_id IS NULL AND session_id IN (${chunk.map(() => "?").join(", ")})) WHERE r = 1`, chunk);
-      for (const r of rows) out.set(r.session_id, r.content);
+      for (const r of rows) {
+        let meta: Record<string, unknown> = {};
+        try { meta = JSON.parse(r.meta || "{}") as Record<string, unknown>; } catch { /* an unreadable meta: no opening */ }
+        out.set(r.session_id, { content: r.content, index: openingMetaOf({ meta })?.index });
+      }
     }
     return out;
   }

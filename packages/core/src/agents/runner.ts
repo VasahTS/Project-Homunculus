@@ -6,7 +6,7 @@
 //  - gives each one its context and connection (with limits and Stop),
 //  - validates the answer, applies it (state, notes, revisions) and records what happened.
 // One agent failing never stops the others, and never loses the reply.
-import { AgentConfig, LoreEntry, Lorebook, type AgentOutputKind, type AgentRun, type Character, type GenerationType, type Message, type Session, type Story, type TrackerSchema } from "@homunculus/schemas";
+import { AgentConfig, LoreEntry, Lorebook, scenarioAt, storyScenario, type AgentOutputKind, type AgentRun, type Character, type GenerationType, type Message, type Session, type Story, type TrackerSchema } from "@homunculus/schemas";
 import type { HomunculusCore } from "../core.ts";
 import { errorText } from "../core.ts";
 import { isAbort } from "../connections.ts";
@@ -277,7 +277,8 @@ export class AgentRunner {
     const cards = a.input.cards ? await this.cardsText(req) : "";
     const persona = a.input.persona && this.deps.persona ? (await this.deps.persona(req.session, req.setup)).trim() : "";
     const story = a.input.scenario && req.session.storyId ? await store.getStory(req.session.storyId) : undefined;
-    const scenario = a.input.scenario ? (req.session.scenario.trim() || story?.scenario?.trim() || "") : "";
+    // D-138: the scenario of the opening this branch starts with, else the chat's own, else the story's
+    const scenario = a.input.scenario ? (scenarioAt(req.session, path[0]).trim() || (story ? storyScenario(story).trim() : "")) : "";
     const lore = a.input.lorebooks ? await this.loreText(path) : "";
     const loreBook = a.output === "proposal" && a.proposal?.target === "lorebook" ? await this.storyLorebook(req.session, false) : undefined;
     const authorsNote = a.input.authorsNote ? (req.setup.authorsNote.text ?? "").trim() : "";

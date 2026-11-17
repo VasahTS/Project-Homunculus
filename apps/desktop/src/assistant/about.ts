@@ -47,14 +47,14 @@ A preset decides how the prompt is built and sent: an ordered list of blocks (li
 - Narrator placement: in a story, the narrator's text goes where the preset's narrator block is (Prompt tab → Narrator in the Prompt).`),
 
   T("story", "Stories", `
-A Story is a narrated adventure: a narrator (not a character) tells it, with NPCs and optional cards, a scenario, openings (first messages) and its own setup.
+A Story is a narrated adventure: a narrator (not a character) tells it, with NPCs and optional cards, openings (first messages, each with its own scenario) and its own setup.
 - How you play: Player (you play one person), Co-author (you write together), Director (you give orders; the narrator writes everyone).
 - One story has several chats. The story is the template: each chat inherits its setup and can change something just for itself ("changed in this chat").
-- Its page: Cast (narrator, NPCs, characters), How it starts (scenario, openings), How you play, Setup (preset, connection, persona…), Trackers, Agents, Lore, and the chats at the bottom.
+- Its page: Cast (narrator, NPCs, characters), How it starts (openings, each with its scenario; a chat's scenario is the one of the opening it starts with, shown in the chat's Prompt tab), How you play, Setup (preset, connection, persona…), Trackers, Agents, Lore, and the chats at the bottom.
 - Stories come from a card ("Turn into a Story"), from a Kit (a copy), or from scratch.`),
 
   T("kit", "Kits", `
-A Kit is a story starter kept in the Library: the same parts as a Story (narrator, NPCs, cards, scenario, openings, setup, lore) but no chats. "Start a Story" COPIES it: changing the Kit later never changes stories made from it. A story can be saved as a Kit (More… → Save as Kit).`),
+A Kit is a story starter kept in the Library: the same parts as a Story (narrator, NPCs, cards, openings with their scenarios, setup, lore) but no chats. "Start a Story" COPIES it: changing the Kit later never changes stories made from it. A story can be saved as a Kit (More… → Save as Kit).`),
 
   T("narrator", "Narrators", `
 A narrator is how a story is told: instructions (blocks), style (point of view, tense, length, tone), whether it may bring in new people, and a reminder sent each turn. Kept in Library → Narrators and picked by a story (or a card can act as the narrator, or a story writes its own).

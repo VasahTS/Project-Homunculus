@@ -1215,6 +1215,14 @@ function DraftCard({ kind, json, ready, results, onSave }: { kind: AssistantKind
 
 function DraftField({ name, value, bare = false }: { name: string; value: unknown; bare?: boolean }) {
   const label = name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+  // D-138: a story's openings, each with its own scenario
+  if (name === "openings" && Array.isArray(value) && value.some((v) => v && typeof v === "object")) {
+    const list = value.map((v) => (typeof v === "string" ? { text: v, scenario: "" } : { text: String((v as Record<string, unknown>).text ?? ""), scenario: String((v as Record<string, unknown>).scenario ?? "") }));
+    const body = list.map((o, i) => (
+      <div key={i} className="asst-draft-v"><MessageText text={o.text} />{o.scenario.trim() && <small className="hint">Scenario: {o.scenario}</small>}</div>
+    ));
+    return bare ? <>{body}</> : <div className="asst-draft-f"><span>{label} <small>({list.length})</small></span>{body}</div>;
+  }
   if (bare) {
     if (Array.isArray(value)) return <>{value.map((v, i) => <div key={i} className="asst-draft-v"><MessageText text={typeof v === "string" ? v : v && typeof v === "object" ? String((v as Record<string, unknown>).text ?? (v as Record<string, unknown>).title ?? (v as Record<string, unknown>).label ?? (v as Record<string, unknown>).name ?? (v as Record<string, unknown>).id ?? JSON.stringify(v)) : String(v)} /></div>)}</>;
     if (value && typeof value === "object") return <div className="asst-draft-chips">{Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== "" && v != null).map(([k, v]) => <span key={k}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</span>)}</div>;

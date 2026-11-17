@@ -6,7 +6,7 @@
 //  4. build the prompt              8. other triggers (every N messages, state change), events
 //
 // Only step 5 is fatal: an agent failing never loses the reply.
-import { AgentConfig, Cue as CueSchema, type AgentConfigInput, type Cue, type CueInput } from "@homunculus/schemas";
+import { AgentConfig, Cue as CueSchema, scenarioAt, type AgentConfigInput, type Cue, type CueInput } from "@homunculus/schemas";
 import type { Character, CueReport, GenerationRecord, GenerationType, Lorebook, LoreReport, LoreSettings, Message, MessageKind, Preset, PromptPart, RegexScript, Session, Story } from "@homunculus/schemas";
 import { AgentRunner, seededSequence, type AgentEntry, type AgentOutcome, type DryRun, type RunRequest } from "./agents/runner.ts";
 import { cueTextsForPrompt, runCue, type CueMessage, type CueOutput } from "./cues.ts";
@@ -150,9 +150,21 @@ export class TurnPipeline {
     return resolveSetup({ default: await this.store.getDefaultSetup(), story: story?.setup, session: session.setup });
   }
 
+  /**
+   * D-138: the session as a turn at `messageId` sees it — with the scenario kept by the first message of that branch
+   * (each opening brings its own; a swipe of the first message changes it, every branch below keeps it). Never saved.
+   */
+  private async atPath(session: Session, messageId: string | null | undefined): Promise<Session> {
+    if (!messageId) return session;
+    const first = (await this.store.pathTo(messageId))[0];
+    const scenario = scenarioAt(session, first);
+    return scenario === session.scenario ? session : { ...session, scenario };
+  }
+
   async run(req: TurnRequest): Promise<TurnResult> {
-    const session = await this.store.getSession(req.sessionId);
-    if (!session) throw new Error(`Session "${req.sessionId}" not found`);
+    const stored = await this.store.getSession(req.sessionId);
+    if (!stored) throw new Error(`Session "${req.sessionId}" not found`);
+    const session = await this.atPath(stored, req.parentId);
     const setup = await this.setupFor(session);
     const preset = await this.presetFor(setup.presetId, setup);
     const main = withPresetParams(chatModel((setup.connectionId ? req.connections?.[setup.connectionId] : undefined) ?? req.connection, setup), preset);
@@ -810,8 +822,9 @@ export class TurnPipeline {
   /** Shared read-only context for Compare and the editor preview. CODEX, D-053. */
   private async agentPreviewRequest(sessionId: string, config: AgentConfig, messageId: string, connection: ConnectionConfig,
     connections?: Record<string, ConnectionConfig>, signal?: AbortSignal): Promise<RunRequest> {
-    const session = await this.store.getSession(sessionId);
-    if (!session) throw new Error('Session "' + sessionId + '" not found');
+    const stored = await this.store.getSession(sessionId);
+    if (!stored) throw new Error('Session "' + sessionId + '" not found');
+    const session = await this.atPath(stored, messageId);
     const message = await this.store.getMessage(messageId);
     if (!message) throw new Error('Message "' + messageId + '" not found');
     if (message.sessionId !== sessionId) throw new Error('Message "' + messageId + '" does not belong to session "' + sessionId + '"');
@@ -859,8 +872,9 @@ export class TurnPipeline {
   /** Runs one agent by hand on a message (the "run now" button). */
   async runManual(sessionId: string, agentId: string, messageId: string, connection: ConnectionConfig, signal?: AbortSignal,
     connections?: Record<string, ConnectionConfig>, options: { direction?: string; branchId?: string | null } = {}): Promise<AgentOutcome | undefined> {
-    const session = await this.store.getSession(sessionId);
-    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    const stored = await this.store.getSession(sessionId);
+    if (!stored) throw new Error(`Session "${sessionId}" not found`);
+    const session = await this.atPath(stored, messageId);
     const setup = await this.setupFor(session);
     const entries = await this.runner.enabledAgents({ ...setup, agents: [...new Set([...setup.agents, agentId])] });
     const entry = entries.find((e) => e.config.id === agentId);
@@ -1222,8 +1236,9 @@ export class TurnPipeline {
    * are not run, so what they would add is missing (the notes say so).
    */
   async previewPrompt(sessionId: string, parentId: string | null, connection: ConnectionConfig, options: { connections?: Record<string, ConnectionConfig>; userText?: string; branchId?: string | null } = {}): Promise<AssembledPrompt & { presetId: string; presetName: string; model: string; sent: number }> {
-    const session = await this.store.getSession(sessionId);
-    if (!session) throw new Error(`Session "${sessionId}" not found`);
+    const stored = await this.store.getSession(sessionId);
+    if (!stored) throw new Error(`Session "${sessionId}" not found`);
+    const session = await this.atPath(stored, parentId);
     const setup = await this.setupFor(session);
     const preset = await this.presetFor(setup.presetId, setup);
     const main = withPresetParams(chatModel((setup.connectionId ? options.connections?.[setup.connectionId] : undefined) ?? connection, setup), preset);
@@ -1386,7 +1401,7 @@ export class TurnPipeline {
     const lore = await this.scanLore({
       session, setup, preset, history, type: "normal", character: speaking.character, persona: effPersona, names, state,
       macroCtx: { char: names.char, user, description: speaking.character?.description ?? "", personality: speaking.character?.personality ?? "",
-        scenario: session.scenario.trim() || speaking.character?.scenario || "", persona: effPersona?.description ?? "",
+        scenario: scenarioAt(session, history[0]).trim() || speaking.character?.scenario || "", persona: effPersona?.description ?? "",
         state: state as Record<string, Record<string, unknown>>, vars: new Map() },
       only: [{ book, scope: "global" }],
     });

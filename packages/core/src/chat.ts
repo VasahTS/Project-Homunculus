@@ -1,6 +1,6 @@
 // Homunculus 2 — chat service: what the UI calls. Author: CLAUDE, 2026-10-23; v2 2026-10-27.
 // Sessions, sending, swipes and edits. The turn itself lives in turn.ts (TurnPipeline).
-import type { CastMemberInput, Message, Session, SetupLayer, StateDelta, UserRole } from "@homunculus/schemas";
+import { openingMetaOf, storyOpenings, type CastMemberInput, type Message, type OpeningMeta, type Session, type SetupLayer, type StateDelta, type UserRole } from "@homunculus/schemas";
 import type { HomunculusCore } from "./core.ts";
 import type { ConnectionConfig } from "./extensions.ts";
 import type { SqlStore } from "./storage/store.ts";
@@ -32,6 +32,8 @@ export interface NewSessionInput {
   openingIndex?: number;
   /** A first message written for this chat only (wins over the story's openings; no swipes). Story chats only. */
   openingText?: string;
+  /** D-138: the scenario of a first message written for this chat only (default: the first opening's). */
+  openingScenario?: string;
   /** The chat's own setup layer: what it changes from its story (D-031). */
   setup?: SetupLayer;
   /** NPCs from the Vault in this session (a chat's own; a story session adds them to the story's). */
@@ -73,52 +75,87 @@ export class ChatService {
     if (input.storyId && !story) throw new Error(`Story "${input.storyId}" not found`);
     const cast = input.cast
       ?? (input.characterIds ? input.characterIds.map((characterId) => ({ characterId })) : story?.cast ?? []);
+
+    // D-138: in a story, each opening comes with its own scenario; the first message keeps a copy of it (meta.opening)
+    let openings: Array<{ text: string; opening?: OpeningMeta }> = [];
+    let speaker: Message["speaker"] = { kind: "narrator" };
+    let scenario = input.scenario ?? story?.scenario ?? "";
+    if (story) {
+      const own = storyOpenings(story);
+      const written = own.some((o) => o.text.trim());
+      const fromCard = !written && story.narrator.kind === "card" ? await this.store.getCharacter(story.narrator.characterId) : undefined;
+      // no opening with text: the card narrator's greetings, with the first opening's scenario (or the story's old one)
+      const cardScenario = own[0]?.scenario ?? story.scenario;
+      const all = written ? own
+        : fromCard ? effectiveCharacter(fromCard, story.narrator.kind === "card" ? story.narrator.variantId : null).firstMessages.map((text) => ({ text, scenario: cardScenario }))
+        : [];
+      const listed = all.map((o, index) => ({ text: o.text, opening: { index, scenario: o.scenario } }));
+      if (input.openingText?.trim()) {
+        const s = input.openingScenario ?? all[0]?.scenario ?? cardScenario;
+        openings = [{ text: input.openingText, opening: { index: null, scenario: s } }];
+      } else if (listed.length) {
+        const first = Math.min(Math.max(0, input.openingIndex ?? 0), listed.length - 1);
+        openings = [listed[first]!, ...listed.filter((_, i) => i !== first)].filter((o) => o.text.trim());
+      }
+      // the session's own scenario: the first message's (what older code and 1:1 helpers read)
+      if (input.scenario === undefined) scenario = openings[0]?.opening?.scenario ?? cardScenario;
+    }
     const session = await this.store.saveSession({
       id: this.newId(),
       title: input.title?.trim() || (story ? nextChatTitle(await this.store.sessionsOfStory(story.id, true)) : "New session"),
       storyId: story?.id ?? null,
       userRole: input.userRole ?? story?.userRole ?? "player",
-      scenario: input.scenario ?? story?.scenario ?? "",
+      scenario,
       cast,
       npcIds: input.npcIds ?? [],
       setup: input.setup ?? {},
       createdAt: this.now(),
     });
 
-    let openings: string[];
-    let speaker: Message["speaker"];
-    if (story) {
-      const fromCard = story.narrator.kind === "card" ? await this.store.getCharacter(story.narrator.characterId) : undefined;
-      const all = story.openings.length ? story.openings
-        : fromCard ? effectiveCharacter(fromCard, story.narrator.kind === "card" ? story.narrator.variantId : null).firstMessages : [];
-      const first = Math.min(Math.max(0, input.openingIndex ?? 0), Math.max(0, all.length - 1));
-      openings = input.openingText?.trim() ? [input.openingText] : all.length ? [all[first]!, ...all.filter((_, i) => i !== first)] : [];
-      speaker = { kind: "narrator" };
-    } else {
+    if (!story) {
       const narrator = session.cast.find((c) => c.role === "narrator");
       const leadMember = narrator ?? session.cast.find((c) => c.role === "character" && c.characterId);
       const leadRaw = leadMember?.characterId ? await this.store.getCharacter(leadMember.characterId) : undefined;
       const lead = leadRaw ? effectiveCharacter(leadRaw, leadMember?.variantId) : undefined;
       // every greeting: the first one is shown, the others are swipes of it (like SillyTavern's alternate greetings)
-      openings = lead ? [...lead.firstMessages] : [];
+      openings = lead ? lead.firstMessages.filter((t) => t.trim()).map((text) => ({ text })) : [];
       speaker = narrator || !lead ? { kind: "narrator" } : { kind: "character", characterId: lead.id };
     }
-    openings = openings.filter((t) => t.trim());
     if (!openings.length) return { session };
     let firstMessage: Message | undefined;
     // regex scripts on first messages (D-060; SillyTavern: AI_OUTPUT when a chat starts)
     const { scripts, ctx } = await this.turns.regexForSession(session.id);
     // one millisecond apart, so the swipes keep the greetings' order (siblings are ordered by time, then by id)
     const startedAt = this.now();
-    for (const [i, raw] of openings.entries()) {
-      const text = applyRegexScripts(scripts, raw, { target: "ai", mode: "saved" }, ctx);
-      const m = await this.store.addMessage({ id: this.newId(), sessionId: session.id, parentId: null, speaker, content: text, createdAt: startedAt + i, meta: text !== raw ? { beforeRegex: raw } : {} });
+    for (const [i, o] of openings.entries()) {
+      const text = applyRegexScripts(scripts, o.text, { target: "ai", mode: "saved" }, ctx);
+      const meta: Record<string, unknown> = {};
+      if (text !== o.text) meta.beforeRegex = o.text;
+      if (o.opening) meta.opening = o.opening;
+      const m = await this.store.addMessage({ id: this.newId(), sessionId: session.id, parentId: null, speaker, content: text, createdAt: startedAt + i, meta: meta as Message["meta"] });
       await this.core.events.emit("message.created", { sessionId: session.id, messageId: m.id });
       firstMessage ??= m;
     }
     // with several openings the chat opens on the first one (not the newest sibling); the others are its swipes
     if (firstMessage && openings.length > 1) await this.store.saveBranch({ id: this.newId(), sessionId: session.id, name: "Main", headMessageId: null, endMessageId: firstMessage.id });
     return { session, firstMessage };
+  }
+
+  /**
+   * D-138: changes this chat's scenario for the opening `firstId` starts with (every branch below it), never the story.
+   * A chat made before D-138 (or a 1:1 chat) has no scenario on its first message: its session's own changes.
+   */
+  async setOpeningScenario(sessionId: string, firstId: string | null, scenario: string): Promise<void> {
+    const first = firstId ? await this.store.getMessage(firstId) : undefined;
+    const opening = openingMetaOf(first);
+    if (first && opening) {
+      await this.store.updateMessage(first.id, { meta: { ...first.meta, opening: { ...opening, scenario } } as Message["meta"] });
+    } else {
+      const session = await this.store.getSession(sessionId);
+      if (!session) throw new Error(`Session "${sessionId}" not found`);
+      await this.store.saveSession({ ...session, scenario });
+    }
+    if (first) await this.core.events.emit("message.revised", { sessionId, messageId: first.id });
   }
 
   /** The user writes a message (as a child of `parentId`) and the AI answers it. */

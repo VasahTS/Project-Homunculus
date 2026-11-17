@@ -8,7 +8,7 @@ import { AgentTryIt } from "./ui/AgentTryIt.tsx"; // small, and opened as a wind
 import { useGuardedNavigation, WorkToast } from "./ui/ux.tsx";
 import { backForwardOf, goMove, isClaimed, openLayers, pressEscape, recordMove, takeQuietScreen } from "./ui/back-button.ts";
 import { pageIn, slideTab } from "./ui/motion.ts";
-import { Lorebook, LoreSettings, Preset, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type Cue, type RegexScript, type AssistantReadKind } from "@homunculus/schemas";
+import { Lorebook, LoreSettings, Preset, storyScenario, type Folder, type FolderKind, type Kit, type Avatar, type Character, type Narrator, type Npc, type Persona, type Session, type SetupLayer, type Story, type TrashItem, type TrashKind, type AgentConfig, type AgentConfigInput, type Cue, type RegexScript, type AssistantReadKind } from "@homunculus/schemas";
 import { directorProfiles, lorebookEntryCount, bundleExtras, bundleFile, collectBundle, countsText, importBundle, parseBundle, type BundleRoot } from "@homunculus/core";
 import { regexKey, regexScriptsOf, applyLorePatch, applyToOriginal, loreChanges, patchFrom, exportChat, type ChatExportFormat, DEFAULT_PRESET, npcTagline, resolveBranches, effectiveCharacter, narratorLabel, nextChatTitle, npcSheetFields, resolveSetup, SIMPLE_NARRATOR, storyFromCard, type ConnectionConfig, type ModelInfo } from "@homunculus/core";
 import { adoptEmbeddedLorebook, bookForCardExport, characterWithBook, importStLorebook, linkCharacterToNamedBooks, linkImportedLorebook } from "@homunculus/st-lorebooks";
@@ -1580,7 +1580,7 @@ export function App() {
   const newStoryChat = async (st: Story, c: NewChatChoice) => {
     try {
       await svc.store.saveStory(st);
-      const { session } = await svc.chat.createSession({ storyId: st.id, title: c.title, openingIndex: c.openingIndex, ...(c.openingText !== undefined ? { openingText: c.openingText } : {}), setup: c.setup });
+      const { session } = await svc.chat.createSession({ storyId: st.id, title: c.title, openingIndex: c.openingIndex, ...(c.openingText !== undefined ? { openingText: c.openingText } : {}), ...(c.openingScenario !== undefined ? { openingScenario: c.openingScenario } : {}), setup: c.setup });
       await refresh(svc);
       setActiveId(session.id);
       setView({ kind: "session" });
@@ -1623,14 +1623,16 @@ export function App() {
   };
   /** The chats of a story as their cards show them, the one played last first. */
   const loadStoryChats = async (st: Story): Promise<StoryChat[]> => {
-    const openings = st.openings.some((o) => o.trim()) ? st.openings : greetingsOf(st);
+    const openings = st.openings.some((o) => o.text.trim()) ? st.openings.map((o) => o.text) : greetingsOf(st);
     // D-135: one read for every chat's opening; length, time and branches are the ones the sidebar already has (it read
     // each chat's whole path and its branches, one chat after another)
     const chats = sessionsOfStory(st.id);
     const firsts = await svc.store.openingsOf(chats.map((x) => x.id));
     const out: StoryChat[] = chats.map((x) => {
-      const first = firsts.get(x.id)?.trim();
-      const i = first ? openings.findIndex((o) => o.trim() === first) : -1;
+      // D-138: the opening the chat kept on its first message; older chats are matched by text
+      const f = firsts.get(x.id);
+      const first = f?.content.trim();
+      const i = typeof f?.index === "number" ? f.index : first ? openings.findIndex((o) => o.trim() === first) : -1;
       return { session: x, lastLine: lastLines[x.id] ?? "", messages: messageCounts[x.id] ?? 0, when: lastTimes[x.id] ?? x.createdAt, opening: i >= 0 ? i : null, changes: changesIn(x.setup), branches: branchCounts[x.id] ?? 0 };
     });
     return out.sort((a, b) => b.when - a.when);
@@ -1923,8 +1925,8 @@ export function App() {
     ...personas.map((p) => ({ kind: "persona" as const, id: p.id, name: p.name, line: short(p.description), avatar: avatars[p.id] })),
     ...narrators.map((n) => ({ kind: "narrator" as const, id: n.id, name: n.name, line: inFolder("narrator", n.id, short(n.about || n.instructions)) })),
     ...npcs.map((n) => ({ kind: "npc" as const, id: n.id, name: n.name, line: inFolder("npc", n.id, short(n.notes)) })),
-    ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, line: inFolder("story", x.id, short(x.description || x.scenario)) })),
-    ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, line: inFolder("kit", x.id, short(x.description || x.scenario)) })),
+    ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, line: inFolder("story", x.id, short(x.description || storyScenario(x))) })),
+    ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, line: inFolder("kit", x.id, short(x.description || storyScenario(x))) })),
     ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${lorebookEntryCount(b)} entries`) })),
     ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help) })),
     ...presets.map((x) => ({ kind: "preset" as const, id: x.id, name: x.name, line: `${x.blocks.length} blocks` })),

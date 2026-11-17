@@ -1285,6 +1285,21 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
 .opening-tab { width: 26px; height: 24px; border: 0; border-radius: calc(6px * var(--round)); display: grid; place-items: center; font-size: 12px; background: var(--fill); color: var(--label-2); cursor: pointer; }
 .opening-tab:hover { background: var(--fill-hover); color: var(--label); }
 .opening-tab.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+/* D-138: each opening's own scenario and text, in one box that changes with the tab */
+.opening-box { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--separator); border-radius: var(--radius-group); animation: opening-in var(--dur-fast) var(--ease-out); }
+.opening-box > .setup-k { margin-top: 4px; align-self: stretch; }
+.opening-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: var(--size-small); min-height: 22px; }
+.opening-foot .link.armed { color: var(--warn); }
+@keyframes opening-in { from { opacity: 0.4; transform: translateY(2px); } }
+@media (prefers-reduced-motion: reduce) { .opening-box { animation: none; } }
+.opening-quote { display: block; font-family: var(--font-prose); color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.opening-scenario { display: block; color: var(--label-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* the chat's Scenario card in the Prompt tab (D-138) */
+.prompt-scenario { display: flex; flex-direction: column; gap: 8px; }
+.prompt-scenario-text { margin: 0; font-family: var(--font-prose); font-size: 14px; line-height: 1.55; color: var(--label); white-space: pre-wrap; max-height: 260px; overflow: auto; }
+.prompt-scenario .hint { margin: 0; }
+.prompt-scenario-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.prompt-scenario-actions.start { justify-content: flex-start; gap: 16px; }
 .align-end { align-self: flex-end; font-size: var(--size-small); }
 .cast-pic { width: 32px; height: 32px; flex: none; border-radius: calc(8px * var(--round)); object-fit: cover; }
 .cast-pic.letter { display: grid; place-items: center; font-weight: 600; background: var(--letter-bg); }

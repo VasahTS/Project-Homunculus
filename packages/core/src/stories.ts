@@ -131,13 +131,14 @@ export function castPart(a: { inStory: boolean; role: UserRole; npcs: Array<{ np
 
 /**
  * A story made from a card that is really a narrator or a world ("Turn into a Story"): the card tells it (its
- * system prompt and description go as they are), its scenario is the premise and its greetings the openings.
+ * system prompt and description go as they are), its greetings are the openings, each with the card's scenario.
  * Its lorebooks keep coming with it, because the card is the narrator. The card is not changed.
  */
 export function storyFromCard(c: Character, id: string, now: number): Story {
   return {
     id, name: c.name, description: "", narrator: { kind: "card", characterId: c.id, variantId: null }, npcIds: [], cast: [],
-    scenario: c.scenario, openings: [...c.firstMessages], userRole: "player", setup: {}, lorePatches: {}, createdAt: now,
+    // D-138: every greeting is an opening with the card's scenario
+    scenario: c.scenario, openings: c.firstMessages.map((text) => ({ text, scenario: c.scenario })), userRole: "player", setup: {}, lorePatches: {}, createdAt: now,
   };
 }
 

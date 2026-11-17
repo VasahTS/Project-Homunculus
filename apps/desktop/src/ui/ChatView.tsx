@@ -10,7 +10,7 @@
 // screen, so a reply keeps going when you open another chat, and several chats can write at once. This screen watches it.
 import { useBackState } from "./back-button.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
-import type { AgentConfig, Avatar, Character, Lorebook, Message, Npc, Persona, Preset, Session, SetupLayer, UserRole } from "@homunculus/schemas";
+import { openingMetaOf, scenarioAt, type AgentConfig, type Avatar, type Character, type Lorebook, type Message, type Npc, type Persona, type Preset, type Session, type SetupLayer, type UserRole } from "@homunculus/schemas";
 import { AgentMarks, CheckLines, Choices, ComposerChoices, NoteChips, ProposalLines, useAgentResults } from "./AgentResults.tsx";
 import { AgentsPanel } from "./AgentsPanel.tsx";
 import { SceneCues, SessionCues } from "./SceneCues.tsx";
@@ -28,6 +28,7 @@ import { turns, useTurn, useTurnQuiet, type LiveTurn, type StreamTo } from "../t
 import type { ConnectionState } from "../connection.ts";
 import { coveredChapterLabels, deletableFrom, nextBranchName, type Chapter, type ChatBranch, type ConnectionConfig, type ModelInfo, type ProviderDefinition } from "@homunculus/core";
 import { PromptCharacter } from "./PromptCharacter.tsx";
+import { PromptScenario, scenarioSummary } from "./PromptScenario.tsx";
 import { ScenePanel } from "./ScenePanel.tsx";
 import { layerWithStyle, type Tracker } from "../trackers.ts";
 import { Inspector, type InspectorTab } from "./Inspector.tsx";
@@ -283,6 +284,21 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
     setPath(p); setSiblings(info); setHeadId(head);
     afterLoad?.();
   }
+
+  // D-138: the scenario sent with the next reply — the one the first message on screen keeps (its opening's), else the chat's own
+  const chatScenario = useMemo(() => {
+    const opening = openingMetaOf(path[0]);
+    return {
+      text: scenarioAt(session, path[0]),
+      from: opening ? (opening.index === null ? "written for this chat" : `opening ${opening.index + 1}`) : "this chat's",
+    };
+  }, [path, session]);
+  const saveScenario = async (text: string) => {
+    if (openingMetaOf(path[0])) {
+      await svc.chat.setOpeningScenario(session.id, path[0]!.id, text);
+      await showBranch(headId ?? null);
+    } else await onChangeSession({ ...session, scenario: text });
+  };
 
   /** Puts you on a branch (remembered for the next time this chat opens). */
   function choose(b: ChatBranch) {
@@ -1116,6 +1132,8 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
             presets={presets} defaultPresetId={defaultPresetId} onSavePreset={onSavePreset} onOpenPreset={onOpenPreset} trackers={trackers}
             authorsNote={noteAbove && <AuthorsNoteGroup level="chat" inStory={!!storySetup} layer={session.setup} above={noteAbove} onChange={(setup) => onChangeSession({ ...session, setup })} />}
             authorsNoteSummary={note?.text?.trim() ? `On · ${note.depth} message${note.depth === 1 ? "" : "s"} back` : "Off · a standing direction for the AI"}
+            firstCards={session.storyId ? [{ id: "scenario", icon: "pin", title: "Scenario", summary: scenarioSummary(chatScenario.text, chatScenario.from),
+              body: <PromptScenario scenario={chatScenario.text} from={chatScenario.from} onSave={saveScenario} onOpenStory={onOpenStory} /> }] : []}
             cards={[
               { id: "lorebooks", icon: "book", title: "Lorebooks", summary: lorebookSummary(session),
                 body: <SessionLorebooks session={session} all={lorebooks} load={loadLorebooks} onChangeSession={onChangeSession} onOpen={onOpenLorebook} /> },

@@ -7,7 +7,7 @@
 // a chat's lorebook and locked persona, the global lorebooks). Each chat is one batch (D-125/D-126).
 // What came in is remembered (app setting `stImport`), so importing again skips it; the run's report lists what it
 // made, so "Undo This Import" can move it all to the Trash. `secrets.json` is never read.
-import type { Character, Lorebook, Persona, QuickReplySet, RegexScript, Session, SetupLayer, Speaker, Story } from "@homunculus/schemas";
+import { storyScenario, type Character, type Lorebook, type Persona, type QuickReplySet, type RegexScript, type Session, type SetupLayer, type Speaker, type Story } from "@homunculus/schemas";
 import { importStLorebook } from "@homunculus/st-lorebooks";
 import { importStPersonas } from "@homunculus/st-personas";
 import { importStPreset } from "@homunculus/st-presets";
@@ -395,7 +395,7 @@ export async function runStImport(svc: Pick<AppServices, "core" | "store">, src:
       const s = story;
       try {
         await saveChats(`group:${gid}`, files, (main) => ({
-          session: { id: crypto.randomUUID(), title: main.name, storyId: s.id, userRole: s.userRole, mainCharacterId: null, scenario: s.scenario, cast: s.cast, npcIds: [], createdAt: main.header.createdAt || main.lines[0]?.sendDate || Date.now() },
+          session: { id: crypto.randomUUID(), title: main.name, storyId: s.id, userRole: s.userRole, mainCharacterId: null, scenario: storyScenario(s), cast: s.cast, npcIds: [], createdAt: main.header.createdAt || main.lines[0]?.sendDate || Date.now() },
           speakerOf,
         }));
       } catch (e) { warn("groups", `${s.name}: ${(e as Error).message}`); }

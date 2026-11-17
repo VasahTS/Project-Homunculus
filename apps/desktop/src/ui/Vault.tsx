@@ -5,7 +5,7 @@
 import { useBackState } from "./back-button.ts";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { Avatar, Character, Lorebook, Narrator, NarratorFields, Npc, Session, SetupLayer, Story, TrackerField, TrackerSchema, UserRole } from "@homunculus/schemas";
+import { storyOpenings, storyScenario, type Avatar, type Character, type Lorebook, type Narrator, type NarratorFields, type Npc, type Session, type SetupLayer, type Story, type TrackerField, type TrackerSchema, type UserRole } from "@homunculus/schemas";
 import { blocksText, narratorBlocks, narratorText, npcSheetFields, npcTagline, type ListItem } from "@homunculus/core";
 import { ConfirmButton, Help } from "./Help.tsx";
 import { Button, Icon, IconButton, Switch, SaveButton } from "./kit.tsx";
@@ -103,7 +103,7 @@ export function StoryHero({ story, avatar, line, latestTitle, selected, onSelect
   story: Story; avatar?: Avatar | undefined; line: string; latestTitle?: string | undefined; selected: boolean;
   onSelect: () => void; onContinue: () => void;
 }) {
-  const premise = (story.description.trim() || story.scenario.trim()).replace(/\s+/g, " ");
+  const premise = (story.description.trim() || storyScenario(story).trim()).replace(/\s+/g, " ");
   return (
     <section className={`story-hero-row${selected ? " on" : ""}`} data-testid="story-hero" aria-label={`Continue ${story.name}`}>
       <button type="button" className="shr-cover" onClick={onSelect} aria-label={`Show ${story.name}`}>
@@ -146,7 +146,12 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
   // like a character's sheet (Daniel, 10/29: "the Stories tab like the character one for now"): the whole story
   // first, Continue / + New Chat, then its chats
   const people = [...cardNames, ...npcNames];
-  const opening = story.openings.find((o) => o.trim());
+  // D-138: each opening has its scenario; the sheet shows the first one's, and says when others differ
+  const written = storyOpenings(story).filter((o) => o.text.trim());
+  const opening = written[0]?.text;
+  const scenario = storyScenario(story);
+  const scenarios = new Set(storyOpenings(story).map((o) => o.scenario.trim()).filter(Boolean)).size;
+  const scenarioTitle = scenarios > 1 ? `Scenario · opening 1 (${scenarios} scenarios)` : "Scenario";
   const [reading, setReading] = useState(false);
   return (
     <div className="view-sheet" data-testid="story-sheet">
@@ -158,10 +163,10 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
         </>}
         sections={[
           { id: "about", title: "About", text: story.description, prose: true },
-          { id: "scenario", title: "Scenario", text: story.scenario, prose: true },
+          { id: "scenario", title: scenarioTitle, text: scenario, prose: true },
           { id: "people", title: "People", text: people.join(", ") },
         ]}
-        greetings={story.openings.filter((o) => o.trim())} greetingLabel="Opening"
+        greetings={written.map((o) => o.text)} greetingLabel="Opening"
         onBack={() => setReading(false)} onClose={() => setReading(false)} />}
       {onImage
         ? <div className="vs-pic-pick"><ImagePicker name={story.name} avatar={avatar} own={ownImage} onChange={onImage} shape="square" size={96} testId="story-image" /></div>
@@ -182,9 +187,9 @@ export function StorySheet({ story, narratorName, npcNames, cardNames = [], avat
       {folder && <div className="vs-folder">{folder}</div>}
       <SpoilerGate key={story.id} what="story's details">
       {story.description.trim() && <SheetSection title="About" prose>{story.description}</SheetSection>}
-      {story.scenario.trim() && <SheetSection title="Scenario" prose>{story.scenario}</SheetSection>}
+      {scenario.trim() && <SheetSection title={scenarioTitle} prose>{scenario}</SheetSection>}
       {people.length > 0 && <SheetSection title="People">{people.join(", ")}</SheetSection>}
-      {opening && <SheetSection title={story.openings.filter((o) => o.trim()).length > 1 ? `Opening 1 of ${story.openings.filter((o) => o.trim()).length}` : "Opening"} prose lines={5}>{opening}</SheetSection>}
+      {opening && <SheetSection title={written.length > 1 ? `Opening 1 of ${written.length}` : "Opening"} prose lines={5}>{opening}</SheetSection>}
       </SpoilerGate>
       {chats && <section className="vs-sec vs-chats"><h3>Chats</h3>{chats}</section>}
     </div>
@@ -200,7 +205,10 @@ export function KitSheet({ kit, narratorName, npcNames, cardNames, avatar, onIma
   /** Saves the Kit and what it uses to a Homunculus file (D-094). */
   onExport?: (() => void) | undefined;
 }) {
-  const openings = kit.openings.filter((o) => o.trim()).length;
+  const openings = kit.openings.filter((o) => o.text.trim()).length;
+  // D-138: each opening has its own scenario
+  const kitScenario = storyScenario(kit);
+  const scenarios = new Set(storyOpenings(kit).map((o) => o.scenario.trim()).filter(Boolean)).size;
   return (
     <div className="view-sheet" data-testid="kit-sheet">
       <div className="vs-cover">{onImage ? <ImagePicker name={kit.name} avatar={avatar} own={!!avatar} onChange={onImage} shape="square" size={72} testId="kit-image" /> : <StoryMark name={kit.name} avatar={avatar} size={72} />}</div>
@@ -217,9 +225,9 @@ export function KitSheet({ kit, narratorName, npcNames, cardNames, avatar, onIma
       </div>
       <p className="hint">New stories use a copy of this setup.</p>
       {kit.description.trim() && <SheetSection title="About" prose>{kit.description}</SheetSection>}
-      {kit.scenario.trim() && <SheetSection title="Scenario" prose>{kit.scenario}</SheetSection>}
+      {kitScenario.trim() && <SheetSection title={scenarios > 1 ? "Scenario · opening 1" : "Scenario"} prose>{kitScenario}</SheetSection>}
       {(npcNames.length > 0 || cardNames.length > 0) && <SheetSection title="People">{[...cardNames, ...npcNames].join(", ")}</SheetSection>}
-      <SheetSection title="Openings">{openings ? `${openings} opening${openings === 1 ? "" : "s"}` : "None: the narrator starts."}</SheetSection>
+      <SheetSection title="Openings">{openings ? `${openings} opening${openings === 1 ? "" : "s"}${scenarios > 1 ? ` · ${scenarios} scenarios` : ""}` : "None: the narrator starts."}</SheetSection>
       {folder}
     </div>
   );
@@ -491,7 +499,7 @@ export function NpcEditor({ npc, fieldSets, stories, alsoIn, avatar, onImage, on
 
 // ------------------------------------------------------------------------------------------------ cards of the Vault
 export const storyCard = (st: Story, narratorName: string, sessions: number, avatar?: Avatar) => ({
-  id: st.id, name: st.name, by: `Told by ${narratorName}`, summary: (st.description.trim() || st.scenario.trim()).slice(0, 220) || "No premise yet",
+  id: st.id, name: st.name, by: `Told by ${narratorName}`, summary: (st.description.trim() || storyScenario(st).trim()).slice(0, 220) || "No premise yet",
   tags: [ROLE_LABEL[st.userRole]], size: sessions ? `${sessions} session${sessions === 1 ? "" : "s"}` : "new",
   picture: <StoryMark name={st.name} avatar={avatar} fill />,
 });

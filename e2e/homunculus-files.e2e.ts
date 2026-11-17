@@ -55,8 +55,9 @@ test("a story with a card: exported, moved to the Trash, imported back with its 
   await page.getByRole("button", { name: "More…" }).click();
   const file = await exportBy(page, page.getByTestId("story-page-export"));
   expect(file.name).toBe("Harbor-Lights.h2.json");
-  const doc = JSON.parse(file.text) as { stories: Array<{ scenario: string }>; characters: Array<{ name: string }> };
-  expect(doc.stories[0]!.scenario).toBe("Fog over the harbor.");
+  const doc = JSON.parse(file.text) as { stories: Array<{ openings: Array<{ scenario: string }> }>; characters: Array<{ name: string }> };
+  // D-138: the scenario belongs to the opening
+  expect(doc.stories[0]!.openings[0]!.scenario).toBe("Fog over the harbor.");
   expect(doc.characters.map((c) => c.name)).toEqual(["Lyra"]);
   await expect(page.getByTestId("notice")).toContainText("With 1 character");
 
@@ -72,7 +73,7 @@ test("a story with a card: exported, moved to the Trash, imported back with its 
   await expect(page.getByTestId("story-sheet")).toContainText("Lyra");
   // and the sheet can export it too
   const again = await exportBy(page, page.getByTestId("story-sheet").getByTestId("story-export"));
-  expect(JSON.parse(again.text).stories[0].scenario).toBe("Fog over the harbor.");
+  expect(JSON.parse(again.text).stories[0].openings[0].scenario).toBe("Fog over the harbor.");
 });
 
 test("an agent and a tracker: Export in their editors, Import on their pages", async ({ page }) => {

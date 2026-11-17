@@ -60,7 +60,12 @@ export function itemSortInfo(kind: string, item: unknown, meta: { added?: number
   const blocks = withTokens && Array.isArray(r.blocks) ? r.blocks.map(object).filter((b) => b.enabled !== false && b.on !== false) : [];
   texts.push(...blocks.map((b) => String(b.content ?? b.text ?? "")));
   if (withTokens && !blocks.length && typeof r.instructions === "string") texts.push(r.instructions);
-  for (const key of ["firstMessages", "openings", "entries"]) if (withTokens && Array.isArray(r[key])) texts.push(...(r[key] as unknown[]).map((x) => typeof x === "string" ? x : String(object(x).content ?? "")));
+  for (const key of ["firstMessages", "openings", "entries"]) if (withTokens && Array.isArray(r[key])) texts.push(...(r[key] as unknown[]).flatMap((x) => {
+    if (typeof x === "string") return [x];
+    const o = object(x);
+    // D-138: a story's opening is { text, scenario }
+    return key === "openings" ? [String(o.text ?? ""), String(o.scenario ?? "")] : [String(o.content ?? "")];
+  }));
   if (withTokens && kind === "npcs") texts.push(...Object.values(object(r.values)).map((v) => typeof v === "string" ? v : JSON.stringify(v) ?? ""));
   if (withTokens && kind === "narrators") texts.push(...Object.values(object(r.style)).filter((v): v is string => typeof v === "string"));
   const narrator = object(r.narrator);
