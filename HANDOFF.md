@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Assistant: versions and branches like Play (2026-11-17) — CLAUDE — D-144
+
+- Daniel: swipes and branches in the Assistant should work like Play's.
+- Built: New Version / › on the newest answer make a version (‹ n/m ›), an edited message keeps the old one as a version, only Branch From Here makes a branch; the branch list shows branches only and each reopens on its last version (`group` on paths, `lastPath` on the chat). Old chats: their old "Branch N" entries stay branches.
+- **To try (Windows):** close the app → Pull origin → open it. Assistant: ask something → New Version (or › on 1/1) → 2/2, ‹ goes back; no branch list appears. Edit your message → Send → hover it: ‹ 2/2 › shows the old one. Branch From Here on an answer → the branch list (Main / Branch 2).
+- Checks: typecheck; unit tests; click tests assistant-history, assistant, assistant-background.
+- Changelog line for the next release: "**Assistant versions and branches like the chat's**: a new answer or an edited message is a version (‹ 1/3 ›) of that message; only Branch From Here makes a branch, so the branch list no longer fills up with every retry."
+
 ## The Assistant stops exploring the library on its own (2026-11-17) — CLAUDE — D-143
 
 - Daniel: asked about a dungeon, the Assistant searched the library for "dungeon"/"masmorra" by itself — takes inspiration he didn't ask for and wastes tokens.

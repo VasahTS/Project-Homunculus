@@ -14,27 +14,35 @@ async function send(page: Page, text: string) {
   await expect(page.getByTestId("assistant-stop")).toHaveCount(0);
   await expect(page.getByTestId("assistant-regenerate")).toBeVisible();
 }
-test("regeneration preserves answers, branches preserve continuations, and deletion has Undo", async ({ page }) => {
+// D-144: like the chat's swipes and branches — New Version and edits are versions (‹ ›) in the same branch; only
+// Branch From Here makes a branch; a branch reopens on the version it showed last.
+test("New Version keeps answers as versions, Branch From Here makes a branch, and deletion has Undo", async ({ page }) => {
   await start(page); await send(page, "First question"); await expect(page.getByTestId("assistant-reply")).toContainText("Answer 1");
+  await expect(page.getByTestId("assistant-version")).toHaveText("1/1");
   await page.getByTestId("assistant-regenerate").click(); await expect(page.getByTestId("assistant-reply")).toContainText("Answer 2");
   await expect(page.getByTestId("assistant-version")).toHaveText("2/2");
   await page.getByRole("button", { name: "Previous Answer", exact: true }).click(); await expect(page.getByTestId("assistant-reply")).toContainText("Answer 1");
   await send(page, "Continue original"); await expect(page.getByTestId("assistant-reply").last()).toContainText("Answer 3");
-  await page.getByLabel("Conversation Branch").selectOption({ label: "Branch 2" });
+  await expect(page.getByLabel("Conversation Branch")).toHaveCount(0); // versions are not branches
+  await page.getByTestId("assistant-reply").first().getByRole("button", { name: "Next Answer", exact: true }).click();
   await expect(page.getByTestId("assistant-messages")).not.toContainText("Continue original"); await expect(page.getByTestId("assistant-reply")).toContainText("Answer 2");
   await page.getByTestId("assistant-reply").getByRole("button", { name: "Branch From Here", exact: true }).click();
-  await expect(page.getByLabel("Conversation Branch").locator("option")).toHaveCount(3); await send(page, "Branch only");
+  await expect(page.getByLabel("Conversation Branch").locator("option")).toHaveCount(2); await send(page, "Branch only");
   await page.getByTestId("assistant-reply").first().getByRole("button", { name: "Delete Message", exact: true }).click();
   await expect(page.getByTestId("assistant-reply")).toHaveCount(1); await page.getByRole("button", { name: "Undo", exact: true }).click(); await expect(page.getByTestId("assistant-reply")).toHaveCount(2);
-  await page.getByLabel("Conversation Branch").selectOption("main"); await expect(page.getByTestId("assistant-messages")).toContainText("Continue original"); await expect(page.getByTestId("assistant-messages")).not.toContainText("Branch only");
+  await page.getByLabel("Conversation Branch").selectOption({ label: "Main" });
+  await expect(page.getByTestId("assistant-messages")).not.toContainText("Branch only"); await expect(page.getByTestId("assistant-reply")).toContainText("Answer 2");
+  await page.getByRole("button", { name: "Previous Answer", exact: true }).click(); await expect(page.getByTestId("assistant-messages")).toContainText("Continue original");
   await page.getByRole("tab", { name: "Play", exact: true }).click(); await page.getByRole("tab", { name: "Assistant", exact: true }).click();
-  await expect(page.getByLabel("Conversation Branch").locator("option")).toHaveCount(3); await expect(page.getByTestId("assistant-messages")).toContainText("Continue original");
+  await expect(page.getByLabel("Conversation Branch").locator("option")).toHaveCount(2); await expect(page.getByTestId("assistant-messages")).toContainText("Continue original");
 });
-test("editing an earlier user message retains the original path", async ({ page }) => {
+test("editing an earlier user message keeps the original as a version of it", async ({ page }) => {
   await start(page); await send(page, "Original words"); await send(page, "Later question");
   await page.getByTestId("assistant-edit").first().click(); await page.getByLabel("Edit message", { exact: true }).fill("Edited words"); await page.locator(".asst-edit").getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByTestId("assistant-messages")).toContainText("Edited words"); await expect(page.getByTestId("assistant-regenerate")).toBeVisible();
-  await page.getByLabel("Conversation Branch").selectOption("main"); await expect(page.getByTestId("assistant-messages")).toContainText("Original words"); await expect(page.getByTestId("assistant-messages")).toContainText("Later question");
+  await expect(page.getByLabel("Conversation Branch")).toHaveCount(0);
+  await page.getByRole("button", { name: "Previous Message", exact: true }).click();
+  await expect(page.getByTestId("assistant-messages")).toContainText("Original words"); await expect(page.getByTestId("assistant-messages")).toContainText("Later question");
 });
 test("repeating a regeneration click cannot land on Delete Message when versions appear", async ({ page }) => {
   await start(page); await send(page, "Stable action position");

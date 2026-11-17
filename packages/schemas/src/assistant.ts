@@ -225,10 +225,14 @@ export const AssistantMessage = z.object({
 export type AssistantMessage = z.infer<typeof AssistantMessage>;
 
 // Preserved conversation paths; old chats remain valid without these fields. CODEX.
-const AssistantBranch = z.object({ id: Id, name: z.string(), messages: z.array(AssistantMessage).default([]), messageIds: z.array(Id).optional(), guides: z.array(z.string()).default([]), compact: z.object({ uptoId: z.string(), summary: z.string(), at: z.number().int(), before: z.number().optional() }).optional() });
+// D-144: `group` = the named branch a path belongs to when it is a version (New Version, an edited message) of that
+// branch's conversation; missing = the path is a named branch of its own (Branch From Here, and every path before D-144).
+const AssistantBranch = z.object({ id: Id, name: z.string(), group: Id.optional(), messages: z.array(AssistantMessage).default([]), messageIds: z.array(Id).optional(), guides: z.array(z.string()).default([]), compact: z.object({ uptoId: z.string(), summary: z.string(), at: z.number().int(), before: z.number().optional() }).optional() });
 export const AssistantChat = z.object({
   activeBranchId: Id.optional(),
   branches: z.array(AssistantBranch).optional(),
+  /** D-144: the path each named branch showed last (its id → a path id), so going back to a branch opens that version. */
+  lastPath: z.record(z.string(), Id).optional(),
   /** Inactive messages are stored once; branch paths refer to their ids. CODEX. */
   historyMessages: z.array(AssistantMessage).optional(),
   id: Id,

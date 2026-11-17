@@ -1,7 +1,7 @@
 // Assistant path preservation and context isolation regressions. CODEX, 2026-11-03.
 import { describe, expect, it } from "vitest";
 import { AssistantChat, AssistantMessage } from "@homunculus/schemas";
-import { decodeHistory, encodeHistory, forkAt, pathsOf, selectPath, deleteMessage, versionsOf } from "./history.ts";
+import { branchesOf, decodeHistory, encodeHistory, forkAt, newVersion, pathsOf, selectBranch, selectPath, deleteMessage, versionsOf } from "./history.ts";
 import initSqlJs from "sql.js";
 import { SqlJsDriver, SqlStore, migrate, coreMigrations } from "@homunculus/core";
 import { loadChat, saveChat, updateResult } from "./engine.ts";
@@ -59,5 +59,44 @@ describe("Assistant conversation paths", () => {
     const opened = decodeHistory(damaged);
     expect(opened.messages.map(m => m.id)).toEqual(["u", "a2"]);
     expect(pathsOf(opened).find(p => p.id === "main")!.messages.map(m => m.id)).toEqual(["u"]);
+  });
+});
+
+// D-144: versions and branches like the chat's: New Version and an edited message stay in the branch; only Branch From
+// Here makes a branch; a branch reopens on the version it showed last.
+describe("versions and branches (D-144)", () => {
+  it("New Version is a version of the same branch: the branch list does not grow", () => {
+    const c = original();
+    const v2 = newVersion(c, "u"); v2.messages.push(message("a2", "assistant"));
+    expect(branchesOf(v2).map((b) => b.name)).toEqual(["Main"]);
+    expect(versionsOf(v2, "a2").map((v) => v.message.id)).toEqual(["a", "a2"]);
+    const back = selectPath(v2, versionsOf(v2, "a2")[0]!.pathId);
+    expect(back.messages.map((m) => m.id)).toEqual(["u", "a"]);
+    expect(branchesOf(back)).toEqual([{ id: "main", name: "Main", current: true }]);
+  });
+  it("an edited message keeps the old one as a version of it", () => {
+    const c = original();
+    const edited = newVersion(c, "u", "Make it darker");
+    expect(edited.messages).toHaveLength(1);
+    expect(edited.messages[0]!.text).toBe("Make it darker");
+    const versions = versionsOf(edited, edited.messages[0]!.id);
+    expect(versions.map((v) => v.message.text)).toEqual(["u", "Make it darker"]);
+    expect(branchesOf(edited)).toHaveLength(1);
+  });
+  it("Branch From Here makes a branch; each branch reopens on the version it showed last", () => {
+    const c = original();
+    const b = forkAt(c, "a"); b.messages.push(message("u2", "user"), message("a3", "assistant"));
+    expect(branchesOf(b).map((x) => [x.name, x.current])).toEqual([["Main", false], ["Branch 2", true]]);
+    const branchId = b.activeBranchId!;
+    const v = newVersion(b, "u2"); v.messages.push(message("a4", "assistant"));
+    expect(branchesOf(v).map((x) => x.name)).toEqual(["Main", "Branch 2"]);
+    const main = selectBranch(v, "main");
+    expect(main.messages.map((m) => m.id)).toEqual(["u", "a"]);
+    const again = selectBranch(main, branchId);
+    expect(again.messages.at(-1)!.id).toBe("a4");
+    // saved and read back, the groups and last versions stay
+    const round = decodeHistory(AssistantChat.parse(JSON.parse(JSON.stringify(encodeHistory(again)))));
+    expect(branchesOf(round).map((x) => x.name)).toEqual(["Main", "Branch 2"]);
+    expect(selectBranch(round, branchId).messages.at(-1)!.id).toBe("a4");
   });
 });

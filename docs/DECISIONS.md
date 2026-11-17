@@ -1647,3 +1647,15 @@ Daniel (translated): "the Assistant searches the library without permission or i
 - Tests: `library-lookups.test.ts` (3: rules and find description; library line and built-ins; never-edited built-ins updated, edited kept).
 
 Signed: **CLAUDE**.
+
+## D-144 — Assistant chats get versions and branches like the chat's (2026-11-17)
+
+Daniel (translated): "can you add conventional swipes and branches like Play's to the Assistant? Right now they are different for some reason."
+
+- **The difference:** the Assistant kept each conversation path as a branch, so every "Again" and every edited message made a new branch ("Branch 2", "Branch 3"…) and the branch list grew with each try. In Play (D-032, D-136), a new answer or an edit is a **version** of that message (‹ 1/3 ›) on the same branch, and only **Branch from here** makes a branch.
+- **Now (same behaviour as Play, the Assistant's own look):** **New Version** (was "Again") and **›** at the newest answer's last version write another answer as a version, ‹ n/m › on the answer (the newest always shows it, 1/1); editing one of your messages and sending keeps the old message and what followed as a version of it (‹ › on your message); **Branch From Here** is the only thing that makes a branch; the branch list (shown once there are two) lists branches, not versions; going back to a branch opens the version it showed last.
+- **Data** (`schemas/assistant.ts`, `assistant/history.ts`): a path keeps `group` = the branch it is a version of (missing = a branch of its own, so every path saved before stays a branch as it was); `AssistantChat.lastPath` remembers each branch's last version. `newVersion`, `branchesOf`, `selectBranch`; `forkAt` names branches by the branch count; `versionsOf` also finds versions of the user's messages.
+- UI follows Play's approved pattern (no new screen), so no draft.
+- Tests: `history.test.ts` (3 new: New Version keeps the branch list; an edit is a version; branches reopen on their last version, saved and read back); click tests `assistant-history` rewritten for the new behaviour, `assistant`, `assistant-background`.
+
+Signed: **CLAUDE**.

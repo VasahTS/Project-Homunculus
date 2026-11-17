@@ -4,7 +4,7 @@ import { useBackState } from "./back-button.ts";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useDraft, useSendKey } from "./ux.tsx";
 import { createAssistantRuntime } from "../assistant/runtime.ts";
-import { deleteMessage, forkAt, pathsOf, selectPath, versionsOf } from "../assistant/history.ts";
+import { branchesOf, deleteMessage, forkAt, newVersion, selectBranch, selectPath, versionsOf } from "../assistant/history.ts";
 import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
@@ -281,23 +281,26 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
     const messages = [...chat.messages]; if (!messages.some(m => m.id === undoMessage.message.id)) messages.splice(undoMessage.index, 0, undoMessage.message);
     if (await changeHistory({ ...chat, messages, compact: undefined, guides: [], updatedAt: Date.now() })) setUndoMessage(null);
   };
-  const answerVersions = (m: AssistantMessage) => {
+  /** D-144: a message's versions (‹ 1/3 ›, like the chat's swipes); the newest answer always has them (› writes another). */
+  const answerVersions = (m: AssistantMessage, latest = false) => {
     if (!chat || busy) return undefined;
     const all = versionsOf(chat, m.id), index = all.findIndex(v => v.message.id === m.id);
-    if (all.length < 2) return undefined;
-    return { index, total: all.length, pick: (i: number) => { const v = all[i]; if (v) { setUndoMessage(null); void changeHistory(selectPath(chat, v.pathId)); } } };
+    if (all.length < 2 && !latest) return undefined;
+    return { index: Math.max(0, index), total: Math.max(1, all.length), pick: (i: number) => { const v = all[i]; if (v) { setUndoMessage(null); void changeHistory(selectPath(chat, v.pathId)); } } };
   };
+  /** New Version (D-144): another answer to the last message, in the same branch; the old one stays as a version. */
   const regenerate = () => {
     if (!chat || busy) return;
     const i = chat.messages.map((m) => m.role).lastIndexOf("user");
-    if (i >= 0) void runFrom(forkAt(chat, chat.messages[i]!.id));
+    if (i >= 0) void runFrom(newVersion(chat, chat.messages[i]!.id));
   };
-  /** Changes one of the user's messages and answers again from there (later messages go). */
+  /** Changes one of the user's messages and answers again from there: the old message (and what followed it) stays as a
+   *  version of it, ‹ › (D-144; it made a new branch before). */
   const editAndResend = (m: AssistantMessage, newText: string) => {
     if (!chat || busy) return;
     const i = chat.messages.findIndex((x) => x.id === m.id);
     if (i < 0) return;
-    void runFrom(forkAt(chat, m.id, newText.trim()));
+    void runFrom(newVersion(chat, m.id, newText.trim()));
   };
   const compactNow = async () => {
     const r = connection.forRequest();
@@ -398,8 +401,8 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
             <button type="button" className="asst-pop-item danger" onClick={() => { close(); void deleteChat(svc.store, chat.id).then(() => { st.setActiveId(null); void st.reload(); }); }}><span className="asst-pop-emoji"><Icon name="trash" size={14} /></span><span><b>Delete Chat</b></span></button>
           </>}
         </Pop>}
-        {chat && pathsOf(chat).length > 1 && <select aria-label="Conversation Branch" data-testid="assistant-branches" disabled={busy} value={chat.activeBranchId ?? "main"} onChange={e => { setUndoMessage(null); void changeHistory(selectPath(chat, e.target.value)); }}>
-          {pathsOf(chat).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {chat && branchesOf(chat).length > 1 && <select aria-label="Conversation Branch" data-testid="assistant-branches" disabled={busy} value={branchesOf(chat).find(b => b.current)?.id ?? ""} onChange={e => { setUndoMessage(null); void changeHistory(selectBranch(chat, e.target.value)); }}>
+          {branchesOf(chat).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>}
         <button type="button" className={`asst-details-btn${details ? " on" : ""}`} onClick={() => setDetails(!details)} aria-pressed={details} data-testid="assistant-details-toggle"><Icon name="inspector" size={14} /> Details</button>
       </header>
@@ -420,10 +423,10 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
         ) : (
           <div className="asst-col asst-msgs" data-testid="assistant-messages">
             {chat?.compact && <div className="asst-compacted">Older messages are sent as a summary · <button className="link" onClick={() => setDetails(true)}>Details</button></div>}
-            {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} pictures={pictureCtl(m)} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} onBranch={() => branchFrom(m)} onDelete={() => void removeMessage(m)} /> : (
+            {messages.map((m, i) => (m.role === "user" ? <UserBubble key={m.id} m={m} busy={busy} pictures={pictureCtl(m)} versions={answerVersions(m)} onEdit={(t) => editAndResend(m, t)} onView={() => setViewing(m.id)} onBranch={() => branchFrom(m)} onDelete={() => void removeMessage(m)} /> : (
               <Reply key={m.id} m={m} cards={{ busy, pages: comicPages, reading: lastReading, faces: castIds, onChange: (ri, next) => void decide(m, ri, next), onSend: (t) => void sendText(t) }} onSaveDraft={(kind, data) => saveDraft(m, kind, data)} onAct={(ri, w) => void act(m, ri, w)} onApplyAll={() => void applyAll(m)} onOpen={onOpenItem} onStartKit={onStartKit}
                 emoji={settings?.assistants.find((a) => a.name === m.used?.assistant)?.emoji}
-                latest={i === messages.length - 1} onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} onBranch={!busy ? () => branchFrom(m) : undefined} onDelete={!busy ? () => void removeMessage(m) : undefined} versions={answerVersions(m)} />
+                latest={i === messages.length - 1} onRegenerate={i === messages.length - 1 && !busy ? regenerate : undefined} onBranch={!busy ? () => branchFrom(m) : undefined} onDelete={!busy ? () => void removeMessage(m) : undefined} versions={answerVersions(m, i === messages.length - 1)} />
             )))}
             {live && runningId.current === st.activeId && <Reply m={live} live onAct={() => {}} onApplyAll={() => {}} onOpen={onOpenItem} onStartKit={onStartKit} emoji={resolved?.assistant.emoji} liveName={resolved?.assistant.name} compacting={compacting} />}
           </div>
@@ -525,7 +528,23 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
 /** What a message's pictures need from the view (D-115). */
 interface PictureCtl { route: PictureRoute; describing: boolean; visionName: string; onSave: (attachmentId: string, text: string) => void; onRetry: (attachmentId: string) => Promise<void> }
 
-function UserBubble({ m, busy, onEdit, onView, onBranch, onDelete, pictures }: { m: AssistantMessage; busy: boolean; onEdit: (t: string) => void; onView: () => void; onBranch: () => void; onDelete: () => void; pictures?: PictureCtl }) {
+/** ‹ 2/3 › on a message with versions, like the chat's swipes (D-144). On the newest answer, › at its newest version
+ *  writes another one (`onAnother`). */
+function Versions({ v, label, what, onAnother }: { v: { index: number; total: number; pick: (i: number) => void }; label: string; what: string; onAnother?: (() => void) | undefined }) {
+  const last = v.index === v.total - 1;
+  return (
+    <span className="asst-versions" aria-label={label}>
+      <button type="button" aria-label={`Previous ${what}`} disabled={v.index === 0} onClick={() => v.pick(v.index - 1)}>‹</button>
+      <span data-testid="assistant-version">{v.index + 1}/{v.total}</span>
+      {last && onAnother
+        ? <button type="button" aria-label="Write another" title="Write a new version" onClick={onAnother} data-testid="assistant-version-new">›</button>
+        : <button type="button" aria-label={`Next ${what}`} disabled={last} onClick={() => v.pick(v.index + 1)}>›</button>}
+    </span>
+  );
+}
+
+function UserBubble({ m, busy, onEdit, onView, onBranch, onDelete, pictures, versions }: { m: AssistantMessage; busy: boolean; onEdit: (t: string) => void; onView: () => void; onBranch: () => void; onDelete: () => void; pictures?: PictureCtl;
+  versions?: { index: number; total: number; pick: (i: number) => void } | undefined }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.text);
   const [seeing, setSeeing] = useState<string | null>(null);
@@ -547,11 +566,12 @@ function UserBubble({ m, busy, onEdit, onView, onBranch, onDelete, pictures }: {
         <div className="asst-edit">
           <textarea value={draft} rows={3} autoFocus aria-label="Edit message" onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); setEditing(false); onEdit(draft); } if (e.key === "Escape") setEditing(false); }} />
-          <div className="asst-edit-row"><span className="hint">A new branch keeps your previous conversation.</span><span className="grow" />
+          <div className="asst-edit-row"><span className="hint">Your previous message and its answers stay as a version (‹ ›).</span><span className="grow" />
             <Button small variant="plain" onClick={() => setEditing(false)}>Cancel</Button><Button small variant="prominent" disabled={!draft.trim()} onClick={() => { setEditing(false); onEdit(draft); }}>Send</Button></div>
         </div>
       ) : m.text && <div className="asst-b">{m.text}</div>}
       {!editing && <div className="asst-acts">
+        {versions && <Versions v={versions} label="Message Versions" what="Message" />}
         <button type="button" title="Copy" aria-label="Copy" onClick={() => void navigator.clipboard?.writeText(m.text)}><Icon name="link" size={12} /> Copy</button>
         {!busy && <button type="button" onClick={() => { setDraft(m.text); setEditing(true); }} data-testid="assistant-edit"><Icon name="pencil" size={12} /> Edit</button>}
         <button type="button" onClick={onView} title="What the model received for this message"><Icon name="eye" size={12} /> Request</button>
@@ -632,9 +652,9 @@ function Reply({ m, live = false, latest = false, onAct, onApplyAll, onOpen, onS
         {!live && <div className="asst-acts left">
           {/* the usage first: the buttons after it fade in on hover without leaving a gap before it (D-121) */}
           {m.used && <span className="asst-usage" data-testid="assistant-usage">{usageLine(m)}</span>}
-          {onRegenerate && <button type="button" onClick={onRegenerate} data-testid="assistant-regenerate"><Icon name="refresh" size={12} /> Again</button>}
+          {versions && <Versions v={versions} label="Answer Versions" what="Answer" onAnother={onRegenerate} />}
+          {onRegenerate && <button type="button" onClick={onRegenerate} data-testid="assistant-regenerate" title="Another answer to your last message; this one stays as a version (‹ ›)"><Icon name="refresh" size={12} /> New Version</button>}
           {m.text && <button type="button" onClick={() => void navigator.clipboard?.writeText(m.text)}><Icon name="link" size={12} /> Copy</button>}
-          {versions && <span className="asst-versions" aria-label="Answer Versions"><button type="button" aria-label="Previous Answer" disabled={versions.index === 0} onClick={() => versions.pick(versions.index - 1)}>‹</button><span data-testid="assistant-version">{versions.index + 1}/{versions.total}</span><button type="button" aria-label="Next Answer" disabled={versions.index === versions.total - 1} onClick={() => versions.pick(versions.index + 1)}>›</button></span>}
           {onBranch && <button type="button" onClick={onBranch}>Branch From Here</button>}
           {onDelete && <button type="button" onClick={onDelete}>Delete Message</button>}
         </div>}
