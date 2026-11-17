@@ -1,5 +1,12 @@
 # HANDOFF — Homunculus 2
 
+## The Assistant stops exploring the library on its own (2026-11-17) — CLAUDE — D-143
+
+- Daniel: asked about a dungeon, the Assistant searched the library for "dungeon"/"masmorra" by itself — takes inspiration he didn't ask for and wastes tokens.
+- Built: a rule in CORE_RULES (look items up only when named/attached, asked to use or check them, or one the task needs; never by the request's topic; ask in one line instead), `find`'s description and query, the library line, the web rule, Loremaster and Story Architect texts (never-edited built-ins updated on load).
+- **To try (Windows):** close the app → Pull origin → open it. Assistant: "let's create a dungeon for my campaign" → no "Looked for…" steps; it writes from your request (it may ask "Want me to use your lorebook X?" only if it already knows of one). "Use my dungeon lorebook" → it looks that one up.
+- Checks: typecheck; unit tests (944); click tests assistant, assistant-history.
+
 ## Text boxes that grow no longer grow by themselves (2026-11-17) — CLAUDE — D-142
 
 - Daniel: since D-133 the Assistant's box got taller with every key, Backspace included. He also said to leave characters as they are (D-141's question closed: no character setup).

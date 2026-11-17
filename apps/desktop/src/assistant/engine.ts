@@ -9,7 +9,7 @@
 // - tool results of earlier replies are cut to their first lines (Flint's "microcompaction"): the model can read again.
 import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult, type PictureDescription } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
-import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES, GUIDES, WEB_RULES } from "./guides.ts";
+import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES, GUIDES, OLD_BUILTIN_INSTRUCTIONS, WEB_RULES } from "./guides.ts";
 import { excerptRead, isRead, retainedReads } from "./reads.ts";
 import { libraryCounts, runTool, TOOL_SPECS, webSession, type ToolContext } from "./tools.ts";
 import type { WebSession } from "./web.ts";
@@ -43,6 +43,11 @@ export async function loadSettings(store: SqlStore): Promise<AssistantSettings> 
   let changed = false;
   const assistants = [...raw.assistants];
   for (const b of BUILTIN_ASSISTANTS) if (!assistants.some((a) => a.id === b.id)) { assistants.push(builtinAssistant(b.id)!); changed = true; }
+  // a built-in the user never edited follows its newer instructions (D-143)
+  for (const [i, a] of assistants.entries()) {
+    const b = BUILTIN_ASSISTANTS.find((x) => x.id === a.id);
+    if (b && a.instructions !== b.instructions && OLD_BUILTIN_INSTRUCTIONS[a.id]?.includes(a.instructions)) { assistants[i] = { ...a, instructions: b.instructions }; changed = true; }
+  }
   const presets = [...raw.presets];
   if (!presets.length) {
     presets.push(AssistantPreset.parse({ id: "my-preferences", name: "My preferences", description: "How I like things written, and what to always know.", rules: raw.rules ?? [], memory: raw.memory ?? [], memoryOn: raw.memoryOn ?? true }));
@@ -134,7 +139,7 @@ import { loadChat, saveChat } from "./chats.ts";
 
 /** The system message, in parts (so the composer can show what takes room). */
 export function systemParts(assistant: AssistantPersona, preset: AssistantPreset | undefined, counts: string, draftFirst = false, web = false): Record<string, string> {
-  const parts: Record<string, string> = { app: `${CORE_RULES}${web ? `\n${WEB_RULES}` : ""}${draftFirst ? `\n\n${DRAFT_RULES}` : ""}`, assistant: assistant.instructions.trim() ? `Your role — ${assistant.name}:\n${assistant.instructions.trim()}` : "", library: `The user's library: ${counts}.` };
+  const parts: Record<string, string> = { app: `${CORE_RULES}${web ? `\n${WEB_RULES}` : ""}${draftFirst ? `\n\n${DRAFT_RULES}` : ""}`, assistant: assistant.instructions.trim() ? `Your role — ${assistant.name}:\n${assistant.instructions.trim()}` : "", library: `The user's library: ${counts}. Look items up only as the rules say (the ones the user names or asks for, or one the task needs), never to explore a topic.` };
   if (assistant.toolHelper?.enabled) parts.app += `\n\n${HELPER_RULES}`;
   if (preset) {
     const p: string[] = [];

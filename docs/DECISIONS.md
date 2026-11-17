@@ -1635,3 +1635,15 @@ Daniel (translated): "fix the Assistant's chat: after the change that made the b
 - Tests: click tests `assistant` (typing and Backspace keep the height, new lines grow it, emptying returns it, in a layout that could stretch it; after sending a long message the box is back to two lines, with a height transition); the full click suite.
 
 Signed: **CLAUDE**.
+
+## D-143 — The Assistant looks items up only when asked or needed, never to explore the request's topic (2026-11-17)
+
+Daniel (translated): "the Assistant searches the library without permission or instruction: if I talk about creating a dungeon, it goes and searches cards, lorebooks etc. with 'dungeon' or similar in the name on its own. That's harmful for two reasons: it takes inspiration from something I didn't ask for, and it wastes tokens." (His screenshot: Looked for "dungeon", Looked for "masmorra".)
+
+- **Cause:** the rules and tools invited it: `find`'s description said "use a query whenever you know a name or topic", the library line in the system prompt gave only a count, the web rule said to search "facts not in the library", and Loremaster / Story Architect were told to "read what exists" / "read every piece".
+- **Rule (CORE_RULES):** the library is the user's own material, not a source of ideas. Look items up only when the user names or attaches them, asks to use/check/compare what they have, or the task needs one specific existing item (a named character's id for a Kit's cast, a lorebook or agent to attach, the trackers and their field sets before making a tracker — D-139 —, the folders before filing). Never search by the request's topic, never read items the user did not bring for inspiration, never build on them; if an existing item might help, ask in one line.
+- **Tools and prompt:** `find` says it is for locating named or needed items, not for exploring a topic (its query = the name meant); the library line adds "look items up only as the rules say"; the web rule says "not in what the user gave you". Loremaster reads only the book being worked on; Story Architect only the pieces the user picked. Built-in assistants the user never edited get the new text when settings load (`OLD_BUILTIN_INSTRUCTIONS`); edited ones are kept.
+- Rules guide a model, they don't force it: a topic search can still happen with a model that ignores instructions. No hard block on `find` (it would also stop the lookups the user asks for).
+- Tests: `library-lookups.test.ts` (3: rules and find description; library line and built-ins; never-edited built-ins updated, edited kept).
+
+Signed: **CLAUDE**.
