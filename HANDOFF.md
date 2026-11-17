@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Web search: Exa, NanoGPT and OpenRouter in an order with fallback (2026-11-17) — CLAUDE — D-148
+
+- Daniel: add Exa (free and with his key), NanoGPT and OpenRouter (their balances) to the Assistant's web search, Flint as the UI reference, working in every theme. Plan `claude/UI-PLAN-WEB-SEARCH.md` (Project); straight to code.
+- Built: Assistant → Customize → **Web Search** (the switch for new chats, Provider Settings, Search Order with ↑ ↓ / on-off / × / + Add Provider); `web_search` tries the order top to bottom and says who answered; OpenRouter's own search goes in the request when it is first and the Assistant runs on OpenRouter; pages that block the app are read through Exa; cost in the usage line; native `web_api` (fixed addresses only).
+- **To try (Windows):** close the app → Pull origin → open it (the native part changed: the build takes a little longer). Assistant → Customize → Web Search: the order is DuckDuckGo, Exa (Free). Ask "search the web for Frieren's apprentice" → the step says "Searched the web: …"; if DuckDuckGo is limited it says "· Exa (Free) (DuckDuckGo skipped)". Provider Settings → Exa (API Key) → paste your key → Save: Exa (API Key) goes to the top; ask again: "· Exa (API Key)" and the usage line shows "web $0.0070". Add NanoGPT (+ Add Provider), move it up, switch the others off: it searches with Linkup on your NanoGPT balance. With the Assistant on an OpenRouter connection, add OpenRouter (goes on top): the model searches by itself and the sources row lists the pages it cited.
+- Not verified live from here (no network to these services in the cloud session): the exact shape of NanoGPT's Linkup answer (both documented shapes are read) and OpenRouter's annotations in a streamed reply. If a search comes back empty or odd, open **Request** on that message and send me what it shows.
+- Checks: typecheck; unit tests (986); `cargo test web_api`; click tests assistant*, customize, connections (59) + `assistant-web-providers` (4).
+- Changelog line for the next release: "**More web search providers for the Assistant**: Exa (free, or with your own key), NanoGPT (Linkup, on your balance) and OpenRouter's own search join DuckDuckGo in Assistant → Customize → Web Search. They are tried in the order you set: when one is limited or fails, the next one answers, and the step says which. Pages that block Homunculus can be read through Exa."
+
 ## Assistant notes sent as the AI (prefill) (2026-11-17) — CLAUDE — D-147
 
 - Daniel: in the Assistant chat, notes/lore should be able to go in as the AI (assistant role), as a prefill.

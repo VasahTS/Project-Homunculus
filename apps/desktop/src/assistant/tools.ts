@@ -18,7 +18,7 @@ import { findGroup, loadAgentGroups } from "../agentGroups.ts";
 import { agentRows, chatRows, directorRows, getAppItem, quickReplyRows, readChat, regexRows } from "./appReads.ts";
 import { ABOUT_TOPICS, aboutText } from "./about.ts";
 import { CUE_FIELDS, GUIDES, LORE_ENTRY_FIELDS, PRESET_BLOCK_FIELDS, PRESET_FIELDS } from "./guides.ts";
-import { WebLimitedError, WebSession } from "./web.ts";
+import { WebLimitedError, WebSession, type WebProvider } from "./web.ts";
 import { readScope, readText, withReadRanges, type ReadScope } from "./reads.ts";
 import { questionFrom, understoodFrom } from "./cards.ts";
 import { errorText, looseArgs } from "./args.ts";
@@ -145,6 +145,9 @@ export interface ToolContext {
   /** Web access (D-067): one shared session (its cache works across replies), a budget per reply, a live step label. */
   web?: WebSession;
   webBudget?: { searches: number; chars: number };
+  /** Where to search, in order (D-148; absent = DuckDuckGo), and what this reply's searches used. */
+  webProviders?: WebProvider[];
+  webUsage?: WebUsage;
   onStatus?: (label: string) => void;
   /** Asks the vision model about a picture (only when the main model can't see pictures, D-115). */
   look?: (imageId: string, question: string) => Promise<ToolOutcome>;
@@ -153,6 +156,8 @@ export interface ToolContext {
 }
 
 export interface ToolOutcome { result: string; label: string; error?: boolean }
+/** One reply's web use (D-148), saved in `used.web`. */
+export interface WebUsage { searches: number; pages: number; cost: number; providers: string[]; fallbacks: string[] }
 
 // ------------------------------------------------------------------ definitions
 
@@ -187,7 +192,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     parameters: { type: "object", properties: { id: { type: "string", description: "character:id" }, image: { type: "string", description: "The image id from the message." }, variant: { type: "string", description: "A version's label or id (optional)." } }, required: ["id", "image"] } },
   { name: "remember", description: "Remember a lasting fact or preference of the user for future chats (they can see and edit it).",
     parameters: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
-  { name: "web_search", description: "Search the web (DuckDuckGo). Returns up to 5 results (max 10): title, address and a short snippet. Searches run one at a time; don't repeat a search you already made. Use it for facts you don't have (a real place, a canon character, a game's rules), not for the user's library.",
+  { name: "web_search", description: "Search the web. Returns up to 5 results (max 10): title, address and a short snippet. Don't repeat a search you already made. Use it for facts you don't have (a real place, a canon character, a game's rules), not for the user's library.",
     parameters: { type: "object", properties: { query: { type: "string" }, count: { type: "number", description: "How many results, 1–10 (default 5)." } }, required: ["query"] } },
   { name: "web_fetch", description: "Read a web page as plain text (an address from web_search or from the user). Returns 6,000 characters at a time with the total; use `offset` to continue. Read only the pages you need.",
     parameters: { type: "object", properties: { url: { type: "string" }, offset: { type: "number" } }, required: ["url"] } },
@@ -1378,11 +1383,20 @@ async function runWeb(name: "web_search" | "web_fetch", a: Obj, ctx: ToolContext
   const web = ctx.web ?? webSession;
   const budget = (ctx.webBudget ??= { searches: 0, chars: 0 });
   const spent: ToolOutcome = { result: `Web budget for this reply is used up (${WEB_SEARCHES} searches / ${n(WEB_CHARS)} characters). Answer with what you have, or tell the user what is still missing.`, label: "Web budget used up", error: true };
-  const opts = { ...(ctx.signal ? { signal: ctx.signal } : {}), onWait: (s: number) => ctx.onStatus?.(`Waiting for DuckDuckGo · ${s} s`) };
+  const opts = { ...(ctx.signal ? { signal: ctx.signal } : {}), ...(ctx.webProviders ? { providers: ctx.webProviders } : {}), onWait: (s: number) => ctx.onStatus?.(`Waiting for DuckDuckGo · ${s} s`) };
+  const use = ctx.webUsage;
+  const used = (provider: string, cost: number, fallbacks: string[] = []) => {
+    if (!use) return;
+    if (!use.providers.includes(provider)) use.providers.push(provider);
+    use.cost += cost;
+    for (const f of fallbacks) if (!use.fallbacks.includes(f)) use.fallbacks.push(f);
+  };
   const failed = (e: unknown, what: string): ToolOutcome => {
     if (ctx.signal?.aborted) return { result: "Stopped.", label: "Stopped", error: true };
     const msg = e instanceof Error ? e.message : String(e);
-    if (e instanceof WebLimitedError) return { result: msg, label: `Web search limited · try again in ${e.seconds} s`, error: true };
+    if (e instanceof WebLimitedError) return e.provider === "Exa (Free)"
+      ? { result: `${msg} (The user can add an Exa API key or another provider in Assistant → Customize → Web Search.)`, label: "Exa's free limit is used up · add a key or another provider in Customize → Web Search", error: true }
+      : { result: msg, label: `${e.provider === "DuckDuckGo" ? "Web search" : e.provider} limited · try again in ${e.seconds} s`, error: true };
     if (/desktop app only/.test(msg)) return { result: msg, label: "Web search works in the desktop app only", error: true };
     return { result: msg, label: `${what} · ${short(msg.replace(/\.$/, ""), 60)}`, error: true };
   };
@@ -1392,10 +1406,12 @@ async function runWeb(name: "web_search" | "web_fetch", a: Obj, ctx: ToolContext
     if (budget.searches >= WEB_SEARCHES) return spent;
     let r: Awaited<ReturnType<WebSession["search"]>>;
     try { r = await web.search(query, typeof a.count === "number" ? a.count : 5, opts); } catch (e) { return failed(e, "Web search failed"); }
-    if (!r.cached) budget.searches++;
-    if (!r.results.length) return { result: `No web results for “${query}”.`, label: `Searched the web: “${query}” · nothing found` };
+    if (!r.cached) { budget.searches++; if (use) use.searches++; used(r.provider, r.cost, r.fallbacks); }
+    // the label says which provider answered when it wasn't DuckDuckGo (as before D-148) or one was skipped
+    const via = r.provider !== "DuckDuckGo" || r.skipped.length ? ` · ${r.provider}${r.skipped.length ? ` (${r.skipped.join(", ")} skipped)` : ""}` : "";
+    if (!r.results.length) return { result: `No web results for “${query}”.`, label: `Searched the web: “${query}” · nothing found${via}` };
     const body = r.results.map((x, i) => `${i + 1}. ${x.title}\n   ${x.url}\n   ${x.snippet}`).join("\n");
-    return { result: `Web results for “${query}” (DuckDuckGo) — ${DATA}:\n${body}`, label: `Searched the web: “${query}” · ${r.results.length} result${r.results.length === 1 ? "" : "s"}${r.cached ? " (cached)" : ""}` };
+    return { result: `Web results for “${query}” (${r.provider}) — ${DATA}:\n${body}`, label: `Searched the web: “${query}” · ${r.results.length} result${r.results.length === 1 ? "" : "s"}${r.cached ? " (cached)" : via}` };
   }
   const url = str(a.url).trim();
   if (!url) return { result: "Give the page's address.", label: "web_fetch", error: true };
@@ -1403,6 +1419,7 @@ async function runWeb(name: "web_search" | "web_fetch", a: Obj, ctx: ToolContext
   const offset = typeof a.offset === "number" && a.offset > 0 ? Math.floor(a.offset) : 0;
   let page: Awaited<ReturnType<WebSession["fetch"]>>;
   try { page = await web.fetch(url, opts); } catch (e) { return failed(e, `Couldn't read ${hostOf(url)}`); }
+  if (!page.cached && use) { use.pages++; if (page.via) used(page.via, page.cost); }
   const total = page.text.length;
   if (!total) return { result: `Page: ${page.title || hostOf(page.url)} — ${page.url} — the page has no readable text.`, label: `Couldn't read ${hostOf(page.url)} · no readable text`, error: true };
   if (offset >= total) return { result: `That page has only ${total} characters.`, label: `Read ${hostOf(page.url)} · past the end`, error: true };
@@ -1413,7 +1430,7 @@ async function runWeb(name: "web_search" | "web_fetch", a: Obj, ctx: ToolContext
   const more = to < total ? `\n(${total - to} more characters; call web_fetch with offset ${to})` : page.cut ? "\n(The page was longer than 2 MB; the rest was not downloaded.)" : "";
   return {
     result: `Page: ${page.title || hostOf(page.url)} — ${page.url} (characters ${offset + 1}–${to} of ${total}) — ${DATA}:\n${page.text.slice(offset, to)}${more}`,
-    label: `Read ${where} · ${n(offset + 1)}–${n(to)} of ${n(total)}${page.cached ? " (cached)" : ""}`,
+    label: `Read ${where} · ${n(offset + 1)}–${n(to)} of ${n(total)}${page.cached ? " (cached)" : ""}${page.via ? ` · through ${page.via}` : ""}`,
   };
 }
 

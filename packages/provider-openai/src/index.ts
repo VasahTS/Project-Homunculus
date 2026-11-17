@@ -56,8 +56,10 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
     messages: req.rich ? req.rich.map(toOpenAiMessage) : req.messages,
     stream: connection.streaming !== false,
   };
-  if (req.tools?.length) {
-    body.tools = req.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
+  // D-148: OpenRouter runs its own tools (web search) when they are in `tools`; other services would refuse them
+  const serverTools = req.serverTools?.length && /^https:\/\/([a-z0-9-]+\.)?openrouter\.ai(\/|$)/i.test(base) ? req.serverTools : [];
+  if (req.tools?.length || serverTools.length) {
+    body.tools = [...(req.tools ?? []).map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } })), ...serverTools];
     body.tool_choice = "auto";
   }
   const p = connection.params ?? {};
@@ -119,7 +121,11 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
     if (thought) yield { reasoning: thought };
     const content = delta?.content ?? delta?.refusal;
     if (content) yield content;
+    const cites = citationsOf((delta as { annotations?: unknown } | undefined)?.annotations);
+    if (cites.length) yield { citations: cites };
     for (const tc of delta?.tool_calls ?? []) {
+      // a tool the service ran itself (D-148) is not ours to run
+      if (typeof (tc as { type?: unknown }).type === "string" && (tc as { type: string }).type !== "function") continue;
       const i = tc.index ?? calls.length;
       const c = (calls[i] ??= { id: "", name: "", arguments: "" });
       if (tc.id) c.id = tc.id;
@@ -130,12 +136,28 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
     if (json.usage) {
       // CODEX: completion_tokens includes reasoning; retain its optional breakdown without changing billing totals.
       const reasoning = json.usage.completion_tokens_details?.reasoning_tokens;
+      // D-148: searches OpenRouter's web search tool ran (server_tool_use, or the older top-level field)
+      const u = json.usage as { server_tool_use?: { web_search_requests?: unknown }; web_search_requests?: unknown };
+      const searches = Number(u.server_tool_use?.web_search_requests ?? u.web_search_requests);
       yield { usage: { tokensIn: json.usage.prompt_tokens, tokensOut: json.usage.completion_tokens, cost: json.usage.cost,
         ...(typeof reasoning === "number" && Number.isSafeInteger(reasoning) && reasoning >= 0 ? { tokensReasoning: reasoning } : {}),
+        ...(Number.isSafeInteger(searches) && searches > 0 ? { webSearches: searches } : {}),
       } };
     }
   }
   yield* flushCalls();
+}
+
+/** `url_citation` annotations (OpenRouter's web search, D-148) → the cited pages; anything else is ignored. */
+export function citationsOf(annotations: unknown): Array<{ url: string; title: string }> {
+  if (!Array.isArray(annotations)) return [];
+  const out: Array<{ url: string; title: string }> = [];
+  for (const a of annotations as Array<Record<string, any>>) {
+    const c = a?.type === "url_citation" ? (a.url_citation ?? a) : undefined;
+    const url = typeof c?.url === "string" ? c.url : "";
+    if (/^https?:\/\//i.test(url) && !out.some((x) => x.url === url)) out.push({ url, title: typeof c.title === "string" ? c.title : "" });
+  }
+  return out;
 }
 
 /** Our turn → the OpenAI chat format (images as data URLs, tool calls and tool results). */

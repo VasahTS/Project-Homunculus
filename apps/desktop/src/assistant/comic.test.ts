@@ -161,7 +161,7 @@ describe("reading a comic (D-115)", () => {
     expect(t).toContain('"Synopsis", "Characters"');
     expect(t).toContain("Who is {{user}}?");
     expect(t).toContain("create kit");
-    const turns = toTurns(AssistantChat.parse({ id: "c", messages: [], createdAt: 1, updatedAt: 1 }), { assistants: [], presets: [], defaultAssistantId: "", defaultPresetId: "", toolsOff: [], vision: { connectionId: null, model: "" } }, "");
+    const turns = toTurns(AssistantChat.parse({ id: "c", messages: [], createdAt: 1, updatedAt: 1 }), { assistants: [], presets: [], defaultAssistantId: "", defaultPresetId: "", toolsOff: [], vision: { connectionId: null, model: "" }, web: { order: [], nanogptConnectionId: null, openrouterEngine: "auto" } }, "");
     expect(String(turns[0]!.content)).toContain('topic "comic"');
   });
 });

@@ -7,12 +7,14 @@
 // - pictures are sent only with the newest two user messages (older ones become "[image … sent earlier]");
 //   a main model that can't see pictures gets what the vision model saw instead (D-115, vision.ts);
 // - tool results of earlier replies are cut to their first lines (Flint's "microcompaction"): the model can read again.
-import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantMessage, type AssistantResult, type PictureDescription } from "@homunculus/schemas";
+import { AssistantChat, AssistantPersona, AssistantPreset, AssistantSettings, type AssistantWeb, type WebProviderId, type AssistantMessage, type AssistantResult, type PictureDescription } from "@homunculus/schemas";
 import type { ConnectionConfig, ContentPart, HomunculusCore, RichTurn, SqlStore, ToolCall } from "@homunculus/core";
 import { BUILTIN_ASSISTANTS, CORE_RULES, DRAFT_RULES, GUIDES, OLD_BUILTIN_INSTRUCTIONS, WEB_RULES } from "./guides.ts";
 import { excerptRead, isRead, retainedReads } from "./reads.ts";
-import { libraryCounts, runTool, TOOL_SPECS, webSession, type ToolContext } from "./tools.ts";
-import type { WebSession } from "./web.ts";
+import { libraryCounts, runTool, TOOL_SPECS, WEB_SEARCHES, webSession, type ToolContext } from "./tools.ts";
+import { WEB_PROVIDER_LABEL, type WebProvider, type WebSession } from "./web.ts";
+import type { WebUsage } from "./tools.ts";
+import { secrets } from "../secrets.ts";
 import { decodeHistory, encodeHistory } from "./history.ts";
 import { consultLibrary, excerptHelper, HELPER_RULES, HELPER_SPEC, type HelperUsage } from "./helper.ts";
 import { describePicture, emptyVisionUsage, LOOK_SPEC, lookAtPicture, NO_VISION_RULES, pictureRoute, pictureText, READ_COMIC_SPEC, seesPictures, VISION_RULES, visionConnection } from "./vision.ts";
@@ -64,7 +66,7 @@ export async function loadSettings(store: SqlStore): Promise<AssistantSettings> 
     assistants, presets,
     defaultAssistantId: assistants.some((a) => a.id === raw.defaultAssistantId) ? raw.defaultAssistantId : "homunculus",
     defaultPresetId: raw.defaultPresetId === "" && raw.presets.length ? "" : presets.some((p) => p.id === raw.defaultPresetId) ? raw.defaultPresetId : presets[0]!.id,
-    toolsOff: raw.toolsOff, vision: raw.vision,
+    toolsOff: raw.toolsOff, vision: raw.vision, web: raw.web,
   });
   if (changed) await saveSettings(store, out);
   return out;
@@ -85,13 +87,66 @@ export const TOOL_GROUPS: Array<{ id: string; label: string; help: string; tools
   { id: "files", label: "Read attached files", help: "parts of the files you attach", tools: ["read_file"] },
   { id: "memory", label: "Remember", help: "adds to the preset's memory", tools: ["remember"] },
   // D-067: for this group the switch is the default; 🌐 Web in the message box decides per chat (as in Flint)
-  { id: "web", label: "Search the web", help: "DuckDuckGo · the default for chats; 🌐 Web in the message box turns it on or off for one chat", tools: ["web_search", "web_fetch"] },
+  { id: "web", label: "Search the web", help: "the providers in Customize → Web Search · the default for chats; Search the Web in Options turns it on or off for one chat", tools: ["web_search", "web_fetch"] },
 ];
+
+// ------------------------------------------------------------------ web search providers (D-148)
+
+/** The Exa API key's name in the keychain. */
+export const EXA_KEY_NAME = "web-key:exa";
+const hostOf = (u: string | undefined) => { try { return new URL((u ?? "").trim()).hostname.toLowerCase(); } catch { return ""; } };
+/** OpenRouter: the default address (no base URL) or openrouter.ai. */
+export const isOpenRouter = (c: Pick<ConnectionConfig, "providerId" | "baseUrl"> | undefined) => !!c && c.providerId !== "offline-test" && (!(c.baseUrl ?? "").trim() || hostOf(c.baseUrl) === "openrouter.ai");
+export const isNanoGpt = (c: Pick<ConnectionConfig, "baseUrl"> | undefined) => !!c && /(^|\.)nano-gpt\.com$/.test(hostOf(c.baseUrl));
+/** The NanoGPT connection that pays for searches: the one picked, else the first NanoGPT connection. */
+export function nanoGptConnection(web: AssistantWeb, connections: Record<string, ConnectionConfig>): { id: string; config: ConnectionConfig } | undefined {
+  const picked = web.nanogptConnectionId ? connections[web.nanogptConnectionId] : undefined;
+  if (picked && web.nanogptConnectionId) return { id: web.nanogptConnectionId, config: picked };
+  const first = Object.entries(connections).find(([, c]) => isNanoGpt(c));
+  return first ? { id: first[0], config: first[1] } : undefined;
+}
+export interface WebRow { id: WebProviderId; label: string; on: boolean; ready: boolean; note: string }
+/** The order as the settings show it: whether each row can run now, and why not. */
+export function webRows(web: AssistantWeb, connections: Record<string, ConnectionConfig>, hasExaKey: boolean, assistantConn?: ConnectionConfig): WebRow[] {
+  return web.order.map(({ id, on }) => {
+    const label = WEB_PROVIDER_LABEL[id] ?? id;
+    if (id === "exa-key") return { id, label, on, ready: hasExaKey, note: hasExaKey ? "" : "No API key · skipped" };
+    if (id === "nanogpt") {
+      const n = nanoGptConnection(web, connections);
+      return { id, label, on, ready: !!n?.config.apiKey, note: !n ? "No NanoGPT connection · skipped" : !n.config.apiKey ? "The connection has no key · skipped" : "" };
+    }
+    if (id === "openrouter") {
+      const ready = isOpenRouter(assistantConn) && !!assistantConn?.apiKey;
+      return { id, label, on, ready, note: ready ? "" : "Only when the Assistant runs on OpenRouter · skipped" };
+    }
+    return { id, label, on, ready: true, note: "" };
+  });
+}
+export interface WebPlan {
+  /** OpenRouter's own search goes in the model request instead of `web_search` (it was the first ready row). */
+  openrouter: boolean;
+  /** What `web_search` tries, in order (and what reads pages a site refuses). */
+  providers: WebProvider[];
+}
+/** Turns the settings into what this reply can use: rows that are on and ready, keys filled in. */
+export async function webPlan(s: AssistantSettings, connections: Record<string, ConnectionConfig>, conn: ConnectionConfig,
+  readKey: (name: string) => Promise<string | null> = (n) => secrets.get(n)): Promise<WebPlan> {
+  const wantsKey = s.web.order.some((r) => r.on && r.id === "exa-key");
+  const exaKey = wantsKey ? ((await readKey(EXA_KEY_NAME).catch(() => null)) ?? "").trim() : "";
+  const rows = webRows(s.web, connections, !!exaKey, conn).filter((r) => r.on && r.ready);
+  const providers: WebProvider[] = rows.flatMap((r): WebProvider[] =>
+    r.id === "exa-key" ? [{ id: "exa-key", key: exaKey }]
+    : r.id === "nanogpt" ? [{ id: "nanogpt", key: nanoGptConnection(s.web, connections)!.config.apiKey! }]
+    : r.id === "openrouter" ? [] : [{ id: r.id }]);
+  return { openrouter: rows[0]?.id === "openrouter", providers };
+}
+/** OpenRouter's search tool for the request (D-148), with this reply's search budget. */
+export const openRouterSearch = (s: AssistantSettings, maxUses: number) => ({ type: "openrouter:web_search", parameters: { engine: s.web.openrouterEngine, max_uses: maxUses } });
 /** Tools that save (left out while "Draft first" is on). */
 export const SAVING_TOOLS = ["create", "import_file", "change", "set_picture", "propose_trash"];
 export const WEB_TOOLS = ["web_search", "web_fetch"];
 /** Web search for a chat: its own choice, else the default (Details → Tools). */
-export const webOn = (chat: Pick<AssistantChat, "webSearch"> | null | undefined, s: AssistantSettings) => chat?.webSearch ?? !s.toolsOff.includes("web");
+export const webOn = (chat: Pick<AssistantChat, "webSearch"> | null | undefined, s: AssistantSettings) => (chat?.webSearch ?? !s.toolsOff.includes("web")) && s.web.order.some((r) => r.on);
 export const toolsFor = (s: AssistantSettings, draftFirst = false, web = !s.toolsOff.includes("web"), helper = false) => [...TOOL_SPECS, ...(helper ? [HELPER_SPEC] : [])].filter((t) =>
   (WEB_TOOLS.includes(t.name) ? web : !TOOL_GROUPS.some((g) => g.id !== "read" && s.toolsOff.includes(g.id) && g.tools.includes(t.name))) && !(draftFirst && SAVING_TOOLS.includes(t.name)));
 
@@ -100,7 +155,7 @@ export interface WebSource { url: string; title: string; read: boolean }
  * The web pages a reply used, from its own steps (Flint's "sources" row): pages read first, then search hits
  * not read; one entry per address; only http(s).
  */
-export function webSources(steps: AssistantMessage["steps"]): { sources: WebSource[]; read: number; found: number } {
+export function webSources(steps: AssistantMessage["steps"], cited: Array<{ url: string; title: string }> = []): { sources: WebSource[]; read: number; found: number } {
   const read = new Map<string, string>();
   const found = new Map<string, string>();
   for (const s of steps) {
@@ -112,6 +167,8 @@ export function webSources(steps: AssistantMessage["steps"]): { sources: WebSour
       for (const m of s.result.matchAll(/^\d+\. (.*)\n {3}(https?:\/\/\S+)$/gm)) if (!found.has(m[2]!)) found.set(m[2]!, m[1]!);
     }
   }
+  // OpenRouter's own search (D-148): the pages its answer cited
+  for (const c of cited) if (/^https?:\/\//.test(c.url) && !found.has(c.url)) found.set(c.url, c.title);
   const sources: WebSource[] = [...read].map(([url, title]) => ({ url, title: title || found.get(url) || "", read: true }));
   for (const [url, title] of found) if (!read.has(url)) sources.push({ url, title, read: false });
   return { sources, read: read.size, found: sources.length - read.size };
@@ -253,6 +310,8 @@ export async function runAssistant(o: {
   signal?: AbortSignal; newId?: () => string; now?: () => number;
   /** Web access (tests pass a fake; the app uses the shared one). */
   web?: WebSession;
+  /** Reads a key from the keychain (the Exa key, D-148); tests pass their own. */
+  readKey?: (name: string) => Promise<string | null>;
 } & RunCallbacks): Promise<AssistantChat> {
   const newId = o.newId ?? (() => crypto.randomUUID());
   const now = o.now ?? (() => Date.now());
@@ -261,7 +320,11 @@ export async function runAssistant(o: {
   const conn = connectionFor(o.chat, assistant, o.main, o.connections);
   const counts = await libraryCounts(o.store);
   const est = (t: string) => Math.ceil(t.length / 3.6);
-  const web = webOn(o.chat, settings);
+  // D-148: the providers this reply can use; with none ready the web tools are left out
+  const plan = webOn(o.chat, settings) ? await webPlan(settings, o.connections, conn, o.readKey) : undefined;
+  const web = !!plan && (plan.openrouter || plan.providers.length > 0);
+  const webUsage: WebUsage = { searches: 0, pages: 0, cost: 0, providers: [], fallbacks: [] };
+  const cited: Array<{ url: string; title: string }> = [];
   const sys = systemParts(assistant, preset, counts, o.chat.draftFirst, web);
   // D-115: pictures for a main model that can't see them
   const vision = visionConnection(settings, o.connections);
@@ -269,7 +332,7 @@ export async function runAssistant(o: {
   const visionUsage = emptyVisionUsage(vision?.model ?? "");
   let base: AssistantChat = o.chat;
   const hasPictures = o.chat.messages.some((m) => m.attachments.some((a) => a.type === "image"));
-  const tools = [...toolsFor(settings, o.chat.draftFirst, web, assistant.toolHelper?.enabled), ...(route === "describe" ? [LOOK_SPEC] : []), ...(hasPictures ? [READ_COMIC_SPEC] : []), ASK_SPEC, UNDERSTANDING_SPEC];
+  const tools = [...toolsFor(settings, o.chat.draftFirst, web, assistant.toolHelper?.enabled).filter((t) => !(plan?.openrouter && t.name === "web_search")), ...(route === "describe" ? [LOOK_SPEC] : []), ...(hasPictures ? [READ_COMIC_SPEC] : []), ASK_SPEC, UNDERSTANDING_SPEC];
   const helper = assistant.toolHelper;
   const helperBase = helper?.connectionId ? o.connections[helper.connectionId] : undefined;
   const helperConn = helperBase ? { ...helperBase, ...(helper?.model ? { model: helper.model } : {}) } : undefined;
@@ -295,7 +358,7 @@ export async function runAssistant(o: {
   const ctx: ToolContext = {
     // D-115: material made from a comic always waits for the user's OK (the draft's Keep / Edit / Discard)
     store: o.store, saveNew: assistant.saveNew && !o.chat.messages.some((m) => m.attachments.some((a) => a.type === "image" && a.comicPage)), newId, files, images, results: reply.results, guides, signal: o.signal,
-    web: o.web ?? webSession, webBudget: { searches: 0, chars: 0 },
+    web: o.web ?? webSession, webBudget: { searches: 0, chars: 0 }, webUsage, ...(plan ? { webProviders: plan.providers } : {}),
     onStatus: (label) => { const last = reply.steps.at(-1); if (last && !last.result) { last.label = label; push(); } },
     remember: async (text) => {
       const s = await loadSettings(o.store);
@@ -380,11 +443,15 @@ export async function runAssistant(o: {
       let calls: ToolCall[] = [];
       const callStart = now();
       let firstText = 0;
-      for await (const chunk of o.core.connections.stream(conn, [], o.signal, { tools, rich: turns })) {
+      for await (const chunk of o.core.connections.stream(conn, [], o.signal, { tools, rich: turns, ...(web && plan?.openrouter ? { serverTools: [openRouterSearch(settings, WEB_SEARCHES)] } : {}) })) {
         if (typeof chunk === "string") { if (!firstText) firstText = now(); text += chunk; reply.text = text; push(); }
         else if ("reasoning" in chunk) { reply.reasoning += chunk.reasoning; push(); }
         else if ("toolCalls" in chunk) calls = calls.concat(chunk.toolCalls);
-        else if ("usage" in chunk) { usage.last = chunk.usage.tokensIn ?? usage.last; usage.tokensIn += chunk.usage.tokensIn ?? 0; usage.tokensOut += chunk.usage.tokensOut ?? 0; usage.cost += chunk.usage.cost ?? 0; }
+        else if ("citations" in chunk) { for (const c of chunk.citations) if (!cited.some((x) => x.url === c.url)) cited.push(c); }
+        else if ("usage" in chunk) {
+          usage.last = chunk.usage.tokensIn ?? usage.last; usage.tokensIn += chunk.usage.tokensIn ?? 0; usage.tokensOut += chunk.usage.tokensOut ?? 0; usage.cost += chunk.usage.cost ?? 0;
+          if (chunk.usage.webSearches) { webUsage.searches += chunk.usage.webSearches; if (!webUsage.providers.includes("OpenRouter")) webUsage.providers.push("OpenRouter"); }
+        }
       }
       callsMade++;
       if (firstText) { thinkMs += firstText - callStart; writeMs += now() - firstText; } else thinkMs += now() - callStart;
@@ -427,7 +494,9 @@ export async function runAssistant(o: {
   // the chat's share: from the service's count when it gave one, else estimated from the turns themselves
   const sysTotal = parts.app! + parts.assistant! + parts.preset! + parts.tools!;
   parts.chat = usage.last ? Math.max(0, usage.last - sysTotal) : est(JSON.stringify(toTurns({ ...chat, messages: [...base.messages, reply] }, settings, counts, route).slice(1)));
-  reply.used = { model: conn.model, guides: [...guides], assistant: assistant.name, ...(preset ? { preset: preset.name } : {}), parts, sent, ms: now() - t0, thinkMs, writeMs, calls: callsMade, ...(usage.last ? { lastPrompt: usage.last } : {}), ...(usage.tokensIn ? { tokensIn: usage.tokensIn } : {}), ...(usage.tokensOut ? { tokensOut: usage.tokensOut } : {}), ...(usage.cost ? { cost: usage.cost } : {}) };
+  if (cited.length && !webUsage.providers.includes("OpenRouter")) webUsage.providers.push("OpenRouter");
+  const webUsed = webUsage.searches || webUsage.pages || cited.length ? { web: { ...webUsage, cited } } : {};
+  reply.used = { ...webUsed, model: conn.model, guides: [...guides], assistant: assistant.name, ...(preset ? { preset: preset.name } : {}), parts, sent, ms: now() - t0, thinkMs, writeMs, calls: callsMade, ...(usage.last ? { lastPrompt: usage.last } : {}), ...(usage.tokensIn ? { tokensIn: usage.tokensIn } : {}), ...(usage.tokensOut ? { tokensOut: usage.tokensOut } : {}), ...(usage.cost ? { cost: usage.cost } : {}) };
   push();
   const made = reply.results.filter((r) => r.type === "created" || r.type === "change").map((r) => (r as { name: string }).name);
   const first = base.messages.find((m) => m.role === "user");

@@ -2635,6 +2635,33 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .cust-actions { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--separator); }
 .cust-actions .grow { flex: 1; }
 .cust-wide { max-width: 980px; margin: 0 auto; display: grid; gap: 14px; }
+/* Assistant → Customize → Web Search (D-148), after Flint's settings: theme tokens only */
+.web-card { background: var(--group); border-radius: calc(16px * var(--round)); padding: 6px 18px; display: grid; }
+.web-line { display: flex; align-items: center; gap: 14px; padding: 12px 0; min-width: 0; }
+.web-line + .web-line, .web-card > .web-setup, .web-card > .web-order { border-top: 1px solid var(--separator); }
+.web-line-t { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.web-line-t b { font-size: 14px; font-weight: 600; }
+.web-line-t small { color: var(--label-3); font-size: 12px; line-height: 1.4; }
+.web-line > select { max-width: 260px; }
+.web-setup { padding: 4px 0 8px; }
+.web-setup > .hint { margin: 10px 0 0; }
+.web-setup .web-line { padding-bottom: 4px; }
+.web-key { flex: 0 1 380px; align-items: center; }
+.web-key input { font-family: var(--font-mono, monospace); }
+.web-setup-foot { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+.web-setup-foot .grow { flex: 1; }
+.web-order { list-style: none; margin: 0; padding: 4px 0; display: grid; }
+.web-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; min-width: 0; }
+.web-row + .web-row { border-top: 1px solid var(--separator); }
+.web-n { width: 16px; text-align: right; color: var(--label-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.web-tile { width: 22px; height: 22px; border-radius: calc(6px * var(--round)); display: grid; place-items: center; flex: none; background: var(--fill); color: var(--label-2); font-size: 11px; font-weight: 600; }
+.web-row-t { flex: 1; min-width: 0; display: grid; gap: 1px; text-align: left; background: none; border: 0; padding: 2px 0; color: var(--label); cursor: pointer; }
+.web-row-t b { font-weight: 500; font-size: 13.5px; }
+.web-row-t small { color: var(--label-3); font-size: 11.5px; }
+.web-row.off .web-row-t, .web-row.off .web-tile { opacity: 0.5; }
+.web-arrow.up svg { transform: rotate(-90deg); }
+.web-arrow.down svg { transform: rotate(90deg); }
+@media (max-width: 860px) { .web-line { flex-wrap: wrap; } .web-key { flex-basis: 100%; } }
 .cust-table { display: grid; border: 1px solid var(--separator); border-radius: calc(14px * var(--round)); overflow: hidden; }
 .cust-tr { display: grid; grid-template-columns: 1.6fr 0.7fr 1fr 1fr 0.9fr; gap: 10px; padding: 8px 14px; align-items: center; border-top: 1px solid var(--separator); }
 .cust-tr.u { grid-template-columns: 2fr 0.7fr 0.8fr 0.8fr; }

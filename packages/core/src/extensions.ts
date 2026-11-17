@@ -40,7 +40,10 @@ export interface ChatTurn {
 export type StreamChunk =
   | string
   | { reasoning: string }
-  | { usage: { tokensIn?: number; tokensOut?: number; tokensReasoning?: number; cost?: number } }
+  /** `webSearches`: searches the service ran itself (OpenRouter's web search tool, D-148). */
+  | { usage: { tokensIn?: number; tokensOut?: number; tokensReasoning?: number; cost?: number; webSearches?: number } }
+  /** Pages the service's own web search cited (OpenRouter `url_citation` annotations, D-148). */
+  | { citations: Array<{ url: string; title: string }> }
   /** Why the model stopped, when the provider says ("length" = it hit its output limit). D-082. */
   | { finish: string }
   | { toolCalls: ToolCall[] };
@@ -103,6 +106,8 @@ export interface GenerateRequest {
   tools?: ToolSpec[];
   /** Turns with images / tool calls; when set, providers send these instead of `messages`. */
   rich?: RichTurn[];
+  /** Tools the service runs itself, sent as they are (OpenRouter's `openrouter:web_search`, D-148); other services leave them out. */
+  serverTools?: Array<Record<string, unknown>>;
 }
 
 /** One model a service offers (for the model picker). Prices are USD per million tokens. */

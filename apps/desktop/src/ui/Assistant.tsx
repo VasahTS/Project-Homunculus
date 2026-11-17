@@ -8,7 +8,8 @@ import { branchesOf, deleteMessage, forkAt, newVersion, selectBranch, selectPath
 import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
-import { compactChat, connectionFor, deleteChat, describeAgain, pictureRouteFor, withPictureDescription, type PictureRoute, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, webOn, webSources, type ChatRow } from "../assistant/engine.ts";
+import { compactChat, connectionFor, deleteChat, describeAgain, pictureRouteFor, withPictureDescription, type PictureRoute, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, webOn, webOn as webOnFor, webSources, type ChatRow } from "../assistant/engine.ts";
+import { WEB_PROVIDER_LABEL } from "../assistant/web.ts";
 import { libraryCounts } from "../assistant/tools.ts";
 import { AssistantDetails } from "./AssistantDetails.tsx";
 import { AssistantMark } from "./AssistantMark.tsx";
@@ -644,7 +645,7 @@ function Reply({ m, live = false, latest = false, onAct, onApplyAll, onOpen, onS
         {stepsOpen && <div className="asst-qlist">{m.steps.map((s, i) => <div key={i} className={s.error ? "bad" : ""}>{s.label}{s.helperSteps?.length ? <details><summary>Helper reading steps ({s.helperSteps.length})</summary>{s.helperSteps.map((h, j) => <details key={j}><summary>{h.label}</summary><pre className="asst-pre">{h.args}{"\n\n"}{h.result}</pre></details>)}</details> : null}</div>)}</div>}
         {live && m.activity && <div className="asst-activity" role="status" data-testid="assistant-activity"><span className="asst-typing" aria-hidden><i /><i /><i /></span>{m.activity}</div>}
         {m.text ? <ReplyText text={m.text} live={live} results={m.results} onSaveDraft={onSaveDraft} /> : live && !m.activity && !m.steps.length && !m.reasoning ? <div className="asst-typing" aria-label="Thinking"><i /><i /><i /></div> : null}
-        {!live && <WebSourcesRow steps={m.steps} />}
+        {!live && <WebSourcesRow steps={m.steps} cited={m.used?.web?.cited} />}
         {m.results.map((r, i) => <div key={i} className="asst-res-group"><ResultCard r={r} onAct={(w) => onAct(i, w)} onOpen={onOpen} onStartKit={onStartKit} ctl={cards && { ...cards, onChange: (next) => cards.onChange(i, next) }} />
           {!live && trialKind(r) && <TrialCard r={r} />}</div>)}
         {waiting > 1 && !live && <div className="asst-decide"><Button small variant="prominent" onClick={onApplyAll} data-testid="assistant-apply-all">Apply all {waiting}</Button></div>}
@@ -1016,7 +1017,7 @@ function PicksBar({ settings, picks, setPicks, svc, connection, model, used, cha
   const ctx = picks.contextLength;
   const pct = ctx && full ? Math.min(100, Math.round((full / ctx) * 100)) : null;
   const PART: Record<string, string> = { app: "App rules", assistant: "Assistant", preset: "Preset", tools: "Tools", chat: "This chat (messages, results)" };
-  const webOn = picks.webSearch ?? !settings.toolsOff.includes("web");
+  const webOn = webOnFor({ webSearch: picks.webSearch }, settings);
   return (
     <span className="asst-picks">
       {/* unslop + Flint (D-076): one Options button instead of a row of pickers; what is chosen shows under the box */}
@@ -1049,6 +1050,9 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
 }) {
   const [sub, setSub] = useState<null | "assistant" | "preset">(null);
   const body = useRef<HTMLDivElement>(null);
+  // the first provider in the order that is on (D-148), shown quietly as in Flint
+  const first = settings.web.order.find((r) => r.on);
+  const webFirst = first ? WEB_PROVIDER_LABEL[first.id] ?? "" : "";
   useLayoutEffect(() => { if (body.current) slideIn([body.current], sub ? 1 : -1, 12); }, [sub]);
   const back = (title: string) => (
     <button type="button" className="asst-opt-back" onClick={() => setSub(null)}><Icon name="back" size={14} /> {title}</button>
@@ -1072,9 +1076,9 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
         </label>
         {/* D-067, as in Flint: on or off per chat; a chat nobody switched follows Details → Tools */}
         <label className="asst-opt-row">
-          <b>Search the web</b><span className="asst-opt-val" />
+          <b>Search the web</b><span className="asst-opt-val">{webFirst}</span>
           <button type="button" role="switch" aria-checked={webOn} aria-pressed={webOn} aria-label="Search the web for this chat" data-testid="pick-web"
-            title={`Web search (DuckDuckGo) is ${webOn ? "on" : "off"} for this chat — click to turn it ${webOn ? "off" : "on"}`}
+            title={`Web search${webFirst ? ` (${webFirst} first)` : ""} is ${webOn ? "on" : "off"} for this chat — click to turn it ${webOn ? "off" : "on"}`}
             className={`switch${webOn ? " on" : ""}`} onClick={() => setPicks({ webSearch: !webOn })}><span /></button>
         </label>
         <button type="button" className="asst-pop-foot" onClick={() => { close(); onCustomize(); }}>Edit Assistants and Presets…</button>
@@ -1107,7 +1111,7 @@ function OptionsPanel({ settings, picks, setPicks, svc, connection, assistant, p
 /** The quiet line under the message box: who answers, the preset, the model, and what is on (D-076). */
 function PicksSummary({ settings, picks, modelSwitch }: { settings: AssistantSettings; picks: Picks; modelSwitch: ReactNode }) {
   const { assistant, preset } = resolveFor(picks, settings);
-  const webOn = picks.webSearch ?? !settings.toolsOff.includes("web");
+  const webOn = webOnFor({ webSearch: picks.webSearch }, settings);
   return (
     <div className="asst-under" data-testid="assistant-summary">
       <span>{assistant.name}</span>
@@ -1127,6 +1131,8 @@ function usageLine(m: AssistantMessage): string {
   if (u.tokensOut && u.writeMs) parts.push(`${Math.round(u.tokensOut / (u.writeMs / 1000))} tok/s`);
   parts.push(u.tokensIn || u.tokensOut ? `${fmtK(u.tokensIn ?? 0)} in · ${fmtK(u.tokensOut ?? 0)} out` : "tokens not reported");
   if (u.cost) parts.push(`$${u.cost.toFixed(4)}`);
+  // D-148: what the search services charged on their own (Exa's key, NanoGPT); OpenRouter's is in the model's cost
+  if (u.web?.cost) parts.push(`web $${u.web.cost.toFixed(4)}`);
   if (u.calls && u.calls > 1) parts.push(`${u.calls} calls`);
   if (u.vision) parts.push(`Pictures${u.vision.model ? ` ${shortModel(u.vision.model)}` : ""}: ${u.vision.calls} call${u.vision.calls === 1 ? "" : "s"}${u.vision.cached ? ` · ${u.vision.cached} saved` : ""}${u.vision.cost ? ` · $${u.vision.cost.toFixed(4)}` : ""}`);
   if (u.helper) parts.push(`Helper ${u.helper.model}: ${u.helper.calls} calls · ${fmtK(u.helper.tokensIn)} in · ${fmtK(u.helper.tokensOut)} out${u.helper.cost ? ` · $${u.helper.cost.toFixed(4)}` : " · cost not reported"}`);
@@ -1186,9 +1192,9 @@ const KIND_NAME: Record<AssistantKind, string> = { persona: "Persona", character
 const TONES = ["#1f2937", "#24292f", "#334155", "#3f3f46", "#1e3a5f", "#3b2f4a"];
 const siteOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 const toneOf = (host: string) => { let h = 0; for (let i = 0; i < host.length; i++) h = (h * 31 + host.charCodeAt(i)) | 0; return TONES[Math.abs(h) % TONES.length]; };
-function WebSourcesRow({ steps }: { steps: AssistantMessage["steps"] }) {
+function WebSourcesRow({ steps, cited }: { steps: AssistantMessage["steps"]; cited?: Array<{ url: string; title: string }> | undefined }) {
   const [open, setOpen] = useState(false);
-  const { sources, read, found } = useMemo(() => webSources(steps), [steps]);
+  const { sources, read, found } = useMemo(() => webSources(steps, cited), [steps, cited]);
   if (!sources.length) return null;
   const sites: string[] = [];
   for (const s of sources) { const h = siteOf(s.url); if (!sites.includes(h)) sites.push(h); if (sites.length === 4) break; }

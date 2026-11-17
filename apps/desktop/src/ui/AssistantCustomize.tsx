@@ -12,13 +12,14 @@ import { builtinAssistant, listChats, loadChat, loadSettings, saveSettings } fro
 import { CORE_RULES } from "../assistant/guides.ts";
 import { AutoText, Button, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { AssistantMark } from "./AssistantMark.tsx";
+import { WebSearchTab } from "./AssistantWebSearch.tsx";
 import { ModelPicker, modelMeta } from "./ModelPicker.tsx";
 import { ConfirmButton } from "./Help.tsx";
 import { ImportButton } from "./BundleButtons.tsx";
 import { saveExport } from "../files.ts";
 import { assistantFile, importAssistantFile, importSummary, type AssistantImport } from "../assistant/share.ts";
 
-type Tab = "assistants" | "presets" | "limits" | "usage";
+type Tab = "assistants" | "presets" | "web" | "limits" | "usage";
 const tokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n));
 
 export function AssistantCustomizePage({ svc, connection, lead, onClose, initialTab = "assistants" }: {
@@ -33,10 +34,11 @@ export function AssistantCustomizePage({ svc, connection, lead, onClose, initial
     <section className="asst cust-page" data-testid="assistant-customize-page">
       <header className="asst-top">{lead}<span className="asst-title">Customize</span><Button small variant="plain" onClick={onClose}>Done</Button></header>
       <div className="cust-tabs"><Segmented tabs label="Customize" value={tab} onChange={setTab}
-        options={[{ value: "assistants", label: "Assistants", testId: "cust-assistants" }, { value: "presets", label: "Presets", testId: "cust-presets" }, { value: "limits", label: "Limits", testId: "cust-limits" }, { value: "usage", label: "Usage", testId: "cust-usage" }]} /></div>
+        options={[{ value: "assistants", label: "Assistants", testId: "cust-assistants" }, { value: "presets", label: "Presets", testId: "cust-presets" }, { value: "web", label: "Web Search", testId: "cust-web" }, { value: "limits", label: "Limits", testId: "cust-limits" }, { value: "usage", label: "Usage", testId: "cust-usage" }]} /></div>
       <div className="cust-body">
         {tab === "assistants" && <AssistantsTab s={s} put={put} svc={svc} connection={connection} />}
         {tab === "presets" && <PresetsTab s={s} put={put} />}
+        {tab === "web" && <WebSearchTab s={s} put={put} connection={connection} />}
         {tab === "limits" && <LimitsTab connection={connection} />}
         {tab === "usage" && <UsageTab svc={svc} />}
       </div>

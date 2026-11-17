@@ -468,6 +468,29 @@ async fn web_get(url: String) -> Result<serde_json::Value, String> {
     }
     Err("Too many redirects (maximum 5).".into())
 }
+// ---- Search services with an API (D-148, CLAUDE 2026-11-17): Exa's hosted endpoint and API, NanoGPT's search.
+// Only these exact addresses and these headers; the key comes from the app (keychain / the NanoGPT connection).
+const WEB_API_URLS: [&str; 4] = ["https://mcp.exa.ai/mcp", "https://api.exa.ai/search", "https://api.exa.ai/contents", "https://nano-gpt.com/api/web"];
+const WEB_API_HEADERS: [&str; 4] = ["content-type", "accept", "x-api-key", "authorization"];
+fn web_api_allowed(url: &str, headers: &BTreeMap<String, String>) -> Result<(), String> {
+    if !WEB_API_URLS.contains(&url) { return Err("That search service isn't one Homunculus knows.".into()); }
+    if let Some(bad) = headers.keys().find(|k| !WEB_API_HEADERS.contains(&k.to_ascii_lowercase().as_str())) { return Err(format!("Header {bad} is not allowed.")); }
+    Ok(())
+}
+#[tauri::command]
+async fn web_api(url: String, body: String, headers: BTreeMap<String, String>) -> Result<serde_json::Value, String> {
+    web_api_allowed(&url, &headers)?;
+    let target = reqwest::Url::parse(&url).map_err(|e| e.to_string())?;
+    let host = target.host_str().unwrap_or("").to_string();
+    let mut request = web_client(45)?.post(target).body(body);
+    for (k, v) in &headers { request = request.header(k.as_str(), v.as_str()); }
+    let response = request.send().await.map_err(|e| web_error(&host, e))?;
+    let status = response.status().as_u16();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+    let retry = response.headers().get("retry-after").and_then(|v| v.to_str().ok()).and_then(|v| web_retry_after(v, now));
+    let (text, _) = web_body(response, &host).await?;
+    Ok(serde_json::json!({ "status": status, "retryAfterSecs": retry, "body": text }))
+}
 // ---- Card Browser transport. CODEX, 2026-11-02 (T-007); reuses T-005's public-only client.
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -725,6 +748,7 @@ pub fn run() {
             update_channel,
             web_search_page,
             web_get,
+            web_api,
             card_site_request,
             janny::janny_card_url,
             janny::janny_card_report,
@@ -749,6 +773,18 @@ fn reveal<R: tauri::Runtime>(w: &tauri::WebviewWindow<R>) {
 #[cfg(test)]
 mod web_tests {
     use super::*;
+    #[test]
+    fn web_api_takes_only_the_known_services_and_headers() {
+        let mut h = BTreeMap::new();
+        h.insert("Content-Type".to_string(), "application/json".to_string());
+        h.insert("x-api-key".to_string(), "k".to_string());
+        assert!(web_api_allowed("https://api.exa.ai/search", &h).is_ok());
+        assert!(web_api_allowed("https://nano-gpt.com/api/web", &h).is_ok());
+        assert!(web_api_allowed("https://api.exa.ai/search?x=1", &h).is_err());
+        assert!(web_api_allowed("https://example.com/", &h).is_err());
+        h.insert("Cookie".to_string(), "a".to_string());
+        assert!(web_api_allowed("https://api.exa.ai/search", &h).is_err());
+    }
     #[test]
     fn private_and_special_addresses_are_refused() {
         for address in ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.2", "169.254.1.1", "100.64.0.1",

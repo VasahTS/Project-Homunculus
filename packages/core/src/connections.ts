@@ -74,7 +74,7 @@ export class ConnectionService {
    * Streams a reply. If the connection fails before any text arrived and it has a
    * fallback, the fallback is tried (and so on). Once text arrived, errors are thrown.
    */
-  async *stream(connection: ConnectionConfig, messages: ChatTurn[], signal?: AbortSignal, extra: { tools?: ToolSpec[]; rich?: RichTurn[] } = {}): AsyncGenerator<StreamChunk & {}, void> {
+  async *stream(connection: ConnectionConfig, messages: ChatTurn[], signal?: AbortSignal, extra: { tools?: ToolSpec[]; rich?: RichTurn[]; serverTools?: Array<Record<string, unknown>> } = {}): AsyncGenerator<StreamChunk & {}, void> {
     let current: ConnectionConfig | undefined = connection;
     let lastError: unknown;
     while (current) {

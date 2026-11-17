@@ -23,7 +23,9 @@ test("Assistant web search: per-chat web switch, the default in Details, and the
   const options = async () => { if (!(await web.isVisible())) await page.getByTestId("assistant-options").click(); };
   await options();
   await expect(web).toHaveAttribute("aria-pressed", "true");
-  await expect(web).toHaveAttribute("title", "Web search (DuckDuckGo) is on for this chat — click to turn it off");
+  await expect(web).toHaveAttribute("title", "Web search (DuckDuckGo first) is on for this chat — click to turn it off");
+  // D-148: the first provider in the order shows quietly on the row
+  await expect(page.locator(".asst-opt-row", { has: web })).toContainText("DuckDuckGo");
   await page.keyboard.press("Escape");
 
   // a search: the step says what was looked up; the sources row shows the two web results (the javascript: one is dropped)

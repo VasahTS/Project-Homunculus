@@ -77,6 +77,23 @@ export const AssistantPreset = z.object({
 });
 export type AssistantPreset = z.infer<typeof AssistantPreset>;
 
+/**
+ * Web search providers (D-148). The app runs `web_search` itself and tries the order top to bottom: one that fails,
+ * hits its limit or isn't set up passes the search to the next. "openrouter" is different: it is OpenRouter's own
+ * search inside the model request, so it is used only when the Assistant's connection is OpenRouter.
+ */
+export const WebProviderId = z.enum(["duckduckgo", "exa", "exa-key", "nanogpt", "openrouter"]);
+export type WebProviderId = z.infer<typeof WebProviderId>;
+export const WEB_ORDER_DEFAULT: Array<{ id: WebProviderId; on: boolean }> = [{ id: "duckduckgo", on: true }, { id: "exa", on: true }];
+export const AssistantWeb = z.object({
+  order: z.array(z.object({ id: WebProviderId, on: z.boolean().default(true) })).default(WEB_ORDER_DEFAULT),
+  /** The NanoGPT connection whose key (and balance) pays for searches; null = the first NanoGPT connection. */
+  nanogptConnectionId: Id.nullable().default(null),
+  /** OpenRouter's search engine: auto = the model's own search when it has one, else Exa. */
+  openrouterEngine: z.enum(["auto", "exa", "native"]).default("auto"),
+});
+export type AssistantWeb = z.infer<typeof AssistantWeb>;
+
 export const AssistantSettings = z.object({
   assistants: z.array(AssistantPersona).default([]),
   presets: z.array(AssistantPreset).default([]),
@@ -90,6 +107,8 @@ export const AssistantSettings = z.object({
    * model can ask it again (look_at_image). Empty = pictures go to the main model as they are.
    */
   vision: z.object({ connectionId: Id.nullable().default(null), model: z.string().default("") }).default({ connectionId: null, model: "" }),
+  /** Where `web_search` searches (D-148): the provider order and their settings. Keys live in the keychain. */
+  web: AssistantWeb.default({ order: WEB_ORDER_DEFAULT, nanogptConnectionId: null, openrouterEngine: "auto" }),
   /** Round 1 fields (read once to fill the default assistant and preset; never written again). */
   connectionId: Id.nullable().optional(),
   model: z.string().optional(),
@@ -220,6 +239,15 @@ export const AssistantMessage = z.object({
     calls: z.number().optional(),
     /** Separate provider-reported usage, so retrieval never appears free. CODEX. */
     helper: z.object({ model: z.string(), calls: z.number(), tools: z.number(), tokensIn: z.number(), tokensOut: z.number(), cost: z.number(), ms: z.number() }).optional(),
+    /**
+     * Web search for this reply (D-148): searches and pages per provider, what they cost when the provider says, the
+     * providers that were skipped and why, and the pages OpenRouter's own search cited.
+     */
+    web: z.object({
+      searches: z.number().default(0), pages: z.number().default(0), cost: z.number().default(0),
+      providers: z.array(z.string()).default([]), fallbacks: z.array(z.string()).default([]),
+      cited: z.array(z.object({ url: z.string(), title: z.string().default("") })).default([]),
+    }).optional(),
     /** The vision model's calls for this reply (descriptions, look_at_image, comic reading). D-115. */
     vision: z.object({ model: z.string(), calls: z.number(), cached: z.number().default(0), tokensIn: z.number(), tokensOut: z.number(), cost: z.number(), ms: z.number() }).optional(),
   }).optional(),

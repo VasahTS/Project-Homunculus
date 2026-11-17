@@ -163,6 +163,8 @@ describe("web search in the Assistant", () => {
     const stop = new AbortController();
     const labels: string[] = [];
     const { store, core, seen } = await setup((_r, i) => [[call("web_search", { query: "q" }), call("create", { kind: "tracker", data: { name: "Late" } }, "c2")], ["never"]][i]!);
+    // DuckDuckGo alone waits out its cooldown (with a provider after it, D-148, it would pass the search on)
+    const s = await loadSettings(store); await saveSettings(store, { ...s, web: { ...s.web, order: [{ id: "duckduckgo", on: true }] } });
     const out = await runAssistant({ core, store, chat: chatWith({}, userMsg("hi")), main, connections: {}, signal: stop.signal, web: web.session,
       onUpdate: (m) => { const l = m.steps.at(-1)?.label; if (l && labels.at(-1) !== l) labels.push(l); if (l?.startsWith("Waiting for DuckDuckGo")) stop.abort(); } });
     expect(labels).toContain("Waiting for DuckDuckGo · 20 s");
