@@ -1,5 +1,11 @@
 # HANDOFF — Homunculus 2
 
+## The Assistant answers the newest message (2026-11-17) — CLAUDE — D-145
+
+- Daniel: the Assistant kept answering old questions. Causes in the code: no "answer the newest message" rule; stopped/failed replies looked like open questions; Draft first redrew the whole answer; a compacted summary read as requests. All four fixed (rules, the stopped/failed line, the draft rule, the summary framing and prompt).
+- **To try (Windows):** close the app → Pull origin → open it. Ask two different things one after the other: the second reply talks only about the second. Stop a reply, then ask something else: it does not go back to the stopped one. If it still repeats, open **Request** on that message and send me what it shows.
+- Checks: typecheck; unit tests; click tests assistant, assistant-history.
+
 ## Assistant: versions and branches like Play (2026-11-17) — CLAUDE — D-144
 
 - Daniel: swipes and branches in the Assistant should work like Play's.

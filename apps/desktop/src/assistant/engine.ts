@@ -202,7 +202,8 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
   // Recent source pages survive a user's continuation, within a bounded share of the context. CODEX, 2026-11-03.
   const lastUserIndex = chat.messages.map(m => m.role).lastIndexOf("user");
   const keptReads = retainedReads(chat.messages.slice(cut + 1, lastUserIndex), chat.contextLength);
-  if (cut >= 0) out.push({ role: "user", content: `[Summary of the earlier conversation — the messages themselves were compacted]\n${chat.compact!.summary}` }, { role: "assistant", content: "Understood." });
+  // D-145: background, not requests: without saying so, a model took the summary's old asks as new ones and answered them again
+  if (cut >= 0) out.push({ role: "user", content: `[Summary of the earlier conversation — the messages themselves were compacted. It is background: everything in it was already handled; do not answer or redo any of it unless a newer message asks]\n${chat.compact!.summary}` }, { role: "assistant", content: "Understood." });
   const earlierResults = chat.messages.slice(0, cut + 1).flatMap(resultLines);
   if (earlierResults.length) out.push({ role: "user", content: earlierResults.join("\n") });
   for (const m of chat.messages.slice(cut + 1)) {
@@ -223,7 +224,9 @@ export function toTurns(chat: AssistantChat, settings: AssistantSettings, counts
     const outcomes = afterLastUser ? [] : resultLines(m);
     // a reply that ended on a card (ask, show_understanding) kept its last round's text as the reply: not sent twice
     const said = m.rounds.length && m.rounds.at(-1)!.text === m.text ? "" : m.text;
-    if (said || m.error || outcomes.length) out.push({ role: "assistant", content: [said || (m.error ? `(failed: ${m.error})` : ""), ...outcomes].filter(Boolean).join("\n") });
+    // D-145: a stopped or failed reply says plainly that the message was not answered, and that it waits for the user
+    const failed = m.error ? (m.error === "Stopped" || /abort/i.test(m.error) ? "(this reply was stopped by the user — not answered; take it up only if the user asks again)" : `(this reply failed: ${m.error} — not answered; take it up only if the user asks again)`) : "";
+    if (said || m.error || outcomes.length) out.push({ role: "assistant", content: [said, failed, ...outcomes].filter(Boolean).join("\n") });
   }
   return out;
 }
@@ -457,7 +460,7 @@ export async function compactChat(o: { core: HomunculusCore; store: SqlStore; ch
     }
   }
   const out = await o.core.connections.complete(conn, [
-    { role: "system", content: "You sum up a conversation between a user and an assistant that builds roleplay material (characters, lorebooks, trackers, Kits, narrators) in an app, so it can continue without the full text. Keep: what the user wants and decided, their preferences, every item made or changed with its kind:id, proposals still waiting, open questions. Plain prose and short lists; no greetings." },
+    { role: "system", content: "You sum up a conversation between a user and an assistant that builds roleplay material (characters, lorebooks, trackers, Kits, narrators) in an app, so it can continue without the full text. Keep: what the user wants and decided, their preferences, every item made or changed with its kind:id, proposals still waiting, and questions the ASSISTANT asked that the user has not answered yet. Write what the user asked as done (\"asked for X — answered/made\"); never list a request the assistant already answered as open. Plain prose and short lists; no greetings." },
     { role: "user", content: lines.join("\n").slice(-60_000) },
   ], { ...(o.signal ? { signal: o.signal } : {}), maxTokens: 1200 });
   const summary = out.text.trim();

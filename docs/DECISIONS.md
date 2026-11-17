@@ -1659,3 +1659,18 @@ Daniel (translated): "can you add conventional swipes and branches like Play's t
 - Tests: `history.test.ts` (3 new: New Version keeps the branch list; an edit is a version; branches reopen on their last version, saved and read back); click tests `assistant-history` rewritten for the new behaviour, `assistant`, `assistant-background`.
 
 Signed: **CLAUDE**.
+
+## D-145 — The Assistant answers the newest message; earlier ones stay answered (2026-11-17)
+
+Daniel (translated): "the Assistant was answering old questions; I asked why and it said assistants restructure the whole context every turn to keep the full sheet format — can you find why?" (That reply is the model guessing, not how the app works: the app sends the chat as it is, each message once.)
+
+- **What in the app pushed it that way** (found in the code; his chat itself was not read):
+  1. Nothing in the rules said to answer only the newest message; earlier user messages are sent as they are, so a model can treat them as still open.
+  2. A stopped or failed reply went to the model as "(failed: …)" under the old question: the question looked unanswered, so the next reply answered it along with the new one.
+  3. Draft first: "show the whole updated draft again" after each revision — models redid the whole answer around it (the "full sheet").
+  4. A compacted chat sent its summary as a user message, and the summary prompt kept "open questions" — old requests read as new ones.
+- **Fixes:** a rule at the top of CORE_RULES (answer the newest message; what was answered stays answered; never repeat a whole earlier answer, list or sheet; a stopped/failed message only if brought back); stopped/failed replies are sent as "not answered; take it up only if the user asks again"; Draft first repeats the block only, with a line on what changed; the summary is sent as background ("already handled; do not answer or redo any of it") and the summary prompt writes requests as done and keeps as open only the assistant's own unanswered questions.
+- If it still happens: the message's **Request** button shows exactly what the model received.
+- Tests: `answer-newest.test.ts` (3).
+
+Signed: **CLAUDE**.
