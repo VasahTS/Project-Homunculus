@@ -1624,3 +1624,13 @@ Daniel (translated): "the Assistant doesn't know how to attach agents, agent gro
 - Tests: `agent-groups.test.ts` (2 new: a Kit with a group, agents and a note, read back, bad parts refused; a story's note changed part by part and removed, agents and trackers kept); `assistant.test.ts` guide fields.
 
 Signed: **CLAUDE**.
+
+## D-142 — Text boxes that grow are measured from 0, not "auto" (2026-11-17)
+
+Daniel (translated): "fix the Assistant's chat: after the change that made the box grow a bit to be easier to write in (D-133), something broke; even Backspace makes it grow." Daniel also said to leave characters as they are (D-141's open question: no character setup).
+
+- **Cause:** D-133 sized the box with `height: auto` → `scrollHeight + 2`. When anything around an "auto" box keeps it taller than its text (a grid row with room to spare, a stretched flex item, a transition), `scrollHeight` is the box's own height, so each render adds the 2 px back — every key, Backspace included, made it taller until the 40% cap. It did not happen in the test browser's default layout, but a click test that gives the composer room to stretch shows the old measure reading the stretched height.
+- **Fix:** `fitTextarea(el, maxPx, minLines)` in `ui/kit.tsx`: the box is set to 0 px, its `scrollHeight` (minus padding) is its text, then its height is set exactly (box-sizing, padding and borders counted; no "+2"), at least `minLines` lines, at most `maxPx`; scrolled boxes around it keep their place while it is measured. Used by every box that grows: the Assistant's (2 lines to 40% of the window), the chat's (to 50%), `AutoText` (preset memories and rules…), the preset editor's block text (6 lines to 60%) and the Scene's value boxes.
+- Tests: click test `assistant` (typing and Backspace keep the height, new lines grow it, emptying returns it, in a layout that could stretch it); the full click suite.
+
+Signed: **CLAUDE**.

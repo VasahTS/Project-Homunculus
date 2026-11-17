@@ -202,3 +202,22 @@ test("Add Context: a tracker's field set is picked in the window", async ({ page
   await page.getByTestId("assistant-add-context").click();
   await expect(page.getByTestId("assistant-field-sets").getByRole("radio", { name: "Fantasy" })).toHaveAttribute("aria-checked", "true");
 });
+
+// D-142: the box fits its text: typing and Backspace never make it taller, also when the layout around it could
+// stretch it (the old "auto" measure read the stretched height back and added 2 px on every key)
+test("the Assistant's box fits its text and never grows on its own", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  await page.addStyleTag({ content: ".asst-comp { min-height: 160px; }" });
+  const box = page.getByRole("textbox", { name: "Message to the Assistant" });
+  const h = async () => Math.round((await box.boundingBox())!.height);
+  const start = await h();
+  await box.pressSequentially("cara tava pensando em fazer um bot");
+  for (let i = 0; i < 12; i++) await box.press("Backspace");
+  expect(await h()).toBe(start);
+  for (let i = 0; i < 4; i++) await box.press("Shift+Enter");
+  expect(await h()).toBeGreaterThan(start);
+  await box.fill("");
+  expect(await h()).toBe(start);
+  expect(start).toBeLessThan(60); // two lines, not the stretched row
+});

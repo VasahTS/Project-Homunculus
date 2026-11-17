@@ -248,6 +248,26 @@ export function Collapse({ open, children, className = "" }: { open: boolean; ch
  * a long line is read in full instead of being cut at the box's edge. `onEnter` makes Enter submit (Shift+Enter is
  * a new line), for "add" rows. D-107, CLAUDE.
  */
+/**
+ * Sizes a text box to its text (D-142). Measured from a height of 0, never "auto": an "auto" box can be stretched by
+ * the layout around it (a grid row, a flex column), and then its scrollHeight is its own height, so every key —
+ * Backspace included — made it a little taller (Daniel, 17/11, the Assistant's box). Box-sizing, padding and borders
+ * are counted exactly (no "+2"), and scrolled boxes around it keep their place while it is measured.
+ */
+export function fitTextarea(el: HTMLTextAreaElement, maxPx: number, minLines = 1): void {
+  const cs = getComputedStyle(el);
+  const line = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 14) * 1.4;
+  const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+  const kept: Array<[Element, number]> = [];
+  for (let p = el.parentElement; p; p = p.parentElement) if (p.scrollTop) kept.push([p, p.scrollTop]);
+  el.style.height = "0px";
+  const content = Math.max(el.scrollHeight - padY, line * minLines);
+  const total = cs.boxSizing === "border-box" ? content + padY + borderY : content;
+  el.style.height = `${Math.ceil(Math.min(total, maxPx))}px`;
+  for (const [p, top] of kept) p.scrollTop = top;
+}
+
 export function AutoText({ value, onEnter, maxShare = 0.5, className = "", ...rest }: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value"> & {
   value: string; onEnter?: () => void; maxShare?: number;
 }) {
@@ -255,7 +275,7 @@ export function AutoText({ value, onEnter, maxShare = 0.5, className = "", ...re
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const fit = () => { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * maxShare))}px`; };
+    const fit = () => fitTextarea(el, Math.round(window.innerHeight * maxShare));
     fit();
     // a narrower box wraps more lines: fit again when its width changes
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : null;

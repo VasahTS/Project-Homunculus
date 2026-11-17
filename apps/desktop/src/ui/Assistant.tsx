@@ -20,7 +20,7 @@ import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
 import { readFileBytes } from "../files.ts";
 import { bytesToBase64 } from "@homunculus/st-cards";
-import { AutoText, Button, Icon, IconButton, type ICONS } from "./kit.tsx";
+import { AutoText, Button, fitTextarea, Icon, IconButton, type ICONS } from "./kit.tsx";
 import { CASCADE, slideIn, useEnter } from "./motion.ts";
 import { AssistantCustomizePage } from "./AssistantCustomize.tsx";
 import { QuickConnectMenu, type QuickConnectTarget } from "./QuickConnect.tsx";
@@ -467,12 +467,8 @@ function Composer({ text, setText, atts, setAtts, busy, onSend, onStop, onPick, 
   const [sendKey] = useSendKey();
   // The box grows with what you write, up to 40% of the window, then scrolls (like the chat's box)
   const box = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    const b = box.current;
-    if (!b) return;
-    b.style.height = "auto";
-    b.style.height = `${Math.min(b.scrollHeight + 2, Math.round(window.innerHeight * 0.4))}px`;
-  }, [text]);
+  // fitTextarea (D-142): it grew a little on every key, Backspace included (Daniel, 17/11)
+  useLayoutEffect(() => { if (box.current) fitTextarea(box.current, Math.round(window.innerHeight * 0.4), 2); }, [text]);
   return (
     <div className="asst-comp" data-testid="assistant-composer"
       onDragOver={(e) => e.preventDefault()}

@@ -34,7 +34,7 @@ import { layerWithStyle, type Tracker } from "../trackers.ts";
 import { Inspector, type InspectorTab } from "./Inspector.tsx";
 import { PromptPane } from "./ConnectionPanel.tsx";
 import { approxTokens, fmtTokens, ReplyPane } from "./ReplyPane.tsx";
-import { Button, Group, Icon, IconButton, Row, Segmented } from "./kit.tsx";
+import { Button, fitTextarea, Group, Icon, IconButton, Row, Segmented } from "./kit.tsx";
 import { RegexReview, SessionRegex } from "./RegexScripts.tsx";
 import { QuickReplyBar, QuickReplyDrawer, SessionQuickReplies, useQuickReplyStyle, type QuickReplyHost } from "./QuickReplies.tsx";
 import { MessageText } from "./MessageText.tsx";
@@ -456,8 +456,7 @@ export function ChatView({ svc, session, onOpenChat, characters, personas, defau
   useLayoutEffect(() => {
     const b = boxRef.current;
     if (!b) return;
-    b.style.height = "auto";
-    b.style.height = `${Math.min(b.scrollHeight, Math.round(window.innerHeight * 0.5))}px`;
+    fitTextarea(b, Math.round(window.innerHeight * 0.5)); // D-142
   }, [input]);
 
   const send = () => {

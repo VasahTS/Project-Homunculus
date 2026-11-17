@@ -23,7 +23,7 @@ import {
 import type { AppServices } from "../core-instance.ts";
 import { fieldSetOf, isOnIn, type Tracker } from "../trackers.ts";
 import { Help } from "./Help.tsx";
-import { Button, Collapse, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
+import { Button, Collapse, fitTextarea, Icon, IconButton, Segmented, Switch } from "./kit.tsx";
 import { move, SortableList } from "./Sortable.tsx";
 import { AvatarDot } from "./Sidebar.tsx";
 import { EASE_IN_OUT, EASE_OUT, flash, popIn, reducedMotion } from "./motion.ts";
@@ -1021,7 +1021,7 @@ function hue(text: string): number {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-const grow = (el: HTMLTextAreaElement) => { el.style.height = "auto"; el.style.height = `${el.scrollHeight + 2}px`; };
+const grow = (el: HTMLTextAreaElement) => fitTextarea(el, Number.POSITIVE_INFINITY, el.rows || 1); // D-142
 
 /** Field labels and hints may say {{user}} / {{char}}; show names instead. */
 const userMacro = (t: string) => applyBasicMacros(t, { char: "the character", user: DEFAULT_USER_NAME });

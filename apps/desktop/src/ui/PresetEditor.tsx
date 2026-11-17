@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttribut
 import { Preset, PromptMarker, type GenerationType, type HistoryEntry, type PresetBlock } from "@homunculus/schemas";
 import { estimateTokens, MARKER_LABELS } from "@homunculus/core";
 import { ConfirmButton, Help } from "./Help.tsx";
-import { Button, Group, Row, Switch, SaveButton } from "./kit.tsx";
+import { Button, fitTextarea, Group, Row, Switch, SaveButton } from "./kit.tsx";
 import { HistoryList, type HistoryField } from "./Versions.tsx";
 import { move as moveItem, SortableList } from "./Sortable.tsx";
 import { Modal } from "./Vault.tsx";
@@ -299,8 +299,7 @@ function GrowingTextarea(props: TextareaHTMLAttributes<HTMLTextAreaElement> & { 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * 0.6))}px`;
+    fitTextarea(el, Math.round(window.innerHeight * 0.6), Number(props.rows ?? 6)); // D-142
   }, [props.value]);
   return <textarea ref={ref} rows={6} {...props} className={`grow-text ${props.className ?? ""}`.trim()} />;
 }
