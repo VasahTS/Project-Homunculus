@@ -261,10 +261,16 @@ export function fitTextarea(el: HTMLTextAreaElement, maxPx: number, minLines = 1
   const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
   const kept: Array<[Element, number]> = [];
   for (let p = el.parentElement; p; p = p.parentElement) if (p.scrollTop) kept.push([p, p.scrollTop]);
+  // No animation while measuring: with a height transition (and `interpolate-size`), the box would still be at its old
+  // height when read, so it stayed as tall as before after a long message was sent (Daniel, 17/11)
+  const transition = el.style.transition;
+  el.style.transition = "none";
   el.style.height = "0px";
   const content = Math.max(el.scrollHeight - padY, line * minLines);
   const total = cs.boxSizing === "border-box" ? content + padY + borderY : content;
   el.style.height = `${Math.ceil(Math.min(total, maxPx))}px`;
+  void el.offsetHeight; // the new height is settled before the transition comes back, so nothing animates from 0
+  el.style.transition = transition;
   for (const [p, top] of kept) p.scrollTop = top;
 }
 

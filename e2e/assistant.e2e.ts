@@ -221,3 +221,19 @@ test("the Assistant's box fits its text and never grows on its own", async ({ pa
   expect(await h()).toBe(start);
   expect(start).toBeLessThan(60); // two lines, not the stretched row
 });
+
+// D-142: after a long message is sent, the box goes back to two lines — also when a look gives text boxes a height
+// transition (the box was read mid-animation and stayed as tall as before; Daniel, 17/11)
+test("the Assistant's box shrinks back after sending, even with a height transition", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("mode-switch").getByRole("tab", { name: /Assistant/ }).click();
+  await page.addStyleTag({ content: ".asst-comp textarea { transition: height .4s; }" });
+  const box = page.getByRole("textbox", { name: "Message to the Assistant" });
+  const h = async () => Math.round((await box.boundingBox())!.height);
+  const start = await h();
+  await box.fill(`Make a world tracker with time, weather and place. ${"More words so the message wraps across many lines. ".repeat(8)}`);
+  await expect.poll(h).toBeGreaterThan(start + 40);
+  await box.press("Enter");
+  await expect(box).toHaveValue("");
+  await expect.poll(h).toBe(start);
+});

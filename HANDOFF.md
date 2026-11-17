@@ -5,7 +5,7 @@
 - Daniel: since D-133 the Assistant's box got taller with every key, Backspace included. He also said to leave characters as they are (D-141's question closed: no character setup).
 - Cause and fix: the "auto" + "+2" measure read a stretched height back; `fitTextarea` (kit.tsx) measures from 0 and sets the exact height. Used by the Assistant's box, the chat's box, AutoText, the preset editor's block text and the Scene's value boxes.
 - **To try (Windows):** close the app → Pull origin → open it. Assistant: type a line, hold Backspace, type again: the box stays two lines; Shift+Enter a few times grows it; clearing it brings it back. Same in the chat's box and a preset's block text.
-- Not reproduced in the test browser's normal layout (only with a layout that stretches the box), so if it still grows on Windows, tell me the Settings → Appearance look and UI size.
+- Second report: after sending a long message the box kept its size. Reproduced with a height transition; `fitTextarea` measures with transitions off. To try: write a long message → Enter → the box goes back to two lines.
 - Checks: typecheck; unit tests (941); full click suite.
 
 ## The Assistant: Author's Note on Kits and stories; where agents, groups and notes attach (2026-11-17) — CLAUDE — D-141
