@@ -55,4 +55,33 @@ describe("agent groups", () => {
     expect(s.setup.lorebooks?.add).toEqual(["l"]);
     expect((await runTool("change", JSON.stringify({ id: "story:s1", changes: { name: "Renamed" } }), ctx)).result).toMatch(/Unknown field/);
   });
+
+  it("D-141: a Kit gets agents, a group and an Author's Note in one go; a read shows them", async () => {
+    const { store, ctx, a, b, c } = await setup();
+    const made = await runTool("create", JSON.stringify({ kind: "kit", data: { name: "Noir", agentGroups: ["RPG"], agentIds: ["Narrator Check"],
+      authorsNote: { text: "Keep it terse and rainy.", depth: 2 } } }), ctx);
+    expect(made.error, made.result).toBeFalsy();
+    const kit = (await store.kits.list())[0]!;
+    expect(kit.setup.agents).toEqual({ mode: "add", add: [c.id, a.id, b.id], remove: [] });
+    expect(kit.setup.authorsNote).toEqual({ text: "Keep it terse and rainy.", depth: 2 });
+    const read = JSON.parse((await runTool("read", JSON.stringify({ id: `kit:${kit.id}`, fields: ["agentIds", "authorsNote"] }), ctx)).result);
+    expect(read.agentIds).toEqual([c.id, a.id, b.id]);
+    expect(read.authorsNote).toEqual({ text: "Keep it terse and rainy.", depth: 2 });
+    expect((await runTool("create", JSON.stringify({ kind: "kit", data: { name: "Bad", authorsNote: { text: "x", where: "top" } } }), ctx)).result).toContain("Unknown Author's Note field(s): where");
+    expect((await runTool("create", JSON.stringify({ kind: "kit", data: { name: "Bad", authorsNote: { position: "middle" } } }), ctx)).error).toBe(true);
+  });
+
+  it("D-141: a story's Author's Note changes part by part, and null removes it; agents and trackers stay", async () => {
+    const { store, ctx, c, trackerId } = await setup();
+    await store.stories.save(Story.parse({ id: "s1", name: "Isekai", createdAt: 1, setup: { agents: { mode: "add", add: [trackerId, c.id], remove: [] }, authorsNote: { text: "Old note.", interval: 2 } } }));
+    expect((await runTool("change", JSON.stringify({ id: "story:s1", changes: { authorsNote: { text: "Slow burn; no time skips." } } }), ctx)).error).toBeFalsy();
+    expect(await applyChange(store, ctx.results.at(-1) as Parameters<typeof applyChange>[1], ctx.newId)).toBe("applied");
+    let s = (await store.stories.get("s1"))!;
+    expect(s.setup.authorsNote).toEqual({ text: "Slow burn; no time skips.", interval: 2 });
+    expect(s.setup.agents).toEqual({ mode: "add", add: [trackerId, c.id], remove: [] });
+    expect((await runTool("change", JSON.stringify({ id: "story:s1", changes: { authorsNote: null } }), ctx)).error).toBeFalsy();
+    expect(await applyChange(store, ctx.results.at(-1) as Parameters<typeof applyChange>[1], ctx.newId)).toBe("applied");
+    s = (await store.stories.get("s1"))!;
+    expect(s.setup.authorsNote).toBeUndefined();
+  });
 });

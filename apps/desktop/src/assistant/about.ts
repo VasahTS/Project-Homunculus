@@ -50,7 +50,8 @@ A preset decides how the prompt is built and sent: an ordered list of blocks (li
 A Story is a narrated adventure: a narrator (not a character) tells it, with NPCs and optional cards, openings (first messages, each with its own scenario) and its own setup.
 - How you play: Player (you play one person), Co-author (you write together), Director (you give orders; the narrator writes everyone).
 - One story has several chats. The story is the template: each chat inherits its setup and can change something just for itself ("changed in this chat").
-- Its page: Cast (narrator, NPCs, characters), How it starts (openings, each with its scenario; a chat's scenario is the one of the opening it starts with, shown in the chat's Prompt tab), How you play, Setup (preset, connection, persona…), Trackers, Agents, Lore, and the chats at the bottom.
+- Its page: Cast (narrator, NPCs, characters), How it starts (openings, each with its scenario; a chat's scenario is the one of the opening it starts with, shown in the chat's Prompt tab), How you play, Setup (preset, connection, persona…, the Author's Note), Trackers (each with its field set), Agents (one by one or by agent group), Lore, and the chats at the bottom.
+- Agents, agent groups, trackers and the Author's Note live in a story's (or Kit's) setup and reach its chats; a character card has none of these — it has its Character's Note — and a 1:1 chat's agents are picked in the chat.
 - Stories come from a card ("Turn into a Story"), from a Kit (a copy), or from scratch.`),
 
   T("kit", "Kits", `

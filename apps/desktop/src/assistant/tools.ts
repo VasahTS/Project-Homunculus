@@ -6,7 +6,7 @@
 //
 // Token rules: `find` returns one short line per item (25 per page); `read` returns only what was asked, long texts
 // cut with "read more" hints; lorebooks are read as an index first, entries by page or by title.
-import { storyScenario, CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind, type ListOverride, type SetupLayer } from "@homunculus/schemas";
+import { storyScenario, CastMember, Character, CharacterVariant, Cue, LoreEntry, Lorebook, Narrator, Persona, PersonaVariant, Preset, PresetBlock, SIMPLE_NARRATOR_ID, Story, TrackerField, TrackerSchema, type AssistantKind, type AssistantReadKind, type AssistantResult, type Folder, type FolderKind, type ListOverride, type SetupLayer, AuthorsNote } from "@homunculus/schemas";
 import { characterNoteOf, cueNamespace, DEFAULT_PRESET, fieldKeyFrom, pruneOverrides, variantAvatarId, type SqlStore, type ToolSpec, type TrialOverrides } from "@homunculus/core";
 import { importCardJson } from "@homunculus/st-cards";
 import { embeddedBookOf, lorebookFromCardBook, importStLorebook } from "@homunculus/st-lorebooks";
@@ -36,7 +36,7 @@ const APP_KINDS = ["chat", "agent", "regex", "quickreply", "director"] as const;
 type AppKind = (typeof APP_KINDS)[number];
 const isAppKind = (k: string): k is AppKind => (APP_KINDS as readonly string[]).includes(k);
 const WRITE_KINDS: AssistantKind[] = ["character", "lorebook", "tracker", "kit", "narrator", "persona", "preset", "cue", "story"];
-/** A story can only be changed (its agents and trackers, D-134, D-139): stories are started in the app or from a Kit. */
+/** A story can only be changed (its agents, trackers and Author's Note, D-134, D-139, D-141): stories are started in the app or from a Kit. */
 const CHANGE_ONLY: AssistantKind[] = ["story"];
 /** Kinds that can be in folders (D-036); trackers, personas and presets cannot. */
 export const FOLDER_KINDS: FolderKind[] = ["character", "lorebook", "kit", "narrator", "npc", "story"];
@@ -338,7 +338,10 @@ async function readItem(store: SqlStore, ref: string, fields: string[], offset: 
     });
     return JSON.stringify(out.length === 1 ? out[0] : out);
   }
-  if (r.kind === "kit" || r.kind === "story") item = { ...item, trackers: await layerTrackers(store, (item as Obj).setup) };
+  if (r.kind === "kit" || r.kind === "story") {
+    const setup = (item as Obj).setup;
+    item = { ...item, trackers: await layerTrackers(store, setup), ...(isObj(setup) && isObj(setup.authorsNote) ? { authorsNote: setup.authorsNote } : {}) };
+  }
   if (r.kind === "character" && item.characterNote === undefined) item = { ...item, characterNote: characterNoteOf(Character.parse(item)) };
   if (r.kind === "lorebook") {
     const book = Lorebook.parse(item);
@@ -938,19 +941,36 @@ async function kitFull(store: SqlStore, data: Obj, id: string, base?: Obj): Prom
   return kitOf({ ...data, ...(data.cast !== undefined ? { cast: await castOf(store, data.cast) } : {}) }, id, base, setup);
 }
 
-/** A story with only its agents and trackers changed (what the Assistant changes on a story, D-134, D-139). */
+/** A story with only its agents, trackers and Author's Note changed (what the Assistant changes on a story, D-134, D-139, D-141). */
 async function storyAfter(store: SqlStore, data: Obj, item: Obj): Promise<Story> {
   const s = Story.parse(item);
   const setup = await setupAfter(store, data, s.setup as Obj);
   return Story.parse({ ...s, ...(setup ? { setup } : {}) });
 }
 
-/** A layer with its agents (agentIds/agentGroups) and then its trackers (trackers) changed; undefined = neither given. */
+/** A layer with its agents (agentIds/agentGroups), its trackers (trackers) and its Author's Note (authorsNote)
+ *  changed; undefined = none of them given. */
 async function setupAfter(store: SqlStore, data: Obj, setup: Obj): Promise<Obj | undefined> {
   const agents = await agentsOverride(store, data, setup);
   const withAgents = agents ? { ...setup, agents } : setup;
   const withTrackers = await trackersSetup(store, data, withAgents);
-  return withTrackers ?? (agents ? withAgents : undefined);
+  const done = withTrackers ?? (agents ? withAgents : undefined);
+  return data.authorsNote === undefined ? done : withAuthorsNote(done ?? setup, data.authorsNote);
+}
+
+const NOTE_KEYS = ["text", "interval", "position", "depth", "role"];
+/**
+ * D-141: a Kit's or story's Author's Note (the same as its page's Author's Note group): only the parts given change,
+ * the others keep inheriting (Default → story → chat); null removes the layer's note (it follows Default again).
+ */
+function withAuthorsNote(setup: Obj, raw: unknown): Obj {
+  const { authorsNote: old, ...rest } = setup;
+  if (raw === null) return rest;
+  if (!isObj(raw)) throw new Error('authorsNote must be an object like { "text": "…", "interval": 1, "position": "inChat", "depth": 4, "role": "system" }, or null to remove it.');
+  const bad = Object.keys(raw).filter((k) => !NOTE_KEYS.includes(k));
+  if (bad.length) throw new Error(`Unknown Author's Note field(s): ${bad.join(", ")}. Use ${NOTE_KEYS.join(", ")}.`);
+  const note = AuthorsNote.parse({ ...(isObj(old) ? old : {}), ...raw });
+  return { ...rest, authorsNote: note };
 }
 
 /**
@@ -1130,7 +1150,7 @@ async function validateNew(store: SqlStore, kind: AssistantKind, data: Obj): Pro
     case "narrator": narratorOf(data, newId()); break;
     case "lorebook": Lorebook.parse({ id: newId(), name, description: str(data.description), entries: loreEntriesAfter([], { add: data.entries ?? [] }, newId) }); break;
     case "kit": await kitFull(store, data, newId()); break;
-    case "story": throw new Error("Stories are started in the app or from a Kit; on a story you can only `change` its agents and trackers.");
+    case "story": throw new Error("Stories are started in the app or from a Kit; on a story you can only `change` its agents, trackers and Author's Note.");
     case "cue": cueOf(data, []); break;
   }
 }
@@ -1153,6 +1173,7 @@ export function currentOf(item: Obj, kind: AssistantKind, changes: Obj): Obj {
     else if ((kind === "kit" || kind === "story") && (k === "agentIds" || k === "agentGroups")) out[k] = isObj(item.setup) ? item.setup.agents ?? "" : "";
     else if ((kind === "kit" || kind === "story") && k === "trackers") out[k] = isObj(item.setup) ? { agents: item.setup.agents ?? "", picks: item.setup.agentOverrides ?? "" } : "";
     else if (kind === "tracker" && k === "fieldSets") out[k] = item.fieldSetsFull ?? "";
+    else if ((kind === "kit" || kind === "story") && k === "authorsNote") out[k] = isObj(item.setup) ? item.setup.authorsNote ?? "" : "";
     else out[k] = item[k] ?? "";
   }
   return out;

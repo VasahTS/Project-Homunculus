@@ -1612,3 +1612,15 @@ Daniel (translated), after D-139: "it would be nice to pick the field sets right
 - Tests: `field-sets.test.ts` (the message line); click test `assistant` (pick a set, the chip, reopening keeps it).
 
 Signed: **CLAUDE**.
+
+## D-141 — The Assistant sets a Kit's or story's Author's Note, and knows where agents, groups and notes attach (2026-11-17)
+
+Daniel (translated): "the Assistant doesn't know how to attach agents, agent groups and author's notes to kits/stories/characters; give it that knowledge."
+
+- **Where these live in the app** (checked in the code): agents, agent groups, trackers and the Author's Note are parts of a setup layer — Default → story (a Kit is a story starter with the same setup) → chat. A character card has no setup layer: it has no agents or Author's Note of its own; its counterpart of the Author's Note is the Character's Note (`characterNote`, which the Assistant already writes). So "on a character" is not built here; see the open question below.
+- **Author's Note:** Kits (`create`/`change`) and stories (`change`) take `authorsNote: { text?, interval?, position?, depth?, role? }` — the page's Author's Note group. Only the parts sent change; the others keep inheriting (each part inherits on its own, as in `resolveSetup`); `null` removes the layer's note. Unknown parts are refused by name; values are checked by `AuthorsNote`. Reads of a Kit or story show it; change cards compare it.
+- **Agents and groups** were already writable on Kits and stories (D-134: `agentIds`, `agentGroups`); CORE_RULES, the kit/story guides and about "story" now say plainly that agents, groups, trackers (D-139) and the Author's Note attach to a Kit's or story's setup, that a card has none (its Character's Note instead), and that a 1:1 chat's agents are picked in the chat — so the Assistant stops claiming it can't, and never claims it attached them to a card.
+- **Open (asked to Daniel):** whether a character should get a setup of its own (agents, groups, Author's Note that a 1:1 chat with it starts with) — a new layer and screens, so draft first — or whether the Assistant should change a 1:1 chat's agents and note.
+- Tests: `agent-groups.test.ts` (2 new: a Kit with a group, agents and a note, read back, bad parts refused; a story's note changed part by part and removed, agents and trackers kept); `assistant.test.ts` guide fields.
+
+Signed: **CLAUDE**.

@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## The Assistant: Author's Note on Kits and stories; where agents, groups and notes attach (2026-11-17) — CLAUDE — D-141
+
+- Daniel: the Assistant couldn't attach agents, agent groups and Author's Notes to Kits/stories/characters.
+- Built: `authorsNote` on Kit create/change and story change (only the parts sent change; null removes; reads show it); guides/about say agents, groups, trackers and the Author's Note attach to a Kit's or story's setup (agents/groups were already writable, D-134), and that a card has only its Character's Note.
+- **Waiting for Daniel:** characters have no setup layer in the app (no agents or Author's Note of their own). Asked whether to add one (a character setup that its 1:1 chats start with — draft first) or let the Assistant change a 1:1 chat's agents and note.
+- **To try (Windows):** close the app → Pull origin → open it. Assistant: "make a noir Kit with my RPG group and an author's note: terse, rainy, 2 messages back" → the Kit's page: Agents on, Author's Note filled. On a story: "change the author's note of X to slow burn, no time skips" → change card → Apply → the story's Author's Note.
+- Checks: typecheck; unit tests (941); click tests assistant.
+- Changelog line for the next release: "**The Assistant sets Author's Notes**: it can give a Kit or a story an Author's Note (along with agents, agent groups and trackers with their field sets)."
+
 ## Add Context: pick a tracker's field set (2026-11-17) — CLAUDE — D-140
 
 - Daniel: pick the field set right in Add Context, so the Assistant doesn't have to find out which set to use every time.
