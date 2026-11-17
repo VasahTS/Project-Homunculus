@@ -1674,3 +1674,17 @@ Daniel (translated): "the Assistant was answering old questions; I asked why and
 - Tests: `answer-newest.test.ts` (3).
 
 Signed: **CLAUDE**.
+
+## D-146 — SillyTavern's macro set, {{if}} blocks, and variables that last (2026-11-17)
+
+Daniel (translated): "port the other SillyTavern macros too, like getvar, setvar etc." Context: the Assistant hesitated over which macros exist (its cue guide listed five), and random events wanted {{random}} / {{roll}}.
+
+- **Engine** (`packages/core/src/macros.ts`): the regex rounds became a left-to-right reader that finds each `{{…}}` with its nested braces. Inner macros first, macros in the order written, a known macro's result read again (a card's `{{char}}` inside `{{description}}`, up to 8 levels), unknown macros as written — as before.
+- **Ported from SillyTavern's new engine** (`public/scripts/macros/definitions/`, `engine/MacroCstWalker.js`, `variables.js`; commit 06bde939): `{{if}}…{{else}}…{{/if}}` (scoped, nested, `!`, bare macro names, `.var` / `$var`; only the chosen branch runs) and inline `{{if cond::text}}`; variable shorthands `{{.x}}` / `{{$x}}` with `= += -= ++ -- || ?? ||= ??= == != > >= < <=` (defaults read only when needed); `hasvar`/`varexists`, `deletevar`/`flushvar`, `setvarkey`/`getvarkey` (+ `…index`), the whole global family; `addvar` appends to JSON lists; `space`, `newline::n`, `reverse`, `banned` (nothing), `datetimeformat` (moment tokens), `time::UTC±n`, `charPrompt`, `charInstruction`/`charJailbreak`, `charDepthPrompt` (Character's Note), `creatorNotes`, `charVersion`, `greeting::n`, `group`/`charIfNotGroup`/`notChar`, `lastMessageId`, `maxPrompt`/`maxResponse`, `lastGenerationType`, `isMobile`; "name args" with a space.
+- **Ours on top:** a comparison straight in a condition is worked out (`{{if .hp < 5}}`; SillyTavern reads it as text, always true). `{{roll}}` gives nothing for formulas it cannot read ("4d6kh3" used to roll 1d4).
+- **Variables that last** (D-021 said they would, "later with the state"): local ones live in the world state under the namespace `vars` (`variables.ts`). A reply's prompt starts from the variables at the message *before* the one it answers and writes the whole change at the message it answers, replacing an earlier swipe's (`WorldState.replaceNamespace`) — so a swipe never adds twice, branches keep their own values and going back goes back (D-001). Also readable as `{{state.vars.x}}`. Global ones: app setting `macros.globalVars`, the same in every chat; like SillyTavern, a swipe that runs `{{incglobalvar}}` again adds again. Lore entries and the preset share one set per prompt. Cue texts and "text" agents read the local ones and cannot change them. Preview Prompt and Continue change nothing.
+- **Not ported** (left as written): `{{input}}`, `{{idleDuration}}`, `{{timeDiff}}`, scoped `{{trim}}` / `{{//}}` blocks, filters (`|`), instruct macros, `/reroll-pick`. No UI for variables yet (a "Variables" view in the Scene tab would be a draft first).
+- **Assistant:** new `about` topic "macros" (the full list, where macros work, the message caveat, random events); the cue and preset guides point to it.
+- Tests: `macros.test.ts` (17), `macro-variables.test.ts` (4); the old macro tests unchanged.
+
+Signed: **CLAUDE**.

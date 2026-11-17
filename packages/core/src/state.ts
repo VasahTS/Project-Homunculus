@@ -91,6 +91,19 @@ export class WorldState {
     await this.repo.setDelta(messageId, mergeDelta(existing, delta));
   }
 
+  /**
+   * Set what the agents' delta at a message says about one namespace, replacing what was there for it (not merged):
+   * for values worked out again in full on every swipe, like the macros' variables (D-146). Empty = nothing for it.
+   */
+  async replaceNamespace(messageId: string, namespace: string, values: Record<string, unknown>): Promise<void> {
+    const existing = structuredClone((await this.repo.getDelta(messageId)) ?? {});
+    const had = namespace in existing;
+    if (Object.keys(values).length) existing[namespace] = values as StateDelta[string];
+    else if (had) delete existing[namespace];
+    else return;
+    await this.repo.setDelta(messageId, existing);
+  }
+
   /** Record a change made by the user at a message (e.g. editing a value in the Scene panel). */
   async applyUserDelta(messageId: string, delta: StateDelta): Promise<void> {
     const existing = (await this.repo.getUserDelta(messageId)) ?? {};

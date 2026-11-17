@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## SillyTavern's macros, {{if}} blocks and variables that last (2026-11-17) — CLAUDE — D-146
+
+- Daniel: port SillyTavern's other macros (getvar, setvar…); the Assistant didn't know which macros exist.
+- Built: a new macro reader (`macros.ts`) with SillyTavern's set — `{{if}}…{{else}}…{{/if}}`, `{{.var}}` / `{{$var}}` shorthands with operators, the local and global variable families, `greeting`, `charPrompt`, `group`, `datetimeformat`, `time::UTC+3`… Local variables now last: kept in the world state (`vars`), right on swipes and branches; global ones in the app settings. The Assistant's `about` has a "macros" topic.
+- **To try (Windows):** close the app → open it. In a card's description (or an always-on lorebook entry) write `Visit {{incvar::visits}}: {{if .met}}again{{else}}first time{{/if}}{{.met = true}}` → Prompt tab → Preview Prompt shows "Visit 1: first time" (a preview saves nothing). Send a message, swipe the reply a few times, then Preview Prompt again: "Visit 2: again" (the swipes did not add). Ask the Assistant "which macros can I use for random events?" → it answers from the list.
+- Checks: typecheck; unit tests.
+- Changelog line for the next release: "**SillyTavern's macros**: `{{if}}…{{else}}…{{/if}}`, `{{setvar}}` / `{{getvar}}` and the rest of the variable macros (local ones now stay with the chat — swipes and branches keep them right — and global ones work in every chat), `{{.hp}}`-style shorthands, `{{greeting}}`, `{{charPrompt}}`, `{{datetimeformat}}` and more. `{{roll}}` no longer gives a wrong number for dice it can't read."
+
 ## The Assistant answers the newest message (2026-11-17) — CLAUDE — D-145
 
 - Daniel: the Assistant kept answering old questions. Causes in the code: no "answer the newest message" rule; stopped/failed replies looked like open questions; Draft first redrew the whole answer; a compacted summary read as requests. All four fixed (rules, the stopped/failed line, the draft rule, the summary framing and prompt).

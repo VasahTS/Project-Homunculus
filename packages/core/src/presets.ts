@@ -151,7 +151,15 @@ export function buildPrompt(rawInput: BuildPromptInput): BuiltPrompt {
     lastMessage: input.history.at(-1)?.content ?? "",
     lastUserMessage: [...input.history].reverse().find((m) => m.speaker.kind === "user")?.content ?? "",
     lastCharMessage: [...input.history].reverse().find((m) => m.speaker.kind !== "user")?.content ?? "",
+    lastMessageId: input.history.filter((m) => m.visibility.ai === "full" && m.kind !== "event").length - 1,
+    card: {
+      systemPrompt: narratorCard?.systemPrompt ?? "", postHistoryInstructions: narratorCard?.postHistoryInstructions ?? "",
+      creatorNotes: narratorCard?.creatorNotes ?? "", version: narratorCard?.characterVersion ?? "",
+      firstMessages: narratorCard?.firstMessages ?? [], depthPrompt: narratorCard?.characterNote?.text ?? "",
+    },
+    ...(preset.contextSize ? { maxContext: preset.contextSize } : {}), maxResponse: input.reserve, generationType: input.generationType,
     vars: input.macros?.vars ?? new Map(),
+    globals: input.macros?.globals ?? new Map(),
     custom: (name, args) => {
       if (name === "outlet") return (input.worldInfo?.outlets?.[(args[0] ?? "").trim()] ?? []).join("\n");
       return input.macros?.custom?.(name, args);
@@ -408,7 +416,7 @@ export function presetParams(p: Preset): Record<string, number> {
 function withPromptRegex(input: BuildPromptInput): BuildPromptInput {
   const scripts = input.regex ?? [];
   if (!scripts.length) return input;
-  const macroCtx: MacroContext = { ...input.macros, ...input.names, vars: input.macros?.vars ?? new Map() };
+  const macroCtx: MacroContext = { ...input.macros, ...input.names, vars: input.macros?.vars ?? new Map(), globals: input.macros?.globals ?? new Map() };
   const ctx: RegexRunContext = { macros: (t, char) => expandMacros(t, char ? { ...macroCtx, char } : macroCtx) };
   const sent = input.history.filter((msg) => msg.visibility.ai === "full" && msg.kind !== "event");
   const shift = input.generationType === "continue" ? 2 : 1;

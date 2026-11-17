@@ -18,6 +18,7 @@ import type { HomunculusCore } from "./core.ts";
 import type { ChatTurn, ConnectionConfig } from "./extensions.ts";
 import { scanLorebooks, type LoreScope } from "./lorebook.ts";
 import { applyBasicMacros, DEFAULT_USER_NAME, expandMacros, type MacroContext } from "./macros.ts";
+import { GLOBAL_VARS_KEY, sameVars, VARS_NAMESPACE, varsDelta, varsFromSetting, varsFromState } from "./variables.ts";
 import { applyPresetOverride } from "./prompt-control.ts";
 import { buildPrompt, DEFAULT_PRESET, estimateTokens, presetParams, squashSystem, toTurns, type BuiltPrompt, type PromptInjection } from "./presets.ts";
 import { applyRegexScripts, orderRegexScripts, regexKey, regexScriptsOf, type RegexRunContext } from "./regex.ts";
@@ -39,6 +40,9 @@ export interface AgentPreviewOptions {
 
 /** The prompt plus what the lorebooks did for it. */
 export type AssembledPrompt = BuiltPrompt & { lore?: LoreReport; memory?: GenerationRecord["memory"]; cues?: CueReport[] };
+
+/** The macros' variables while a prompt is built (D-146): what they were before it, and after it (changed by macros). */
+interface PromptVariables { localBefore: Map<string, string>; local: Map<string, string>; globalBefore: Map<string, string>; global: Map<string, string> }
 
 /** Where a lorebook of a session comes from (for the Prompt tab). */
 export type LoreSource = "default" | "story" | "session" | "character" | "persona";
@@ -244,6 +248,9 @@ export class TurnPipeline {
     const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: chosen.character, persona: effPersona,
       names, injections, inlineAgents, type, main, seed, recall, branchId: req.branchId, cueTexts: cues.texts });
     const prompt = built.parts;
+    await this.saveVariables(parentId, built.variables).catch((e) => {
+      void this.core.events.emit("core.error", { source: "macros", message: e instanceof Error ? e.message : String(e) });
+    });
 
     // 5. main reply, with "parallel" agents alongside
     await this.core.events.emit("generation.started", { sessionId: session.id, parentId });
@@ -1265,7 +1272,8 @@ export class TurnPipeline {
     for (const e of textAgents) injections.push(injectionOf({ agentId: e.config.id, kind: "inject", config: e.config, output: await this.runner.textAnswer(prepared(e.config, setup), { ...base, text: options.userText ?? "" }) }));
     // notes already written cost nothing either (D-057)
     if (parentId) injections.push(...await noteInjections(this.store, entries.map((e) => e.config), await this.store.pathTo(parentId)).catch(() => []));
-    const built = await this.assemble({ session, setup, entries, preset, parentId, history, character: speaking.character, persona: effPersona,
+    // the variables the macros would change are not kept: a preview changes nothing (D-146)
+    const { variables: _unsaved, ...built } = await this.assemble({ session, setup, entries, preset, parentId, history, character: speaking.character, persona: effPersona,
       names, injections, inlineAgents, type: "normal", main, seed: parentId ?? session.id, branchId: options.branchId, cueTexts: cues.texts });
     if (cues.reports.length) built.cues = cues.reports;
     const before = entries.filter((e) => isTurn(e.config, "before") && e.config.runMode !== "inline" && !(e.config.runMode === "text" && e.config.output === "inject"));
@@ -1499,8 +1507,16 @@ export class TurnPipeline {
     recall?: RecallResult | undefined;
     /** What the cues wrote this turn (D-113). */
     cueTexts?: CueOutput[];
-  }): Promise<AssembledPrompt> {
+  }): Promise<AssembledPrompt & { variables: PromptVariables }> {
     const sceneState = await this.core.state.resolve(a.session.id, a.parentId);
+    // the macros' variables (D-146): local ones from the message before the one answered (a swipe starts from the same
+    // place as the first try), global ones from the app; {{state.vars.x}} sees the same local ones
+    const localBefore = a.parentId ? varsFromState(await this.core.state.resolve(a.session.id, (await this.store.parentOf(a.parentId)) ?? null)) : new Map<string, string>();
+    if (localBefore.size) sceneState[VARS_NAMESPACE] = Object.fromEntries(localBefore); else delete sceneState[VARS_NAMESPACE];
+    const globalBefore = varsFromSetting(await this.store.getAppSetting(GLOBAL_VARS_KEY).catch(() => undefined));
+    const variables: PromptVariables = { localBefore, local: new Map(localBefore), globalBefore, global: new Map(globalBefore) };
+    const group = a.session.cast.flatMap((c) => (c.characterId && c.presence !== "off" && c.role !== "narrator" ? [this.charNames.get(c.characterId)] : []))
+      .filter((n): n is string => !!n);
     const scene: Array<{ agentId: string; text: string }> = [];
     for (const e of a.entries) {
       const t = await this.runner.trackerOf(e.config, a.session, a.setup).catch(() => undefined);
@@ -1511,11 +1527,13 @@ export class TurnPipeline {
       const def = this.core.macros.get(name);
       return def ? def.resolve({ sessionId: a.session.id, state: sceneState }, args) : undefined;
     };
-    const vars = new Map<string, string>();
+    const vars = variables.local;
+    const globals = variables.global;
     const lore = await this.scanLore({ ...a, state: sceneState, macroCtx: {
       char: a.names.char, user: a.names.user, description: a.character?.description ?? "", personality: a.character?.personality ?? "",
       scenario: a.session.scenario.trim() || a.character?.scenario || "", persona: a.persona?.description ?? "", mesExamples: a.character?.exampleMessages ?? "",
-      model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, vars, custom,
+      model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, vars, globals, custom,
+      ...(group.length > 1 ? { group } : {}),
       ...(this.options.random ? { random: this.options.random } : {}),
     } });
     const cast = await this.castFor(a.session);
@@ -1538,14 +1556,24 @@ export class TurnPipeline {
       reserve: a.main.params?.maxTokens ?? 1024,
       ...(cuePrompt.worldInfo ? { worldInfo: cuePrompt.worldInfo } : {}),
       authorsNote: { ...a.setup.authorsNote, goes: authorsNoteGoes(a.setup.authorsNote.interval, a.history) },
-      macros: { model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, custom, vars },
+      macros: { model: a.main.model, state: sceneState as Record<string, Record<string, unknown>>, seed: a.seed, custom, vars, globals, ...(group.length > 1 ? { group } : {}) },
       regex: await this.regexFor(a.preset, a.character, a.setup),
     });
     const memorySent = built.parts.some((part) => part.source === "agent:memory");
     const memoryNote = memory.text && !memorySent ? "Memory was skipped because the preset's Chat History block is inactive for this reply." : note;
     const withNotes = memoryNote ? { ...built, notes: [...built.notes, memoryNote] } : built;
     const withMemory = memorySent && receipt ? { ...withNotes, memory: receipt } : withNotes;
-    return lore ? { ...withMemory, lore: lore.report } : withMemory;
+    return { ...(lore ? { ...withMemory, lore: lore.report } : withMemory), variables };
+  }
+
+  /**
+   * The macros' variables after a reply's prompt (D-146). Local ones: the whole change from the message before, written
+   * at the message answered (replacing an earlier swipe's), so trying again never adds twice. Global ones: saved when
+   * they changed. Preview Prompt and Continue never call this.
+   */
+  private async saveVariables(parentId: string | null, v: PromptVariables): Promise<void> {
+    if (parentId) await this.core.state.replaceNamespace(parentId, VARS_NAMESPACE, varsDelta(v.localBefore, v.local));
+    if (!sameVars(v.globalBefore, v.global)) await this.store.setAppSetting(GLOBAL_VARS_KEY, Object.fromEntries(v.global));
   }
 
   /**
@@ -1577,7 +1605,7 @@ export class TurnPipeline {
       const r = runCue({
         cue, history, previous: before[cue.namespace], state, type: a.type, role, random, now: this.now(),
         expand: (text, own) => expandMacros(text, {
-          char: a.names.char, user: a.names.user, seed: `${a.parentId}|${cue.id}`, random,
+          char: a.names.char, user: a.names.user, seed: `${a.parentId}|${cue.id}`, random, vars: varsFromState(before), // read only (D-146)
           state: { ...state, [cue.namespace]: { ...(state[cue.namespace] ?? {}), ...own } } as Record<string, Record<string, unknown>>,
         }),
       });

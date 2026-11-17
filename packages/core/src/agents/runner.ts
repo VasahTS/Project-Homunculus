@@ -18,6 +18,7 @@ import { separateExecutor, shapeFor, type LoreProposal } from "./outputs.ts";
 import { applyLorePatch, patchWithEntry } from "../lore-versions.ts";
 import { normalizeTrackerAnswer, trackerPeople, type TrackerCastMember } from "../trackers.ts";
 import { applyBasicMacros, expandMacros } from "../macros.ts";
+import { varsFromState } from "../variables.ts";
 import { prepared } from "./styles.ts";
 import { applyChapters, readable } from "../memory.ts";
 import { effectiveCharacter } from "../variants.ts";
@@ -414,7 +415,7 @@ export class AgentRunner {
   async textAnswer(a: AgentConfig, req: Pick<RunRequest, "session" | "messageId" | "seed" | "names" | "text">): Promise<string> {
     const random = a.randomness === "stable" ? seededSequence(`${req.seed}|${a.id}|text`) : this.deps.random;
     const state = req.messageId ? await this.deps.core.state.resolve(req.session.id, req.messageId) : {};
-    return expandMacros(a.prompt, { ...req.names, state: state as Record<string, Record<string, unknown>>, lastMessage: req.text, random }).trim();
+    return expandMacros(a.prompt, { ...req.names, state: state as Record<string, Record<string, unknown>>, vars: varsFromState(state), lastMessage: req.text, random }).trim();
   }
 
   /** Puts a valid answer where it belongs. inject / check / choices / proposal / speaker are returned to the caller. */

@@ -22,6 +22,7 @@ export * from "./chat.ts";
 export * from "./branches.ts";
 export * from "./stories.ts";
 export * from "./macros.ts";
+export * from "./variables.ts";
 export * from "./storage/sql.ts";
 export * from "./storage/migrations.ts";
 export * from "./storage/store.ts";
