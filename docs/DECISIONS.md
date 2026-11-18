@@ -1713,3 +1713,11 @@ Daniel (translated): "in SillyTavern I could use it without much trouble — see
 - Tests: `web-providers.test.ts` (Exa text parsing, streamed answers, free limit as a limit, the order and its labels, Exa key, NanoGPT shapes and 402, reading through Exa, settings → plan, OpenRouter in the request, provider citations); `web_api_takes_only_the_known_services_and_headers` (Rust); click tests `assistant-web-providers.e2e.ts` (settings, key, fallback label, Mono and Observatory).
 
 Signed: **CLAUDE**.
+
+## D-149 — The Assistant's pre-step rules (guide, about) say exactly when (2026-11-18)
+
+- **Why**: with "Before writing a kind of item the first time in a chat, call `guide`", models with reasoning (GLM) spent long stretches deciding whether an outline or a suggestion counts as "writing" (Daniel's screenshot). `about` had the same problem: "Ask before advising" reads as "ask the user" or "call `about`".
+- **Now** (CORE_RULES, DRAFT_RULES, the `guide` and `about` tool descriptions): `guide` is called once per kind per chat, right before the first `create`, `change` or draft of that kind — not to plan, outline, suggest or answer questions; when the user asks for ideas, the answer is text and the guide comes once they pick. One new line: pre-steps are cheap and once per chat; if unsure, decide in one step and move on, never weigh the same call twice. `about` and the cue guide use "call", like `guide`. The "(D-143)" and "(D-145)" markers left the prompt (noise for the model).
+- Later, if it still happens: `create` returns the kind's guide by itself on first use, and the rule leaves the prompt.
+
+Signed: **CLAUDE**.
