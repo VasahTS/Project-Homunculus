@@ -1721,3 +1721,13 @@ Signed: **CLAUDE**.
 - Later, if it still happens: `create` returns the kind's guide by itself on first use, and the rule leaves the prompt.
 
 Signed: **CLAUDE**.
+
+## D-150 — Characters with "All" per page: scrolling no longer jumps back (2026-11-18)
+
+Daniel (translated): "I set Characters to show all ~100 characters so I don't have to turn pages; it's broken there: I can't scroll down, it keeps rolling back and half freezes."
+
+- **Cause**: with more than 80 cards the grid builds only the rows on screen (D-121), so cards leave and come back while scrolling. Chromium's scroll anchoring (WebView2 on Windows) used the picked card — it has focus after the click — as its anchor; when that card's row was taken off the screen, the browser moved the scroll back to it (1,680 px → 1,448 px in the test). With 48 per page the grid is not virtual, so it only happened with "All".
+- **Fix**: `overflow-anchor: none` on `.gallery-cards.virtual`, so the cards that come and go are never the anchor. The spacers already keep the scroll height exact.
+- Test: `big-library.e2e.ts` "All on one page: scrolling down after picking a card never pulls the list back" (fails without the fix).
+
+Signed: **CLAUDE**.

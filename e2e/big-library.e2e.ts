@@ -92,3 +92,29 @@ test("the highlight sits under the selected item after switching places (D-121)"
   await openLibrary(page, "Lorebooks");
   await aligned(".side-pill", ".side-item.on");
 });
+
+test("All on one page: scrolling down after picking a card never pulls the list back (D-150)", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto("/");
+  await openLibrary(page, "Characters");
+  await page.getByTestId("import-input").setInputFiles(files(100));
+  await expect(page.getByTestId("notice")).toContainText("Imported 100 character(s)", { timeout: 90_000 });
+  await page.getByTestId("character-pager").getByTestId("pager-size").selectOption("0");
+  const list = page.getByTestId("character-list");
+  // a picked card has focus: Chromium used it as the scroll anchor and jumped back when its row left the screen
+  await list.locator(".gallery-card").nth(2).click();
+  const grid = page.locator(".gallery-grid");
+  const box = (await grid.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 300);
+  let last = 0;
+  for (let i = 0; i < 30; i++) {
+    await page.mouse.wheel(0, 120);
+    await page.waitForTimeout(40);
+    const top = await grid.evaluate((el) => el.scrollTop);
+    expect(top).toBeGreaterThanOrEqual(last);
+    last = top;
+  }
+  expect(last).toBeGreaterThan(2000);
+  await page.getByTestId("character-pager").getByTestId("pager-size").selectOption("48");
+});
