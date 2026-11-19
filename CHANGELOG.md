@@ -3,6 +3,50 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
+## 0.6.0 — 2026-11-19
+
+Give each opening its own scenario, edit one branch without touching the others, let the Assistant search the web with the provider you prefer, and use SillyTavern's full macro set with variables that last.
+
+### Chats and stories
+
+- **A scenario for each opening.** On a story or Kit page, every opening tab now has its own **Scenario**. A chat sends the scenario of the opening it started with, and swiping the first message to another opening brings that opening's scenario. **+** starts a new opening with a copy of the current scenario, and **Use This Scenario in All Openings** copies it to the rest. In a chat, the **Prompt** tab shows which scenario is being sent and lets you **Edit for This Chat** without changing the story.
+- **Edits stay on their branch.** When you edit a message that several branches share, choose **This Branch Only** (the default) or **All N Branches**. Editing the first message of a story no longer changes every branch.
+- **A real Continue.** With an empty box after a reply, **Continue** makes the AI keep writing the same message. The old "write another message" action is now **Next Message** in the last reply's actions.
+- **Delete one message.** A message with no other versions can be deleted alone with **Only This Message**; what came after it stays.
+- **Swipes.** The last reply always shows ‹ 1/1 ›, and › on its newest version writes a new one.
+- **A character to the Trash with its chats.** Moving a character with chats to the Trash asks whether to move its chats too. Restoring the character brings them back.
+- **Faster long chats.** Opening a long chat, replying, swiping and editing read far less from the database.
+
+### Macros and variables
+
+- **SillyTavern's macro set.** `{{if}} … {{else}} … {{/if}}` blocks, `{{.var}}` / `{{$var}}` shorthands with operators (`+=`, `++`, `??`, comparisons), `setvar` / `getvar` and the rest of the variable family, global variables, `{{roll}}`, `{{random}}`, date and time formats and more. A comparison inside a condition works too, as in `{{if .hp < 5}}`.
+- **Variables that last.** Chat variables are kept per message: a swipe never adds twice, each branch keeps its own values, and going back goes back. Global variables are shared by every chat.
+
+### Assistant
+
+- **Web search providers.** In **Assistant → Customize → Web Search**, set the order of DuckDuckGo, Exa (free or with your API key), NanoGPT and OpenRouter. When one fails or reaches its limit, the next one takes over. Pages that refuse the app's reader can be read through Exa. The usage line shows what a search service charged.
+- **Versions and branches like in chats.** **New Version** and › write another answer as a version (‹ 1/3 ›), editing your message keeps the old one as a version, and only **Branch From Here** makes a branch.
+- **Agent groups.** In **Choose Agents…**, save the agents that are on as a group and switch the whole group on or off with one click. The Assistant can use groups when it makes a Kit or changes a story's agents.
+- **Field sets.** The Assistant sees each tracker's field sets. It adds a set to an existing tracker instead of making a near-copy, and picks sets for Kits and stories. In **Add Context**, pick which field set of a tracker you mean.
+- **Author's Note.** The Assistant can set a Kit's or story's Author's Note and knows where agents, groups and notes attach.
+- **Notes sent as the AI.** A preset note can be sent as the start of the AI's reply (a prefill) instead of as an instruction.
+- **Better focus.** The Assistant answers your newest message instead of going back to earlier ones, looks up library items only when you name them or the task needs them, and spends less time deciding when to read its guides.
+- **The message box grows** with your text and shrinks back after sending.
+
+### Library
+
+- **Linked folders, read-only.** A folder linked in **When Used** mode shows its cards in **Characters** without copying them. A card comes into the library only when you use it (start a chat, turn it into a story, edit it, add it to a Kit, or **Add to Library**). Folders linked before keep **Every Card** until you switch them.
+- **Directors** list only the stories that use them; **Add Stories…** opens a searchable list of the rest.
+- **Characters with All per page** no longer jump back while you scroll.
+
+### Fixes and polish
+
+- No spell check or autocorrect anywhere in the app.
+- Recent, Home and the sidebar follow the chat you played last, and its time updates after each reply.
+- **Empty Trash** also deletes Kits. A SillyTavern re-import skips items already imported, including ones in the Trash.
+- Message search, the tracker editor preview and saving items read far less from the database.
+- The Library's tabs wrap in narrow windows and it reopens on the tab you used last. Under 800 px the sidebar starts hidden. Long windows keep their bottom buttons in sight.
+
 ## 0.5.0 — 2026-11-13
 
 Move an existing SillyTavern library into Homunculus, keep a folder of character cards linked, and work with large libraries and long chats more smoothly.
