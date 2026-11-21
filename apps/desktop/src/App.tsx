@@ -1918,21 +1918,23 @@ export function App() {
   const chatsWith = (characterId: string): ChatRow[] => chatRowsByCharacter.get(characterId) ?? NO_ROWS;
 
   const short = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 90);
-  /** The folder an item is in, before its line (two cards with one name are told apart by it, D-064). */
-  const inFolder = (kind: FolderKind, id: string, line: string) => { const f = folderLabel(folders, mapOf(kind)[id]); return f ? `${f} · ${line}` : line; };
+  /** The folder an item is in: Add Context opens folders like the Library and names the folder in "All" and in a search
+   *  (two cards with one name are told apart by it, D-064). */
+  const fo = (kind: FolderKind, id: string) => mapOf(kind)[id] ?? null;
   const assistantLibrary: LibraryEntry[] = mode !== "assistant" ? [] : [
-    ...characters.map((c) => ({ kind: "character" as const, id: c.id, name: c.name, line: inFolder("character", c.id, `${c.variants.length ? `${c.variants.length + 1} versions · ` : ""}${short(c.description || c.personality)}`), avatar: avatars[c.id] })),
+    ...characters.map((c) => ({ kind: "character" as const, id: c.id, name: c.name, folder: fo("character", c.id), line: `${c.variants.length ? `${c.variants.length + 1} versions · ` : ""}${short(c.description || c.personality)}`, avatar: avatars[c.id] })),
     ...personas.map((p) => ({ kind: "persona" as const, id: p.id, name: p.name, line: short(p.description), avatar: avatars[p.id] })),
-    ...narrators.map((n) => ({ kind: "narrator" as const, id: n.id, name: n.name, line: inFolder("narrator", n.id, short(n.about || n.instructions)) })),
-    ...npcs.map((n) => ({ kind: "npc" as const, id: n.id, name: n.name, line: inFolder("npc", n.id, short(n.notes)) })),
-    ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, line: inFolder("story", x.id, short(x.description || storyScenario(x))) })),
-    ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, line: inFolder("kit", x.id, short(x.description || storyScenario(x))) })),
-    ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, line: inFolder("lorebook", b.id, `${lorebookEntryCount(b)} entries`) })),
+    ...narrators.map((n) => ({ kind: "narrator" as const, id: n.id, name: n.name, folder: fo("narrator", n.id), line: short(n.about || n.instructions) })),
+    ...npcs.map((n) => ({ kind: "npc" as const, id: n.id, name: n.name, folder: fo("npc", n.id), line: short(n.notes) })),
+    ...stories.map((x) => ({ kind: "story" as const, id: x.id, name: x.name, folder: fo("story", x.id), line: short(x.description || storyScenario(x)) })),
+    ...kits.map((x) => ({ kind: "kit" as const, id: x.id, name: x.name, folder: fo("kit", x.id), line: short(x.description || storyScenario(x)) })),
+    ...lorebooks.map((b) => ({ kind: "lorebook" as const, id: b.id, name: b.name, folder: fo("lorebook", b.id), line: `${lorebookEntryCount(b)} entries` })),
     ...trackers.map((t) => ({ kind: "tracker" as const, id: t.agent.id, name: t.agent.name, line: short(t.agent.help), sets: t.sets.map((x) => x.name) })),
     ...presets.map((x) => ({ kind: "preset" as const, id: x.id, name: x.name, line: `${x.blocks.length} blocks` })),
     ...cues.map((x) => ({ kind: "cue" as const, id: x.id, name: x.name, line: x.help || `${x.groups.reduce((n, g) => n + g.items.length, 0)} texts` })),
-    // D-110: chats and the parts of the app the Assistant can read but not yet write
-    ...sessions.map((x) => ({ kind: "chat" as const, id: x.id, name: x.title, line: `${x.storyId ? stories.find((st) => st.id === x.storyId)?.name ?? "Story" : characters.find((c) => c.id === x.cast[0]?.characterId)?.name ?? "Chat"} · ${messageCounts[x.id] ?? 0} messages` })),
+    // D-110: chats and the parts of the app the Assistant can read but not yet write; chats played last first (D-135)
+    ...sessionsByPlay.map((x) => ({ kind: "chat" as const, id: x.id, name: x.title, when: lastTimes[x.id] ?? x.createdAt, count: messageCounts[x.id] ?? 0,
+      line: `${x.storyId ? stories.find((st) => st.id === x.storyId)?.name ?? "Story" : characters.find((c) => c.id === x.cast[0]?.characterId)?.name ?? "Chat"} · ${messageCounts[x.id] ?? 0} messages` })),
     ...agents.map((a) => ({ kind: "agent" as const, id: a.id, name: a.name, line: short(a.help) })),
     ...globalRegex.map((r) => ({ kind: "regex" as const, id: r.id, name: r.name || "(unnamed)", line: r.targets.join(", ") })),
     ...asstExtra,
@@ -2595,7 +2597,7 @@ export function App() {
           onSort: (key, sort, seed) => setPrefs(key)({ ...prefsOf(key), sort, sortSeed: seed }),
           sources: { characters, stories, kits, narrators, npcs, personas, presets, lorebooks, trackers, agents, regex: globalRegex, trash }, sessions, lastTimes, defaultPersonaId }}>
         {mode === "assistant" ? (
-          <AssistantView focusMessageId={focusMessage?.sessionId === asst.activeId ? focusMessage.messageId : null} svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary} screen={screenContext}
+          <AssistantView focusMessageId={focusMessage?.sessionId === asst.activeId ? focusMessage.messageId : null} svc={svc} st={asst} connection={connection} lead={lead} library={assistantLibrary} libraryFolders={folders} screen={screenContext}
             listModels={listModels} onManageConnections={() => { setMode("play"); setView({ kind: "settings", tab: "connections" }); }}
             userName={personas.find((p) => p.id === defaultPersonaId)?.name ?? ""}
             onChanged={() => void refresh(svc)}

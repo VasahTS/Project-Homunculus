@@ -1731,3 +1731,15 @@ Daniel (translated): "I set Characters to show all ~100 characters so I don't ha
 - Test: `big-library.e2e.ts` "All on one page: scrolling down after picking a card never pulls the list back" (fails without the fix).
 
 Signed: **CLAUDE**.
+
+## D-151 — Add Context opens folders and uses the Library's sort (2026-11-21)
+
+Daniel (translated): "In the Assistant, Add Context can't use the sort, nor the folders; right now finding cards and content in general there is a mess."
+
+- **Before**: each tab was one flat grid in the order the lists happened to load, cut off at 300 cards, and the folder only showed as text before the line.
+- **Now**: above the cards, a bar with the open folder's path (All Characters › RPG › Offline Party), **Folders · All** and **Sort**. Folders open like the Add… window (D-036: as folders, with the faces inside, the count and "N picked"); the Folders · All choice is the same remembered one as that window. The sort is the Library's own (`useCollectionOrder` / `SortSelect` with the Library's kind): picking one here changes it there too, one remembered order per kind. Chats have their own small sort (Recent, A-Z, Z-A, Most messages, remembered per viewer) and the chat folders of Play's sidebar (D-108); the chat you came from stays first. Kinds without folders show only the sort.
+- "All" and a search name each item's folder on its own line; a search looks in every tab, matches folder names too, and lists names that start with the words first. 120 cards are drawn at first, "Show N more" adds the rest (no more silent cut at 300).
+- Fix found on the way: after the Assistant moved items into folders, App did not reload, so the new folders only showed after another change. A "moved" result now reloads like "created".
+- Test: `assistant.e2e.ts` "Folders and versions" walks RPG › Offline Party › Lyra and checks "All".
+
+Signed: **CLAUDE**.

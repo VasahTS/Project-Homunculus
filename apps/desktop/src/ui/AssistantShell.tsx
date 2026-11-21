@@ -18,6 +18,11 @@ export interface LibraryEntry {
   kind: AssistantReadKind; id: string; name: string; line: string; avatar?: Avatar | undefined;
   /** A tracker's field sets, the default first (D-140: picked in Add Context). */
   sets?: string[] | undefined;
+  /** The Library folder it is kept in (kinds with folders; null = in none). */
+  folder?: string | null | undefined;
+  /** Chats: when it was last played, and how many messages it has (Add Context sorts by them). */
+  when?: number | undefined;
+  count?: number | undefined;
 }
 
 

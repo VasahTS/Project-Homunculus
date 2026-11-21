@@ -127,10 +127,22 @@ test("Folders and versions (D-064): the Assistant puts a character in a party fo
   await expect(moved).toContainText("1 moved here");
   await expect(page.getByTestId("assistant-send")).toBeVisible();
 
-  // another version of her, in the same card
+  // another version of her, in the same card — Add Context opens folders like the Library: RPG › Offline Party › Lyra
   await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
-  await page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first().click();
+  const picker = page.getByTestId("assistant-picker");
+  await picker.getByTestId("assistant-picker-folders").click();
+  await picker.getByTestId("assistant-picker-folder").filter({ hasText: "RPG" }).click();
+  await picker.getByTestId("assistant-picker-folder").filter({ hasText: "Offline Party" }).click();
+  await expect(picker.getByTestId("assistant-picker-bar")).toContainText("RPG");
+  // "All" lists every character with the folder it is in
+  await picker.getByTestId("assistant-picker-all").click();
+  await expect(picker.getByRole("button", { name: /Lyra/ }).first()).toContainText("RPG › Offline Party");
+  await picker.getByTestId("assistant-picker-folders").click();
+  await expect(picker.getByRole("button", { name: /Lyra/ })).toHaveCount(0);
+  await picker.getByTestId("assistant-picker-folder").filter({ hasText: "RPG" }).click();
+  await picker.getByTestId("assistant-picker-folder").filter({ hasText: "Offline Party" }).click();
+  await picker.getByRole("button", { name: /Lyra/ }).first().click();
   await page.getByTestId("assistant-picker-add").click();
   await page.getByRole("textbox", { name: "Message to the Assistant" }).fill("Make a modern version of her");
   await page.getByTestId("assistant-send").click();
@@ -148,7 +160,10 @@ test("Folders and versions (D-064): the Assistant puts a character in a party fo
   // the picker now shows where she is and that she has two versions
   await page.getByTestId("assistant-plus").click();
   await page.getByTestId("assistant-add-context").click();
-  await expect(page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first()).toContainText("RPG › Offline Party · 2 versions");
+  await page.getByTestId("assistant-picker").getByRole("textbox", { name: "Search everything" }).fill("Lyra");
+  const found = page.getByTestId("assistant-picker").getByRole("button", { name: /Lyra/ }).first();
+  await expect(found).toContainText("RPG › Offline Party");
+  await expect(found).toContainText("2 versions");
   await page.keyboard.press("Escape");
 
   // and the Library has the folders

@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { useDraft, useSendKey } from "./ux.tsx";
 import { createAssistantRuntime } from "../assistant/runtime.ts";
 import { branchesOf, deleteMessage, forkAt, newVersion, selectBranch, selectPath, versionsOf } from "../assistant/history.ts";
-import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar } from "@homunculus/schemas";
+import { AssistantChat, type AssistantAttachment, type AssistantKind, type AssistantMessage, type AssistantReadKind, type AssistantResult, type AssistantSettings, type Avatar, type Folder } from "@homunculus/schemas";
 import type { AppServices } from "../core-instance.ts";
 import type { ConnectionState } from "../connection.ts";
 import { compactChat, connectionFor, deleteChat, describeAgain, pictureRouteFor, withPictureDescription, type PictureRoute, listChats, loadChat, loadSettings, needsCompaction, resolveFor, runAssistant, saveChat, saveSettings, toolsFor, toTurns, updateResult, webOn, webOn as webOnFor, webSources, type ChatRow } from "../assistant/engine.ts";
@@ -21,7 +21,7 @@ import { parseFile } from "../assistant/files.ts";
 import { diffWords } from "../diff.ts";
 import { readFileBytes } from "../files.ts";
 import { bytesToBase64 } from "@homunculus/st-cards";
-import { AutoText, Button, fitTextarea, Icon, IconButton, type ICONS } from "./kit.tsx";
+import { AutoText, Button, fitTextarea, Icon, IconButton, Segmented, type ICONS } from "./kit.tsx";
 import { CASCADE, slideIn, useEnter } from "./motion.ts";
 import { AssistantCustomizePage } from "./AssistantCustomize.tsx";
 import { QuickConnectMenu, type QuickConnectTarget } from "./QuickConnect.tsx";
@@ -36,6 +36,9 @@ import { MessageText, openLink } from "./MessageText.tsx";
 import { SidebarChats } from "./SidebarChats.tsx";
 import { usePrefs } from "../prefs.ts";
 import type { AssistantState, LibraryEntry } from "./AssistantShell.tsx";
+import { childrenOf, Faces, folderAndBelow, FolderMark, folderLabel, folderPath } from "./Folders.tsx";
+import { SortSelect, useCollectionOrder } from "./CollectionOrder.tsx";
+import { ago, useChatOrganization } from "../chatOrganization.ts";
 export type { AppMode, AssistantState, LibraryEntry } from "./AssistantShell.tsx";
 
 /** What Try It needs from the Assistant view (D-111): the app's services, the connections and the chats in context. */
@@ -60,8 +63,10 @@ const QUICK: Array<{ title: string; text: string; prompt: string }> = [
   { title: "Make a narrator", text: "How your stories are told: voice, rules, pacing.", prompt: "Make a narrator that " },
 ];
 
-export function AssistantView({ svc, st, connection, library, userName, lead, onOpenItem, onStartKit, onChanged, listModels, onManageConnections, focusMessageId = null, screen = [] }: {
+export function AssistantView({ svc, st, connection, library, libraryFolders = [], userName, lead, onOpenItem, onStartKit, onChanged, listModels, onManageConnections, focusMessageId = null, screen = [] }: {
   svc: AppServices; st: AssistantState; connection: ConnectionState; library: LibraryEntry[]; userName: string; lead: ReactNode;
+  /** The Library's folders (every kind): Add Context opens them as folders. */
+  libraryFolders?: Folder[];
   /** What was on screen in Play when the Assistant opened (D-110): added as chips, dashed, removable. */
   screen?: Array<{ kind: AssistantReadKind; id: string; name: string }>;
   /** For the model switch under the message box (Quick Connection, D-077). */
@@ -215,7 +220,8 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       }
       const done = await runAssistant({ core: svc.core, store: svc.store, chat: ready, main: r.connection, connections: r.connections, signal: ctrl.signal, onUpdate: setLive });
       if (selectedId.current === done.id) setChat(done);
-      if (done.messages.at(-1)?.results.some((x) => x.type === "created")) onChanged();
+      // made something, or moved items into folders (Add Context and the Library show the new folders right away)
+      if (done.messages.at(-1)?.results.some((x) => x.type === "created" || x.type === "moved")) onChanged();
     } catch (e) {
       if (selectedId.current === withUser.id) { setChat(before); st.setActiveId(before?.id ?? null); setError(e instanceof Error ? e.message : String(e)); }
     } finally {
@@ -446,7 +452,7 @@ export function AssistantView({ svc, st, connection, library, userName, lead, on
       <input ref={fileInput} type="file" multiple hidden accept=".json,.jsonl,.md,.markdown,.txt,.csv,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" data-testid="assistant-file"
         onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; if (fs.length) void addFiles(fs); }} />
       {comic && <ComicImport onClose={() => setComic(false)} onStart={(t, p, o) => { setComic(false); void sendComic(t, p, o); }} costHint={comicCost} />}
-      {picking && <ContextPicker library={library} startKind={picking === "chat" ? "chat" : undefined} firstIds={screenChats} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
+      {picking && <ContextPicker library={library} folders={libraryFolders} startKind={picking === "chat" ? "chat" : undefined} firstIds={screenChats} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
         onClose={() => setPicking(false)}
         onAdd={(items) => { setAtts((a) => [...a.filter((x) => x.type !== "item"), ...items]); setPicking(false); }} />}
       {viewing && chat && settings && <RequestView chat={chat} messageId={viewing} settings={settings} svc={svc} route={route} onClose={() => setViewing(null)} />}
@@ -881,14 +887,37 @@ function TrialCard({ r }: { r: AssistantResult }) {
 
 // ------------------------------------------------------------------ Add context
 
-function ContextPicker({ library, picked, onAdd, onClose, startKind, firstIds = [] }: {
+/** Add Context's kinds as the Library names them: the sort picked there is the sort here (one remembered order). */
+const SORT_KIND: Partial<Record<AssistantReadKind, string>> = { character: "characters", persona: "personas", narrator: "narrators", npc: "npcs", story: "stories", kit: "kits", lorebook: "lorebooks", tracker: "trackers", preset: "presets", cue: "cues", agent: "agents", regex: "regex", quickreply: "quick-replies", director: "directors" };
+/** Kinds kept in Library folders (Folder.kind); chats use the sidebar's chat folders (D-108). */
+const FOLDER_KIND: Partial<Record<AssistantReadKind, Folder["kind"]>> = { character: "character", narrator: "narrator", npc: "npc", story: "story", kit: "kit", lorebook: "lorebook" };
+const CHAT_SORTS = { recent: "Recent", az: "A-Z", za: "Z-A", most: "Most messages" } as const;
+type ChatSort = keyof typeof CHAT_SORTS;
+/** Cards drawn at first, and added by "Show more" (a library of 1000+ cards). */
+const PICK_STEP = 120;
+const readLocal = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
+const writeLocal = (key: string, v: string) => { try { localStorage.setItem(key, v); } catch { /* per viewer only */ } };
+
+function ContextPicker({ library, folders: libraryFolders = [], picked, onAdd, onClose, startKind, firstIds = [] }: {
   /** Opens on this tab (Add a Chat… → Chats). */ startKind?: AssistantReadKind | undefined;
   /** Shown first in their tab (the chat you came from). */ firstIds?: string[];
-  library: LibraryEntry[]; picked: Array<Extract<AssistantAttachment, { type: "item" }>>;
+  library: LibraryEntry[]; folders?: Folder[]; picked: Array<Extract<AssistantAttachment, { type: "item" }>>;
   onAdd: (items: Array<Extract<AssistantAttachment, { type: "item" }>>) => void; onClose: () => void;
 }) {
-  const [kind, setKind] = useBackState<AssistantReadKind>(startKind ?? "character");
+  const [kind, setKindRaw] = useBackState<AssistantReadKind>(startKind ?? "character");
   const [q, setQ] = useState("");
+  // Daniel: "não dá pra usar o sort, e nem as pastas… é uma bagunça de achar as cartas" — folders open like the Library's,
+  // Folders · All like the Add… window (the same remembered choice), and the Library's sort
+  const [folder, setFolder] = useState<string | null>(null);
+  const setKind = (k: AssistantReadKind) => { setKindRaw(k); setFolder(null); };
+  const [view, setViewRaw] = useState<"folders" | "all">(() => (readLocal("h2.picker.view") === "all" ? "all" : "folders"));
+  const setView = (v: "folders" | "all") => { setViewRaw(v); setFolder(null); writeLocal("h2.picker.view", v); };
+  const [chatSort, setChatSortRaw] = useState<ChatSort>(() => { const v = readLocal("h2.assistant.chatSort"); return v && v in CHAT_SORTS ? v as ChatSort : "recent"; });
+  const setChatSort = (v: ChatSort) => { setChatSortRaw(v); writeLocal("h2.assistant.chatSort", v); };
+  const [limit, setLimit] = useState(PICK_STEP);
+  const chatOrg = useChatOrganization("play");
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => { setLimit(PICK_STEP); scroller.current?.scrollTo({ top: 0 }); }, [kind, folder, view, q]);
   const [sel, setSel] = useState<Map<string, LibraryEntry>>(() => new Map(picked.map((p) => [`${p.kind}:${p.id}`, library.find((e) => e.kind === p.kind && e.id === p.id) ?? { kind: p.kind, id: p.id, name: p.name, line: "" }])));
   /** D-140: a tracker's field set, picked here so the Assistant needn't ask which one (no entry = the whole tracker). */
   const [sets, setSets] = useState<Record<string, string>>(() => Object.fromEntries(picked.filter((p) => p.fieldSet).map((p) => [p.id, p.fieldSet!])));
@@ -902,11 +931,63 @@ function ContextPicker({ library, picked, onAdd, onClose, startKind, firstIds = 
     return r && (from > 0 || to > 0) ? `${e.name} · messages #${from > 0 ? from : 1}–${to > 0 ? `#${to}` : "end"}` : e.name;
   };
   const counts = useMemo(() => { const c: Partial<Record<AssistantReadKind, number>> = {}; for (const e of library) c[e.kind] = (c[e.kind] ?? 0) + 1; return c; }, [library]);
+
+  // this tab's folders: the Library's tree, or the chat folders of Play's sidebar (one level) shaped as folders
+  const folderKind = FOLDER_KIND[kind];
+  const chatFolders = useMemo(() => chatOrg.folders.map((f) => ({ id: f.id, kind: "story" as const, name: f.name, parentId: null, createdAt: 0 })), [chatOrg]);
+  const chatFolderOf = useMemo(() => { const m = new Map<string, string>(); for (const f of chatOrg.folders) for (const id of f.chatIds) m.set(id, f.id); return m; }, [chatOrg]);
+  const tabFolders: Folder[] = kind === "chat" ? chatFolders : folderKind ? libraryFolders.filter((f) => f.kind === folderKind) : [];
+  const folderOf = (e: LibraryEntry): string | null => (e.kind === "chat" ? chatFolderOf.get(e.id) ?? null : e.folder ?? null);
+  const hasFolders = tabFolders.length > 0;
+  const allFolders = useMemo(() => [...libraryFolders, ...chatFolders], [libraryFolders, chatFolders]);
+  const whereOf = (e: LibraryEntry) => { const f = folderOf(e); return f ? folderLabel(allFolders, f) : ""; };
+
+  // this tab, in the Library's order (chats: their own small sort); the chat you came from first
+  const ofKind = useMemo(() => library.filter((e) => e.kind === kind), [library, kind]);
+  const ordered = useCollectionOrder(SORT_KIND[kind] ?? "chats", ofKind).items;
+  const tabItems = useMemo(() => {
+    let list = kind === "chat" ? [...ofKind] : ordered;
+    if (kind === "chat") {
+      const by = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+      if (chatSort === "az") list.sort((a, b) => by.compare(a.name, b.name));
+      else if (chatSort === "za") list.sort((a, b) => by.compare(b.name, a.name));
+      else if (chatSort === "most") list.sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
+      else list.sort((a, b) => (b.when ?? 0) - (a.when ?? 0));
+    }
+    if (firstIds.length) list = [...list.filter((e) => firstIds.includes(e.id)), ...list.filter((e) => !firstIds.includes(e.id))];
+    return list;
+  }, [kind, ofKind, ordered, chatSort, firstIds]);
+
   const words = q.trim().toLowerCase();
-  const first = (e: LibraryEntry) => (firstIds.includes(e.id) ? 0 : 1);
-  const shown = library.filter((e) => (words ? `${e.name} ${e.line}`.toLowerCase().includes(words) : e.kind === kind))
-    .sort((a, b) => first(a) - first(b)).slice(0, 300);
+  const all = view === "all" || !hasFolders;
+  const folderOpen = !words && !all && folder !== null;
+  // a search looks in every tab and folder (folder names too); else this tab: everything, or the open folder
+  const shownAll = useMemo(() => {
+    if (words) {
+      const hits = library.filter((e) => `${e.name} ${e.line} ${whereOf(e)}`.toLowerCase().includes(words));
+      const starts = (e: LibraryEntry) => (e.name.toLowerCase().startsWith(words) ? 0 : 1);
+      return hits.map((e, i) => ({ e, i })).sort((a, b) => starts(a.e) - starts(b.e) || KIND_ORDER.indexOf(a.e.kind) - KIND_ORDER.indexOf(b.e.kind) || a.i - b.i).map((x) => x.e);
+    }
+    if (all) return tabItems;
+    return tabItems.filter((e) => folderOf(e) === folder);
+  }, [words, library, all, tabItems, folder, allFolders, chatFolderOf]);
+  const shown = shownAll.slice(0, limit);
+  const kids = words || all ? [] : childrenOf(tabFolders, folder);
+  const inside = (f: Folder) => { const below = folderAndBelow(tabFolders, f.id); return tabItems.filter((e) => { const x = folderOf(e); return x !== null && below.has(x); }); };
   const toggle = (e: LibraryEntry) => setSel((s) => { const n = new Map(s); const k = `${e.kind}:${e.id}`; if (n.has(k)) n.delete(k); else n.set(k, e); return n; });
+  const kindWord = (n: number) => (n === 1 ? KIND_ONE[kind] : KIND_LABEL[kind]).toLowerCase();
+  const card = (e: LibraryEntry) => {
+    const on = sel.has(`${e.kind}:${e.id}`);
+    const where = words || (all && hasFolders) ? whereOf(e) : "";
+    const meta = [words ? KIND_ONE[e.kind] : "", where, e.kind === "chat" && e.when ? ago(e.when) : ""].filter(Boolean).join(" · ");
+    return (
+      <button key={`${e.kind}:${e.id}`} type="button" className={`asst-card${on ? " sel" : ""}`} aria-pressed={on} onClick={() => toggle(e)}>
+        {e.avatar ? <img src={avatarUrl(e.avatar)} alt="" decoding="async" loading="lazy" /> : <span className="asst-card-ph" aria-hidden><KindMark kind={e.kind} /></span>}
+        <span className="asst-card-t"><b>{e.name}</b>{meta && <small className="asst-card-where">{meta}</small>}<small>{e.line}</small></span>
+        <span className="asst-ck" aria-hidden>{on ? "✓" : ""}</span>
+      </button>
+    );
+  };
   return (
     <Modal title="Add context" onClose={onClose} className="modal-wide asst-picker" testId="assistant-picker"
       head={<label className="search-box asst-picker-search"><Icon name="search" size={13} /><input autoFocus aria-label="Search everything" placeholder="Search everything" value={q} onChange={(e) => setQ(e.target.value)} /></label>}>
@@ -914,18 +995,53 @@ function ContextPicker({ library, picked, onAdd, onClose, startKind, firstIds = 
         {!words && <div className="asst-kinds" role="tablist">{KIND_ORDER.filter((k) => counts[k]).map((k) => (
           <button key={k} type="button" role="tab" aria-selected={kind === k} className={kind === k ? "on" : ""} onClick={() => setKind(k)}><span>{KIND_LABEL[k]}</span><small>{counts[k]}</small></button>
         ))}</div>}
-        <div className="asst-grid">
-          {shown.length === 0 && <p className="hint">{words ? "Nothing matches." : "Nothing here yet."}</p>}
-          {shown.map((e) => {
-            const on = sel.has(`${e.kind}:${e.id}`);
-            return (
-              <button key={`${e.kind}:${e.id}`} type="button" className={`asst-card${on ? " sel" : ""}`} aria-pressed={on} onClick={() => toggle(e)}>
-                {e.avatar ? <img src={avatarUrl(e.avatar)} alt="" decoding="async" loading="lazy" /> : <span className="asst-card-ph" aria-hidden><KindMark kind={e.kind} /></span>}
-                <span className="asst-card-t"><b>{e.name}</b><small>{words ? `${KIND_ONE[e.kind]} · ` : ""}{e.line}</small></span>
-                <span className="asst-ck" aria-hidden>{on ? "✓" : ""}</span>
-              </button>
-            );
-          })}
+        <div className="asst-picker-main">
+          {!words && (
+            <div className="asst-picker-bar" data-testid="assistant-picker-bar">
+              <div className="fd-crumb">
+                {folderOpen ? <>
+                  <button type="button" className="fd-step" onClick={() => setFolder(null)}>All {KIND_LABEL[kind]}</button>
+                  {folderPath(tabFolders, folder).map((f) => (
+                    <span key={f.id} className="fd-step-wrap"><span className="fd-sep">›</span>
+                      <button type="button" className={`fd-step${f.id === folder ? " on" : ""}`} onClick={() => setFolder(f.id)}>{f.name}</button></span>
+                  ))}
+                </> : <span className="asst-picker-count">{(counts[kind] ?? 0).toLocaleString("en-US")} {kindWord(counts[kind] ?? 0)}</span>}
+              </div>
+              <span className="asst-picker-tools">
+                {hasFolders && <Segmented small label="Show" value={view} onChange={setView}
+                  options={[{ value: "folders", label: "Folders", testId: "assistant-picker-folders" }, { value: "all", label: "All", testId: "assistant-picker-all" }]} />}
+                {kind === "chat"
+                  ? <label className="collection-order"><span>Sort</span><select aria-label="Sort chats" value={chatSort} onChange={(ev) => setChatSort(ev.target.value as ChatSort)}>
+                    {(Object.keys(CHAT_SORTS) as ChatSort[]).map((k) => <option key={k} value={k}>{CHAT_SORTS[k]}</option>)}</select></label>
+                  : SORT_KIND[kind] && <SortSelect kind={SORT_KIND[kind]!} label={`Sort ${KIND_LABEL[kind].toLowerCase()}`} />}
+              </span>
+            </div>
+          )}
+          <div className="asst-picker-scroll" ref={scroller}>
+            {kids.length > 0 && (
+              <div className="pk-folders" data-testid="assistant-picker-folder-list">
+                {kids.map((f) => {
+                  const items = inside(f);
+                  const sub = childrenOf(tabFolders, f.id).length;
+                  const chosen = items.filter((e) => sel.has(`${e.kind}:${e.id}`)).length;
+                  return (
+                    <button key={f.id} type="button" className="pk-folder" onClick={() => setFolder(f.id)} data-testid="assistant-picker-folder">
+                      <FolderMark size={16} />
+                      <span className="fd-text"><span className="fd-title">{f.name}</span>
+                        <span className="fd-count">{items.length} {kindWord(items.length)}{sub ? ` · ${sub} folder${sub === 1 ? "" : "s"}` : ""}{chosen ? ` · ${chosen} picked` : ""}</span></span>
+                      <Faces items={items.slice(0, 4)} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {kids.length > 0 && shownAll.length > 0 && <div className="pk-label">{folder === null ? "Not in a folder" : "In this folder"}</div>}
+            <div className="asst-grid">
+              {shown.map(card)}
+            </div>
+            {shownAll.length > shown.length && <button type="button" className="link pk-more" onClick={() => setLimit(shown.length + PICK_STEP)}>Show {Math.min(PICK_STEP, shownAll.length - shown.length)} more <span className="hint">({(shownAll.length - shown.length).toLocaleString("en-US")} more · search to narrow)</span></button>}
+            {shownAll.length === 0 && kids.length === 0 && <p className="hint asst-picker-empty">{words ? "Nothing matches." : folderOpen ? "This folder is empty." : "Nothing here yet."}</p>}
+          </div>
         </div>
       </div>
       {lastChat && (

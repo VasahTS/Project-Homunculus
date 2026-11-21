@@ -2540,7 +2540,18 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-kinds button { display: flex; justify-content: space-between; border: 0; background: none; padding: 8px 10px; border-radius: calc(8px * var(--round)); color: var(--label-2); cursor: pointer; font-size: 13px; text-align: left; }
 .asst-kinds button.on, .asst-kinds button:hover { background: var(--fill); color: var(--label); }
 .asst-kinds small { color: var(--label-3); }
-.asst-grid { flex: 1; padding: 14px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; align-content: start; }
+/* Add Context: folders, Folders · All and the Library's sort above the cards (Daniel: "a bagunça de achar as cartas") */
+.asst-picker-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.asst-picker-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; min-height: 52px; box-sizing: border-box; padding: 8px 14px; border-bottom: 1px solid var(--separator); }
+.asst-picker-bar .fd-crumb { min-width: 0; flex: 1; }
+.asst-picker-count { font-size: 12px; color: var(--label-2); padding: 4px 2px; }
+.asst-picker-tools { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.asst-picker-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 14px; }
+.asst-picker-scroll .pk-folders { margin: 0 0 10px; }
+.asst-picker-scroll .pk-label { padding: 2px 2px 8px; }
+.asst-picker-empty { padding: 4px 2px; }
+.asst-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; align-content: start; }
+.asst-card-t small.asst-card-where { color: var(--label-2); -webkit-line-clamp: 1; }
 .asst-card { position: relative; border: 1px solid var(--separator); border-radius: calc(12px * var(--round)); padding: 10px; display: grid; grid-template-columns: 44px 1fr; gap: 10px; cursor: pointer; background: var(--group); text-align: left; color: var(--label); }
 .asst-card:hover { background: var(--fill); }
 .asst-card.sel { border-color: var(--accent); background: var(--accent-soft); }
