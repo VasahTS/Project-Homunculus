@@ -27,7 +27,7 @@ import { AssistantCustomizePage } from "./AssistantCustomize.tsx";
 import { QuickConnectMenu, type QuickConnectTarget } from "./QuickConnect.tsx";
 import type { ConnectionConfig, ModelInfo } from "@homunculus/core";
 import { Modal } from "./Vault.tsx";
-import { NewItemCard, QuestionCard, UnderstoodCard, type PagePicture } from "./AssistantCards.tsx";
+import { LoreEntriesView, NewItemCard, NewItemFields, QuestionCard, UnderstoodCard, type PagePicture } from "./AssistantCards.tsx";
 import { ComicImport } from "./ComicImport.tsx";
 import { cachedModels } from "./ModelPicker.tsx";
 import { keyNameOf } from "../connection.ts";
@@ -713,17 +713,7 @@ function ResultCard({ r, onAct, onOpen, onStartKit, ctl }: { r: AssistantResult;
       </div>
     </div>
   );
-  if (r.type === "new") return (
-    <div className="asst-res" data-testid="assistant-result">
-      <div className="asst-res-line"><span className="asst-res-ic">{kindMark}</span>
-        <span className="asst-res-t"><b>{r.name}</b><small className={r.status === "waiting" ? "wait" : r.status === "applied" ? "ok" : ""}>New {KIND_ONE[r.kind].toLowerCase()} · {r.status === "waiting" ? "waiting for you" : r.status === "applied" ? "saved" : "discarded"}</small></span>
-        <button className="asst-lnk" onClick={() => setOpen(!open)}>{open ? "Hide" : "See it"}</button>
-        {r.status === "waiting" && <><button className="asst-lnk strong" onClick={() => onAct("apply")}>Save</button><button className="asst-lnk" onClick={() => onAct("discard")}>Discard</button></>}
-        {r.status === "applied" && r.itemId && <button className="asst-lnk" onClick={() => onOpen(r.kind, r.itemId!)}>Open</button>}
-      </div>
-      {open && <pre className="asst-res-more asst-pre">{JSON.stringify(r.data, null, 2)}</pre>}
-    </div>
-  );
+  if (r.type === "new") return <NewItemLine r={r} kindMark={kindMark} onAct={onAct} onOpen={onOpen} onChange={ctl?.onChange} />;
   // change
   const label = { waiting: "Change waiting for you", applied: "Applied · undo from its History", discarded: "Discarded", stale: "It changed since — ask again" }[r.status];
   const fields = Object.keys(r.after).filter((k) => k !== "picture");
@@ -736,6 +726,47 @@ function ResultCard({ r, onAct, onOpen, onStartKit, ctl }: { r: AssistantResult;
         {r.status === "applied" && <button className="asst-lnk" onClick={() => onOpen(r.kind, r.itemId)}>Open</button>}
       </div>
       {open && <div className="asst-res-more">{Object.keys(r.after).map((k) => <ChangeField key={k} name={k} before={r.before[k]} after={r.after[k]} />)}</div>}
+    </div>
+  );
+}
+
+/**
+ * A new item waiting for the user, as one line (Save / Discard) that opens to the item itself, readable (D-152):
+ * each field with its label, a lorebook's entries like the editor's rows, Edit for the texts and the entries.
+ * The raw data is one click away (View Raw) for what the readable view leaves out.
+ */
+function NewItemLine({ r, kindMark, onAct, onOpen, onChange }: {
+  r: Extract<AssistantResult, { type: "new" }>; kindMark: ReactNode; onAct: (w: "apply" | "discard") => void;
+  onOpen: (kind: AssistantKind, id: string) => void; onChange?: (next: AssistantResult) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [raw, setRaw] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const data = (r.data && typeof r.data === "object" && !Array.isArray(r.data) ? r.data : {}) as Record<string, unknown>;
+  const file = data.importFile && typeof data.importFile === "object" ? String((data.importFile as Record<string, unknown>).name ?? "") : null;
+  const entries = Array.isArray(data.entries) ? data.entries.length : 0;
+  const waiting = r.status === "waiting";
+  const canEdit = waiting && !!onChange && file === null;
+  return (
+    <div className={`asst-res${open ? " open" : ""}`} data-testid="assistant-result">
+      <div className="asst-res-line"><span className="asst-res-ic">{kindMark}</span>
+        <span className="asst-res-t"><b>{r.name}</b><small className={waiting ? "wait" : r.status === "applied" ? "ok" : ""}>New {KIND_ONE[r.kind].toLowerCase()}{entries ? ` · ${entries} ${entries === 1 ? "entry" : "entries"}` : ""} · {waiting ? "waiting for you" : r.status === "applied" ? "saved" : "discarded"}</small></span>
+        <button className="asst-lnk" onClick={() => { setOpen(!open); setEditing(null); }} data-testid="assistant-see-new">{open ? "Hide" : "See It"}</button>
+        {waiting && !editing && <><button className="asst-lnk strong" onClick={() => onAct("apply")}>Save</button><button className="asst-lnk" onClick={() => onAct("discard")}>Discard</button></>}
+        {r.status === "applied" && r.itemId && <button className="asst-lnk" onClick={() => onOpen(r.kind, r.itemId!)}>Open</button>}
+      </div>
+      {open && <div className="asst-res-more">
+        {raw ? <pre className="asst-pre">{JSON.stringify(r.data, null, 2)}</pre>
+          : file !== null ? <p className="hint">Made from the file “{file}”: it is converted when you save.</p>
+          : <div className="asst-newitem-body flat"><NewItemFields r={r} editing={editing} onEditing={setEditing} renderValue={(k, v) => <DraftField name={k} value={v} bare />} /></div>}
+        <div className="asst-newitem-acts">
+          {canEdit && !raw && (editing ? <>
+            <Button small variant="prominent" onClick={() => { onChange!({ ...r, data: { ...data, ...editing } }); setEditing(null); }}>Save Edits</Button>
+            <Button small variant="plain" onClick={() => setEditing(null)}>Cancel</Button>
+          </> : <Button small onClick={() => setEditing({})} data-testid="assistant-edit-new">Edit</Button>)}
+          {!editing && <button type="button" className="asst-lnk right" onClick={() => setRaw(!raw)}>{raw ? "Readable View" : "View Raw"}</button>}
+        </div>
+      </div>}
     </div>
   );
 }
@@ -1390,6 +1421,8 @@ function DraftField({ name, value, bare = false }: { name: string; value: unknow
     ));
     return bare ? <>{body}</> : <div className="asst-draft-f"><span>{label} <small>({list.length})</small></span>{body}</div>;
   }
+  // a lorebook's entries in a draft read like the editor's rows (D-152)
+  if (name === "entries" && Array.isArray(value) && value.some((v) => v && typeof v === "object")) return bare ? <LoreEntriesView entries={value} /> : <div className="asst-draft-f"><span>{label} <small>({value.length})</small></span><LoreEntriesView entries={value} /></div>;
   if (bare) {
     if (Array.isArray(value)) return <>{value.map((v, i) => <div key={i} className="asst-draft-v"><MessageText text={typeof v === "string" ? v : v && typeof v === "object" ? String((v as Record<string, unknown>).text ?? (v as Record<string, unknown>).title ?? (v as Record<string, unknown>).label ?? (v as Record<string, unknown>).name ?? (v as Record<string, unknown>).id ?? JSON.stringify(v)) : String(v)} /></div>)}</>;
     if (value && typeof value === "object") return <div className="asst-draft-chips">{Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== "" && v != null).map(([k, v]) => <span key={k}>{k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}</span>)}</div>;

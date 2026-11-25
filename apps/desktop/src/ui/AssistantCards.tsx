@@ -3,9 +3,10 @@
 // and Looks Right; questions with buttons, one at a time; a new item shown field by field with where each part came
 // from, Keep / Edit / Discard, and Use a Panel as Portrait.
 import { useState, type ReactNode } from "react";
-import type { AssistantKind, AssistantResult } from "@homunculus/schemas";
+import { LoreEntry, type AssistantKind, type AssistantResult } from "@homunculus/schemas";
 import { answersMessage, mergeCastOn, type Question, type Understood } from "../assistant/cards.ts";
-import { AutoText, Button, Icon } from "./kit.tsx";
+import { AutoText, Button, Collapse, Icon } from "./kit.tsx";
+import { badgesOf, kindOf, PlaceIcon, placeShort } from "./LorebookEditor.tsx";
 import { cropImage } from "./ImageCropper.tsx";
 import { bytesToBase64 } from "@homunculus/st-cards";
 
@@ -169,6 +170,107 @@ const FIELD_LABEL: Record<string, string> = { description: "Description", person
 const labelOf = (k: string) => FIELD_LABEL[k] ?? k.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 const KIND_ONE: Record<AssistantKind, string> = { character: "Character", persona: "Persona", lorebook: "Lorebook", tracker: "Tracker", kit: "Story Kit", narrator: "Narrator", preset: "Preset", cue: "Cue", story: "Story" };
 
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
+/** The fields of a new item worth showing (its name is the title; empty ones are left out). */
+export const shownFields = (data: Obj) => Object.entries(data).filter(([k, v]) => k !== "name" && k !== "folder" && k !== "importFile" && v !== "" && v != null && !(Array.isArray(v) && !v.length));
+
+/**
+ * A new item's fields, readable (D-152): a label and the value, never raw JSON. A lorebook's entries read like the
+ * lorebook editor's rows. With `editing` (the user's changes so far), text fields and entries become editable.
+ */
+export function NewItemFields({ r, editing, onEditing, renderValue }: {
+  r: NewItem; editing: Obj | null; onEditing: (next: Obj) => void; renderValue: (name: string, value: unknown) => ReactNode;
+}) {
+  const data = isObj(r.data) ? r.data : {};
+  return <>{shownFields(data).map(([k, v]) => {
+    const entries = k === "entries" && Array.isArray(v) && v.some(isObj);
+    return (
+      <div className={`asst-newitem-f${entries ? " wide" : ""}`} key={k}>
+        {!entries && <span className="asst-newitem-n">{labelOf(k)}{r.sources?.[k] && <span className="asst-src">{r.sources[k]}</span>}</span>}
+        {entries
+          ? <LoreEntriesView entries={Array.isArray(editing?.entries) ? editing.entries : v} onEdit={editing ? (next) => onEditing({ ...editing, entries: next }) : undefined}
+            label={<span className="asst-newitem-n">{labelOf(k)} <small>· {v.length}</small></span>} />
+          : editing && typeof v === "string"
+            ? <AutoText value={typeof editing[k] === "string" ? editing[k] : v} onChange={(e) => onEditing({ ...editing, [k]: e.target.value })} aria-label={labelOf(k)} />
+            : <div className="asst-newitem-v">{renderValue(k, v)}</div>}
+      </div>
+    );
+  })}</>;
+}
+
+/** An entry the AI wrote (only some fields), with the schema's defaults filled in, for the badges and the place. */
+function asEntry(x: Obj, i: number): LoreEntry | null {
+  const parsed = LoreEntry.safeParse({ ...x, id: typeof x.id === "string" && x.id ? x.id : `new-${i}` });
+  return parsed.success ? parsed.data : null;
+}
+const keysText = (v: unknown) => (Array.isArray(v) ? v.map(String).join(", ") : "");
+const keysOf = (t: string) => t.split(",").map((k) => k.trim()).filter(Boolean);
+
+/**
+ * A lorebook's entries as readable rows (D-152): the title, the keywords as chips and the first line of the text;
+ * a click opens the whole text and what differs from the defaults (place, chance, timers…), with the lorebook
+ * editor's own badges. With `onEdit`: title, keywords and text of each entry can be changed in place.
+ */
+export function LoreEntriesView({ entries, onEdit, label }: { entries: unknown[]; onEdit?: (next: Obj[]) => void; label?: ReactNode }) {
+  const list = entries.filter(isObj);
+  const [open, setOpen] = useState<Set<number>>(() => new Set(list.length === 1 ? [0] : []));
+  const allOpen = list.length > 0 && open.size === list.length;
+  const toggle = (i: number) => setOpen((o) => { const n = new Set(o); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  const patch = (i: number, p: Obj) => onEdit?.(list.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  if (onEdit) return (
+    <div className="asst-lore editing">{label}{list.map((x, i) => <LoreEntryEdit key={i} x={x} onPatch={(p) => patch(i, p)} />)}</div>
+  );
+  const all = list.length > 2 && <button type="button" className="asst-lnk" onClick={() => setOpen(allOpen ? new Set() : new Set(list.map((_, i) => i)))}>{allOpen ? "Collapse All" : "Expand All"}</button>;
+  return (
+    <div className="asst-lore">
+      {(label || all) && <div className="asst-lore-bar">{label}{all}</div>}
+      {list.map((x, i) => {
+        const e = asEntry(x, i);
+        const title = String(x.title ?? x.name ?? "").trim() || (e?.keys[0] ?? "") || "Untitled entry";
+        const keys = e?.keys ?? (Array.isArray(x.keys) ? x.keys.map(String) : []);
+        const content = String(x.content ?? "");
+        const isOpen = open.has(i);
+        const place = e && e.position !== "before" ? placeShort(e) : "";
+        const badges = e ? [...(e.enabled ? [] : ["off"]), ...(place ? [place] : []), ...badgesOf(e), ...(e.order !== 100 ? [`order ${e.order}`] : []), ...(e.triggers.length ? [`only on ${e.triggers.join(", ")}`] : [])] : [];
+        return (
+          <div key={i} className={`asst-lore-e${isOpen ? " open" : ""}${e && !e.enabled ? " off" : ""}`} data-testid="assistant-lore-entry">
+            <button type="button" className="asst-lore-head" aria-expanded={isOpen} onClick={() => toggle(i)}>
+              <span className={`te-chev${isOpen ? " open" : ""}`} aria-hidden><Icon name="chevron" size={12} /></span>
+              {e && <PlaceIcon kind={kindOf(e.position).kind} size={15} />}
+              <span className="asst-lore-t">{title}</span>
+              <span className="lore-keys asst-lore-keys">
+                {e?.constant && <span className="lore-key always">Always On</span>}
+                {keys.map((k) => <span key={k} className={`lore-key${k.startsWith("/") ? " re" : ""}`}>{k}</span>)}
+                {!e?.constant && !keys.length && <span className="lore-key warn">No keywords</span>}
+              </span>
+            </button>
+            {!isOpen && content && <p className="asst-lore-peek">{content}</p>}
+            <Collapse open={isOpen}>
+              <div className="asst-lore-body">
+                {content ? <div className="asst-lore-text">{content}</div> : <p className="hint">No text.</p>}
+                {badges.length > 0 && <div className="asst-lore-badges">{badges.map((b) => <span key={b} className="lore-badge">{b}</span>)}</div>}
+              </div>
+            </Collapse>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LoreEntryEdit({ x, onPatch }: { x: Obj; onPatch: (p: Obj) => void }) {
+  // the keywords as typed ("a, b, "), so a comma can be written; the entry gets the list
+  const [keys, setKeys] = useState(() => keysText(x.keys));
+  return (
+    <div className="asst-lore-e open edit">
+      <span>Title</span><input className="asst-lore-title-in" value={String(x.title ?? "")} aria-label="Title" onChange={(e) => onPatch({ title: e.target.value })} />
+      <span>Keywords</span><input value={keys} placeholder={x.constant ? "Always on: none needed" : "Separated by commas"} aria-label="Keywords" onChange={(e) => { setKeys(e.target.value); onPatch({ keys: keysOf(e.target.value) }); }} />
+      <span>Text</span><AutoText value={String(x.content ?? "")} aria-label="Text" onChange={(e) => onPatch({ content: e.target.value })} />
+    </div>
+  );
+}
+
 /**
  * A new item waiting for the user, shown open: each field with where it came from, Keep / Edit / Discard, and for a
  * character or persona made from a comic, Use a Panel as Portrait (a page, cropped).
@@ -178,9 +280,8 @@ export function NewItemCard({ r, pages, onAct, onChange, renderValue }: {
   renderValue: (name: string, value: unknown) => ReactNode;
 }) {
   const data = (r.data && typeof r.data === "object" ? r.data : {}) as Record<string, unknown>;
-  const [editing, setEditing] = useState<Record<string, string> | null>(null);
+  const [editing, setEditing] = useState<Obj | null>(null);
   const [choosing, setChoosing] = useState(false);
-  const shown = Object.entries(data).filter(([k, v]) => k !== "name" && k !== "folder" && v !== "" && v != null && !(Array.isArray(v) && !v.length));
   const all = Object.values(r.sources ?? {});
   const portrait = (r.kind === "character" || r.kind === "persona") && pages.length > 0;
   const usePage = async (p: PagePicture) => {
@@ -197,14 +298,7 @@ export function NewItemCard({ r, pages, onAct, onChange, renderValue }: {
         {all.length > 0 && <span className="asst-src right">from {all.length === 1 ? all[0] : "the pages"}</span>}</div>
       <div className="asst-newitem-body">
         <h5>{String(data.name ?? r.name)}</h5>
-        {shown.map(([k, v]) => (
-          <div className="asst-newitem-f" key={k}>
-            <span className="asst-newitem-n">{labelOf(k)}{r.sources?.[k] && <span className="asst-src">{r.sources[k]}</span>}</span>
-            {editing && typeof v === "string"
-              ? <AutoText value={editing[k] ?? v} onChange={(e) => setEditing({ ...editing, [k]: e.target.value })} aria-label={labelOf(k)} />
-              : <div className="asst-newitem-v">{renderValue(k, v)}</div>}
-          </div>
-        ))}
+        <NewItemFields r={r} editing={editing} onEditing={setEditing} renderValue={renderValue} />
         {portrait && (
           <div className="asst-newitem-f">
             <span className="asst-newitem-n">Portrait</span>

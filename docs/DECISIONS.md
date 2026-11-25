@@ -1743,3 +1743,17 @@ Daniel (translated): "In the Assistant, Add Context can't use the sort, nor the 
 - Test: `assistant.e2e.ts` "Folders and versions" walks RPG › Offline Party › Lyra and checks "All".
 
 Signed: **CLAUDE**.
+
+## D-152 — The Assistant's new items read as fields, a lorebook's entries as rows (2026-11-25)
+
+Daniel (translated): "When the Assistant generates an entry you can only see the JSON, and it is really hard to read. Can it be shown in a readable way?"
+
+- **Before**: a new item waiting for the user ("New lorebook · waiting for you") opened with See it to `JSON.stringify(r.data)`. The readable card (`NewItemCard`, D-115) was only used for items made from a comic.
+- **Now**: See It opens the item field by field (label + value, the same `NewItemFields` as the comic card). A lorebook's entries are rows like the lorebook editor's: place icon, title, keywords as chips (Always On when constant), the first line of the text; a click opens the whole text and the editor's own badges for what differs from the defaults (place, chance, timers, group, conditions, order, off). Expand All with 3 or more entries; the line under the name counts them ("New lorebook · 12 entries · waiting for you").
+- **Edit** (while it waits): text fields and each entry's title, keywords and text change in place; Save Edits keeps them on the proposal, then Save creates the item. Save / Discard hide while editing.
+- **View Raw** keeps the JSON one click away, for kinds whose nested fields the readable view only summarizes (a tracker's fields, a cue's parts). An item made from a file says so ("converted when you save") instead of showing the file's text.
+- Lorebook entries in a reply's draft block use the same rows.
+- Test: `assistant-new-readable.e2e.ts`.
+
+Signed: **CLAUDE**.
+

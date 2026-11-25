@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Readable new items in the Assistant (no more raw JSON) (2026-11-25) — CLAUDE — D-152
+
+- Daniel: a new lorebook from the Assistant could only be seen as JSON, hard to read.
+- Built: See It on a waiting new item shows its fields; a lorebook's entries look like the editor's rows (title, keyword chips, first line; open = full text + badges), Expand All, entry count on the line; Edit changes texts and each entry's title / keywords / text before saving; View Raw for the JSON.
+- **To try (Windows):** close the app → Pull origin → open it. Assistant → Customize → New items: Ask me first → Done. Ask "make a small lorebook for a school with 3 entries" → the card says "New lorebook · 3 entries · waiting for you" → See It: rows with keyword chips; click one: full text and its badges. Edit → change a keyword → Save Edits → Save → open the lorebook: the change is there.
+- Checks: typecheck; unit tests (990); click tests assistant*, lore* (53, with the new `assistant-new-readable`).
+- Changelog line for the next release: "**Readable proposals in the Assistant**: a new lorebook (or any new item) waiting for your OK opens as fields and entry rows — keywords as chips, the full text, what each entry does differently — instead of raw JSON, and you can edit titles, keywords and texts before saving. View Raw still shows the data."
+
 ## Web search: Exa, NanoGPT and OpenRouter in an order with fallback (2026-11-17) — CLAUDE — D-148
 
 - Daniel: add Exa (free and with his key), NanoGPT and OpenRouter (their balances) to the Assistant's web search, Flint as the UI reference, working in every theme. Plan `claude/UI-PLAN-WEB-SEARCH.md` (Project); straight to code.

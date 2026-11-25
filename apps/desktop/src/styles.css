@@ -4620,6 +4620,30 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .asst-newitem-n .asst-src { text-transform: none; letter-spacing: 0; font-weight: 400; display: table; margin: 4px 0 0; }
 .asst-newitem-v { min-width: 0; overflow-wrap: anywhere; display: grid; gap: 6px; }
 .asst-newitem-f textarea { width: 100%; background: var(--group); color: var(--label); border: 1px solid var(--separator); border-radius: calc(8px * var(--round)); padding: 6px 8px; font: inherit; font-size: 13px; resize: vertical; }
+/* D-152: a new item's fields and a lorebook's entries, readable (no raw JSON) */
+.asst-newitem-f.wide { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.asst-newitem-n small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.asst-newitem-body.flat { border: 0; padding: 0; background: transparent; }
+.asst-newitem-body.flat > .asst-newitem-f:first-child { border-top: 0; padding-top: 0; }
+.asst-newitem-acts { display: flex; align-items: center; gap: 6px; }
+.asst-newitem-acts .right { margin-left: auto; }
+.asst-lore { display: grid; gap: 4px; }
+.asst-lore-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; }
+.asst-lore-e { border: 1px solid var(--separator); border-radius: calc(8px * var(--round)); background: var(--group); min-width: 0; }
+.asst-lore-e.off { opacity: .6; }
+.asst-lore-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; background: transparent; color: var(--label); font: inherit; font-size: 13px; text-align: left; cursor: pointer; border-radius: inherit; }
+.asst-lore-head:hover { background: var(--fill-hover); }
+.asst-lore-t { font-weight: 600; flex: 0 1 auto; min-width: 4em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asst-lore-keys { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
+.asst-lore-peek { margin: -2px 0 0; padding: 0 10px 8px 30px; font-size: 12px; color: var(--label-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asst-lore-body { display: grid; gap: 8px; padding: 0 10px 10px 30px; }
+.asst-lore-text { font-family: var(--font-prose); font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--label); }
+.asst-lore-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.asst-lore-e.edit { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 6px 10px; padding: 8px 10px; }
+.asst-lore-e.edit > span { font-size: 12px; color: var(--label-3); }
+.asst-lore-e.edit input, .asst-lore-e.edit textarea { width: 100%; background: var(--fill); color: var(--label); border: 1px solid var(--separator); border-radius: calc(6px * var(--round)); padding: 5px 8px; font: inherit; font-size: 13px; }
+.asst-lore-e.edit textarea { resize: vertical; font-family: var(--font-prose); font-size: 14px; line-height: 1.5; }
+.asst-lore-e.edit .asst-lore-title-in { font-weight: 600; }
 .asst-portrait { display: flex; gap: 10px; align-items: center; }
 .asst-portrait img { width: 52px; height: 78px; object-fit: cover; border-radius: calc(6px * var(--round)); }
 .asst-pagepick { grid-column: 1 / -1; display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }

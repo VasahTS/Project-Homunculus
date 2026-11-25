@@ -83,8 +83,8 @@ const newEntry = (book: Lorebook): LoreEntry => {
   return LoreEntry.parse({ id: String(n), title: "New entry" });
 };
 
-/** Small "badges" for the closed row: only what differs from the defaults. */
-function badgesOf(e: LoreEntry): string[] {
+/** Small "badges" for the closed row: only what differs from the defaults (also on the Assistant's new-lorebook card, D-152). */
+export function badgesOf(e: LoreEntry): string[] {
   const b: string[] = [];
   if (e.secondaryKeys.length) b.push(`+ ${e.secondaryKeys.slice(0, 2).join(", ")}${e.secondaryKeys.length > 2 ? "…" : ""}`);
   if (e.useProbability && e.probability < 100) b.push(`${e.probability}%`);
