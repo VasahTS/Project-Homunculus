@@ -3,6 +3,21 @@
 What changed in each version. A version's section becomes the text of its download page and the "What's New"
 inside the app, so write it for the people who use the app, not for programmers. New version: add `## X.Y.Z` at the top before publishing.
 
+## 0.6.1 — 2026-11-26
+
+Find cards and content in the Assistant's Add Context the way you do in the Library, and read what the Assistant makes before you save it.
+
+### Assistant
+
+- **Add Context with folders and sort.** Each tab of **Add Context** now has a bar with the open folder's path, **Folders · All** and **Sort**. Folders open like the **Add…** window, and the sort is the Library's own: picking one here changes it there too. Chats sort by Recent, A-Z, Z-A or Most messages and show the sidebar's chat folders.
+- **Better search there.** A search looks in every tab, matches folder names too and shows each item's folder. The first 120 cards appear at once and **Show N More** brings the rest (no more silent cut at 300).
+- **New items you can read.** **See It** on a new item waiting for you shows each field with its label instead of raw JSON. A lorebook's entries look like the editor's rows: keywords as chips, the first line, and the full text and badges when you open one. **Expand All** opens them all, and the line under the name counts the entries.
+- **Edit before saving.** **Edit** changes the texts and each entry's title, keywords and text before you save the item. **View Raw** still shows the JSON.
+
+### Fixes
+
+- After the Assistant moves items into folders, the new folders show right away.
+
 ## 0.6.0 — 2026-11-19
 
 Give each opening its own scenario, edit one branch without touching the others, let the Assistant search the web with the provider you prefer, and use SillyTavern's full macro set with variables that last.
