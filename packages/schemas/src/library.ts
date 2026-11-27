@@ -189,6 +189,15 @@ export const ConnectionProfile = z.object({
     /** Give up when nothing arrives for this long (seconds). Missing = wait as long as it takes. */
     timeoutSec: z.number().int().min(5).max(3600).optional(),
   }).default({}),
+  /**
+   * Which companies run the model (D-154): OpenRouter's and nano-gpt's provider routing, sent as `provider`.
+   * `providers` = their IDs, tried in this order (empty = the service decides); `allowFallbacks` = others may answer
+   * when these fail or are busy.
+   */
+  routing: z.object({
+    providers: z.array(z.string().min(1)).default([]),
+    allowFallbacks: z.boolean().default(true),
+  }).default({ providers: [], allowFallbacks: true }),
   /** Tried when this connection fails before writing anything. */
   fallbackId: Id.nullable().default(null),
   /** Extra fields added to every request body (for options the app has no control for yet). */

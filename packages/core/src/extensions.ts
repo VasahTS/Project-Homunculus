@@ -89,6 +89,8 @@ export interface ConnectionConfig {
     serviceTier?: string;
     frequencyPenalty?: number; presencePenalty?: number; topK?: number; minP?: number; repetitionPenalty?: number;
   };
+  /** The companies that should run the model, in order (D-154); missing = the service decides. */
+  routing?: { providers: string[]; allowFallbacks: boolean };
   /** Extra fields for the request body (user-set; providers merge them in). */
   extraBody?: Record<string, unknown>;
   /** The connection profile this came from, when there is one. */
@@ -142,6 +144,30 @@ export interface ProviderDefinition {
    * Answers are the probability that each statement is true. Providers that cannot, leave it out.
    */
   decide?(req: DecisionRequest): Promise<DecisionAnswer>;
+  /** The companies that run the connection's model, when the service can route (D-154). Throws a readable Error otherwise. */
+  listRoutes?(connection: ConnectionConfig, signal?: AbortSignal): Promise<RouteList>;
+}
+
+/** One company that runs a model on a routing service (OpenRouter, nano-gpt). D-154. */
+export interface RouteInfo {
+  /** What goes in `provider.order` (OpenRouter's slug, nano-gpt's provider ID). */
+  id: string;
+  name: string;
+  /** Dollars per million tokens. */
+  price?: { input?: number; output?: number };
+  /** e.g. "fp8", "bf16"; missing when the service doesn't say. */
+  quantization?: string;
+  contextLength?: number;
+  /** False when the service says it is down or full right now. */
+  available?: boolean;
+}
+
+export interface RouteList {
+  /** False when the service runs this model one way only (nano-gpt: "doesn't support provider selection"). */
+  selectable: boolean;
+  routes: RouteInfo[];
+  /** Something the user should know before picking (e.g. how picking is billed). */
+  note?: string;
 }
 
 export interface DecisionRequest {

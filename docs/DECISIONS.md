@@ -1768,3 +1768,17 @@ Daniel (translated): "Can you add this option to the connections: NanoGPT [Flex 
 - Tests: provider (body, model list), core (`profileToConfig`), `connections.e2e.ts` "Service Tier".
 
 Signed: **CLAUDE**.
+
+## D-154 — Model Providers per connection: who runs the model on OpenRouter and nano-gpt (2026-11-27)
+
+Daniel (translated): "Can you add Model Providers [as in SillyTavern's OpenRouter settings]? Then I can pick the routing of the models on both nano-gpt and OpenRouter."
+
+- **Where**: Settings → Connections → a connection → **Model Providers** (under Service Tier). "Choose" opens the list of companies that run the connection's model, cheapest first, each with quantization, context, price per M tokens and "down or full right now". Clicking one adds it to the end of the order; the picked ones show below as a numbered list with ↑ ↓ ×, then **Allow Fallback Providers** (on by default, as on both services). None picked = the service decides, and nothing is sent.
+- **What is sent**: `provider: { order: [...], allow_fallbacks }`, the same object on both services (OpenRouter's provider routing; nano-gpt's Provider Selection). An extra `provider` object in Extra Body is merged into it, so quantizations, sort, max_price etc. still work from there.
+- **Where the list comes from**: OpenRouter `GET /api/v1/models/{author}/{slug}/endpoints`, grouped by the base slug (`deepinfra/fp4` → `deepinfra`, which matches all that company's endpoints); its Flex/Priority endpoints are left out because Service Tier (D-153) picks those. nano-gpt `GET /api/models/{id with %2F}/providers` (outside `/api/v1`, prices per 1k tokens); when it says `supportsProviderSelection: false` (e.g. the Gemini models) the list explains the model has one route and can't be picked.
+- **nano-gpt billing**: a picked provider is pay-as-you-go at that provider's price plus about 5%, outside a subscription — said in the list, since it changes what the user pays.
+- Shown only for addresses that can route (OpenRouter, nano-gpt); if the address changes after picking, the row stays with a warning so the picks can be removed. The list is per address + model; a pick the new model doesn't offer is marked "not offered for this model".
+- The connection list shows "· via wafer +1".
+- Tests: provider (body, both list shapes, addresses), core (`profileToConfig`), `connections.e2e.ts` "Model Providers".
+
+Signed: **CLAUDE**.

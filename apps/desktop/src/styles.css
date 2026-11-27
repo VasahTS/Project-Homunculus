@@ -412,6 +412,10 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .model-name { font-weight: 500; }
 .model-id { font-size: 12px; color: var(--label-2); font-family: var(--font-mono); word-break: break-all; }
 .model-meta { font-size: 12px; color: var(--label-2); }
+/* D-154: the picked model providers, in the order they are tried */
+.route-order { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 2px; }
+.route-order li { display: flex; align-items: baseline; gap: 10px; padding: 6px 8px; border-radius: var(--radius-control); background: var(--field); }
+.route-order .route-name { font-weight: 500; }
 
 /* ---------------------------------------------------------------- slice 2 (2026-10-28, D-021): presets */
 .block-row { padding: 6px 10px; border-radius: calc(8px * var(--round)); }

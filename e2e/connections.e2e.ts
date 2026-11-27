@@ -267,3 +267,64 @@ test("Service Tier: Flex goes out as service_tier, the model's tiers are shown, 
   await expect.poll(() => sent.length).toBe(2);
   expect(sent.at(-1)).not.toHaveProperty("service_tier");
 });
+
+// D-154: Model Providers — pick who runs the model on OpenRouter / nano-gpt; sent as provider.order.
+test("Model Providers: picked in order, sent as provider.order, fallback switch, nano-gpt's one-route note", async ({ page }) => {
+  const sent: Array<Record<string, any>> = [];
+  await page.route("https://openrouter.ai/api/v1/models/z-ai/glm-5.3/endpoints", async (route) => {
+    await route.fulfill({ json: { data: { endpoints: [
+      { provider_name: "Wafer", tag: "wafer/fp4", quantization: "fp4", context_length: 262144, status: 0, pricing: { prompt: "0.00000007", completion: "0.0000011" } },
+      { provider_name: "DeepInfra", tag: "deepinfra/fp8", quantization: "fp8", context_length: 202752, status: 0, pricing: { prompt: "0.00000045", completion: "0.0000018" } },
+      { provider_name: "DeepInfra", tag: "deepinfra/fp4/flex", service_tier: "flex", quantization: "fp4", status: 0, pricing: { prompt: "0.0000002", completion: "0.000001" } },
+      { provider_name: "Z.AI", tag: "z-ai", quantization: "unknown", context_length: 202752, status: -3, pricing: { prompt: "0.0000014", completion: "0.0000044" } },
+    ] } } });
+  });
+  await page.route("https://nano-gpt.com/api/models/google%2Fgemini-3.7-flash/providers", async (route) => {
+    await route.fulfill({ json: { canonicalId: "google/gemini-3.7-flash", supportsProviderSelection: false, providerDetails: [{ provider: "google", available: true }] } });
+  });
+  await page.route("https://openrouter.ai/api/v1/chat/completions", async (route) => {
+    sent.push(route.request().postDataJSON());
+    await route.fulfill({ contentType: "text/event-stream", body: sse("OK") });
+  });
+  await page.goto("/");
+  await openSettings(page);
+  await page.getByRole("button", { name: "New Connection" }).click();
+  const conn = editor(page);
+  await conn.getByLabel("Model", { exact: true }).fill("z-ai/glm-5.3");
+  await expect(conn).toContainText("Service decides");
+  await conn.getByRole("button", { name: "Choose" }).click();
+  const picker = page.getByTestId("route-picker");
+  await expect(picker).toContainText("3 providers for z-ai/glm-5.3, cheapest first");
+  await expect(picker).toContainText("down or full right now");
+  await picker.getByRole("button", { name: /DeepInfra/ }).click();
+  await picker.getByRole("button", { name: /Wafer/ }).click();
+  await conn.screenshot({ path: "e2e/.results/model-providers.png" });
+  await conn.getByRole("button", { name: "Done" }).click();
+  const order = page.getByTestId("route-order");
+  await expect(order.locator("li")).toHaveText([/DeepInfra/, /Wafer/]);
+  await conn.getByRole("button", { name: "Move Wafer up" }).click();
+  await expect(order.locator("li")).toHaveText([/Wafer/, /DeepInfra/]);
+  await conn.getByRole("switch", { name: "Allow fallback providers" }).click();
+  await conn.screenshot({ path: "e2e/.results/model-providers-order.png" });
+
+  await conn.getByRole("button", { name: "Test Connection" }).click();
+  await expect(page.getByTestId("test-result")).toContainText("Works");
+  expect(sent.at(-1)?.provider).toEqual({ order: ["wafer", "deepinfra"], allow_fallbacks: false });
+  await conn.getByRole("button", { name: "Create Connection" }).click();
+  await expect(page.getByTestId("connection-list")).toContainText("z-ai/glm-5.3 · via wafer +1");
+
+  // removing both: nothing is sent
+  await conn.getByRole("button", { name: "Remove Wafer" }).click();
+  await conn.getByRole("button", { name: "Remove DeepInfra" }).click();
+  await expect(conn).toContainText("Service decides");
+  await conn.getByRole("button", { name: "Test Connection" }).click();
+  await expect.poll(() => sent.length).toBe(2);
+  expect(sent.at(-1)).not.toHaveProperty("provider");
+
+  // nano-gpt: a model with one route says so, and can't be picked
+  await conn.getByLabel("Address", { exact: true }).fill("https://nano-gpt.com/api/v1");
+  await conn.getByLabel("Model", { exact: true }).fill("google/gemini-3.7-flash");
+  await conn.getByRole("button", { name: "Choose" }).click();
+  await expect(page.getByTestId("route-note")).toContainText("doesn't let you pick the provider");
+  await expect(page.getByTestId("route-picker").getByRole("button", { name: /google/ })).toBeDisabled();
+});

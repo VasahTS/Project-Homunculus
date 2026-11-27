@@ -1,7 +1,7 @@
 // Tests for the OpenAI-compatible provider, with simulated AI answers. Author: CLAUDE, 2026-10-23.
 import { describe, expect, it } from "vitest";
 import type { StreamChunk } from "@homunculus/core";
-import { listModels, parseModels, streamChat } from "../src/index.ts";
+import { listModels, listRoutes, parseModels, parseNanoGptProviders, parseOpenRouterEndpoints, routingService, streamChat } from "../src/index.ts";
 
 /** Builds a fake streaming response, split into awkward chunks like real networks do. */
 function sseResponse(lines: string[], chunkSize = 7, status = 200): Response {
@@ -111,6 +111,62 @@ describe("OpenAI-compatible provider", () => {
     expect(list.find((m) => m.id === "google/gemini-3.5-flash")?.serviceTiers).toEqual(["flex", "fast", "priority"]);
     expect(list.find((m) => m.id === "only-standard")?.serviceTiers).toEqual([]);
     expect(list.find((m) => m.id === "unknown")).not.toHaveProperty("serviceTiers");
+  });
+
+  it("sends the picked providers as provider.order and merges an extra provider object (D-154)", async () => {
+    const bodies: any[] = [];
+    const fetchFn = async (_u: string, init: RequestInit) => { bodies.push(JSON.parse(String(init.body))); return sseResponse(["data: [DONE]"]); };
+    await collect(streamChat({ ...req, connection: { ...req.connection, routing: { providers: ["deepinfra", "wafer"], allowFallbacks: false } } }, fetchFn));
+    await collect(streamChat({ ...req, connection: { ...req.connection, routing: { providers: ["deepinfra"], allowFallbacks: true }, extraBody: { provider: { quantizations: ["fp8"] } } } }, fetchFn));
+    await collect(streamChat(req, fetchFn));
+    expect(bodies[0].provider).toEqual({ order: ["deepinfra", "wafer"], allow_fallbacks: false });
+    expect(bodies[1].provider).toEqual({ order: ["deepinfra"], allow_fallbacks: true, quantizations: ["fp8"] });
+    expect("provider" in bodies[2]).toBe(false);
+  });
+
+  it("knows which addresses can route (D-154)", () => {
+    expect(routingService(undefined)).toBe("openrouter");
+    expect(routingService("https://openrouter.ai/api/v1")).toBe("openrouter");
+    expect(routingService("https://nano-gpt.com/api/v1")).toBe("nano-gpt");
+    expect(routingService("http://localhost:5001/v1")).toBeUndefined();
+  });
+
+  it("reads OpenRouter's endpoints as one row per company, without the Flex/Priority endpoints (D-154)", () => {
+    const list = parseOpenRouterEndpoints({ data: { endpoints: [
+      { provider_name: "Wafer", tag: "wafer/us", quantization: "fp4", context_length: 200000, status: 0, pricing: { prompt: "0.0000000699", completion: "0.0000011" } },
+      { provider_name: "Wafer", tag: "wafer/fp4", quantization: "fp4", context_length: 262144, status: 0, pricing: { prompt: "0.000000179", completion: "0.0000012" } },
+      { provider_name: "DeepInfra", tag: "deepinfra/fp4/flex", service_tier: "flex", quantization: "fp4", status: 0, pricing: { prompt: "0.00000045", completion: "0.000002" } },
+      { provider_name: "Z.AI", tag: "z-ai", quantization: "unknown", status: -5, pricing: { prompt: "0.0000014", completion: "0.0000044" } },
+    ] } });
+    expect(list.selectable).toBe(true);
+    expect(list.routes.map((r) => r.id)).toEqual(["wafer", "z-ai"]);
+    expect(list.routes[0]).toMatchObject({ name: "Wafer", quantization: "fp4", contextLength: 262144, available: true });
+    expect(list.routes[0]!.price!.input).toBeCloseTo(0.0699);
+    expect(list.routes[1]).toMatchObject({ available: false });
+    expect(list.routes[1]).not.toHaveProperty("quantization");
+  });
+
+  it("reads nano-gpt's providers, and says when a model can't be routed (D-154)", () => {
+    const glm = parseNanoGptProviders({ canonicalId: "z-ai/glm-5.3", supportsProviderSelection: true, providers: [
+      { provider: "zai", displayName: "Z.AI", available: true, maxInputTokens: 200000, effectivePricing: { effective_price: { inputPer1kTokens: 0.00147, outputPer1kTokens: 0.00462 } } },
+      { provider: "runinfra", displayName: "RunInfra", available: false, quantization: "nvfp4", pricing: { inputPer1kTokens: 0.0001953, outputPer1kTokens: 0.003108 } },
+    ] });
+    expect(glm.selectable).toBe(true);
+    expect(glm.routes.map((r) => r.id)).toEqual(["runinfra", "zai"]);
+    expect(glm.routes[1]!.price!.input).toBeCloseTo(1.47);
+    expect(glm.note).toContain("pay-as-you-go");
+    const gemini = parseNanoGptProviders({ canonicalId: "google/gemini-3.7-flash", supportsProviderSelection: false, providerDetails: [{ provider: "google", available: true }] });
+    expect(gemini.selectable).toBe(false);
+    expect(gemini.note).toContain("one way only");
+  });
+
+  it("asks the right address for the provider list (D-154)", async () => {
+    const asked: string[] = [];
+    const fetchFn = async (u: string) => { asked.push(u); return new Response(JSON.stringify(u.includes("nano") ? { supportsProviderSelection: true, providers: [] } : { data: { endpoints: [] } }), { status: 200 }); };
+    await listRoutes({ providerId: "openai-compatible", model: "z-ai/glm-5.3" }, fetchFn);
+    await listRoutes({ providerId: "openai-compatible", model: "z-ai/glm-5.3", baseUrl: "https://nano-gpt.com/api/v1" }, fetchFn);
+    expect(asked).toEqual(["https://openrouter.ai/api/v1/models/z-ai/glm-5.3/endpoints", "https://nano-gpt.com/api/models/z-ai%2Fglm-5.3/providers"]);
+    await expect(listRoutes({ providerId: "openai-compatible", model: "x", baseUrl: "http://localhost:5001/v1" }, fetchFn)).rejects.toThrow("OpenRouter and nano-gpt");
   });
 
   it("explains HTTP errors in plain words", async () => {

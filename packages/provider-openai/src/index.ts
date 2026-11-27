@@ -1,6 +1,6 @@
 // Homunculus 2 — module: OpenAI-compatible chat provider (OpenRouter, OpenAI, many local servers).
 // Author: CLAUDE, 2026-10-23.
-import type { ConnectionConfig, DecisionAnswer, DecisionRequest, GenerateRequest, HomunculusModule, ModelInfo, RichTurn, StreamChunk, ToolCall } from "@homunculus/core";
+import type { ConnectionConfig, DecisionAnswer, DecisionRequest, GenerateRequest, HomunculusModule, ModelInfo, RichTurn, RouteInfo, RouteList, StreamChunk, ToolCall } from "@homunculus/core";
 
 export const OPENROUTER_URL = "https://openrouter.ai/api/v1";
 
@@ -75,9 +75,13 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
   if (p.reasoningEffort) body.reasoning = { effort: p.reasoningEffort };
   // D-153: nano-gpt and OpenRouter take `service_tier` ("flex" cheaper, "priority" faster); services without tiers ignore it
   if (p.serviceTier) body.service_tier = p.serviceTier;
-  // the user's extra fields win, except the ones the app needs to work (model, messages, stream)
+  // D-154: OpenRouter and nano-gpt take the same `provider` object (order + allow_fallbacks)
+  if (connection.routing?.providers.length) body.provider = { order: [...connection.routing.providers], allow_fallbacks: connection.routing.allowFallbacks };
+  // the user's extra fields win, except the ones the app needs to work (model, messages, stream);
+  // an extra `provider` object is merged into the one above, so both can be used
   for (const [k, v] of Object.entries(connection.extraBody ?? {})) {
-    if (k !== "messages" && k !== "stream" && k !== "model" && k !== "tools") body[k] = v;
+    if (k === "messages" || k === "stream" || k === "model" || k === "tools") continue;
+    body[k] = k === "provider" && isPlainObject(v) && isPlainObject(body.provider) ? { ...body.provider, ...v } : v;
   }
 
   let res: Response;
@@ -236,6 +240,105 @@ export async function listModels(connection: ConnectionConfig, fetchFn: FetchLik
   return parseModels(await res.json());
 }
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+
+/** Which routing service an address is (D-154); undefined = one that can't pick the company running a model. */
+export function routingService(baseUrl: string | undefined): "openrouter" | "nano-gpt" | undefined {
+  const base = (baseUrl?.trim() || OPENROUTER_URL).toLowerCase();
+  if (/^https?:\/\/([a-z0-9-]+\.)?openrouter\.ai(\/|$)/.test(base)) return "openrouter";
+  if (/^https?:\/\/([a-z0-9-]+\.)?nano-gpt\.com(\/|$)/.test(base)) return "nano-gpt";
+  return undefined;
+}
+
+const byPrice = (a: RouteInfo, b: RouteInfo) =>
+  ((a.price?.input ?? 1e9) + (a.price?.output ?? 1e9)) - ((b.price?.input ?? 1e9) + (b.price?.output ?? 1e9)) || a.name.localeCompare(b.name);
+
+/**
+ * OpenRouter's `/models/{id}/endpoints`, one row per company (D-154). Its endpoints are slugs like "deepinfra/fp4";
+ * the base slug ("deepinfra") matches all of them, so that is what is offered. Flex/Priority endpoints are left
+ * out: Service Tier picks those (a base slug doesn't match them).
+ */
+export function parseOpenRouterEndpoints(json: unknown): RouteList {
+  const list = (json as { data?: { endpoints?: unknown } })?.data?.endpoints;
+  if (!Array.isArray(list)) throw new Error("OpenRouter's provider list has an unexpected shape.");
+  const groups = new Map<string, RouteInfo & { quants: Set<string> }>();
+  for (const e of list as Array<Record<string, any>>) {
+    const tag = typeof e?.tag === "string" ? e.tag : "";
+    if (!tag || e.service_tier || /\/(flex|priority)$/i.test(tag)) continue;
+    const id = tag.split("/")[0]!;
+    const input = num(e.pricing?.prompt), output = num(e.pricing?.completion);
+    const price = input !== undefined || output !== undefined
+      ? { ...(input !== undefined ? { input: input * 1_000_000 } : {}), ...(output !== undefined ? { output: output * 1_000_000 } : {}) } : undefined;
+    const g = groups.get(id) ?? { id, name: typeof e.provider_name === "string" ? e.provider_name : id, quants: new Set<string>(), available: false };
+    if (price && (!g.price || (price.input ?? 1e9) < (g.price.input ?? 1e9))) g.price = price;
+    if (typeof e.quantization === "string" && e.quantization !== "unknown") g.quants.add(e.quantization);
+    const ctx = num(e.context_length);
+    if (ctx && ctx > (g.contextLength ?? 0)) g.contextLength = ctx;
+    // status 0 = fine; below 0 = degraded or down right now
+    if (typeof e.status !== "number" || e.status >= 0) g.available = true;
+    groups.set(id, g);
+  }
+  const routes = [...groups.values()].map(({ quants, ...r }) => ({ ...r, ...(quants.size ? { quantization: [...quants].join(", ") } : {}) }));
+  return { selectable: routes.length > 1, routes: routes.sort(byPrice) };
+}
+
+/** nano-gpt's `/api/models/{id}/providers` (D-154). Prices there are per 1,000 tokens. */
+export function parseNanoGptProviders(json: unknown): RouteList {
+  const d = json as Record<string, any> | null;
+  if (!d || typeof d !== "object") throw new Error("nano-gpt's provider list has an unexpected shape.");
+  const rows = (Array.isArray(d.providers) ? d.providers : Array.isArray(d.providerDetails) ? d.providerDetails : []) as Array<Record<string, any>>;
+  const routes: RouteInfo[] = [];
+  for (const p of rows) {
+    if (!p || typeof p.provider !== "string") continue;
+    const pr = p.effectivePricing?.effective_price ?? p.pricing ?? {};
+    const input = num(pr.inputPer1kTokens), output = num(pr.outputPer1kTokens);
+    routes.push({
+      id: p.provider,
+      name: typeof p.displayName === "string" && p.displayName.trim() ? p.displayName : p.provider,
+      ...(input !== undefined || output !== undefined ? { price: { ...(input !== undefined ? { input: input * 1000 } : {}), ...(output !== undefined ? { output: output * 1000 } : {}) } } : {}),
+      ...(typeof p.quantization === "string" && p.quantization !== "unknown" ? { quantization: p.quantization } : {}),
+      ...(num(p.maxInputTokens) ? { contextLength: num(p.maxInputTokens) } : {}),
+      ...(typeof p.available === "boolean" ? { available: p.available } : {}),
+    });
+  }
+  const selectable = d.supportsProviderSelection === true;
+  return {
+    selectable,
+    routes: routes.sort(byPrice),
+    note: selectable
+      ? "On nano-gpt, a picked provider is billed pay-as-you-go at its price plus about 5%, even with a subscription."
+      : "nano-gpt runs this model one way only: it doesn't let you pick the provider.",
+  };
+}
+
+/** The companies that run the connection's model, from OpenRouter or nano-gpt (D-154). */
+export async function listRoutes(connection: ConnectionConfig, fetchFn: FetchLike, signal?: AbortSignal): Promise<RouteList> {
+  const service = routingService(connection.baseUrl);
+  const model = connection.model.trim();
+  if (!service) throw new Error("This service doesn't let you pick who runs the model. OpenRouter and nano-gpt do.");
+  if (!model) throw new Error("Pick a model first.");
+  const base = (connection.baseUrl?.trim() || OPENROUTER_URL).replace(/\/+$/, "");
+  // OpenRouter: <base>/models/<author>/<slug>/endpoints; nano-gpt: <origin>/api/models/<id with %2F>/providers
+  const url = service === "openrouter"
+    ? `${base}/models/${model.split("/").map(encodeURIComponent).join("/")}/endpoints`
+    : `${new URL(base).origin}/api/models/${encodeURIComponent(model)}/providers`;
+  const headers: Record<string, string> = {};
+  if (connection.apiKey) headers.Authorization = `Bearer ${connection.apiKey}`;
+  let res: Response;
+  try {
+    res = await fetchFn(url, { method: "GET", headers, signal });
+  } catch (e) {
+    throw new Error(`Could not reach ${base}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (res.status === 404) throw new Error(`The service doesn't know the model "${model}". Check its ID (Browse).`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`The AI service answered ${res.status} to the provider list: ${text.slice(0, 200) || res.statusText}`);
+  }
+  const json = await res.json();
+  return service === "openrouter" ? parseOpenRouterEndpoints(json) : parseNanoGptProviders(json);
+}
+
 /**
  * Yes/no questions in TypeSafe's System One format at `POST <address>/decisions`.
  * Each question is a `noul`; the answer is the probability that it is true. CODEX, 2026-11-05.
@@ -288,6 +391,7 @@ export function createOpenAICompatibleModule(fetchFn: FetchLike = (i, init) => f
         stream: (req) => streamChat(req, fetchFn),
         listModels: (connection, signal) => listModels(connection, fetchFn, signal),
         decide: (req) => decide(req, fetchFn),
+        listRoutes: (connection, signal) => listRoutes(connection, fetchFn, signal),
       });
     },
   };

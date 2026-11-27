@@ -1,5 +1,14 @@
 # HANDOFF — Homunculus 2
 
+## Model Providers per connection (OpenRouter and nano-gpt routing) (2026-11-27) — CLAUDE — D-154
+
+- Daniel: add SillyTavern's "Model Providers" so he can pick who runs a model on both nano-gpt and OpenRouter. (Context: nano-gpt paused Flex on Gemini 3.7/3.8 Flash and Gemini 4 Carbon/Argon; their list already says so, D-153 shows it.)
+- Built: Settings → Connections → **Model Providers** → Choose: the companies running the model (cheapest first, quantization, context, price, down/full); picked ones in order with ↑ ↓ ×; **Allow Fallback Providers**. Sends `provider: { order, allow_fallbacks }`.
+- **To try (Windows):** Pull origin → open the app → Settings → Connections → an OpenRouter or nano-gpt connection with GLM 5.3 → Model Providers → Choose → pick one or two → Save → Test Connection. On OpenRouter's activity page the call shows the provider you picked. On nano-gpt, Gemini models say they can't be routed (nano-gpt runs them one way).
+- Not verified live from here: a real call with routing (no keys in the cloud session); both list endpoints were checked live and the tests use their real shapes.
+- Checks: typecheck; unit tests (997); click tests connections, quick-connect, settings-v2 (17).
+- Changelog line for the next release: "**Pick who runs your model.** On OpenRouter and nano-gpt, Settings → Connections → **Model Providers** lists the companies that run the model, with their prices, and lets you pick which ones to use and in what order, with or without fallback to the others. (On nano-gpt, a picked provider is billed pay-as-you-go.)"
+
 ## Service Tier per connection: Standard, Flex, Priority (2026-11-22) — CLAUDE — D-153
 
 - Daniel: add NanoGPT's "Flex + Priority" option to the connections, for models like Gemini, to pay less.

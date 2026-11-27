@@ -17,6 +17,7 @@ import { ChatSection, DataSection, GeneralSection } from "./SettingsSections.tsx
 import { useSlidingPill } from "./motion.ts";
 import { AuthorsNoteGroup } from "./AuthorsNote.tsx";
 import { ParamRows, ServiceTierRow } from "./ConnectionPanel.tsx";
+import { ProviderRoutingRows } from "./ProviderRouting.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import type { Updates } from "../updates.ts";
 import { AboutSection } from "./About.tsx";
@@ -176,7 +177,7 @@ function ConnectionsSection({ c, providers, test, listModels, notify }: {
                 <span className="side-icon big"><Icon name="plug" /></span>
                 <span className="side-text">
                   <strong>{p.name}{p.id === c.defaultId && <span className="badge">default</span>}</strong>
-                  <span>{needsKey(p.providerId) ? (p.model || "no model set") : providerName(p.providerId)}{p.params.reasoningEffort ? ` · thinking ${p.params.reasoningEffort}` : ""}{p.params.serviceTier ? ` · ${p.params.serviceTier}` : ""}</span>
+                  <span>{needsKey(p.providerId) ? (p.model || "no model set") : providerName(p.providerId)}{p.params.reasoningEffort ? ` · thinking ${p.params.reasoningEffort}` : ""}{p.params.serviceTier ? ` · ${p.params.serviceTier}` : ""}{p.routing.providers.length ? ` · via ${p.routing.providers[0]}${p.routing.providers.length > 1 ? ` +${p.routing.providers.length - 1}` : ""}` : ""}</span>
                 </span>
               </button>
             </li>
@@ -332,6 +333,10 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
             <Switch label="Streaming" checked={d.streaming} onChange={(streaming) => set({ streaming })} />
           </Row>}
           {keyed && <ServiceTierRow params={d.params} onChange={(params) => set({ params })} tiers={info?.serviceTiers} />}
+          {keyed && <ProviderRoutingRows baseUrl={d.baseUrl} model={d.model} routing={d.routing} onChange={(routing) => set({ routing })}
+            load={providers.find((p) => p.id === d.providerId)?.listRoutes
+              ? (signal) => providers.find((p) => p.id === d.providerId)!.listRoutes!(profileToConfig(ConnectionProfile.parse({ ...d, fallbackId: null }), c.byId, (p) => c.keyOf(p) || undefined), signal)
+              : undefined} />}
           {keyed && <Row label="This Model Can See Pictures" help={d.vision !== "auto" ? "The Assistant sends pictures to it as they are (Yes) or has them described (No)." : info?.vision === true ? "Auto: the service says it can." : info?.vision === false ? "Auto: the service says it can't." : "Auto: as the service's model list says (Browse once to check)."}>
             {/* D-115: a model that can't see pictures gets them described by the vision model (Assistant → Customize → Pictures) */}
             <Segmented small label="Can see pictures" value={d.vision} onChange={(vision) => set({ vision })}

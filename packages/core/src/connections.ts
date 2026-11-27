@@ -162,6 +162,7 @@ export function profileToConfig(
     params,
     limits: { ...profile.limits },
     ...(profile.vision === "yes" ? { vision: true } : profile.vision === "no" ? { vision: false } : {}),
+    ...(profile.routing.providers.length ? { routing: { providers: [...profile.routing.providers], allowFallbacks: profile.routing.allowFallbacks } } : {}),
     extraBody: Object.keys(profile.extraBody).length ? { ...profile.extraBody } : undefined,
   };
   const next = profile.fallbackId ? all.get(profile.fallbackId) : undefined;
