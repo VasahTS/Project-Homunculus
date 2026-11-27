@@ -85,6 +85,8 @@ export interface ConnectionConfig {
   streaming?: boolean;
   params?: {
     temperature?: number; maxTokens?: number; topP?: number; reasoningEffort?: string;
+    /** "flex" (cheaper, slower) or "priority" (faster, costs more); sent as `service_tier` (D-153). */
+    serviceTier?: string;
     frequencyPenalty?: number; presencePenalty?: number; topK?: number; minP?: number; repetitionPenalty?: number;
   };
   /** Extra fields for the request body (user-set; providers merge them in). */
@@ -121,6 +123,8 @@ export interface ModelInfo {
   reasoning?: boolean;
   /** Reasoning effort levels the model accepts (undefined = not known / all). */
   efforts?: string[];
+  /** Processing tiers this model offers besides the standard one (nano-gpt's list: flex, fast, priority…). D-153. */
+  serviceTiers?: string[];
   /** The model takes pictures as input (undefined = the service didn't say). D-115. */
   vision?: boolean;
 }

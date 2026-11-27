@@ -16,7 +16,7 @@ import { Button, Group, Icon, Row, Segmented, SettingsLook, Switch, SaveButton }
 import { ChatSection, DataSection, GeneralSection } from "./SettingsSections.tsx";
 import { useSlidingPill } from "./motion.ts";
 import { AuthorsNoteGroup } from "./AuthorsNote.tsx";
-import { ParamRows } from "./ConnectionPanel.tsx";
+import { ParamRows, ServiceTierRow } from "./ConnectionPanel.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import type { Updates } from "../updates.ts";
 import { AboutSection } from "./About.tsx";
@@ -176,7 +176,7 @@ function ConnectionsSection({ c, providers, test, listModels, notify }: {
                 <span className="side-icon big"><Icon name="plug" /></span>
                 <span className="side-text">
                   <strong>{p.name}{p.id === c.defaultId && <span className="badge">default</span>}</strong>
-                  <span>{needsKey(p.providerId) ? (p.model || "no model set") : providerName(p.providerId)}{p.params.reasoningEffort ? ` · thinking ${p.params.reasoningEffort}` : ""}</span>
+                  <span>{needsKey(p.providerId) ? (p.model || "no model set") : providerName(p.providerId)}{p.params.reasoningEffort ? ` · thinking ${p.params.reasoningEffort}` : ""}{p.params.serviceTier ? ` · ${p.params.serviceTier}` : ""}</span>
                 </span>
               </button>
             </li>
@@ -331,6 +331,7 @@ function ConnectionEditor({ initial, isNew, c, providers, test, listModels, onSa
           {keyed && <Row label="Streaming" help="Off requests the full response at once.">
             <Switch label="Streaming" checked={d.streaming} onChange={(streaming) => set({ streaming })} />
           </Row>}
+          {keyed && <ServiceTierRow params={d.params} onChange={(params) => set({ params })} tiers={info?.serviceTiers} />}
           {keyed && <Row label="This Model Can See Pictures" help={d.vision !== "auto" ? "The Assistant sends pictures to it as they are (Yes) or has them described (No)." : info?.vision === true ? "Auto: the service says it can." : info?.vision === false ? "Auto: the service says it can't." : "Auto: as the service's model list says (Browse once to check)."}>
             {/* D-115: a model that can't see pictures gets them described by the vision model (Assistant → Customize → Pictures) */}
             <Segmented small label="Can see pictures" value={d.vision} onChange={(vision) => set({ vision })}

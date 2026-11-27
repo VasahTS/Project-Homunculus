@@ -3,7 +3,7 @@
 // profiles (created and edited in Settings → Connections), picked per session. Prompt blocks join in slice 2.
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import type { ConnectionProfile, Preset, ReasoningEffort, Session, SetupLayer } from "@homunculus/schemas";
+import type { ConnectionProfile, Preset, ReasoningEffort, ServiceTier, Session, SetupLayer } from "@homunculus/schemas";
 import { SetupFields, type StorySetupProps } from "./SetupFields.tsx";
 import { DEFAULT_PRESET, resolveSetup, type BuiltPrompt, type ProviderDefinition } from "@homunculus/core";
 import type { Tracker } from "../trackers.ts";
@@ -12,7 +12,7 @@ import { PromptBlocks } from "./PromptBlocks.tsx";
 import { NarratorPromptGroup } from "./NarratorPromptGroup.tsx";
 import { PromptSheet } from "./PromptSheet.tsx";
 import { needsKey, type ConnectionState } from "../connection.ts";
-import { Group, Row } from "./kit.tsx";
+import { Group, Row, Segmented } from "./kit.tsx";
 import { Help } from "./Help.tsx";
 
 type ParamKey = "temperature" | "topP" | "maxTokens";
@@ -50,6 +50,37 @@ export function ParamRows({ params, onChange, allowedEfforts }: { params: Params
           })}
         </select>
       </Row>
+    </>
+  );
+}
+
+/** Which of Flex / Priority a model offers, from the service's model list (nano-gpt calls Priority "fast" too). D-153. */
+export function tierSupport(tiers: string[] | undefined): { flex: boolean; priority: boolean } | undefined {
+  if (!tiers) return undefined;
+  return { flex: tiers.includes("flex"), priority: tiers.includes("priority") || tiers.includes("fast") };
+}
+
+const TIER_LABEL: Record<ServiceTier, string> = { flex: "Flex", priority: "Priority" };
+export const TIER_HELP = "Flex: cheaper, slower, may wait when busy. Priority: faster, costs more. Only some models offer them (Browse shows which).";
+
+/** Standard / Flex / Priority for a connection (D-153), with a warning when the model's list says it lacks the tier. */
+export function ServiceTierRow({ params, onChange, tiers }: { params: Params; onChange: (p: Params) => void; tiers?: string[] | undefined }) {
+  const chosen = params.serviceTier;
+  const support = tierSupport(tiers);
+  return (
+    <>
+      <Row label="Service Tier" help={TIER_HELP}>
+        <span data-testid="service-tier">
+          <Segmented<"standard" | ServiceTier> small label="Service tier" value={chosen ?? "standard"}
+            onChange={(v) => { const next = { ...params }; if (v === "standard") delete next.serviceTier; else next.serviceTier = v; onChange(next); }}
+            options={[{ value: "standard", label: "Standard" }, { value: "flex", label: "Flex" }, { value: "priority", label: "Priority" }]} />
+        </span>
+      </Row>
+      {chosen && support && !support[chosen] && (
+        <Row wide><span className="hint warn-text" data-testid="service-tier-note">
+          This model doesn't offer {TIER_LABEL[chosen]}: the service may ignore it or send the call elsewhere.
+        </span></Row>
+      )}
     </>
   );
 }

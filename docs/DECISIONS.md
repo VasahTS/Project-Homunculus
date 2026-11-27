@@ -1757,3 +1757,14 @@ Daniel (translated): "When the Assistant generates an entry you can only see the
 
 Signed: **CLAUDE**.
 
+## D-153 — Service Tier per connection: Standard, Flex, Priority (2026-11-22)
+
+Daniel (translated): "Can you add this option to the connections: NanoGPT [Flex + Priority: Default / Flex / Priority]? It's for models like Gemini, to pay less."
+
+- **Where**: Settings → Connections → a connection → **Service Tier** (Standard · Flex · Priority), right under Streaming; it belongs to the connection (like the address and model), not to the sampling. Shown for every keyed connection: it is a generic OpenAI-compatible field, not a NanoGPT-only switch (rule: nothing specific to one use).
+- **What is sent**: `service_tier: "flex"` or `"priority"` in the request body; Standard sends nothing (the service's own default). nano-gpt (its docs: "Service tiers (Flex and Fast/Priority)") and OpenRouter both accept these values; nano-gpt prefers providers that offer the tier and bills at that tier's rate. "priority" is used rather than nano-gpt's newer "fast" because both services accept it and nano-gpt lists it for every model that has "fast".
+- **Which models**: nano-gpt's detailed model list carries `supported_service_tiers` (read into `ModelInfo.serviceTiers`). Browse shows "Flex + Priority" (or just one) in a model's details; when the chosen tier is not in the model's list, a warning says the service may ignore it or send the call elsewhere. The choice is kept, not blocked: a list can be outdated, and other services don't say.
+- The connection list shows the tier after the model ("google/gemini-3.5-flash · flex"). Agents, trackers and the Assistant use it through the same connection.
+- Tests: provider (body, model list), core (`profileToConfig`), `connections.e2e.ts` "Service Tier".
+
+Signed: **CLAUDE**.

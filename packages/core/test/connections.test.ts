@@ -25,11 +25,11 @@ describe("connection profiles", () => {
   });
 
   it("become call settings with the key, and follow backups without looping", () => {
-    const a = profile("a", { baseUrl: " https://x/v1 ", params: { temperature: 0.5, reasoningEffort: "low" }, fallbackId: "b", extraBody: { seed: 1 } });
+    const a = profile("a", { baseUrl: " https://x/v1 ", params: { temperature: 0.5, reasoningEffort: "low", serviceTier: "flex" }, fallbackId: "b", extraBody: { seed: 1 } });
     const b = profile("b", { fallbackId: "a" });
     const all = new Map([["a", a], ["b", b]]);
     const c = profileToConfig(a, all, (p) => `key-${p.id}`);
-    expect(c).toMatchObject({ profileId: "a", model: "a-model", baseUrl: "https://x/v1", apiKey: "key-a", params: { temperature: 0.5, reasoningEffort: "low" }, extraBody: { seed: 1 } });
+    expect(c).toMatchObject({ profileId: "a", model: "a-model", baseUrl: "https://x/v1", apiKey: "key-a", params: { temperature: 0.5, reasoningEffort: "low", serviceTier: "flex" }, extraBody: { seed: 1 } });
     expect(c.fallback).toMatchObject({ profileId: "b", apiKey: "key-b" });
     expect(c.fallback?.fallback).toBeUndefined(); // b → a would be a loop
   });

@@ -220,3 +220,50 @@ test("Browse: the service's models can be searched and picked; the model's think
   await page.getByRole("switch", { name: "Thinking models only" }).click();
   await expect(list.getByRole("option")).toHaveCount(1);
 });
+
+// D-153: Standard / Flex / Priority per connection; the model list says which tiers a model offers.
+test("Service Tier: Flex goes out as service_tier, the model's tiers are shown, a missing one is flagged", async ({ page }) => {
+  const sent: Array<Record<string, unknown>> = [];
+  await page.route("https://nano-gpt.com/api/v1/models?detailed=true", async (route) => {
+    await route.fulfill({ json: { data: [
+      { id: "google/gemini-3.5-flash", name: "Gemini 3.5 Flash", supported_service_tiers: ["flex", "fast", "priority"],
+        pricing: { prompt: 0.3, completion: 2.5, unit: "per_million_tokens" } },
+      { id: "z-ai/glm-5.3", name: "GLM 5.3", supported_service_tiers: [] },
+    ] } });
+  });
+  await page.route("https://nano-gpt.com/api/v1/chat/completions", async (route) => {
+    sent.push(route.request().postDataJSON());
+    await route.fulfill({ contentType: "text/event-stream", body: sse("OK") });
+  });
+  await page.goto("/");
+  await openSettings(page);
+  await page.getByRole("button", { name: "New Connection" }).click();
+  const conn = editor(page);
+  await conn.getByLabel("Address", { exact: true }).fill("https://nano-gpt.com/api/v1");
+  await conn.getByRole("button", { name: "Browse" }).click();
+  const picker = page.getByTestId("model-picker");
+  await expect(picker).toContainText("Flex + Priority");
+  await picker.getByRole("option", { name: /Gemini 3.5 Flash/ }).click();
+
+  const tier = conn.getByLabel("Service tier");
+  await expect(tier.getByRole("radio", { name: "Standard" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("model-info")).toContainText("Flex + Priority");
+  await expect(page.getByTestId("service-tier-note")).toHaveCount(0);
+  await tier.getByRole("radio", { name: "Flex" }).click();
+  await conn.screenshot({ path: "e2e/.results/service-tier.png" });
+  await conn.getByRole("button", { name: "Test Connection" }).click();
+  await expect(page.getByTestId("test-result")).toContainText("Works");
+  expect(sent.at(-1)).toMatchObject({ model: "google/gemini-3.5-flash", service_tier: "flex" });
+  await conn.getByRole("button", { name: "Create Connection" }).click();
+  await expect(page.getByTestId("connection-list")).toContainText("google/gemini-3.5-flash · flex");
+
+  // a model without Flex: the choice stays, with a warning
+  await conn.getByLabel("Model", { exact: true }).fill("z-ai/glm-5.3");
+  await expect(page.getByTestId("service-tier-note")).toContainText("doesn't offer Flex");
+
+  // back to Standard: nothing is sent
+  await tier.getByRole("radio", { name: "Standard" }).click();
+  await conn.getByRole("button", { name: "Test Connection" }).click();
+  await expect.poll(() => sent.length).toBe(2);
+  expect(sent.at(-1)).not.toHaveProperty("service_tier");
+});

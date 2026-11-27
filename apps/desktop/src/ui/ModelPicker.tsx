@@ -20,6 +20,10 @@ export function modelMeta(m: ModelInfo): string {
   const parts = [fmtContext(m.contextLength)];
   if (m.price) parts.push(`${fmtPrice(m.price.input)} in / ${fmtPrice(m.price.output)} out per M tokens`);
   if (m.reasoning) parts.push(m.efforts ? `thinks (${m.efforts.join(", ")})` : "thinks");
+  // D-153: the cheaper / faster tiers the model offers (nano-gpt lists them; "fast" is its name for Priority)
+  const tiers = m.serviceTiers ?? [];
+  const extra = [tiers.includes("flex") ? "Flex" : "", tiers.includes("priority") || tiers.includes("fast") ? "Priority" : ""].filter(Boolean);
+  if (extra.length) parts.push(extra.join(" + "));
   return parts.filter(Boolean).join(" · ");
 }
 

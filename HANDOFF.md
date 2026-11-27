@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Service Tier per connection: Standard, Flex, Priority (2026-11-22) — CLAUDE — D-153
+
+- Daniel: add NanoGPT's "Flex + Priority" option to the connections, for models like Gemini, to pay less.
+- Built: Settings → Connections → **Service Tier** (Standard · Flex · Priority) under Streaming; sends `service_tier` (nano-gpt and OpenRouter); Browse shows "Flex + Priority" for models whose nano-gpt list offers them; a warning when the chosen tier is not offered by the model.
+- **To try (Windows):** Pull origin → open the app → Settings → Connections → your nano-gpt connection → Browse → pick a Gemini (its details end in "Flex + Priority") → Service Tier: Flex → Save → Test Connection. On nano-gpt's usage page the call should show the flex price.
+- Checks: typecheck; unit tests (992); click tests `connections.e2e.ts` (10).
+- Changelog line for the next release: "**Flex and Priority.** A connection can now ask for a cheaper, slower tier (**Flex**) or a faster, pricier one (**Priority**) in Settings → Connections → **Service Tier**, on nano-gpt and OpenRouter models that offer it (Gemini, GPT and others). Browse shows which models do."
+
 ## Readable new items in the Assistant (no more raw JSON) (2026-11-25) — CLAUDE — D-152
 
 - Daniel: a new lorebook from the Assistant could only be seen as JSON, hard to read.

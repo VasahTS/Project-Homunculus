@@ -152,6 +152,13 @@ export const ReasoningEffort = z.enum(["none", "minimal", "low", "medium", "high
 export type ReasoningEffort = z.infer<typeof ReasoningEffort>;
 
 /**
+ * Which processing tier the service uses (sent as `service_tier`, which nano-gpt and OpenRouter accept; D-153).
+ * Flex: cheaper, slower, may be busy. Priority: faster, costs more. Missing = the service's standard tier.
+ */
+export const ServiceTier = z.enum(["flex", "priority"]);
+export type ServiceTier = z.infer<typeof ServiceTier>;
+
+/**
  * A saved connection: which AI service, address and model, with its own settings. The API key is
  * NOT here: it lives in the Windows Credential Manager, one per provider + address (D-011).
  */
@@ -170,6 +177,7 @@ export const ConnectionProfile = z.object({
     topP: z.number().min(0).max(1).optional(),
     maxTokens: z.number().int().positive().optional(),
     reasoningEffort: ReasoningEffort.optional(),
+    serviceTier: ServiceTier.optional(),
   }).default({}),
   limits: z.object({
     /** At most this many calls at the same time (agents run in parallel). */

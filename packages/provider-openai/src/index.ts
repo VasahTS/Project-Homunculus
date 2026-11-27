@@ -73,6 +73,8 @@ export async function* streamChat(req: GenerateRequest, fetchFn: FetchLike): Asy
   if (p.repetitionPenalty !== undefined) body.repetition_penalty = p.repetitionPenalty;
   // thinking models: OpenRouter and nano-gpt both take { reasoning: { effort } }
   if (p.reasoningEffort) body.reasoning = { effort: p.reasoningEffort };
+  // D-153: nano-gpt and OpenRouter take `service_tier` ("flex" cheaper, "priority" faster); services without tiers ignore it
+  if (p.serviceTier) body.service_tier = p.serviceTier;
   // the user's extra fields win, except the ones the app needs to work (model, messages, stream)
   for (const [k, v] of Object.entries(connection.extraBody ?? {})) {
     if (k !== "messages" && k !== "stream" && k !== "model" && k !== "tools") body[k] = v;
@@ -180,7 +182,8 @@ const num = (v: unknown): number | undefined => {
 
 /**
  * Reads a /models answer into ModelInfo. Understands OpenRouter (prices per token as strings,
- * `reasoning.supported_efforts`) and nano-gpt's detailed list (prices per million, `capabilities.reasoning`);
+ * `reasoning.supported_efforts`) and nano-gpt's detailed list (prices per million, `capabilities.reasoning`,
+ * `supported_service_tiers`);
  * any other OpenAI-compatible server gives at least the ids.
  */
 export function parseModels(json: unknown): ModelInfo[] {
@@ -193,6 +196,7 @@ export function parseModels(json: unknown): ModelInfo[] {
     const perMillion = p.unit === "per_million_tokens";
     const scale = (v: unknown) => { const n = num(v); return n === undefined || n < 0 ? undefined : perMillion ? n : n * 1_000_000; };
     const efforts = Array.isArray(m.reasoning?.supported_efforts) ? (m.reasoning.supported_efforts as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
+    const tiers = Array.isArray(m.supported_service_tiers) ? (m.supported_service_tiers as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
     const input = scale(p.prompt);
     const output = scale(p.completion);
     // OpenRouter: architecture.input_modalities ["text","image"]; nano-gpt (detailed): capabilities.vision
@@ -207,6 +211,8 @@ export function parseModels(json: unknown): ModelInfo[] {
       reasoning: m.reasoning ? true : m.capabilities?.reasoning === true ? true : undefined,
       efforts: efforts?.length ? efforts : undefined,
       vision,
+      // nano-gpt lists the tiers (empty = standard only); missing = the service doesn't say
+      ...(tiers ? { serviceTiers: tiers } : {}),
     });
   }
   return out.sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));

@@ -93,6 +93,26 @@ describe("OpenAI-compatible provider", () => {
     expect(body).toMatchObject({ stream: true, model: "test/model", messages: [{ role: "user", content: "Hi" }] });
   });
 
+  it("sends the service tier only when one is chosen (D-153)", async () => {
+    const bodies: any[] = [];
+    const fetchFn = async (_u: string, init: RequestInit) => { bodies.push(JSON.parse(String(init.body))); return sseResponse(["data: [DONE]"]); };
+    await collect(streamChat({ ...req, connection: { ...req.connection, params: { serviceTier: "flex" } } }, fetchFn));
+    await collect(streamChat(req, fetchFn));
+    expect(bodies[0].service_tier).toBe("flex");
+    expect("service_tier" in bodies[1]).toBe(false);
+  });
+
+  it("reads which tiers a nano-gpt model offers (D-153)", () => {
+    const list = parseModels({ data: [
+      { id: "google/gemini-3.5-flash", supported_service_tiers: ["flex", "fast", "priority"] },
+      { id: "only-standard", supported_service_tiers: [] },
+      { id: "unknown" },
+    ] });
+    expect(list.find((m) => m.id === "google/gemini-3.5-flash")?.serviceTiers).toEqual(["flex", "fast", "priority"]);
+    expect(list.find((m) => m.id === "only-standard")?.serviceTiers).toEqual([]);
+    expect(list.find((m) => m.id === "unknown")).not.toHaveProperty("serviceTiers");
+  });
+
   it("explains HTTP errors in plain words", async () => {
     const fetchFn = async () => new Response('{"error":{"message":"Invalid API key"}}', { status: 401 });
     await expect(collect(streamChat(req, fetchFn))).rejects.toThrow(/answered 401.*Invalid API key/);

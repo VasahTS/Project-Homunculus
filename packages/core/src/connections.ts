@@ -151,6 +151,7 @@ export function profileToConfig(
   if (profile.params.topP !== undefined) params.topP = profile.params.topP;
   if (profile.params.maxTokens !== undefined) params.maxTokens = profile.params.maxTokens;
   if (profile.params.reasoningEffort !== undefined) params.reasoningEffort = profile.params.reasoningEffort;
+  if (profile.params.serviceTier !== undefined) params.serviceTier = profile.params.serviceTier;
   const config: ConnectionConfig = {
     profileId: profile.id,
     providerId: profile.providerId,
