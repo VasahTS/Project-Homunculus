@@ -72,6 +72,17 @@ export function BranchMenu({ info, current, fresh = false, onGo, onRename, onDel
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [find, setFind] = useState("");
+  // the list fits the window and scrolls (Daniel: with 16 branches the old ones were cut off below the window's edge)
+  const pop = useRef<HTMLElement>(null);
+  const [maxH, setMaxH] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!open) { setFind(""); return; }
+    const fit = () => { const el = pop.current; if (el) setMaxH(Math.max(200, window.innerHeight - el.getBoundingClientRect().top - 12)); };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
@@ -80,6 +91,10 @@ export function BranchMenu({ info, current, fresh = false, onGo, onRename, onDel
   }, [open]);
   // the one on screen first, then the most recent (Marinara's Chat Branches list)
   const ordered = [...(current ? [current] : []), ...info.list.filter((b) => b !== current).sort((a, b) => b.lastAt - a.lastAt)];
+  /** A find box once the list is long: by name or by its last line. */
+  const findable = info.list.length > 6;
+  const words = find.trim().toLowerCase();
+  const shown = words ? ordered.filter((b) => `${b.name} ${info.lines[b.endId ?? ""] ?? ""}`.toLowerCase().includes(words)) : ordered;
   const commit = (b: ChatBranch) => { const n = draft.trim(); if (n && n !== b.name) onRename(b, n); setRenaming(null); };
   return (
     <span className="play-wrap">
@@ -91,9 +106,16 @@ export function BranchMenu({ info, current, fresh = false, onGo, onRename, onDel
       {open && (
         <>
           <div className="pop-scrim" onClick={() => setOpen(false)} />
-          <section className="popover branch-pop" aria-label="Branches of this chat" data-testid="branch-list">
+          <section ref={pop} className="popover branch-pop" aria-label="Branches of this chat" data-testid="branch-list" style={maxH ? { maxHeight: maxH } : undefined}>
             <div className="branch-pop-head"><span>Branches · {info.list.length}</span></div>
-            {ordered.map((b) => {
+            {findable && (
+              <label className="search-box branch-find"><Icon name="search" size={13} />
+                <input aria-label="Find a branch" placeholder="Find a branch" value={find} onChange={(e) => setFind(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape" && find) { e.stopPropagation(); setFind(""); } }} /></label>
+            )}
+            <div className="branch-pop-list" data-testid="branch-scroll">
+            {shown.length === 0 && <p className="hint branch-none">No branch matches.</p>}
+            {shown.map((b) => {
               const here = b === current;
               if (deleting === b.recordId) {
                 return (
@@ -127,6 +149,7 @@ export function BranchMenu({ info, current, fresh = false, onGo, onRename, onDel
                 </div>
               );
             })}
+            </div>
             <div className="branch-pop-foot">
               <Button small onClick={() => { setOpen(false); onTree(); }} data-testid="show-tree">Show Tree</Button>
               {current && <Button small onClick={() => { setOpen(false); onSeparate(current); }} title="A new chat with this branch's messages and world state">Make a Separate Chat</Button>}

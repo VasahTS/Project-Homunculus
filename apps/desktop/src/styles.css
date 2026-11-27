@@ -1410,6 +1410,13 @@ mark { background: rgba(227, 194, 127, 0.35); color: inherit; border-radius: cal
   background: var(--pop); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--glass-edge); color: var(--label); white-space: normal; font-weight: 400; font-size: var(--size-ui); }
 /* one column that can shrink: a long last line used to push the "you are here" row out past the list's edge */
 .branch-pop, .fork-pop { grid-template-columns: minmax(0, 1fr); }
+/* the head, the find box and the foot stay; the rows scroll (max-height is set from the window in Branches.tsx) */
+.branch-pop { display: flex; flex-direction: column; max-height: 70vh; }
+.branch-pop-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 2px; }
+.branch-pop-list > * { flex: none; }
+.branch-find { margin: 0 4px 6px; flex: none; }
+.branch-none { padding: 12px 8px; }
+.branch-pop-head, .branch-pop-foot { flex: none; }
 .branch-row { min-width: 0; }
 .branch-pop-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px 6px; font-size: 12px; font-weight: 600; color: var(--label-2); }
 .branch-row { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px; border-radius: calc(8px * var(--round)); min-height: 52px; }
@@ -2539,7 +2546,11 @@ body.h2-dragging, body.h2-dragging * { cursor: grabbing !important; user-select:
 .asst-used { font-size: 11px; color: var(--label-3); }
 .asst-picker .modal-body { padding: 0; display: flex; flex-direction: column; min-height: 0; }
 .asst-picker-search { width: 280px; }
-.asst-picker-body { flex: 1; min-height: 0; display: flex; }
+.asst-picker-body { flex: 1; min-height: 160px; display: flex; }
+/* a definite height, so the cards give way to the chat's branch/range/preview below instead of the window scrolling (D-155) */
+.sheet.modal-wide.asst-picker { height: min(880px, 100%); }
+.asst-picker .modal-body { overflow: hidden; flex: 1 1 0; }
+.asst-picker .modal-body > .modal-foot { position: static; margin-bottom: 0; }
 .asst-kinds { width: 180px; flex: none; border-right: 1px solid var(--separator); padding: 10px 8px; display: grid; align-content: start; gap: 2px; overflow-y: auto; }
 .asst-kinds button { display: flex; justify-content: space-between; border: 0; background: none; padding: 8px 10px; border-radius: calc(8px * var(--round)); color: var(--label-2); cursor: pointer; font-size: 13px; text-align: left; }
 .asst-kinds button.on, .asst-kinds button:hover { background: var(--fill); color: var(--label); }
@@ -4322,6 +4333,28 @@ body.sc-dragging, body.sc-dragging * { cursor: grabbing !important; user-select:
 .asst-range { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 16px; border-top: 1px solid var(--separator); font-size: 12.5px; color: var(--label-2); }
 .asst-range b { color: var(--label); font-weight: 500; }
 .asst-range input { width: 72px; }
+/* Add Context, a picked chat (D-155): branch, range and a preview of what goes to the Assistant */
+.asst-chatpick { border-top: 1px solid var(--separator); }
+.asst-chatpick .asst-range { border-top: 0; row-gap: 8px; }
+.asst-chatpick-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asst-chatpick-field { display: inline-flex; align-items: center; gap: 6px; }
+.asst-chatpick-field select { max-width: 260px; }
+.asst-chatpick-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.asst-chatpick-tabs button { border: 0; background: var(--fill); color: var(--label-2); font: inherit; padding: 3px 10px; border-radius: var(--radius-pill); cursor: pointer; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asst-chatpick-tabs button.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--label); }
+.asst-preview { padding: 0 16px 10px; }
+.asst-preview-head { font-size: 12px; color: var(--label-2); padding: 2px 0 6px; }
+.asst-preview-list { max-height: min(280px, 32vh); overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 2px; grid-template-columns: minmax(0, 1fr);
+  border-radius: var(--radius-group); background: var(--fill); padding: 4px; }
+.asst-preview-msg { display: grid; gap: 2px; text-align: left; border: 0; background: transparent; color: var(--label); font: inherit; padding: 6px 8px; border-radius: calc(6px * var(--round)); cursor: pointer; min-width: 0; }
+.asst-preview-msg:hover { background: var(--fill-hover); }
+.asst-preview-who { font-size: 12px; font-weight: 600; color: var(--label-2); display: flex; align-items: center; gap: 6px; }
+.asst-preview-n { font-variant-numeric: tabular-nums; font-weight: 500; }
+.asst-preview-text { font-family: var(--font-prose); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.asst-preview-msg.user .asst-preview-text { font-family: inherit; }
+.asst-preview-msg.open .asst-preview-text { display: block; -webkit-line-clamp: unset; }
+.asst-preview-gap { text-align: center; font-size: 12px; color: var(--label-2); padding: 6px; }
 /* D-140: a tracker's field set, picked in Add Context */
 .asst-sets { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px; border-top: 1px solid var(--separator); font-size: 12.5px; color: var(--label-2); }
 .asst-sets-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

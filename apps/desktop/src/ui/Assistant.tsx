@@ -38,6 +38,8 @@ import { usePrefs } from "../prefs.ts";
 import type { AssistantState, LibraryEntry } from "./AssistantShell.tsx";
 import { childrenOf, Faces, folderAndBelow, FolderMark, folderLabel, folderPath } from "./Folders.tsx";
 import { SortSelect, useCollectionOrder } from "./CollectionOrder.tsx";
+import { loadBranches, type BranchesInfo } from "./Branches.tsx";
+import type { Message } from "@homunculus/schemas";
 import { ago, useChatOrganization } from "../chatOrganization.ts";
 export type { AppMode, AssistantState, LibraryEntry } from "./AssistantShell.tsx";
 
@@ -452,7 +454,7 @@ export function AssistantView({ svc, st, connection, library, libraryFolders = [
       <input ref={fileInput} type="file" multiple hidden accept=".json,.jsonl,.md,.markdown,.txt,.csv,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif" data-testid="assistant-file"
         onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; if (fs.length) void addFiles(fs); }} />
       {comic && <ComicImport onClose={() => setComic(false)} onStart={(t, p, o) => { setComic(false); void sendComic(t, p, o); }} costHint={comicCost} />}
-      {picking && <ContextPicker library={library} folders={libraryFolders} startKind={picking === "chat" ? "chat" : undefined} firstIds={screenChats} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
+      {picking && <ContextPicker svc={svc} library={library} folders={libraryFolders} startKind={picking === "chat" ? "chat" : undefined} firstIds={screenChats} picked={atts.filter((a): a is Extract<AssistantAttachment, { type: "item" }> => a.type === "item")}
         onClose={() => setPicking(false)}
         onAdd={(items) => { setAtts((a) => [...a.filter((x) => x.type !== "item"), ...items]); setPicking(false); }} />}
       {viewing && chat && settings && <RequestView chat={chat} messageId={viewing} settings={settings} svc={svc} route={route} onClose={() => setViewing(null)} />}
@@ -929,7 +931,96 @@ const PICK_STEP = 120;
 const readLocal = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
 const writeLocal = (key: string, v: string) => { try { localStorage.setItem(key, v); } catch { /* per viewer only */ } };
 
-function ContextPicker({ library, folders: libraryFolders = [], picked, onAdd, onClose, startKind, firstIds = [] }: {
+interface ChatPickOpts { from: string; to: string; branch?: string | undefined }
+interface ChatPickData { info: BranchesInfo; messages: Map<string, Message> }
+const newestBranch = (info: BranchesInfo) => [...info.list].sort((a, b) => b.lastAt - a.lastAt)[0];
+/** Preview: up to this many messages are drawn; a longer range shows its start and its end around a gap. */
+const PREVIEW_MAX = 120;
+
+/**
+ * Add Context, a picked chat (D-155): which branch, which messages, and a preview of exactly what goes to the Assistant,
+ * numbered as the chat and the Assistant number them.
+ */
+function ChatPick({ svc, chats, chat, onTab, library, opts, onOpts, data, onData }: {
+  svc: AppServices; chats: LibraryEntry[]; chat: LibraryEntry; onTab: (id: string) => void; library: LibraryEntry[];
+  opts: ChatPickOpts; onOpts: (o: ChatPickOpts) => void;
+  data: ChatPickData | undefined; onData: (d: ChatPickData) => void;
+}) {
+  const [preview, setPreviewRaw] = useState(() => readLocal("h2.picker.preview") === "on");
+  const setPreview = (v: boolean) => { setPreviewRaw(v); writeLocal("h2.picker.preview", v ? "on" : "off"); };
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (data) return;
+    let live = true;
+    void (async () => {
+      const [info, all] = await Promise.all([loadBranches(svc, chat.id), svc.store.messagesOf(chat.id)]);
+      if (live) onData({ info, messages: new Map(all.map((m) => [m.id, m])) });
+    })().catch(() => { /* the chat is gone: nothing to show */ });
+    return () => { live = false; };
+  }, [chat.id, data]);
+  const list = data ? [...data.info.list].sort((a, b) => b.lastAt - a.lastAt) : [];
+  const newest = list[0];
+  const branch = list.find((b) => b.name === opts.branch) ?? newest;
+  const path = branch ? branch.path.map((id) => data!.messages.get(id)).filter((m): m is Message => !!m) : [];
+  const total = path.length;
+  const from = Math.min(Math.max(1, Number(opts.from) || 1), Math.max(total, 1));
+  const to = Math.max(from, Math.min(total, Number(opts.to) || total));
+  const range = path.slice(from - 1, to);
+  const charName = (id: string) => library.find((e) => e.kind === "character" && e.id === id)?.name ?? "Character";
+  const who = (m: Message) => (m.speaker.kind === "user" ? "User" : m.speaker.kind === "character" ? charName(m.speaker.characterId) : m.speaker.kind === "narrator" ? "Narrator" : "System");
+  const tag = (m: Message) => (m.kind === "ooc" ? "OOC" : m.kind === "event" ? "Event" : m.kind === "direction" ? "Direction" : "") || (m.visibility.ai === "none" ? "Hidden From the AI" : "");
+  const rows = range.length > PREVIEW_MAX ? [...range.slice(0, PREVIEW_MAX / 2), null, ...range.slice(-PREVIEW_MAX / 2)] : range;
+  const ranged = Number(opts.from) > 0 || Number(opts.to) > 0;
+  return (
+    <div className="asst-chatpick" data-testid="assistant-chat-range">
+      <div className="asst-range">
+        {chats.length > 1
+          ? <span className="asst-chatpick-tabs" role="tablist" aria-label="Picked chats">{chats.map((c) => (
+            <button key={c.id} type="button" role="tab" aria-selected={c.id === chat.id} className={c.id === chat.id ? "on" : ""} onClick={() => onTab(c.id)}>{c.name}</button>
+          ))}</span>
+          : <b className="asst-chatpick-name">{chat.name}</b>}
+        {list.length > 1 && (
+          <label className="asst-chatpick-field"><span>Branch</span>
+            <select aria-label="Branch" data-testid="assistant-chat-branch" value={branch?.name ?? ""} onChange={(e) => onOpts({ ...opts, branch: e.target.value })}>
+              {list.map((b) => <option key={b.recordId} value={b.name}>{b.name} · {b.path.length} message{b.path.length === 1 ? "" : "s"}{b === newest ? " · newest" : ""}</option>)}
+            </select></label>
+        )}
+        <span className="asst-chatpick-field"><span>Messages #</span>
+          <input type="number" min={1} max={total || undefined} aria-label="From message" placeholder="1" value={opts.from} onChange={(e) => onOpts({ ...opts, from: e.target.value })} />
+          <span>to #</span>
+          <input type="number" min={1} max={total || undefined} aria-label="To message" placeholder={total ? String(total) : "end"} value={opts.to} onChange={(e) => onOpts({ ...opts, to: e.target.value })} />
+          {ranged && <button type="button" className="link" onClick={() => onOpts({ ...opts, from: "", to: "" })}>All</button>}
+        </span>
+        <span className="grow" />
+        <Button small aria-expanded={preview} onClick={() => setPreview(!preview)} data-testid="assistant-chat-preview-toggle">{preview ? "Hide Preview" : "Preview"}</Button>
+      </div>
+      {preview && (
+        <div className="asst-preview" data-testid="assistant-chat-preview">
+          <div className="asst-preview-head">{!data ? "Loading…" : total === 0 ? "No messages yet."
+            : `${range.length} of ${total} message${total === 1 ? "" : "s"} · #${from}–#${to}${branch && list.length > 1 ? ` · ${branch.name}` : ""}`}</div>
+          <div className="asst-preview-list">
+            {rows.map((m, i) => {
+              if (!m) return <div key="gap" className="asst-preview-gap">· {range.length - PREVIEW_MAX} more messages ·</div>;
+              const n = path.indexOf(m) + 1;
+              const t = tag(m);
+              const full = open.has(m.id);
+              return (
+                <button key={m.id} type="button" className={`asst-preview-msg${full ? " open" : ""}${m.speaker.kind === "user" ? " user" : ""}`} aria-expanded={full}
+                  title={full ? "Show less" : "Show all of it"} onClick={() => setOpen((s) => { const x = new Set(s); if (x.has(m.id)) x.delete(m.id); else x.add(m.id); return x; })}>
+                  <span className="asst-preview-who"><span className="asst-preview-n">#{n}</span> {who(m)}{t && <span className="chip">{t}</span>}</span>
+                  <span className="asst-preview-text">{m.content.trim() || "—"}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContextPicker({ svc, library, folders: libraryFolders = [], picked, onAdd, onClose, startKind, firstIds = [] }: {
+  /** Reads a picked chat's branches and messages (the branch picker and the preview). */ svc: AppServices;
   /** Opens on this tab (Add a Chat… → Chats). */ startKind?: AssistantReadKind | undefined;
   /** Shown first in their tab (the chat you came from). */ firstIds?: string[];
   library: LibraryEntry[]; folders?: Folder[]; picked: Array<Extract<AssistantAttachment, { type: "item" }>>;
@@ -953,13 +1044,27 @@ function ContextPicker({ library, folders: libraryFolders = [], picked, onAdd, o
   /** D-140: a tracker's field set, picked here so the Assistant needn't ask which one (no entry = the whole tracker). */
   const [sets, setSets] = useState<Record<string, string>>(() => Object.fromEntries(picked.filter((p) => p.fieldSet).map((p) => [p.id, p.fieldSet!])));
   const withSets = [...sel.values()].filter((e) => e.kind === "tracker" && (e.sets?.length ?? 0) > 1);
-  /** A chat can be added whole or as a range of its messages (D-110): "#150–#212" goes in its name for the Assistant. */
-  const [ranges, setRanges] = useState<Record<string, { from: string; to: string }>>({});
-  const lastChat = [...sel.values()].reverse().find((e) => e.kind === "chat");
+  /** A chat can be added whole or as a range of its messages (D-110): "#150–#212" goes in its name for the Assistant;
+   *  and on one of its branches (D-155: Daniel couldn't pick one, nor read what was being attached). */
+  const [ranges, setRanges] = useState<Record<string, ChatPickOpts>>(() => Object.fromEntries(picked.filter((p) => p.kind === "chat" && p.branch).map((p) => [p.id, { from: "", to: "", branch: p.branch }])));
+  const [chatData, setChatData] = useState<Record<string, ChatPickData>>({});
+  const pickedChats = [...sel.values()].filter((e) => e.kind === "chat");
+  const [chatTab, setChatTab] = useState<string | null>(null);
+  const activeChat = pickedChats.find((e) => e.id === chatTab) ?? pickedChats[pickedChats.length - 1];
+  /** The branch a chat is added on: the one picked, else the newest (what the Assistant reads by default). */
+  const branchOf = (id: string): string | undefined => {
+    const d = chatData[id];
+    if (!d) return ranges[id]?.branch; // not loaded (its tab not opened): keep what was picked before
+    if (d.info.list.length < 2) return undefined;
+    const want = ranges[id]?.branch;
+    return d.info.list.find((b) => b.name === want)?.name ?? newestBranch(d.info)?.name;
+  };
   const nameOf = (e: LibraryEntry) => {
-    const r = e.kind === "chat" ? ranges[e.id] : undefined;
+    if (e.kind !== "chat") return e.name;
+    const r = ranges[e.id];
     const from = Number(r?.from), to = Number(r?.to);
-    return r && (from > 0 || to > 0) ? `${e.name} · messages #${from > 0 ? from : 1}–${to > 0 ? `#${to}` : "end"}` : e.name;
+    const branch = branchOf(e.id);
+    return `${e.name}${branch ? ` · ${branch}` : ""}${r && (from > 0 || to > 0) ? ` · messages #${from > 0 ? from : 1}–${to > 0 ? `#${to}` : "end"}` : ""}`;
   };
   const counts = useMemo(() => { const c: Partial<Record<AssistantReadKind, number>> = {}; for (const e of library) c[e.kind] = (c[e.kind] ?? 0) + 1; return c; }, [library]);
 
@@ -1075,15 +1180,10 @@ function ContextPicker({ library, folders: libraryFolders = [], picked, onAdd, o
           </div>
         </div>
       </div>
-      {lastChat && (
-        <div className="asst-range" data-testid="assistant-chat-range">
-          <span><b>{lastChat.name}</b>: all messages, or from #</span>
-          <input type="number" min={1} aria-label="From message" placeholder="1" value={ranges[lastChat.id]?.from ?? ""}
-            onChange={(e) => setRanges((r) => ({ ...r, [lastChat.id]: { from: e.target.value, to: r[lastChat.id]?.to ?? "" } }))} />
-          <span>to #</span>
-          <input type="number" min={1} aria-label="To message" placeholder="end" value={ranges[lastChat.id]?.to ?? ""}
-            onChange={(e) => setRanges((r) => ({ ...r, [lastChat.id]: { from: r[lastChat.id]?.from ?? "", to: e.target.value } }))} />
-        </div>
+      {activeChat && (
+        <ChatPick svc={svc} chats={pickedChats} chat={activeChat} onTab={setChatTab} library={library}
+          opts={ranges[activeChat.id] ?? { from: "", to: "" }} onOpts={(o) => setRanges((r) => ({ ...r, [activeChat.id]: o }))}
+          data={chatData[activeChat.id]} onData={(d) => setChatData((x) => ({ ...x, [activeChat.id]: d }))} />
       )}
       {withSets.length > 0 && (
         <div className="asst-sets" data-testid="assistant-field-sets">
@@ -1110,7 +1210,8 @@ function ContextPicker({ library, folders: libraryFolders = [], picked, onAdd, o
         <Button variant="prominent" disabled={!sel.size} data-testid="assistant-picker-add"
           onClick={() => onAdd([...sel.values()].map((e) => {
             const set = e.kind === "tracker" && sets[e.id] && e.sets?.includes(sets[e.id]!) ? sets[e.id] : undefined;
-            return { type: "item", kind: e.kind, id: e.id, name: set ? `${e.name} · ${set}` : nameOf(e), ...(set ? { fieldSet: set } : {}) };
+            const branch = e.kind === "chat" ? branchOf(e.id) : undefined;
+            return { type: "item", kind: e.kind, id: e.id, name: set ? `${e.name} · ${set}` : nameOf(e), ...(set ? { fieldSet: set } : {}), ...(branch ? { branch } : {}) };
           }))}>Add {sel.size || ""}</Button>
       </div>
     </Modal>

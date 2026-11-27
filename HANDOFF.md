@@ -1,5 +1,13 @@
 # HANDOFF — Homunculus 2
 
+## Branch list scrolls; Add Context picks a chat's branch with a preview (2026-11-27) — CLAUDE — D-155
+
+- Daniel: with many branches the old ones were cut off; Add Context couldn't pick a chat's branch nor show what was being attached.
+- Built: the branch popover fits the window and scrolls (Find a branch over 6); Add Context → a picked chat: **Branch**, range, **Preview** (the exact messages, numbered). Attachments carry `branch`.
+- **To try (Windows):** Pull origin → a chat with many branches → ⑂ list scrolls to the oldest. Assistant → + → Add a Chat… → pick it → Branch → Preview → Add.
+- Checks: typecheck; unit tests (997); click tests branch-pick, branches, assistant-context, assistant (25).
+- Changelog line for the next release: "**Branches and Add Context.** A long branch list now scrolls (and has a find box) instead of running off the window. In the Assistant's Add Context, a picked chat lets you choose its **Branch** and **Preview** exactly the messages you are attaching."
+
 ## Model Providers per connection (OpenRouter and nano-gpt routing) (2026-11-27) — CLAUDE — D-154
 
 - Daniel: add SillyTavern's "Model Providers" so he can pick who runs a model on both nano-gpt and OpenRouter. (Context: nano-gpt paused Flex on Gemini 3.7/3.8 Flash and Gemini 4 Carbon/Argon; their list already says so, D-153 shows it.)

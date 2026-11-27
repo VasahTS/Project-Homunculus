@@ -1782,3 +1782,16 @@ Daniel (translated): "Can you add Model Providers [as in SillyTavern's OpenRoute
 - Tests: provider (body, both list shapes, addresses), core (`profileToConfig`), `connections.e2e.ts` "Model Providers".
 
 Signed: **CLAUDE**.
+
+## D-155 — Long branch lists scroll; Add Context picks a chat's branch and previews it (2026-11-27)
+
+Daniel (translated): "With many branches you can't see the old ones, it gets cut off. You can't pick the branch when adding context in the Assistant (and you can't preview the conversation you're adding — you can't read and know what's being attached; that should be possible)."
+
+- **Branch list** (chat toolbar "⑂ Branch ▾"): the popover is as tall as the room left below it in the window and its rows scroll; the head and the foot (Show Tree, Make a Separate Chat) stay. Over 6 branches, a **Find a branch** box filters by name or last line (Esc clears it, a second Esc closes the list).
+- **Add Context → a picked chat**: the row under the cards now has **Branch** (only when the chat has more than one; newest first, the newest marked, and it is the default — what the Assistant read before), the message range (#from to #to, **All** clears it) and **Preview**. Preview lists exactly the messages that go: numbered as the chat and `read_chat` number them, speaker, OOC / Event / Direction / Hidden From the AI chips, 3 lines each (click to read all), a range over 120 messages shows its first and last 60 around a gap. Preview on/off is remembered. With several chats picked, small tabs switch between them.
+- **What the Assistant gets**: the attachment keeps `branch` (the name, new optional field on item attachments); the chip/name reads "Chat · Branch 15 · messages #2–end", and the added-item line tells the model to read that branch (`read_chat` with `branch`). No branch = as before.
+- The Add Context sheet now has a fixed height so the cards area gives way to the chat row and preview; its footer no longer slides 20px under the edge.
+- Tests: `e2e/branch-pick.e2e.ts`.
+
+Signed: **CLAUDE**.
+
